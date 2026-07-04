@@ -278,7 +278,6 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
       property: 'opacity',
       time: playheadTime,
       value: evaluatedOpacity,
-      interpolation: 'linear',
     });
   }, [evaluatedOpacity, keyframes, playheadTime]);
 
@@ -352,7 +351,6 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         property: 'opacity',
         time: playheadTime,
         value,
-        interpolation: 'linear',
       });
     },
     [keyframes, playheadTime, selectedKeyframe]

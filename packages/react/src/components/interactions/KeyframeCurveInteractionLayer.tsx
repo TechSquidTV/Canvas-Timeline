@@ -51,6 +51,13 @@ export interface KeyframeCurveInteractionLayerProps
   keyframeSize?: number;
   /** Bezier control handle square size in CSS pixels. */
   curveHandleSize?: number;
+  /**
+   * Invisible pointer padding in CSS pixels added around each Bezier handle.
+   *
+   * Presses inside the padded area target the curve handle instead of falling
+   * through to lower interaction layers such as the clip layer. Defaults to 8.
+   */
+  hitPadding?: number;
   /** Vertical padding used when mapping keyframe values into a clip row. */
   keyframeValuePadding?: number;
   /** Optional handler for double-click or double-tap gestures on curve handles. */
@@ -105,6 +112,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
       overscanPixels,
       keyframeSize,
       curveHandleSize,
+      hitPadding = 8,
       keyframeValuePadding,
       onCurveHandleDoubleClick,
       getCurveHandleAriaLabel,
@@ -121,6 +129,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
     const { engine } = useTimeline();
     const internalRef = useRef<HTMLDivElement>(null);
     const activeHandleRef = useRef<ActiveCurveHandle | null>(null);
+    const fallbackListenersRef = useRef<(() => void) | null>(null);
     const [hoveredHandle, setHoveredHandle] = useState<HoveredCurveHandle | null>(null);
     const geometry = useMemo(
       () => ({
@@ -187,19 +196,26 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
       [rulerHeight]
     );
 
+    const removeFallbackListeners = useCallback(() => {
+      fallbackListenersRef.current?.();
+      fallbackListenersRef.current = null;
+    }, []);
+
     useEffect(() => {
       return () => {
+        removeFallbackListeners();
         if (activeHandleRef.current) {
           activeHandleRef.current = null;
           cancelKeyframeCurveDrag();
         }
       };
-    }, [cancelKeyframeCurveDrag]);
+    }, [cancelKeyframeCurveDrag, removeFallbackListeners]);
 
     const stopActiveDrag = useCallback(
       (event: PointerEvent | React.PointerEvent, target: HTMLElement) => {
         const active = activeHandleRef.current;
         activeHandleRef.current = null;
+        removeFallbackListeners();
 
         try {
           target.releasePointerCapture(event.pointerId);
@@ -211,7 +227,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
           endKeyframeCurveDrag();
         }
       },
-      [endKeyframeCurveDrag]
+      [endKeyframeCurveDrag, removeFallbackListeners]
     );
 
     const moveActiveDrag = useCallback(
@@ -232,7 +248,11 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
     const handlePointerDown = useCallback(
       (event: React.PointerEvent<HTMLDivElement>, handle: TimelineKeyframeCurveHandle) => {
         onPointerDown?.(event);
-        if (event.defaultPrevented || !handle.canEdit) {
+        if (
+          event.defaultPrevented ||
+          !handle.canEdit ||
+          (event.pointerType !== 'touch' && event.button !== 0)
+        ) {
           return;
         }
 
@@ -253,16 +273,55 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         }
 
         event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
+        event.stopPropagation();
+        engine.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
+
+        const target = event.currentTarget;
         activeHandleRef.current = {
           clipId: handle.clip.id,
           segmentId: handle.segmentId,
           keyframeId: handle.keyframe.id,
           handle: handle.handle,
-          target: event.currentTarget,
+          target,
+        };
+        try {
+          target.setPointerCapture(event.pointerId);
+        } catch {
+          // Document listeners below keep dragging functional if capture is unavailable.
+        }
+
+        removeFallbackListeners();
+        const ownerDocument = target.ownerDocument;
+        const handleDocumentPointerMove = (nativeEvent: PointerEvent) => {
+          if (!activeHandleRef.current) {
+            return;
+          }
+          moveActiveDrag(nativeEvent);
+        };
+        const handleDocumentPointerEnd = (nativeEvent: PointerEvent) => {
+          if (!activeHandleRef.current) {
+            return;
+          }
+          stopActiveDrag(nativeEvent, target);
+        };
+        ownerDocument.addEventListener('pointermove', handleDocumentPointerMove);
+        ownerDocument.addEventListener('pointerup', handleDocumentPointerEnd);
+        ownerDocument.addEventListener('pointercancel', handleDocumentPointerEnd);
+        fallbackListenersRef.current = () => {
+          ownerDocument.removeEventListener('pointermove', handleDocumentPointerMove);
+          ownerDocument.removeEventListener('pointerup', handleDocumentPointerEnd);
+          ownerDocument.removeEventListener('pointercancel', handleDocumentPointerEnd);
         };
       },
-      [engine, onCurveHandleDoubleClick, onPointerDown, startKeyframeCurveDrag]
+      [
+        engine,
+        moveActiveDrag,
+        onCurveHandleDoubleClick,
+        onPointerDown,
+        removeFallbackListeners,
+        startKeyframeCurveDrag,
+        stopActiveDrag,
+      ]
     );
 
     const handlePointerMove = useCallback(
@@ -292,10 +351,11 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         onPointerCancel?.(event);
         if (activeHandleRef.current) {
           activeHandleRef.current = null;
+          removeFallbackListeners();
           cancelKeyframeCurveDrag();
         }
       },
-      [cancelKeyframeCurveDrag, onPointerCancel]
+      [cancelKeyframeCurveDrag, onPointerCancel, removeFallbackListeners]
     );
 
     const handleLostPointerCapture = useCallback(
@@ -338,6 +398,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         {visibleHandles.map((handle) => {
           const active = isSameCurveHandle(activeHandleRef.current, handle);
           const hovered = isSameCurveHandle(hoveredHandle, handle);
+          const pad = Math.max(0, hitPadding);
 
           return (
             <div
@@ -355,9 +416,9 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
               data-hovered={hovered ? 'true' : undefined}
               data-editable={handle.canEdit ? 'true' : undefined}
               style={{
-                transform: `translate(${handle.rect.x}px, ${handle.rect.y - rulerHeight}px)`,
-                width: `${handle.rect.width}px`,
-                height: `${handle.rect.height}px`,
+                transform: `translate(${handle.rect.x - pad}px, ${handle.rect.y - rulerHeight - pad}px)`,
+                width: `${handle.rect.width + pad * 2}px`,
+                height: `${handle.rect.height + pad * 2}px`,
               }}
               onFocus={() => {
                 engine.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
@@ -381,7 +442,16 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               onLostPointerCapture={handleLostPointerCapture}
-            />
+            >
+              <div
+                className="timeline-keyframe-curve-handle-shape"
+                aria-hidden="true"
+                style={{
+                  width: `${handle.rect.width}px`,
+                  height: `${handle.rect.height}px`,
+                }}
+              />
+            </div>
           );
         })}
       </div>

@@ -71,7 +71,9 @@ engine.setClipKeyframe({
 const opacity = engine.getClipPropertyValueAtTime('intro', 'opacity', fromSeconds(3.5));
 ```
 
-`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. Use `updateClipKeyframe()` when you already have a keyframe id, and `removeClipKeyframe()` when your application decides a keyframe should be deleted.
+`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. When you omit `interpolation` for a brand-new keyframe, it inherits the interpolation mode (and Bezier easing) of the previous keyframe in the same property lane, so placing a keyframe mid-segment keeps the segment's easing character instead of resetting it to linear. Use `updateClipKeyframe()` when you already have a keyframe id, and `removeClipKeyframe()` when your application decides a keyframe should be deleted.
+
+`updateClipKeyframe()` merges keyframes that land on the same property/time only for committed edits. Preview updates (`{ commit: false }`, used by drag hooks) never delete a colliding neighbor; the dragged keyframe holds its last non-colliding time instead, so scrubbing a keyframe across another one is non-destructive.
 
 <Callout kind="tip" title="App-owned editing policy">
   Canvas Timeline exposes the primitives for adding, updating, dragging, and removing keyframes, but
@@ -189,7 +191,7 @@ import { CanvasRenderer, Timeline } from '@techsquidtv/canvas-timeline';
 </Timeline.Root>;
 ```
 
-The interaction layer keeps its root `pointer-events: none` and only enables pointer events on visible keyframe handles, so clips remain interactive between handles. Use `keyframeSize`, `keyframeValuePadding`, `getKeyframeAriaLabel`, `onKeyframeDoubleClick`, `onKeyframeDelete`, and `onKeyDown` to adapt the layer for your editor.
+The interaction layer keeps its root `pointer-events: none` and only enables pointer events on visible keyframe handles, so clips remain interactive between handles. Each handle wraps its visual shape in an invisible padded hit target (`hitPadding`, 8px by default) so near-miss presses grab the keyframe instead of starting a clip move or trim on the clip layer underneath. Use `keyframeSize`, `hitPadding`, `keyframeValuePadding`, `getKeyframeAriaLabel`, `onKeyframeDoubleClick`, `onKeyframeDelete`, and `onKeyDown` to adapt the layer for your editor.
 
 Add `Timeline.KeyframeCurveInteractionLayer` when you want optional inline Bezier handles for selected curve segments:
 
@@ -204,7 +206,7 @@ Add `Timeline.KeyframeCurveInteractionLayer` when you want optional inline Bezie
 />
 ```
 
-The curve layer edits only existing Bezier easing data. Apps still decide when to convert a segment to Bezier, when to reset handles, and whether to expose presets, inspector fields, or a separate graph editor.
+The curve layer edits only existing Bezier easing data. Its handles use the same padded hit targets (`hitPadding`), pointer capture with document-level fallback listeners, and select their anchor keyframe when a drag starts. Apps still decide when to convert a segment to Bezier, when to reset handles, and whether to expose presets, inspector fields, or a separate graph editor.
 
 ## Custom Renderers
 

@@ -2164,6 +2164,71 @@ describe('TimelineEngine', () => {
       expect(updateEvent).toHaveBeenCalledTimes(4);
     });
 
+    it('inherits interpolation and easing from the previous keyframe when placing new keyframes', () => {
+      const easing = { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 };
+      const first = engine.setClipKeyframe({
+        clipId: 'clip1',
+        property: 'opacity',
+        time: fromSeconds(4),
+        value: 1,
+      });
+      expect(first?.interpolation).toBe('linear');
+
+      engine.setClipKeyframe({
+        clipId: 'clip1',
+        property: 'opacity',
+        time: fromSeconds(1),
+        value: 0,
+        interpolation: 'bezier',
+        easing,
+      });
+
+      const inherited = engine.setClipKeyframe({
+        clipId: 'clip1',
+        property: 'opacity',
+        time: fromSeconds(2),
+        value: 0.5,
+      });
+      expect(inherited?.interpolation).toBe('bezier');
+      expect(inherited?.easing).toEqual(easing);
+
+      const explicit = engine.setClipKeyframe({
+        clipId: 'clip1',
+        property: 'opacity',
+        time: fromSeconds(3),
+        value: 0.75,
+        interpolation: 'linear',
+      });
+      expect(explicit?.interpolation).toBe('linear');
+      expect(explicit?.easing).toBeUndefined();
+    });
+
+    it('keeps neighboring keyframes when preview updates collide', () => {
+      const track = createKeyframeTrack([createKeyframeClip('kf-clip', 0, 10, [2, 3])]);
+      const previewEngine = new TimelineEngine({ tracks: [track] });
+      const dragged = expectDefined(
+        previewEngine.getClipKeyframes('kf-clip')[1],
+        'dragged keyframe'
+      );
+
+      const preview = previewEngine.updateClipKeyframe(
+        { clipId: 'kf-clip', keyframeId: dragged.id, time: fromSeconds(2) },
+        { commit: false }
+      );
+
+      expect(toSeconds(expectDefined(preview, 'preview keyframe').time)).toBe(3);
+      expect(keyframeSeconds(previewEngine.getClip('kf-clip')?.clip)).toEqual([2, 3]);
+
+      const committed = previewEngine.updateClipKeyframe({
+        clipId: 'kf-clip',
+        keyframeId: dragged.id,
+        time: fromSeconds(2),
+      });
+
+      expect(toSeconds(expectDefined(committed, 'committed keyframe').time)).toBe(2);
+      expect(keyframeSeconds(previewEngine.getClip('kf-clip')?.clip)).toEqual([2]);
+    });
+
     it('keeps bezier easing scoped to bezier keyframes when cloning state', () => {
       const easingEngine = new TimelineEngine({
         tracks: [

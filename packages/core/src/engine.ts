@@ -1319,6 +1319,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
   /**
    * Adds or updates one keyframe by clip, property, and exact timeline time.
+   *
+   * New keyframes created without an explicit `interpolation` inherit the
+   * interpolation mode and Bezier easing of the previous keyframe in the same
+   * property lane, so splitting a segment keeps its easing character. Linear
+   * is used when no previous keyframe exists.
    */
   setClipKeyframe(
     input: TimelineSetClipKeyframeOptions,
@@ -1352,7 +1357,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (input.interpolation !== undefined) {
       keyframe.interpolation = normalizeTimelineKeyframeInterpolation(input.interpolation);
     } else if (existing === undefined) {
-      keyframe.interpolation = 'linear';
+      const previous = this.getPreviousClipKeyframe(found.clip, input.property, time);
+      keyframe.interpolation = normalizeTimelineKeyframeInterpolation(previous?.interpolation);
+      if (keyframe.interpolation === 'bezier' && input.easing === undefined) {
+        keyframe.easing = normalizeTimelineCubicBezier(previous?.easing);
+      }
     }
     if (input.easing !== undefined) {
       keyframe.easing = normalizeTimelineCubicBezier(input.easing);
@@ -1377,6 +1386,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
   /**
    * Updates an existing keyframe.
+   *
+   * Committed updates merge keyframes that land on the same property and
+   * time. Preview updates (`{ commit: false }`) never delete a colliding
+   * neighbor; the keyframe keeps its current time instead, so drag previews
+   * stay non-destructive.
    */
   updateClipKeyframe(
     input: TimelineUpdateClipKeyframeOptions,
@@ -1392,7 +1406,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       return null;
     }
 
-    const nextTime =
+    let nextTime =
       input.time === undefined
         ? keyframe.time
         : this.clampKeyframeTimeToClip(found.clip, input.time);
@@ -1407,7 +1421,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         isSameRationalTime(candidate.time, nextTime)
     );
     if (collision !== undefined) {
-      found.clip.keyframes = found.clip.keyframes.filter((candidate) => candidate !== collision);
+      if (options.commit === false) {
+        // Preview updates (drags) must not destroy neighboring keyframes.
+        nextTime = keyframe.time;
+      } else {
+        found.clip.keyframes = found.clip.keyframes.filter((candidate) => candidate !== collision);
+      }
     }
 
     keyframe.time = cloneRationalTime(nextTime);
@@ -2358,6 +2377,23 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
   private clampKeyframeTimeToClip(clip: Clip, time: RationalTime): RationalTime {
     return minRational(maxRational(time, clip.timelineStart), clip.timelineEnd);
+  }
+
+  private getPreviousClipKeyframe(
+    clip: Clip,
+    property: TimelineKeyframeProperty,
+    time: RationalTime
+  ): TimelineKeyframe | undefined {
+    let previous: TimelineKeyframe | undefined;
+    for (const keyframe of clip.keyframes ?? []) {
+      if (keyframe.property !== property || compareRational(keyframe.time, time) >= 0) {
+        continue;
+      }
+      if (previous === undefined || compareRational(keyframe.time, previous.time) > 0) {
+        previous = keyframe;
+      }
+    }
+    return previous;
   }
 
   private normalizeClipKeyframes(clip: Clip) {

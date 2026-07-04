@@ -63,13 +63,14 @@ export function toggleOpacityKeyframeAtTime(
     return engine.removeClipKeyframe(clipId, existing.id);
   }
 
+  // Omitting interpolation lets new keyframes inherit the previous keyframe's
+  // interpolation mode and easing, keeping the segment's curve character.
   return Boolean(
     engine.setClipKeyframe({
       clipId,
       property: 'opacity',
       time,
       value,
-      interpolation: 'linear',
     })
   );
 }

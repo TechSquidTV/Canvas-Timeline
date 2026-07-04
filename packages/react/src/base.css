@@ -353,6 +353,15 @@
   will-change: transform;
 }
 
+.timeline-keyframe-handle-shape {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
 .timeline-keyframe-curve-interaction-layer {
   position: absolute;
   right: 0;
@@ -384,6 +393,15 @@
   box-sizing: border-box;
   pointer-events: auto;
   will-change: transform;
+}
+
+.timeline-keyframe-curve-handle-shape {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 .timeline-clip-interaction-overlay {
