@@ -383,7 +383,7 @@
   outline-offset: -1.5px;
 }
 
-.timeline-keyframe-handle {
+.timeline-keyframe-handle-shape {
   border: 1px solid var(--timeline-keyframe-stroke);
   background: var(--timeline-keyframe-fill);
   box-shadow: 0 0 0 1px color-mix(in oklch, var(--background) 34%, transparent);
@@ -394,16 +394,16 @@
     opacity 150ms ease;
 }
 
-.timeline-keyframe-handle[data-hovered='true'],
-.timeline-keyframe-handle:focus-visible {
+.timeline-keyframe-handle[data-hovered='true'] .timeline-keyframe-handle-shape,
+.timeline-keyframe-handle:focus-visible .timeline-keyframe-handle-shape {
   border-color: var(--timeline-keyframe-stroke-selected);
   box-shadow:
     0 0 0 1px var(--timeline-keyframe-stroke-selected),
     0 0 0 4px color-mix(in oklch, var(--timeline-keyframe-stroke-selected) 22%, transparent);
 }
 
-.timeline-keyframe-handle[data-selected='true'],
-.timeline-keyframe-handle[data-active='true'] {
+.timeline-keyframe-handle[data-selected='true'] .timeline-keyframe-handle-shape,
+.timeline-keyframe-handle[data-active='true'] .timeline-keyframe-handle-shape {
   border-color: var(--timeline-keyframe-stroke-selected);
   background: var(--timeline-keyframe-fill-selected);
 }
@@ -423,7 +423,7 @@
   opacity: 0.75;
 }
 
-.timeline-keyframe-curve-handle {
+.timeline-keyframe-curve-handle-shape {
   border: 1px solid var(--timeline-keyframe-stroke-selected);
   border-radius: var(--timeline-radius-full);
   background: var(--timeline-panel);
@@ -437,15 +437,15 @@
     opacity 150ms ease;
 }
 
-.timeline-keyframe-curve-handle[data-hovered='true'],
-.timeline-keyframe-curve-handle:focus-visible {
+.timeline-keyframe-curve-handle[data-hovered='true'] .timeline-keyframe-curve-handle-shape,
+.timeline-keyframe-curve-handle:focus-visible .timeline-keyframe-curve-handle-shape {
   background: var(--timeline-keyframe-fill-selected);
   box-shadow:
     0 0 0 1px var(--timeline-keyframe-stroke-selected),
     0 0 0 4px color-mix(in oklch, var(--timeline-keyframe-stroke-selected) 22%, transparent);
 }
 
-.timeline-keyframe-curve-handle[data-active='true'] {
+.timeline-keyframe-curve-handle[data-active='true'] .timeline-keyframe-curve-handle-shape {
   background: var(--timeline-keyframe-fill-selected);
 }
 

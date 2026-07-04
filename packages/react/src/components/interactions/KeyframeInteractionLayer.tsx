@@ -55,6 +55,13 @@ export interface KeyframeInteractionLayerProps
   overscanPixels?: number;
   /** Keyframe affordance square size in CSS pixels. */
   keyframeSize?: number;
+  /**
+   * Invisible pointer padding in CSS pixels added around each keyframe handle.
+   *
+   * Presses inside the padded area target the keyframe instead of falling
+   * through to lower interaction layers such as the clip layer. Defaults to 8.
+   */
+  hitPadding?: number;
   /** Vertical padding used when mapping keyframe values into a clip row. */
   keyframeValuePadding?: number;
   /** Keyboard nudge amount in seconds for left/right arrow keys. Defaults to one 30fps frame. */
@@ -98,6 +105,7 @@ export const KeyframeInteractionLayer = React.forwardRef<
       selectedClipOnly = false,
       overscanPixels,
       keyframeSize,
+      hitPadding = 8,
       keyframeValuePadding,
       keyboardStepSeconds = 1 / 30,
       onKeyframeDoubleClick,
@@ -439,6 +447,7 @@ export const KeyframeInteractionLayer = React.forwardRef<
           const hovered =
             hoveredKeyframe?.clipId === entry.clip.id &&
             hoveredKeyframe.keyframeId === entry.keyframe.id;
+          const pad = Math.max(0, hitPadding);
 
           return (
             <div
@@ -455,9 +464,9 @@ export const KeyframeInteractionLayer = React.forwardRef<
               data-hovered={hovered ? 'true' : undefined}
               data-editable={entry.canEdit ? 'true' : undefined}
               style={{
-                transform: `translate(${entry.rect.x}px, ${entry.rect.y - rulerHeight}px) rotate(45deg)`,
-                width: `${entry.rect.width}px`,
-                height: `${entry.rect.height}px`,
+                transform: `translate(${entry.rect.x - pad}px, ${entry.rect.y - rulerHeight - pad}px)`,
+                width: `${entry.rect.width + pad * 2}px`,
+                height: `${entry.rect.height + pad * 2}px`,
               }}
               onFocus={() => {
                 keyframes.selectKeyframe(entry.clip.id, entry.keyframe.id);
@@ -478,7 +487,16 @@ export const KeyframeInteractionLayer = React.forwardRef<
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               onLostPointerCapture={handleLostPointerCapture}
-            />
+            >
+              <div
+                className="timeline-keyframe-handle-shape"
+                aria-hidden="true"
+                style={{
+                  width: `${entry.rect.width}px`,
+                  height: `${entry.rect.height}px`,
+                }}
+              />
+            </div>
           );
         })}
       </div>

@@ -162,6 +162,90 @@ describe('KeyframeCurveInteractionLayer', () => {
     expect(updatedEasing?.y2).toBeCloseTo(0.4);
   });
 
+  it('renders padded hit targets around exact-size handle shapes', () => {
+    const engine = createEngine();
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <KeyframeCurveInteractionLayer curveHandleSize={8} hitPadding={10} />
+      </TimelineProvider>
+    );
+
+    const segment = engine.getKeyframeCurveSegments({ curveHandleSize: 8 })[0];
+    const handle = container.querySelector('[data-handle="outgoing"]') as HTMLElement;
+    const shape = handle.querySelector('.timeline-keyframe-curve-handle-shape') as HTMLElement;
+    const rect = segment.handles[0].rect;
+
+    expect(handle.style.width).toBe(`${rect.width + 20}px`);
+    expect(handle.style.height).toBe(`${rect.height + 20}px`);
+    expect(handle.style.transform).toContain(`translate(${rect.x - 10}px,`);
+    expect(shape.style.width).toBe(`${rect.width}px`);
+    expect(shape.style.height).toBe(`${rect.height}px`);
+  });
+
+  it('selects the anchor keyframe when a handle drag starts', () => {
+    const engine = createEngine();
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <KeyframeCurveInteractionLayer />
+      </TimelineProvider>
+    );
+
+    const handle = container.querySelector('[data-handle="incoming"]') as HTMLElement;
+    fireEvent.pointerDown(handle, {
+      clientX: 200,
+      clientY: 60,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+    });
+
+    const keyframes = engine.getClipKeyframes('clip-1');
+    expect(keyframes.find((keyframe) => keyframe.id === 'opacity-end')?.selected).toBe(true);
+    expect(keyframes.find((keyframe) => keyframe.id === 'opacity-start')?.selected).toBe(false);
+
+    fireEvent.pointerUp(handle, { pointerType: 'mouse', pointerId: 1 });
+  });
+
+  it('keeps dragging through document listeners when pointer capture is unavailable', () => {
+    const engine = createEngine();
+    Element.prototype.setPointerCapture = () => {
+      throw new Error('capture unavailable');
+    };
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <KeyframeCurveInteractionLayer curveHandleSize={8} />
+      </TimelineProvider>
+    );
+
+    const segment = engine.getKeyframeCurveSegments({ curveHandleSize: 8 })[0];
+    const handle = container.querySelector('[data-handle="incoming"]') as HTMLElement;
+
+    fireEvent.pointerDown(handle, {
+      clientX: segment.handles[1].point.x,
+      clientY: segment.handles[1].point.y,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: segment.startPoint.x + (segment.endPoint.x - segment.startPoint.x) * 0.5,
+      clientY: segment.startPoint.y + (segment.endPoint.y - segment.startPoint.y) * 0.5,
+      pointerType: 'mouse',
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(document, {
+      pointerType: 'mouse',
+      pointerId: 1,
+    });
+
+    const updatedEasing = engine.getClipKeyframes('clip-1')[0].easing;
+    expect(updatedEasing?.x2).toBeCloseTo(0.5);
+    expect(updatedEasing?.y2).toBeCloseTo(0.5);
+  });
+
   it('reports curve handle double-click gestures without built-in policy', () => {
     const engine = createEngine();
     const onCurveHandleDoubleClick = vi.fn();

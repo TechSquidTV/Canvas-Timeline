@@ -121,6 +121,35 @@ describe('KeyframeInteractionLayer', () => {
     expect(startDrag).not.toHaveBeenCalled();
   });
 
+  it('renders padded hit targets around exact-size keyframe shapes', () => {
+    const engine = createEngine();
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <KeyframeInteractionLayer
+          property="opacity"
+          selectedClipOnly
+          keyframeSize={6}
+          hitPadding={9}
+        />
+      </TimelineProvider>
+    );
+
+    const rect = engine
+      .getKeyframeRects({ keyframeSize: 6 })
+      .find((entry) => entry.keyframe.id === 'opacity-middle')?.rect;
+    const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
+    const shape = handle.querySelector('.timeline-keyframe-handle-shape') as HTMLElement;
+
+    expect(rect).toBeDefined();
+    expect(handle.style.width).toBe(`${(rect?.width ?? 0) + 18}px`);
+    expect(handle.style.height).toBe(`${(rect?.height ?? 0) + 18}px`);
+    expect(handle.style.transform).toContain(`translate(${(rect?.x ?? 0) - 9}px,`);
+    expect(handle.style.transform).not.toContain('rotate');
+    expect(shape.style.width).toBe(`${rect?.width ?? 0}px`);
+    expect(shape.style.height).toBe(`${rect?.height ?? 0}px`);
+  });
+
   it('drags a clamped edge keyframe from its actual timeline time', () => {
     const engine = createEngine();
 
