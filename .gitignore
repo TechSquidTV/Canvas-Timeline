@@ -30,5 +30,6 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+assets/.aistudio/
 .DS_Store
 Thumbs.db

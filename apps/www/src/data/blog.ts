@@ -18,7 +18,10 @@ const publishedDateFormatter = new Intl.DateTimeFormat('en-US', {
 });
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
-  const posts = await getCollection('blog', ({ data }) => import.meta.env.DEV || !data.draft);
+  const posts = await getCollection(
+    'blog',
+    (post: BlogPost) => import.meta.env.DEV || !post.data.draft
+  );
 
   return sortBlogPosts(posts);
 }
