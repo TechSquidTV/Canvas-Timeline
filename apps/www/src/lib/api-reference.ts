@@ -1,3 +1,5 @@
+import apiReferenceData from '../../.generated/api-reference.json';
+
 export interface ApiParameter {
   name: string;
   type: string;
@@ -78,19 +80,6 @@ export interface ApiReference {
 }
 
 type JsonObject = { readonly [key: string]: JsonValue };
-
-const apiReferenceModules = import.meta.glob<JsonValue>('../../.generated/api-reference.json', {
-  eager: true,
-  import: 'default',
-});
-const apiReferenceData =
-  apiReferenceModules['../../.generated/api-reference.json'] ??
-  ({
-    generatedAt: '',
-    packages: [],
-    symbols: [],
-    warnings: ['API reference has not been generated.'],
-  } satisfies ApiReference);
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -311,7 +300,9 @@ function parseApiReference(value: JsonValue): ApiReference {
   };
 }
 
-export const apiReference = parseApiReference(apiReferenceData);
+export const apiReference = parseApiReference(
+  apiReferenceData as typeof apiReferenceData & JsonValue
+);
 
 function getApiPackage(slug: string) {
   return apiReference.packages.find((packageDoc) => packageDoc.slug === slug);

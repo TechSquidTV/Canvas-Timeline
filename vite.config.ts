@@ -100,10 +100,10 @@ export default defineConfig({
       ci: [
         'knip',
         'vp run --filter @techsquidtv/canvas-timeline-www docs:registry',
+        'vp run docs:api',
         'vp run repo:typecheck',
         'vp check',
         'vp run custom:rules',
-        'vp run docs:api',
         'vp test run --coverage',
         'node scripts/check-package-coverage.mjs',
       ],
