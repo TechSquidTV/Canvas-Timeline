@@ -1,6 +1,4 @@
 ---
-'@techsquidtv/canvas-timeline': major
-'@techsquidtv/canvas-timeline-renderer': major
 ---
 
 Tighten the renderer theme contract to resolve only documented timeline tokens,
