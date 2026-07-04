@@ -14,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   quality:
@@ -23,6 +24,7 @@ jobs:
 
     env:
       CI: true
+      CLOUDFLARE_PROJECT_NAME: canvas-timeline-www
       PACKAGE_LINE_COVERAGE_MINIMUM: 80
 
     steps:
@@ -66,6 +68,59 @@ jobs:
 
       - name: Validate publishable packages
         run: vp run package:check
+
+      - name: Deploy production docs to Cloudflare Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: deploy-production
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/www
+          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
+
+      - name: Deploy preview docs to Cloudflare Pages
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        id: deploy-preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/www
+          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
+
+      - name: Comment docs preview URL
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy-preview.outputs.deployment-url }}
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_URL: ${{ steps.deploy-preview.outputs.pages-deployment-alias-url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          comment_marker='<!-- canvas-timeline-www-preview -->'
+          preview_url="${PREVIEW_URL:-$DEPLOYMENT_URL}"
+          body="$(printf '%s\n### Docs preview deployed\n\nPreview: %s\n\nLatest deployment: %s' \
+            "$comment_marker" \
+            "$preview_url" \
+            "$DEPLOYMENT_URL")"
+
+          comment_id="$(
+            gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              --jq ".[] | select(.body | startswith(\"$comment_marker\")) | .id" \
+              | head -n 1
+          )"
+
+          if [ -n "$comment_id" ]; then
+            gh api \
+              --method PATCH \
+              "repos/${{ github.repository }}/issues/comments/${comment_id}" \
+              -f body="$body"
+          else
+            gh api \
+              --method POST \
+              "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              -f body="$body"
+          fi
 
       - name: Save Vite Task cache
         if: success()
