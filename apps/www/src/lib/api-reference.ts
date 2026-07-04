@@ -1,5 +1,3 @@
-import apiReferenceData from '../../.generated/api-reference.json';
-
 export interface ApiParameter {
   name: string;
   type: string;
@@ -81,6 +79,19 @@ export interface ApiReference {
 
 type JsonObject = { readonly [key: string]: JsonValue };
 
+const apiReferenceModules = import.meta.glob<JsonValue>('../../.generated/api-reference.json', {
+  eager: true,
+  import: 'default',
+});
+const apiReferenceData =
+  apiReferenceModules['../../.generated/api-reference.json'] ??
+  ({
+    generatedAt: '',
+    packages: [],
+    symbols: [],
+    warnings: ['API reference has not been generated.'],
+  } satisfies ApiReference);
+
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -118,7 +129,7 @@ function readNumber(value: JsonValue | undefined, fieldName: string): number {
 }
 
 function readOptionalString(value: JsonValue | undefined, fieldName: string): string | undefined {
-  if (value === undefined) {
+  if (value === undefined || value === null) {
     return undefined;
   }
 
@@ -156,7 +167,7 @@ function parseApiParameter(value: JsonValue, fieldName: string): ApiParameter {
 
   return {
     name: readString(object.name, `${fieldName}.name`),
-    type: readString(object.type, `${fieldName}.type`),
+    type: readOptionalString(object.type, `${fieldName}.type`) ?? 'unknown',
     optional: readBoolean(object.optional, `${fieldName}.optional`),
     defaultValue: readOptionalString(object.defaultValue, `${fieldName}.defaultValue`),
     summary: readOptionalString(object.summary, `${fieldName}.summary`),

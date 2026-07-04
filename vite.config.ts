@@ -103,6 +103,7 @@ export default defineConfig({
         'vp check',
         'vp run repo:typecheck',
         'vp run custom:rules',
+        'vp run docs:api',
         'vp test run --coverage',
         'node scripts/check-package-coverage.mjs',
       ],
