@@ -27,6 +27,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_PROJECT_NAME: canvas-timeline-www
+      GITHUB_SPONSORS_TOKEN: ${{ secrets.GITHUB_SPONSORS_TOKEN }}
       PACKAGE_LINE_COVERAGE_MINIMUM: 80
 
     steps:
@@ -79,7 +80,7 @@ jobs:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/www
-          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
+          command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
 
       - name: Deploy preview docs to Cloudflare Pages
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
@@ -89,7 +90,7 @@ jobs:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/www
-          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
+          command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
 
       - name: Comment docs preview URL
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.deploy-preview.conclusion == 'success'
