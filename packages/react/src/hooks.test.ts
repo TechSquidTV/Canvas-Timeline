@@ -1598,11 +1598,11 @@ test('useTimelineTrackHeader returns DOM-ready state attributes', () => {
 
   expect(result.current.label).toBe('Video 1');
   expect(result.current.rootProps).toMatchObject({
-    role: 'row',
+    role: 'group',
     'aria-label': 'Video 1',
-    'aria-selected': true,
     'aria-disabled': true,
     'data-track-id': 'video-1',
+    'data-track-selected': 'true',
     'data-track-visible': 'false',
     'data-track-locked': 'true',
     style: { height: '72px' },

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type Track } from '@techsquidtv/canvas-timeline-core';
@@ -55,7 +55,9 @@ describe('Root', () => {
       deltaY: 40,
     });
 
-    root.dispatchEvent(wheelEvent);
+    act(() => {
+      root.dispatchEvent(wheelEvent);
+    });
 
     expect(wheelEvent.defaultPrevented).toBe(true);
     expect(engine.scrollTop).toBe(40);
