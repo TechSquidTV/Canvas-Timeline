@@ -21,16 +21,26 @@ and avoiding duplicate PRs.
    - `git status -sb`
    - `git log --oneline --decorate --max-count=8`
    - `git diff --stat origin/main...HEAD` when the base is `main`
+   - `.github/workflows/*.yml` for required PR checks that apply to the
+     changed files.
+   - Commitlint or repository commit-scope configuration before choosing a PR
+     title or commit message scope.
 2. Identify release-relevant impact by reading only the relevant sections of
    `.github/docs/public-release-checklist.md`.
 3. Confirm the PR has the right release artifact:
    - Package/API changes: add or verify a Changeset.
-   - Non-package changes: add an empty Changeset only when CI requires one.
+   - Non-package changes: add an empty Changeset whenever the Changeset status
+     workflow is required for PRs.
    - Breaking changes before public release: call them out clearly; do not add
      backwards-compatibility aliases or fallback exports.
 4. Run validation proportional to impact. Prefer already-documented Vite+ gates.
-5. Draft a concise PR title and body that names impact, validation, and release
+5. For stacked cleanup PRs, base later PRs on the smallest earlier branch that
+   provides required CI/config fixes instead of duplicating those commits.
+6. Draft a concise PR title and body that names impact, validation, and release
    checklist areas reviewed.
+7. After opening the PR, run `gh pr checks <number>` or inspect the check
+   rollup. If a required check fails, inspect the failing log before declaring
+   the PR ready.
 
 ## Checklist Routing
 
@@ -70,6 +80,13 @@ vp run repo:package:check
 
 Use `vp run ci` for final confidence when time allows or when preparing a
 release-facing PR.
+
+Before opening a PR, validate the PR title locally when commitlint runs on pull
+request titles:
+
+```bash
+printf '%s\n' "<type>(<scope>): <summary>" | vp exec commitlint --verbose
+```
 
 ## PR Body Shape
 
