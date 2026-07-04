@@ -221,25 +221,27 @@ function App() {
     </div>
   </section>
 
-  <section class="homepage-live-demo-section" aria-labelledby="homepage-live-demo-heading">
-    <div class="container-page homepage-live-demo">
-      <div class="homepage-live-demo__intro">
-        <p class="eyebrow">Live editor surface</p>
-        <h2 id="homepage-live-demo-heading">Explore the timeline controls</h2>
-        <p>
-          Scrub playback, set in and out ranges, toggle snapping, and zoom through a source-backed
-          React timeline demo.
-        </p>
-        <a class="button button-secondary" href="/demos/timeline-editor-controls">
-          Open the full demo
-        </a>
-      </div>
-      <div class="homepage-live-demo__stage">
-        <LiveDemoRenderer
-          liveDemoId="editor-controls"
-          category="Controls"
-          client:visible={{ rootMargin: '200px' }}
-        />
+  <section class="py-16 md:py-20 bg-background border-b border-border" aria-label="Interactive timeline demo">
+    <div class="container-page px-4">
+      <!-- Real Timeline Interactive Showcase -->
+      <div class="w-full max-w-5xl mx-auto rounded-xl border border-border bg-card overflow-hidden shadow-xl transition-all duration-300 hover:border-primary/40">
+        <!-- Dashboard Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted select-none">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-destructive opacity-90"></span>
+            <span class="w-3 h-3 rounded-full bg-warning opacity-90"></span>
+            <span class="w-3 h-3 rounded-full bg-success opacity-90"></span>
+          </div>
+          <span class="text-xs font-mono text-muted-foreground tracking-tight">interactive-editor-showcase.tsx</span>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-medium bg-background px-2 py-0.5 rounded border border-border">
+            <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+            Live Demo
+          </div>
+        </div>
+        <!-- Editor Content -->
+        <div class="p-0 bg-background min-h-[220px]">
+          <LiveDemoRenderer liveDemoId="editor-controls" client:only="react" />
+        </div>
       </div>
     </div>
   </section>
