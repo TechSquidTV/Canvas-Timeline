@@ -1,8 +1,11 @@
 import * as Sentry from '@sentry/astro';
 
-Sentry.init({
-  dsn: import.meta.env.PUBLIC_SENTRY_DSN,
-  enableMetrics: true,
-  integrations: [Sentry.browserTracingIntegration()],
-  tracesSampleRate: 1.0,
-});
+const sentryDsn = import.meta.env.PUBLIC_SENTRY_DSN;
+
+if (import.meta.env.PROD && sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    enableMetrics: false,
+    tracesSampleRate: 0,
+  });
+}

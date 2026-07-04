@@ -36,9 +36,8 @@ export function useTimelineTrackHeader<TrackKind extends string = string>(
 
   const rootProps = useMemo<TimelineTrackHeaderRootProps>(
     () => ({
-      role: 'row',
+      role: 'group',
       'aria-label': label,
-      'aria-selected': trackState.selected || undefined,
       'aria-disabled': trackState.locked || undefined,
       'data-track-id': trackId,
       'data-track-kind': trackState.kind ?? undefined,

@@ -3,6 +3,7 @@ import {
   defaultTimelineInteractionGeometry,
   type TimelineTrackGeometryOptions,
 } from '@techsquidtv/canvas-timeline-core';
+import { clamp } from '@techsquidtv/canvas-timeline-utils';
 import {
   useTimelineTrack,
   useTimelineTrackHeader,
@@ -40,7 +41,8 @@ export const TrackHeaderList = React.forwardRef<HTMLDivElement, TrackHeaderListP
       <div
         ref={ref}
         className={['timeline-track-header-list', className].filter(Boolean).join(' ')}
-        role="rowgroup"
+        aria-label="Timeline track headers"
+        role="group"
         style={listStyle}
         {...props}
       >
@@ -117,6 +119,7 @@ export const TrackHeaderResizeHandle = React.forwardRef<
       className = '',
       minHeight = defaultTimelineInteractionGeometry.collapsedTrackHeight,
       maxHeight,
+      onKeyDown,
       onPointerCancel,
       onPointerDown,
       onPointerMove,
@@ -126,6 +129,7 @@ export const TrackHeaderResizeHandle = React.forwardRef<
     ref
   ) => {
     const trackState = useTimelineTrack(trackId, geometry);
+    const currentHeight = trackState.height;
     const resizeState = React.useRef<{
       pointerId: number;
       startHeight: number;
@@ -189,6 +193,54 @@ export const TrackHeaderResizeHandle = React.forwardRef<
       [maxHeight, minHeight, onPointerMove, trackState]
     );
 
+    const handleKeyDown = React.useCallback(
+      (event: React.KeyboardEvent<HTMLDivElement>) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented) {
+          return;
+        }
+
+        const maxTrackHeight = maxHeight ?? Number.POSITIVE_INFINITY;
+        const setHeight = (height: number) => {
+          trackState.setTrackHeight(clamp(height, minHeight, maxTrackHeight));
+        };
+
+        switch (event.key) {
+          case 'ArrowUp':
+          case 'ArrowLeft':
+            event.preventDefault();
+            setHeight(currentHeight - 8);
+            break;
+          case 'ArrowDown':
+          case 'ArrowRight':
+            event.preventDefault();
+            setHeight(currentHeight + 8);
+            break;
+          case 'PageUp':
+            event.preventDefault();
+            setHeight(currentHeight - 24);
+            break;
+          case 'PageDown':
+            event.preventDefault();
+            setHeight(currentHeight + 24);
+            break;
+          case 'Home':
+            event.preventDefault();
+            setHeight(minHeight);
+            break;
+          case 'End':
+            if (maxHeight !== undefined) {
+              event.preventDefault();
+              setHeight(maxHeight);
+            }
+            break;
+          default:
+            break;
+        }
+      },
+      [currentHeight, maxHeight, minHeight, onKeyDown, trackState]
+    );
+
     const handlePointerUp = React.useCallback(
       (event: React.PointerEvent<HTMLDivElement>) => {
         onPointerUp?.(event);
@@ -210,8 +262,13 @@ export const TrackHeaderResizeHandle = React.forwardRef<
         ref={ref}
         aria-label="Resize track"
         aria-orientation="horizontal"
+        aria-valuemin={minHeight}
+        aria-valuemax={maxHeight}
+        aria-valuenow={currentHeight}
+        aria-valuetext={`${currentHeight} pixels`}
         className={['timeline-track-header-resize-handle', className].filter(Boolean).join(' ')}
         data-track-id={trackId}
+        onKeyDown={handleKeyDown}
         onPointerCancel={handlePointerCancel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
