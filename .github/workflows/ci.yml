@@ -93,6 +93,7 @@ jobs:
 
       - name: Comment docs preview URL
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.deploy-preview.conclusion == 'success'
+        continue-on-error: true
         env:
           DEPLOYMENT_URL: ${{ steps.deploy-preview.outputs.deployment-url }}
           GH_TOKEN: ${{ github.token }}
