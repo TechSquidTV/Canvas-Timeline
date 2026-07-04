@@ -61,6 +61,7 @@ describe('timecode utilities', () => {
     // Compound unit entries
     expect(parseTimecode('1h20m')).toBe(4800);
     expect(parseTimecode('1h 20m')).toBe(4800);
+    expect(parseTimecode('1H20M')).toBe(4800);
     expect(parseTimecode('1h 20m 30s')).toBe(4830);
     expect(parseTimecode('1m 30s')).toBe(90);
     expect(parseTimecode('1m30s 500ms')).toBe(90.5);
@@ -69,6 +70,9 @@ describe('timecode utilities', () => {
     // Safety rejections
     expect(parseTimecode('1h 20m invalid')).toBeNull();
     expect(parseTimecode('1h 20')).toBeNull();
+    expect(parseTimecode('1.s')).toBeNull();
+    expect(parseTimecode('1m30s500msx')).toBeNull();
+    expect(parseTimecode(`${'9'.repeat(2_000)}msx`)).toBeNull();
   });
 
   it('optionally rounds parsed input to centiseconds', () => {

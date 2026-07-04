@@ -2,6 +2,13 @@ import type { ReactRegistryItem } from '../data/react-registry';
 import { site } from '../data/site';
 import { buildApiSymbolMarkdown, getApiPackage } from './api-markdown';
 import { getApiSymbol } from './api-reference';
+import {
+  absoluteUrl,
+  markdownCode as code,
+  markdownCodeBlock as codeBlock,
+  markdownTable,
+  normalizeMarkdown,
+} from './markdown-format';
 
 type ReactRegistryMarkdownOptions = {
   siteUrl?: string;
@@ -116,35 +123,4 @@ function deepApiSection(item: ReactRegistryItem, options: ReactRegistryMarkdownO
   });
 
   return ['## Deep API reference', '', ...apiSections];
-}
-
-function markdownTable(headers: string[], rows: string[][]) {
-  return [
-    `| ${headers.map(escapeTableCell).join(' |')} |`,
-    `| ${headers.map(() => ':---').join(' |')} |`,
-    ...rows.map((row) => `| ${row.map(escapeTableCell).join(' |')} |`),
-  ].join('\n');
-}
-
-function escapeTableCell(value: string) {
-  return value.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
-}
-
-function code(value: string) {
-  return `\`${value.replace(/`/g, '\\`')}\``;
-}
-
-function codeBlock(value: string, lang: string) {
-  return `\`\`\`${lang}\n${value.trim()}\n\`\`\``;
-}
-
-function absoluteUrl(path: string, siteUrl: string) {
-  return new URL(path, siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`).toString();
-}
-
-function normalizeMarkdown(value: string) {
-  return `${value
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()}\n`;
 }
