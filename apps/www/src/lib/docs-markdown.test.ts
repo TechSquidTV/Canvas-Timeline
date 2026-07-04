@@ -92,19 +92,47 @@ const value = '<Timeline.Root />';
 
   test('builds docs index Markdown with canonical sibling md links', () => {
     const markdown = buildDocsIndexMarkdown([
-      entry('getting-started', 'Getting Started', 'Install and render your first timeline.', 10),
-      entry('architecture', 'System Architecture', 'Understand the rendering layers.', 20),
+      entry(
+        'architecture',
+        'System Architecture',
+        'Understand the rendering layers.',
+        'concepts',
+        20
+      ),
+      entry(
+        'getting-started',
+        'Getting Started',
+        'Install and render your first timeline.',
+        'intro',
+        10
+      ),
     ]);
 
     expect(markdown).toContain('# Canvas Timeline documentation');
     expect(markdown).toContain('Source: https://canvastimeline.com/docs');
     expect(markdown).toContain('Markdown: https://canvastimeline.com/docs.md');
-    expect(markdown).toContain('[Getting Started](/docs/getting-started)');
+    expect(markdown).toContain('This Markdown file is a generated documentation index.');
+    expect(markdown).toContain(
+      '- **Getting Started** - Install and render your first timeline. [Page](/docs/getting-started) | [Markdown](/docs/getting-started.md)'
+    );
+    expect(markdown).toContain(
+      '- **System Architecture** - Understand the rendering layers. [Page](/docs/architecture) | [Markdown](/docs/architecture.md)'
+    );
+    expect(markdown.indexOf('### Start here')).toBeLessThan(markdown.indexOf('### Concepts'));
+    expect(markdown.indexOf('**Getting Started**')).toBeLessThan(
+      markdown.indexOf('**System Architecture**')
+    );
     expect(markdown).not.toContain('/docs/getting-started/index.md');
   });
 });
 
-function entry(id: string, title: string, description: string, order: number): DocsMarkdownEntry {
+function entry(
+  id: string,
+  title: string,
+  description: string,
+  section: DocsMarkdownEntry['data']['section'],
+  order: number
+): DocsMarkdownEntry {
   return {
     id,
     body: '',
@@ -112,7 +140,7 @@ function entry(id: string, title: string, description: string, order: number): D
       title,
       description,
       order,
-      section: 'intro',
+      section,
     },
   };
 }
