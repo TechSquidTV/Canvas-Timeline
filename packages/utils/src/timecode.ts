@@ -4,8 +4,6 @@ const TIMECODE_CENTISECONDS = 100;
 const TIMECODE_SECONDS_PER_MINUTE = 60;
 const TIMECODE_SECONDS_PER_HOUR = 3600;
 const NUMBER_SEGMENT_PATTERN = /^\d+(?:\.\d+)?$/;
-const COMPOUND_UNIT_PATTERN =
-  /(?<value>\d+(?:\.\d+)?)\s*(?<unit>milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|frames?|fr|f)/gi;
 const FRAME_TIMECODE_PATTERN = /^(\d+)\s*:\s*(\d+)\s*:\s*(\d+)\s*([:;])\s*(\d+)$/;
 const DROP_FRAME_RATE_RATIO = 1000 / 1001;
 const DROP_FRAME_RATE_TOLERANCE = 0.001;
@@ -105,6 +103,21 @@ interface NormalizedFrameRate {
   nominal: number;
   dropFrames: number;
 }
+
+type CompoundTimecodeUnit = 'milliseconds' | 'seconds' | 'minutes' | 'hours' | 'frames';
+
+interface CompoundTimecodeUnitMatch {
+  unit: CompoundTimecodeUnit;
+  nextIndex: number;
+}
+
+const COMPOUND_TIMECODE_UNITS: readonly [CompoundTimecodeUnit, readonly string[]][] = [
+  ['milliseconds', ['milliseconds', 'millisecond', 'msecs', 'msec', 'ms']],
+  ['seconds', ['seconds', 'second', 'secs', 'sec', 's']],
+  ['minutes', ['minutes', 'minute', 'mins', 'min', 'm']],
+  ['hours', ['hours', 'hour', 'hrs', 'hr', 'h']],
+  ['frames', ['frames', 'frame', 'fr', 'f']],
+];
 
 function pad(number: number, width: number) {
   return number.toString().padStart(width, '0');
@@ -361,6 +374,98 @@ function validateTimebase(timebase: number) {
   }
 }
 
+function readCompoundTimecodeUnit(value: string, index: number): CompoundTimecodeUnitMatch | null {
+  const remaining = value.slice(index).toLowerCase();
+
+  for (const [unit, candidates] of COMPOUND_TIMECODE_UNITS) {
+    const match = candidates.find((candidate) => remaining.startsWith(candidate));
+
+    if (match) {
+      return { unit, nextIndex: index + match.length };
+    }
+  }
+
+  return null;
+}
+
+function parseCompoundTimecodeNumber(value: string, index: number) {
+  let nextIndex = index;
+
+  while (nextIndex < value.length && isAsciiDigit(value[nextIndex])) {
+    nextIndex += 1;
+  }
+
+  if (nextIndex === index) {
+    return null;
+  }
+
+  if (value[nextIndex] === '.') {
+    const decimalStart = nextIndex + 1;
+    nextIndex = decimalStart;
+
+    while (nextIndex < value.length && isAsciiDigit(value[nextIndex])) {
+      nextIndex += 1;
+    }
+
+    if (nextIndex === decimalStart) {
+      return null;
+    }
+  }
+
+  return {
+    value: value.slice(index, nextIndex),
+    nextIndex,
+  };
+}
+
+function parseCompoundTimecode(value: string, options: TimecodeParseOptions) {
+  const input = value.replace(/\s+/g, '');
+  let index = 0;
+  let totalSeconds = 0;
+  let parsedUnitCount = 0;
+
+  while (index < input.length) {
+    const numberMatch = parseCompoundTimecodeNumber(input, index);
+
+    if (!numberMatch) {
+      return parsedUnitCount > 0 ? null : undefined;
+    }
+
+    const unitMatch = readCompoundTimecodeUnit(input, numberMatch.nextIndex);
+
+    if (!unitMatch) {
+      return parsedUnitCount > 0 ? null : undefined;
+    }
+
+    const numericValue = Number(numberMatch.value);
+
+    if (unitMatch.unit === 'milliseconds') {
+      totalSeconds += numericValue / 1000;
+    } else if (unitMatch.unit === 'seconds') {
+      totalSeconds += numericValue;
+    } else if (unitMatch.unit === 'minutes') {
+      totalSeconds += numericValue * TIMECODE_SECONDS_PER_MINUTE;
+    } else if (unitMatch.unit === 'hours') {
+      totalSeconds += numericValue * TIMECODE_SECONDS_PER_HOUR;
+    } else {
+      if (options.frameRate === undefined) {
+        return null;
+      }
+
+      totalSeconds += numericValue / getFrameRateValue(options.frameRate);
+    }
+
+    parsedUnitCount += 1;
+    index = unitMatch.nextIndex;
+  }
+
+  return parsedUnitCount > 0 ? totalSeconds : undefined;
+}
+
+function isAsciiDigit(value: string | undefined) {
+  return value !== undefined && value >= '0' && value <= '9';
+}
+
 /**
  * Formats seconds for flexible editable timecode text.
  *
@@ -444,46 +549,9 @@ export function parseTimecode(value: string, options: TimecodeParseOptions = {})
     return null;
   }
 
-  const suffixMatches = [...trimmed.matchAll(COMPOUND_UNIT_PATTERN)];
-  if (suffixMatches.length > 0) {
-    const matchedText = suffixMatches
-      .map((m) => m[0])
-      .join('')
-      .replace(/\s+/g, '');
-    const cleanedInput = trimmed.replace(/\s+/g, '');
-
-    if (matchedText === cleanedInput) {
-      let totalSeconds = 0;
-      for (const match of suffixMatches) {
-        if (!match.groups) {
-          continue;
-        }
-        const { value: numericStr, unit } = match.groups;
-        const numericValue = Number(numericStr);
-        const unitLower = unit.toLowerCase();
-
-        if (unitLower.startsWith('ms') || unitLower.startsWith('milli')) {
-          totalSeconds += numericValue / 1000;
-        } else if (unitLower === 'm' || unitLower.startsWith('min')) {
-          totalSeconds += numericValue * 60;
-        } else if (
-          unitLower === 'h' ||
-          unitLower.startsWith('hr') ||
-          unitLower.startsWith('hour')
-        ) {
-          totalSeconds += numericValue * 3600;
-        } else if (unitLower.startsWith('f')) {
-          if (options.frameRate === undefined) {
-            return null;
-          }
-          const frameRateValue = getFrameRateValue(options.frameRate);
-          totalSeconds += numericValue / frameRateValue;
-        } else {
-          totalSeconds += numericValue;
-        }
-      }
-      return applyTimecodeParseRounding(totalSeconds, options);
-    }
+  const compoundSeconds = parseCompoundTimecode(trimmed, options);
+  if (compoundSeconds !== undefined) {
+    return compoundSeconds === null ? null : applyTimecodeParseRounding(compoundSeconds, options);
   }
 
   const frameSeconds = parseFrameTimecode(trimmed, options);

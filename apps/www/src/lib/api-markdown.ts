@@ -9,6 +9,13 @@ import {
   type ApiSymbol,
   type ApiTypeParameter,
 } from './api-reference';
+import {
+  absoluteUrl,
+  markdownCode as code,
+  markdownCodeBlock as codeBlock,
+  markdownTable,
+  normalizeMarkdown,
+} from './markdown-format';
 import { site } from '../data/site';
 
 type ApiMarkdownOptions = {
@@ -252,26 +259,6 @@ function formatApiMarkdownPage(page: ApiMarkdownPage, options: ApiMarkdownOption
   return normalizeMarkdown(`# ${page.title}\n\n${metadata}\n\n${page.body}`);
 }
 
-function markdownTable(headers: string[], rows: string[][]) {
-  return [
-    `| ${headers.map(escapeTableCell).join(' |')} |`,
-    `| ${headers.map(() => ':---').join(' |')} |`,
-    ...rows.map((row) => `| ${row.map(escapeTableCell).join(' |')} |`),
-  ].join('\n');
-}
-
-function escapeTableCell(value: string) {
-  return value.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
-}
-
-function code(value: string) {
-  return `\`${value.replace(/`/g, '\\`')}\``;
-}
-
-function codeBlock(value: string, lang: string) {
-  return `\`\`\`${lang}\n${value.trim()}\n\`\`\``;
-}
-
 function formatExample(example: string) {
   const trimmedExample = example.trim();
 
@@ -280,15 +267,4 @@ function formatExample(example: string) {
 
 function titleCase(value: string) {
   return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function absoluteUrl(path: string, siteUrl: string) {
-  return new URL(path, siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`).toString();
-}
-
-function normalizeMarkdown(value: string) {
-  return `${value
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()}\n`;
 }
