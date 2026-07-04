@@ -1,0 +1,63 @@
+name: Canary Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'snapshot dist-tag to validate'
+        required: true
+        default: 'canary'
+
+concurrency:
+  group: canary-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Validate snapshot packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run quality checks
+        run: vp run ci
+
+      - name: Version snapshot packages
+        run: vp exec changeset version --snapshot ${{ inputs.tag }}
+
+      - name: Build packages
+        run: vp run build:packages
+
+      - name: Validate publishable packages
+        run: vp run package:check
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}

@@ -1,0 +1,146 @@
+---
+import CodeBlock from '@/components/CodeBlock.astro';
+import DocsLayout from '@/layouts/DocsLayout.astro';
+import { createDocsArticleStructuredData } from '@/lib/structured-data';
+
+const title = 'Canvas Timeline documentation';
+const description = 'Guides, package notes, interactive demos, and generated references for the Canvas Timeline package family.';
+const structuredData = createDocsArticleStructuredData({
+  title,
+  description,
+  url: '/docs',
+  keywords: ['Canvas Timeline', 'documentation', 'React timeline editor'],
+});
+---
+
+<DocsLayout
+  title={title}
+  description={description}
+  currentSlug=""
+  markdownHref="/docs.md"
+  structuredData={structuredData}
+>
+  <div class="docs-home">
+    <section class="docs-home__intro">
+      <p>
+        Welcome to the documentation for <strong>Canvas Timeline</strong>. This library is designed to make it simple to build high-performance, frame-accurate, and fully customizable video, audio, or animation timelines in React.
+      </p>
+      
+      <CodeBlock
+        code="pnpm add @techsquidtv/canvas-timeline"
+        variant="terminal"
+        class="docs-home__install-code"
+      />
+    </section>
+
+    <section class="docs-home__grid-section">
+      <h2>Where to start?</h2>
+      <p>Follow a curated path depending on your goals and familiarity with the library:</p>
+      
+      <div class="docs-index__grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+        <a class="docs-card" href="/docs/getting-started">
+          <div>
+            <h3>🚀 Getting Started</h3>
+            <p>Learn how to install the packages, create a timeline engine instance, and render a basic interactive timeline surface in React.</p>
+          </div>
+          <div class="package-card__footer" style="margin-top: 1.25rem;">
+            <span>Read guide</span>
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+            </svg>
+          </div>
+        </a>
+
+        <a class="docs-card" href="/docs/architecture">
+          <div>
+            <h3>🧩 System Architecture</h3>
+            <p>Understand the serializable state model, rendering layer boundaries, and how to decouple your heavy media metadata from timeline state.</p>
+          </div>
+          <div class="package-card__footer" style="margin-top: 1.25rem;">
+            <span>Learn architecture</span>
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+            </svg>
+          </div>
+        </a>
+
+        <a class="docs-card" href="/docs/packages-overview">
+          <div>
+            <h3>📦 Package Boundaries</h3>
+            <p>Explore the monorepo sub-packages (Core, React hooks, Canvas Renderer, Time Utils) and learn when to split or drop down for customizations.</p>
+          </div>
+          <div class="package-card__footer" style="margin-top: 1.25rem;">
+            <span>Explore packages</span>
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+            </svg>
+          </div>
+        </a>
+
+        <a class="docs-card" href="/docs/demos-overview">
+          <div>
+            <h3>🎮 Live Demos</h3>
+            <p>Explore fully interactive, source-backed timeline configurations (basic timelines and media adapter sync demos) and inspect their code tabs.</p>
+          </div>
+          <div class="package-card__footer" style="margin-top: 1.25rem;">
+            <span>Browse demos</span>
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+            </svg>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="docs-home__pillars">
+      <h2>Architectural Pillars</h2>
+      <p>Canvas Timeline is built from the ground up around four main design principles:</p>
+      
+      <div style="display: grid; gap: 1.5rem; margin-top: 1.5rem;">
+        <div style="border-left: 3px solid var(--primary); padding-left: 1rem;">
+          <h3 style="margin: 0 0 0.25rem 0;">State-First Serialization</h3>
+          <p style="margin: 0; font-size: 0.95rem; color: var(--muted-foreground);">
+            The timeline is modeled as a pure serializable JSON state. This structure makes features like infinite undo/redo, real-time collaboration, and sequence saving simple to implement.
+          </p>
+        </div>
+
+        <div style="border-left: 3px solid var(--primary); padding-left: 1rem;">
+          <h3 style="margin: 0 0 0.25rem 0;">Precision via RationalTime</h3>
+          <p style="margin: 0; font-size: 0.95rem; color: var(--muted-foreground);">
+            All time values are stored as fractions (integers value and rate). This eliminates floating-point rounding errors that accumulate over large audio/video editing sequences.
+          </p>
+        </div>
+
+        <div style="border-left: 3px solid var(--primary); padding-left: 1rem;">
+          <h3 style="margin: 0 0 0.25rem 0;">Canvas-Driven High Performance</h3>
+          <p style="margin: 0; font-size: 0.95rem; color: var(--muted-foreground);">
+            Visual components (tracks, ruler, markers, clips) are drawn on double-buffered HTML5 Canvas. Drawing keeps rendering at a smooth 60fps even with hundreds of clips on screen.
+          </p>
+        </div>
+
+        <div style="border-left: 3px solid var(--primary); padding-left: 1rem;">
+          <h3 style="margin: 0 0 0.25rem 0;">Frictionless React Hooks</h3>
+          <p style="margin: 0; font-size: 0.95rem; color: var(--muted-foreground);">
+            Low-frequency overlays, drag-handles, inspectors, and menus are built in standard React. Our state provider handles automatic reactivity so your components stay in sync.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="docs-home__shortcuts">
+      <h2>Reference & Code Details</h2>
+      <p>Looking for generated API references or details on individual workspaces?</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+        <a class="docs-card" href="/packages" style="padding: 1.25rem;">
+          <h3 style="font-size: 1rem; margin-bottom: 0.25rem;">📦 Package Details</h3>
+          <p style="font-size: 0.85rem;">View separate sub-packages documentation.</p>
+        </a>
+        <a class="docs-card" href="/packages" style="padding: 1.25rem;">
+          <h3 style="font-size: 1rem; margin-bottom: 0.25rem;">🔍 Generated API Reference</h3>
+          <p style="font-size: 0.85rem;">Choose a package, then open its generated TypeDoc symbols.</p>
+        </a>
+      </div>
+    </section>
+  </div>
+</DocsLayout>

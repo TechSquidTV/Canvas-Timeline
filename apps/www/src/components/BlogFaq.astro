@@ -1,0 +1,28 @@
+---
+interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+interface Props {
+  items: FaqItem[];
+}
+
+const { items } = Astro.props;
+---
+
+{
+  items.length > 0 ? (
+    <section class="blog-faq" aria-labelledby="blog-faq-heading">
+      <h2 id="blog-faq-heading">Frequently asked questions</h2>
+      <div class="blog-faq__items">
+        {items.map((item) => (
+          <details class="blog-faq__item">
+            <summary>{item.question}</summary>
+            <p>{item.answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  ) : null
+}

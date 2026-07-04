@@ -1,0 +1,96 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import {
+  formatBlogDate,
+  getBlogPostImage,
+  getBlogPostUrl,
+  getBlogPosts,
+  getReadingMinutes,
+} from '@/data/blog';
+import { createBlogIndexStructuredData } from '@/lib/structured-data';
+
+const posts = await getBlogPosts();
+const [featuredPost, ...recentPosts] = posts;
+const title = 'Canvas Timeline Blog';
+const description =
+  'Engineering notes, release writeups, and practical guides for building high-performance React timeline editors with Canvas Timeline.';
+const structuredData = createBlogIndexStructuredData(posts);
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Blog' },
+  ]}
+  structuredData={structuredData}
+>
+  <section class="blog-hero">
+    <div class="container-page blog-hero__inner">
+      <div>
+        <p class="eyebrow">Engineering blog</p>
+        <h1>Canvas Timeline Blog</h1>
+      </div>
+      <p class="blog-hero__description">{description}</p>
+    </div>
+  </section>
+
+  <section class="blog-index">
+    <div class="container-page blog-index__inner">
+      {
+        featuredPost ? (
+          <a class="blog-featured" href={getBlogPostUrl(featuredPost)}>
+            <div class="blog-featured__content">
+              <span class="blog-card__label">Featured</span>
+              <h2>{featuredPost.data.title}</h2>
+              <p>{featuredPost.data.description}</p>
+              <div class="blog-meta" aria-label="Post metadata">
+                <time datetime={featuredPost.data.publishDate.toISOString()}>
+                  {formatBlogDate(featuredPost.data.publishDate)}
+                </time>
+                <span>{getReadingMinutes(featuredPost.body)} min read</span>
+              </div>
+            </div>
+            <div class="blog-featured__visual" aria-hidden="true">
+              <img
+                src={getBlogPostImage(featuredPost).src}
+                alt=""
+                width={getBlogPostImage(featuredPost).width}
+                height={getBlogPostImage(featuredPost).height}
+                loading="eager"
+                decoding="async"
+              />
+            </div>
+          </a>
+        ) : (
+          <p class="blog-empty">No posts published yet.</p>
+        )
+      }
+
+      {
+        recentPosts.length > 0 ? (
+          <div class="blog-grid" aria-label="Recent blog posts">
+            {recentPosts.map((post) => (
+              <a class="blog-card" href={getBlogPostUrl(post)}>
+                <div class="blog-card__tags" aria-label="Tags">
+                  {post.data.tags.slice(0, 2).map((tag) => (
+                    <span>{tag}</span>
+                  ))}
+                </div>
+                <h2>{post.data.title}</h2>
+                <p>{post.data.description}</p>
+                <div class="blog-meta" aria-label="Post metadata">
+                  <time datetime={post.data.publishDate.toISOString()}>
+                    {formatBlogDate(post.data.publishDate)}
+                  </time>
+                  <span>{getReadingMinutes(post.body)} min read</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : null
+      }
+    </div>
+  </section>
+</BaseLayout>

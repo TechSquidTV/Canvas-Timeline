@@ -1,0 +1,53 @@
+---
+import { renderExpressiveCode } from '@/lib/expressive-code';
+
+interface Props {
+  code: string;
+  lang?: string;
+  title?: string;
+  variant?: 'code' | 'terminal';
+  chrome?: boolean;
+  collapse?: string | string[];
+  collapseStyle?: 'github' | 'collapsible-start' | 'collapsible-end' | 'collapsible-auto';
+  class?: string;
+}
+
+const {
+  code,
+  lang = 'plaintext',
+  title,
+  variant = 'code',
+  chrome = true,
+  collapse,
+  collapseStyle,
+} = Astro.props;
+const className = Astro.props.class;
+const resolvedLang = variant === 'terminal' && lang === 'plaintext' ? 'shell' : lang;
+const resolvedTitle = title ?? (variant === 'terminal' ? 'terminal' : undefined);
+const escapeMetaString = (value: string) => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+const collapseRanges = Array.isArray(collapse) ? collapse.join(',') : collapse;
+const meta = [
+  `frame="${variant}"`,
+  resolvedTitle ? `title="${escapeMetaString(resolvedTitle)}"` : null,
+  collapseRanges ? `collapse={${collapseRanges}}` : null,
+  collapseStyle ? `collapseStyle="${collapseStyle}"` : null,
+]
+  .filter(Boolean)
+  .join(' ');
+const renderedHtml = await renderExpressiveCode({
+  code,
+  lang: resolvedLang,
+  meta: chrome ? meta : 'frame="none"',
+  sourceUrl: Astro.url.href,
+});
+---
+
+{
+  chrome ? (
+    <div class:list={['code-block', `code-block--${variant}`, className]}>
+      <Fragment set:html={renderedHtml} />
+    </div>
+  ) : (
+    <Fragment set:html={renderedHtml} />
+  )
+}

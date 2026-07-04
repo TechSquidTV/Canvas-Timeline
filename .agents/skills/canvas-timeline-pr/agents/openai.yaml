@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Canvas Timeline PR'
+  short_description: 'Prepare release-aware pull requests'
+  default_prompt: 'Use $canvas-timeline-pr to prepare a Canvas Timeline pull request against the public release checklist.'

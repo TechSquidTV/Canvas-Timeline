@@ -1,0 +1,41 @@
+---
+import ComponentPreview from '@/components/react-registry/ComponentPreview.astro';
+import ComponentSource from '@/components/react-registry/ComponentSource.astro';
+import RegistryApiReference from '@/components/react-registry/RegistryApiReference.astro';
+import RegistryExamples from '@/components/react-registry/RegistryExamples.astro';
+import RegistryInstall from '@/components/react-registry/RegistryInstall.astro';
+import RegistryNotes from '@/components/react-registry/RegistryNotes.astro';
+import {
+  getReactRegistryItem,
+  getReactRegistryPageSections,
+} from '@/data/react-registry';
+
+interface Props {
+  registryKey: string;
+  showPreviewCaption?: boolean;
+}
+
+const { registryKey, showPreviewCaption = true } = Astro.props;
+const item = getReactRegistryItem(registryKey);
+
+if (!item) {
+  throw new Error(`Unknown React registry page sections: ${registryKey}`);
+}
+
+const sections = getReactRegistryPageSections(item);
+---
+
+<ComponentPreview registryKey={registryKey} showCaption={showPreviewCaption} />
+
+{
+  sections.map((section) => (
+    <section class="registry-mdx-section" aria-labelledby={section.id}>
+      <h2 id={section.id}>{section.label}</h2>
+      {section.id === 'installation' && <RegistryInstall registryKey={registryKey} />}
+      {section.id === 'usage' && <ComponentSource registryKey={registryKey} />}
+      {section.id === 'examples' && <RegistryExamples registryKey={registryKey} />}
+      {section.id === 'notes' && <RegistryNotes registryKey={registryKey} />}
+      {section.id === 'api-reference' && <RegistryApiReference registryKey={registryKey} />}
+    </section>
+  ))
+}

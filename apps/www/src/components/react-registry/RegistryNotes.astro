@@ -1,0 +1,66 @@
+---
+import { reactRegistryItems } from '@/data/react-registry';
+
+interface Props {
+  registryKey: string;
+}
+
+const { registryKey } = Astro.props;
+const item = reactRegistryItems.find((candidate) => candidate.slug === registryKey);
+const notes = item?.notes ?? [];
+
+if (!item) {
+  throw new Error(`Unknown React registry notes: ${registryKey}`);
+}
+
+type NoteInlinePart =
+  | { kind: 'text'; value: string }
+  | { kind: 'code'; value: string };
+
+function splitInlineCode(value: string): NoteInlinePart[] {
+  const parts: NoteInlinePart[] = [];
+  let cursor = 0;
+  let codeStart = value.indexOf('`');
+
+  while (codeStart !== -1) {
+    const codeEnd = value.indexOf('`', codeStart + 1);
+
+    if (codeEnd === -1) {
+      break;
+    }
+
+    if (codeStart > cursor) {
+      parts.push({ kind: 'text', value: value.slice(cursor, codeStart) });
+    }
+
+    const codeValue = value.slice(codeStart + 1, codeEnd);
+
+    if (codeValue) {
+      parts.push({ kind: 'code', value: codeValue });
+    }
+
+    cursor = codeEnd + 1;
+    codeStart = value.indexOf('`', cursor);
+  }
+
+  if (cursor < value.length) {
+    parts.push({ kind: 'text', value: value.slice(cursor) });
+  }
+
+  return parts;
+}
+---
+
+{
+  notes.length > 0 && (
+    <ul class="registry-note-list">
+      {notes.map((note) => (
+        <li>
+          {splitInlineCode(note).map((part) =>
+            part.kind === 'code' ? <code>{part.value}</code> : part.value
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}

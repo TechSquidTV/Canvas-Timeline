@@ -1,0 +1,52 @@
+{
+  "name": "@techsquidtv/canvas-timeline-utils",
+  "version": "0.0.1",
+  "license": "MPL-2.0",
+  "description": "Shared rational time and math utilities for Canvas Timeline libraries.",
+  "type": "module",
+  "homepage": "https://canvastimeline.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "directory": "packages/utils"
+  },
+  "keywords": [
+    "timeline",
+    "video-editor",
+    "timecode",
+    "rational-time",
+    "canvas-timeline"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./math": {
+      "types": "./dist/math.d.ts",
+      "import": "./dist/math.js"
+    },
+    "./time": {
+      "types": "./dist/time.d.ts",
+      "import": "./dist/time.js"
+    },
+    "./timecode": {
+      "types": "./dist/timecode.d.ts",
+      "import": "./dist/timecode.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch --no-clean",
+    "clean": "rm -rf dist"
+  }
+}

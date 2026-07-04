@@ -1,0 +1,262 @@
+---
+title: Styling & variables
+description: Theme Canvas Timeline with shadcn-compatible CSS tokens and renderer theme options.
+section: concepts
+order: 26
+---
+
+## Styling model
+
+Canvas Timeline keeps high-density visuals on the canvas renderer so scroll,
+zoom, and playback stay fast. CSS still controls the lower-count DOM pieces
+around that canvas.
+
+| Surface                  | Styled by       | Examples                                                                    |
+| :----------------------- | :-------------- | :-------------------------------------------------------------------------- |
+| Canvas visuals           | Renderer theme  | Clip fills, clip labels, track lanes, ruler ticks, markers, snap lines.     |
+| Interaction layers       | Library CSS     | Scrollbar parts, playhead grabbers, In/Out grabbers, active clip handles.   |
+| Track headers            | Library CSS     | Optional DOM track header rows, state styling, and resize handles.          |
+| Timeline shell utilities | Library CSS     | Optional timeline shell, stage, scrollbar row, and control utility classes. |
+| Product and page chrome  | Application CSS | Page layout, media previews, inspectors, menus, panels, dialogs.            |
+| Timeline data color      | Timeline state  | `clip.color` values used for category or media-specific clip colors.        |
+
+This split keeps the editor performance model intact: CSS can follow your app
+theme, but clips, tracks, rulers, markers, and similarly dense visuals do not
+become hundreds of DOM nodes.
+
+`Timeline.ClipInteractionLayer` follows the same boundary. It renders one
+hovered, selected, or actively edited clip affordance and uses pointer capture
+for the active edit. CSS variables can style that one affordance, but repeated
+clip bodies, labels, and selected borders remain canvas-painted.
+
+For advanced customization of the canvas drawing pipeline (including overrides, custom canvas layers, and theme/metrics configuration), see the [Canvas renderer customization](/docs/renderer-customization) guide.
+
+---
+
+## Stylesheet entrypoints
+
+Canvas Timeline follows shadcn's ownership model: your app defines semantic
+tokens, and package components consume them. Because this is a packaged
+component library rather than copied source, the components also need a small
+mechanics stylesheet for layout, hit targets, pointer behavior, canvas sizing,
+grabbers, scrollbars, intrinsic affordance shapes, and accessibility helpers.
+
+For the clearest shadcn-like split, import the mechanical layer and the
+token-consuming style layer explicitly:
+
+```tsx
+import '@techsquidtv/canvas-timeline/base.css';
+import '@techsquidtv/canvas-timeline/theme.css';
+```
+
+`base.css` contains required geometry, stacking, pointer behavior, hit-area
+rules, and intrinsic affordance shapes only. It is not a visual theme: it does
+not set colors, borders, shadows, typography, focus treatment, or theme radii.
+Import it by itself only when your app provides every visual rule for the DOM
+chrome:
+
+```tsx
+import '@techsquidtv/canvas-timeline/base.css';
+```
+
+`theme.css` contains shadcn-token-driven visual treatment for package-owned DOM
+interaction chrome, optional timeline shell/control utility classes, and the
+timeline variables that the canvas renderer resolves. It consumes app-owned
+tokens such as `--background`, `--foreground`, `--border`, `--input`, and
+`--ring`; it does not define those app theme tokens for you.
+
+`styles.css` is only the bundled import of those two package layers:
+
+```tsx
+import '@techsquidtv/canvas-timeline/styles.css';
+```
+
+---
+
+## CSS variables
+
+`theme.css` expects tokens such as `--background`, `--foreground`, `--border`,
+`--input`, `--ring`, `--primary`, `--muted`, `--muted-foreground`, `--accent`,
+`--destructive`, `--radius`, `--font-sans`, and `--font-mono`.
+
+Apps that do not use shadcn should define the same semantic tokens before using
+`theme.css`, or set explicit `--timeline-*` variables on a timeline or
+standalone primitive container after importing the package stylesheet.
+
+The default timeline tokens map to shadcn semantics. Override `--timeline-*`
+tokens on a timeline container when you want a local timeline-specific treatment
+without changing the rest of your app's shadcn theme.
+
+Use app semantic tokens such as `--background`, `--foreground`, `--border`,
+`--primary`, and `--ring` for product chrome, panels, dialogs, media previews,
+and page or demo layout. Use `--timeline-*` tokens for exported Canvas Timeline
+primitives and renderer visuals. Use app-local or demo-local tokens for custom
+composition details that are not part of the timeline package contract.
+
+### Surface Tokens
+
+| Timeline token                   | Default mapping                        | Used for                                    |
+| :------------------------------- | :------------------------------------- | :------------------------------------------ |
+| `--timeline-panel`               | `var(--background)`                    | Timeline shell and canvas panel surface.    |
+| `--timeline-panel-muted`         | `var(--muted)`                         | Muted timeline areas such as ruler chrome.  |
+| `--timeline-panel-control`       | `var(--input)`                         | Control and input surfaces.                 |
+| `--timeline-panel-control-hover` | `var(--accent)`                        | Hovered control surfaces and default clips. |
+| `--timeline-border`              | `var(--border)`                        | Timeline structural borders.                |
+| `--timeline-border-width`        | `2px`                                  | Timeline shell and structural border width. |
+| `--timeline-canvas-background`   | `var(--timeline-panel)`                | Canvas stage background.                    |
+| `--timeline-radius-sm`           | `calc(var(--radius) - 0.125rem)`       | Small controls and clip corners.            |
+| `--timeline-radius-md`           | `calc(var(--radius) - 0.25rem)`        | Timeline shell radius.                      |
+| `--timeline-radius-full`         | `9999px`                               | Pills, knobs, and round controls.           |
+| `--timeline-shadow-sm`           | Mix of `--foreground` and transparency | Small raised DOM affordance shadow.         |
+
+### Ruler And Tracks
+
+| Timeline token                                | Default mapping                             | Used for                                |
+| :-------------------------------------------- | :------------------------------------------ | :-------------------------------------- |
+| `--timeline-ruler-background`                 | `var(--timeline-panel-muted)`               | Canvas and DOM ruler surface.           |
+| `--timeline-ruler-tick`                       | `var(--muted-foreground)`                   | Ruler tick marks.                       |
+| `--timeline-ruler-text`                       | `var(--muted-foreground)`                   | Ruler labels.                           |
+| `--timeline-track-divider`                    | Mix of `--timeline-border` and transparency | Track separators.                       |
+| `--timeline-track-divider-width`              | `1px`                                       | Track separator thickness.              |
+| `--timeline-track-locked-overlay`             | Mix of `--foreground` and transparency      | Canvas overlay for locked tracks.       |
+| `--timeline-track-header-background`          | `var(--timeline-panel-muted)`               | DOM track header column.                |
+| `--timeline-track-header-background-selected` | `var(--timeline-panel-control-hover)`       | Selected DOM track headers.             |
+| `--timeline-track-header-foreground`          | `var(--foreground)`                         | Active DOM track header text.           |
+| `--timeline-track-header-muted-foreground`    | `var(--muted-foreground)`                   | Muted, locked, or inactive header text. |
+| `--timeline-track-header-border`              | `var(--timeline-track-divider)`             | DOM track header dividers.              |
+| `--timeline-track-header-resize-handle-hover` | `var(--timeline-clip-focus-ring)`           | Hovered/focused resize handle.          |
+| `--timeline-font-ruler`                       | `10px var(--font-mono)`                     | Canvas ruler labels.                    |
+| `--timeline-font-clip`                        | `12px var(--font-sans)`                     | Canvas clip labels.                     |
+
+### Clips And Markers
+
+| Timeline token                             | Default mapping                              | Used for                                     |
+| :----------------------------------------- | :------------------------------------------- | :------------------------------------------- |
+| `--timeline-marker`                        | `var(--timeline-ruler-text)`                 | Markers without a data-defined color.        |
+| `--timeline-marker-text`                   | `var(--timeline-ruler-text)`                 | Marker labels.                               |
+| `--timeline-clip-background`               | `var(--timeline-panel-control-hover)`        | Default canvas clip fill.                    |
+| `--timeline-clip-background-selected`      | Mix of `--foreground` and `--timeline-panel` | Selected canvas clip fill.                   |
+| `--timeline-clip-border`                   | `transparent`                                | Default canvas clip border.                  |
+| `--timeline-clip-border-selected`          | `transparent`                                | Selected canvas clip border.                 |
+| `--timeline-clip-radius`                   | `var(--timeline-radius-sm)`                  | Default canvas clip corner radius.           |
+| `--timeline-clip-inset-y`                  | `0px`                                        | Default canvas clip vertical inset.          |
+| `--timeline-clip-label-padding-x`          | `8px`                                        | Default canvas clip label padding.           |
+| `--timeline-clip-text`                     | `var(--foreground)`                          | Default canvas clip label text.              |
+| `--timeline-clip-text-selected`            | `var(--foreground)`                          | Selected canvas clip label text.             |
+| `--timeline-clip-handle-background`        | Mix of `--foreground` and transparency       | Inactive active-clip trim handles.           |
+| `--timeline-clip-handle-active-background` | Mix of `--foreground` and transparency       | Active active-clip trim handles.             |
+| `--timeline-clip-handle-opacity`           | `0.85`                                       | Inactive active-clip handle opacity.         |
+| `--timeline-clip-handle-active-opacity`    | `1`                                          | Active active-clip handle opacity.           |
+| `--timeline-clip-feedback-background`      | Mix of `--foreground` and transparency       | Active clip feedback overlay.                |
+| `--timeline-clip-feedback-border`          | `var(--timeline-border)`                     | Active clip feedback border.                 |
+| `--timeline-clip-focus-ring`               | `var(--primary)`                             | Clip, timecode, and control focus treatment. |
+| `--timeline-keyframe-line`                 | Mix of `--foreground` and transparency       | Canvas keyframe value curve.                 |
+| `--timeline-keyframe-fill`                 | `var(--timeline-panel)`                      | Default keyframe handle fill.                |
+| `--timeline-keyframe-fill-selected`        | `var(--timeline-clip-focus-ring)`            | Selected keyframe handle fill.               |
+| `--timeline-keyframe-stroke`               | `var(--foreground)`                          | Default keyframe handle stroke.              |
+| `--timeline-keyframe-stroke-selected`      | `var(--timeline-clip-focus-ring)`            | Selected keyframe handle stroke.             |
+
+### Playhead, In/Out, And Snap Feedback
+
+| Timeline token                         | Default mapping                                   | Used for                                               |
+| :------------------------------------- | :------------------------------------------------ | :----------------------------------------------------- |
+| `--timeline-playhead`                  | `var(--primary)`                                  | DOM playhead line and handle.                          |
+| `--timeline-playhead-width`            | `1px`                                             | DOM playhead line width.                               |
+| `--timeline-playhead-hover`            | `var(--primary)`                                  | Hovered or dragged playhead color.                     |
+| `--timeline-playhead-hover-background` | Mix of `--primary` and transparency               | Playhead grabber hover hit-area fill.                  |
+| `--timeline-playhead-shadow`           | `0 0 6px var(--timeline-playhead)`                | Playhead hover and drag glow.                          |
+| `--timeline-inout-accent`              | `var(--ring)`                                     | Shared In/Out range color source.                      |
+| `--timeline-inout-area`                | Mix of `--timeline-inout-accent` and transparency | Canvas In/Out range fill and DOM-only range indicator. |
+| `--timeline-inout-border`              | `var(--timeline-inout-accent)`                    | DOM In/Out grabbers and opt-in canvas boundary lines.  |
+| `--timeline-inout-hover`               | Mix of `--timeline-inout-accent` and transparency | In/Out grabber hover hit-area fill.                    |
+| `--timeline-inout-hover-border`        | `var(--timeline-inout-accent)`                    | Hovered or dragged In/Out grabber color.               |
+| `--timeline-inout-hover-shadow`        | `none`                                            | In/Out hover shadow.                                   |
+| `--timeline-inout-active-shadow`       | `none`                                            | In/Out drag/active shadow.                             |
+| `--timeline-snap-line`                 | `var(--ring)`                                     | Canvas snap feedback line.                             |
+| `--timeline-drop-target`               | Mix of `--timeline-inout-accent` and transparency | Valid cross-track clip drop target lane fill.          |
+| `--timeline-drop-target-invalid`       | Mix of `--destructive` and transparency           | Invalid cross-track clip drop target lane fill.        |
+| `--timeline-drop-target-border`        | Mix of `--timeline-inout-accent` and transparency | Active cross-track clip drop target lane border.       |
+
+### Scrollbars
+
+| Timeline token                           | Default mapping                        | Used for                    |
+| :--------------------------------------- | :------------------------------------- | :-------------------------- |
+| `--timeline-scrollbar-bg`                | `var(--timeline-panel)`                | Scrollbar track background. |
+| `--timeline-scrollbar-border`            | `var(--timeline-border)`               | Scrollbar border.           |
+| `--timeline-scrollbar-thumb`             | `var(--muted-foreground)`              | Scrollbar thumb.            |
+| `--timeline-scrollbar-thumb-hover`       | `var(--foreground)`                    | Hovered or dragged thumb.   |
+| `--timeline-scrollbar-handle-grip`       | Mix of `--background` and transparency | Scrollbar handle grip dot.  |
+| `--timeline-scrollbar-handle-grip-hover` | `var(--background)`                    | Hovered scrollbar grip dot. |
+
+### Controls
+
+| Timeline token                         | Default mapping            | Used for                               |
+| :------------------------------------- | :------------------------- | :------------------------------------- |
+| `--timeline-control-foreground`        | `var(--muted-foreground)`  | Control labels, buttons, and values.   |
+| `--timeline-control-hover-border`      | `var(--foreground)`        | Hovered control button borders.        |
+| `--timeline-control-hover-foreground`  | `var(--accent-foreground)` | Hovered control button text.           |
+| `--timeline-control-active-background` | `var(--foreground)`        | Active control button fill and border. |
+| `--timeline-control-active-foreground` | `var(--background)`        | Active control button text.            |
+| `--timeline-control-slider-thumb`      | `var(--foreground)`        | Control slider thumb fill.             |
+
+### Inputs And Timecode Fields
+
+| Timeline token                    | Default mapping                                      | Used for                         |
+| :-------------------------------- | :--------------------------------------------------- | :------------------------------- |
+| `--timeline-input-font-family`    | `var(--font-mono)`                                   | Timecode input and field text.   |
+| `--timeline-input-border`         | `var(--timeline-border)`                             | Timecode/input border.           |
+| `--timeline-input-background`     | `var(--timeline-panel-control)`                      | Timecode/input background.       |
+| `--timeline-input-foreground`     | `var(--foreground)`                                  | Timecode/input text.             |
+| `--timeline-input-placeholder`    | `var(--muted-foreground)`                            | Timecode/input placeholder text. |
+| `--timeline-input-focus-border`   | `var(--timeline-clip-focus-ring)`                    | Focused input border.            |
+| `--timeline-input-focus-ring`     | Mix of `--timeline-clip-focus-ring` and transparency | Focused input ring.              |
+| `--timeline-input-invalid-border` | `var(--destructive)`                                 | Invalid input border.            |
+| `--timeline-input-invalid-ring`   | Mix of `--destructive` and transparency              | Invalid input focus ring.        |
+| `--timeline-input-focus-shadow`   | `0 0 0 3px var(--timeline-input-focus-ring)`         | Focused input shadow.            |
+| `--timeline-input-invalid-shadow` | `0 0 0 3px var(--timeline-input-invalid-ring)`       | Invalid input focus shadow.      |
+
+---
+
+## Nested theme scoping
+
+Define shadcn semantic tokens at your app boundary. Canvas Timeline components
+read those tokens from the nearest scope, so the same import follows normal
+shadcn dark-mode scoping:
+
+```css
+.dark {
+  --background: oklch(0.17352 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.75 0.18 85);
+  --primary: oklch(0.75 0.18 85);
+  --primary-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.2024 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --radius: 0.625rem;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+    'Open Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+```
+
+Set timeline tokens on the package root or a selector that targets package roots
+after importing package CSS only when you need a local component-specific
+override:
+
+```css
+.editor-theme .timeline-root,
+.editor-theme .timecode-input {
+  --timeline-marker: var(--muted-foreground);
+  --timeline-clip-border-selected: var(--foreground);
+  --timeline-playhead: var(--primary);
+  --timeline-inout-accent: oklch(0.62 0.16 250);
+}
+```

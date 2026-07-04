@@ -1,0 +1,172 @@
+.timeline-editor-body-with-headers {
+  --demo-editor-scrollbar-gutter-size: 1.5rem;
+  --demo-editor-scrollbar-track-size: 0.625rem;
+  --demo-editor-scrollbar-gutter-padding: calc(
+    (var(--demo-editor-scrollbar-gutter-size) - var(--demo-editor-scrollbar-track-size)) / 2
+  );
+  --demo-editor-scrollbar-gutter-padding-inline: calc(
+    (var(--demo-editor-scrollbar-gutter-size) - var(--demo-editor-scrollbar-track-size) - 2px) / 2
+  );
+  --demo-editor-scrollbar-surface: var(--background);
+
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.timeline-editor-header-panel,
+.timeline-editor-timeline-panel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.timeline-editor-header-stage {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.timeline-editor-timeline-stage {
+  min-height: 0;
+}
+
+.timeline-editor-stage-row {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.timeline-editor-vertical-scrollbar-column {
+  box-sizing: border-box;
+  display: flex;
+  width: var(--demo-editor-scrollbar-gutter-size);
+  min-height: 0;
+  align-items: stretch;
+  justify-content: center;
+  background: var(--demo-editor-scrollbar-surface);
+  padding-block: var(--demo-editor-scrollbar-gutter-padding);
+  padding-inline: var(--demo-editor-scrollbar-gutter-padding-inline);
+}
+
+.timeline-editor-vertical-scrollbar {
+  width: var(--demo-editor-scrollbar-track-size);
+  min-height: 0;
+}
+
+.timeline-editor-track-headers {
+  width: 100%;
+  height: 100%;
+}
+
+.timeline-editor-root-with-headers .timeline-track-list-overlay {
+  inset: 0;
+}
+
+.timeline-editor-track-header-content {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.timeline-editor-track-header-button {
+  display: inline-grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border-radius: calc(var(--radius) - 0.125rem);
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    opacity 150ms ease;
+}
+
+.timeline-editor-track-header-button svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.timeline-editor-track-header-button:hover,
+.timeline-editor-track-header-button[aria-pressed='true'] {
+  border-color: color-mix(in oklch, var(--primary) 55%, transparent);
+  background: color-mix(in oklch, var(--primary) 12%, var(--background));
+  color: var(--foreground);
+}
+
+.timeline-editor-track-header-button:disabled,
+.timeline-editor-track-header-button:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.timeline-editor-track-header-label {
+  min-width: 0;
+  justify-self: start;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.7rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-editor-scrollbar-row {
+  display: grid;
+  min-height: var(--demo-editor-scrollbar-gutter-size);
+  grid-template-columns: minmax(0, 1fr) var(--demo-editor-scrollbar-gutter-size);
+  padding: 0;
+  background: var(--demo-editor-scrollbar-surface);
+}
+
+.timeline-editor-scrollbar-row .timeline-viewport-scrollbar {
+  width: auto;
+  min-width: 0;
+  height: var(--demo-editor-scrollbar-track-size);
+  align-self: center;
+  margin-inline: var(--demo-editor-scrollbar-gutter-padding);
+}
+
+.timeline-editor-scrollbar-row .timeline-viewport-scrollbar-handle {
+  width: var(--demo-editor-scrollbar-track-size);
+}
+
+.timeline-editor-column-resize-handle {
+  position: relative;
+  width: 0.8rem;
+  flex: 0 0 0.8rem;
+  background: var(--muted);
+  cursor: col-resize;
+  outline: none;
+}
+
+.timeline-editor-column-resize-handle::before {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 2px;
+  background: var(--border);
+  content: '';
+  transform: translateX(-50%);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.timeline-editor-column-resize-handle:hover::before,
+.timeline-editor-column-resize-handle:focus-visible::before,
+.timeline-editor-column-resize-handle[data-resize-handle-active]::before {
+  background: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 28%, transparent);
+}

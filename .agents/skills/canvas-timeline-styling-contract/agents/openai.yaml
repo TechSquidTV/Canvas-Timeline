@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Canvas Timeline Styling Contract'
+  short_description: 'DOM/canvas styling and theming rules'
+  default_prompt: 'Use $canvas-timeline-styling-contract before styling Canvas Timeline or adding performance-sensitive components.'

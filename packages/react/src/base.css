@@ -1,0 +1,736 @@
+.timeline-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-shell {
+  display: grid;
+  grid-template-rows: minmax(15rem, 1fr) auto;
+  min-height: 18rem;
+  overflow: hidden;
+}
+
+.timeline-shell.timeline-controls-shell {
+  grid-template-rows: auto minmax(15rem, 1fr) auto;
+}
+
+.timeline-stage {
+  position: relative;
+  min-height: 15rem;
+  overflow: hidden;
+}
+
+.timeline-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.timeline-track-list-overlay {
+  position: absolute;
+  inset: 32px 0 0;
+}
+
+.timeline-scrollbar-row {
+  display: flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.timeline-controls-shell {
+  display: grid;
+}
+
+.timeline-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.timeline-control-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  cursor: pointer;
+  outline: none;
+  padding: 0 0.45rem;
+  user-select: none;
+}
+
+.timeline-control-button:disabled,
+.timeline-control-button:disabled:hover {
+  cursor: not-allowed;
+}
+
+.timeline-control-button-icon-only {
+  width: 1.75rem;
+  padding: 0;
+}
+
+.timeline-control-button svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  stroke-width: 2.25;
+}
+
+.timeline-control-button-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.timeline-timecode-control-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 7rem;
+  height: 1.75rem;
+}
+
+.timeline-timecode-control-wrapper .timecode-field {
+  width: 100%;
+  height: 100%;
+}
+
+.timeline-timecode-control-button,
+.timeline-timecode-control-input {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 1.75rem;
+  box-sizing: border-box;
+  outline: none;
+  text-align: center;
+}
+
+.timeline-timecode-control-button {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+.timeline-timecode-control-input {
+  padding: 0 0.5rem;
+}
+
+.timeline-range-badge {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+}
+
+.timeline-control-divider {
+  width: 1px;
+  height: 1.1rem;
+}
+
+.timeline-control-field,
+.timeline-controls-right,
+.timeline-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeline-controls-right {
+  margin-left: auto;
+}
+
+.timeline-control-field {
+  gap: 0.35rem;
+}
+
+.timeline-control-select {
+  height: 1.75rem;
+  outline: none;
+  padding: 0 0.5rem;
+}
+
+.timeline-control-slider {
+  width: 5.5rem;
+  height: 4px;
+  margin: 0.35rem 0;
+  appearance: none;
+  outline: none;
+}
+
+.timeline-control-slider::-webkit-slider-thumb {
+  width: 10px;
+  height: 10px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.timeline-slider-value {
+  width: 2.25rem;
+  text-align: right;
+}
+
+.timeline-canvas-layer,
+.timeline-canvas-layer canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.timeline-track-list {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.timeline-track-list-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  will-change: transform;
+}
+
+.timeline-track-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  pointer-events: none;
+}
+
+.timeline-track-header-list {
+  position: relative;
+  z-index: 15;
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.timeline-track-header-list::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  box-sizing: border-box;
+  height: var(--track-header-ruler-height);
+  content: '';
+  pointer-events: none;
+}
+
+.timeline-track-header-list-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  will-change: transform;
+}
+
+.timeline-track-header {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.timeline-track-header-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: -3px;
+  left: 0;
+  z-index: 2;
+  height: 6px;
+  cursor: row-resize;
+  outline: none;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.timeline-dom-ruler {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 32px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.timeline-dom-ruler-tick {
+  bottom: 0;
+  display: flex;
+  width: 40px;
+  flex-direction: column;
+  align-items: center;
+  margin-left: -20px;
+  pointer-events: none;
+}
+
+.timeline-dom-ruler-tick-mark {
+  width: 1px;
+  height: 6px;
+  margin-top: 2px;
+}
+
+.timeline-dom-clip {
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+  padding: 0 0.5rem;
+}
+
+.timeline-dom-clip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.timeline-playhead-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  height: 2rem;
+  cursor: text;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-clip-interaction-layer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 25;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-keyframe-interaction-layer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 75;
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-keyframe-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.timeline-keyframe-curve-interaction-layer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 76;
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-keyframe-curve-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.timeline-keyframe-curve-line {
+  pointer-events: none;
+}
+
+.timeline-keyframe-curve-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.timeline-clip-interaction-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform, width, height;
+}
+
+.timeline-clip-interaction-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 12px;
+  max-width: 30%;
+  pointer-events: none;
+}
+
+.timeline-clip-interaction-handle-left {
+  left: 0;
+}
+
+.timeline-clip-interaction-handle-right {
+  right: 0;
+}
+
+.timeline-clip-interaction-feedback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.timeline-time-grabber {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  margin-left: -22px;
+  cursor: ew-resize;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+  will-change: transform;
+}
+
+.timeline-time-grabber-highlight {
+  position: relative;
+  width: 24px;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.timeline-time-grabber-line,
+.timeline-time-grabber-handle {
+  position: absolute;
+  left: 50%;
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+
+.timeline-time-grabber-line {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.timeline-time-grabber-handle {
+  top: 0;
+  width: 12px;
+  height: 16px;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 58%, 50% 100%, 0% 58%);
+}
+
+.timeline-range-selector-grabber[data-boundary='in'] .timeline-time-grabber-handle {
+  left: 50%;
+  transform: translateX(0);
+  width: 10px;
+  height: 12px;
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+  clip-path: none;
+}
+
+.timeline-range-selector-grabber[data-boundary='out'] .timeline-time-grabber-handle {
+  left: 50%;
+  transform: translateX(-100%);
+  width: 10px;
+  height: 12px;
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+  clip-path: none;
+}
+
+.range-scrollbar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  box-sizing: border-box;
+}
+
+.range-scrollbar[data-orientation='vertical'] {
+  width: 10px;
+  height: 100%;
+}
+
+.range-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  height: 100%;
+  min-width: 2rem;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.range-scrollbar[data-orientation='vertical'] .range-scrollbar-thumb {
+  bottom: auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+}
+
+.range-scrollbar-thumb:active,
+.range-scrollbar-thumb[data-dragging] {
+  cursor: grabbing;
+}
+
+.range-scrollbar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.range-scrollbar[data-orientation='vertical'] .range-scrollbar-handle {
+  top: auto;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.range-scrollbar-handle[data-side='start'] {
+  left: 0;
+}
+
+.range-scrollbar-handle[data-side='end'] {
+  right: 0;
+}
+
+.range-scrollbar[data-orientation='vertical'] .range-scrollbar-handle[data-side='start'] {
+  top: 0;
+}
+
+.range-scrollbar[data-orientation='vertical'] .range-scrollbar-handle[data-side='end'] {
+  bottom: 0;
+}
+
+.timeline-range-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-range-selector[data-orientation='vertical'] {
+  flex-direction: column;
+  height: 100%;
+}
+
+.timeline-range-selector-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 24px;
+  touch-action: none;
+}
+
+.timeline-range-selector[data-orientation='vertical'] .timeline-range-selector-control {
+  flex-direction: column;
+  width: 24px;
+  height: 100%;
+}
+
+.timeline-range-selector-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+}
+
+.timeline-range-selector[data-orientation='vertical'] .timeline-range-selector-track {
+  width: 6px;
+  height: 100%;
+}
+
+.timeline-range-selector-indicator {
+  position: absolute;
+  height: 100%;
+}
+
+.timeline-range-selector[data-orientation='vertical'] .timeline-range-selector-indicator {
+  width: 100%;
+  height: auto;
+}
+
+.timeline-range-selector-thumb {
+  width: 14px;
+  height: 14px;
+  cursor: ew-resize;
+}
+
+.timeline-range-selector-thumb[data-orientation='vertical'] {
+  cursor: ns-resize;
+}
+
+.timeline-range-selector-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 70;
+  height: 100%;
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.timeline-range-selector-grabber {
+  z-index: 70;
+}
+
+.timeline-range-selector-overlay,
+.timeline-range-selector-overlay .timeline-range-selector-control,
+.timeline-range-selector-overlay .timeline-range-selector-track {
+  pointer-events: none;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-control {
+  align-items: stretch;
+  height: 100%;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-track {
+  height: 100%;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-indicator {
+  display: none;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-thumb {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  cursor: ew-resize;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-thumb-highlight {
+  position: relative;
+  width: 16px;
+  height: 100%;
+  pointer-events: none;
+}
+
+.timeline-range-selector-overlay .timeline-range-selector-thumb-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.timeline-range-selector-overlay
+  .timeline-range-selector-thumb[data-index='1']
+  .timeline-range-selector-thumb-line {
+  left: calc(50% - 1px);
+}
+
+.timecode-input,
+.timecode-field,
+.timecode-label,
+.timecode-field-trigger,
+.timecode-field-input {
+  min-width: 0;
+}
+
+.timecode-input {
+  box-sizing: border-box;
+}
+
+.timecode-field {
+  display: inline-flex;
+}
+
+.timecode-field-trigger {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.timecode-field-segment {
+  display: inline-block;
+  width: var(--timecode-field-segment-width);
+  text-align: right;
+}
+
+.timecode-field-separator {
+  display: inline-block;
+}
+
+.timecode-field-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+body.is-dragging-timeline-grabber,
+body.is-dragging-timeline-grabber * {
+  cursor: ew-resize !important;
+}

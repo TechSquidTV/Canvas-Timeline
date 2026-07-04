@@ -1,0 +1,87 @@
+---
+import CodeBlock from '@/components/CodeBlock.astro';
+import PackageManagerTabs from '@/components/PackageManagerTabs.astro';
+import {
+  getReactRegistryInstallPackages,
+  getReactRegistryPackageName,
+  getReactRegistryStyleImport,
+  reactRegistryItems,
+} from '@/data/react-registry';
+
+interface Props {
+  registryKey?: string;
+  packageName?: string;
+  importPath?: string;
+  showStyles?: boolean;
+}
+
+const {
+  registryKey,
+  packageName,
+  importPath,
+  showStyles,
+} = Astro.props;
+const registryItem = registryKey
+  ? reactRegistryItems.find((item) => item.slug === registryKey)
+  : undefined;
+
+if (registryKey && !registryItem) {
+  throw new Error(`Unknown React registry install target: ${registryKey}`);
+}
+
+const resolvedPackageName = packageName ?? getReactRegistryPackageName(registryItem);
+const installPackages = packageName ?? getReactRegistryInstallPackages(registryItem);
+const resolvedImportPath = importPath ?? registryItem?.importPath ?? resolvedPackageName;
+const shouldShowStyles = showStyles ?? (registryItem?.kind !== 'hook');
+const defaultStyleImportCode =
+  packageName && !registryItem
+    ? `import '${resolvedPackageName}/styles.css';`
+    : getReactRegistryStyleImport(registryItem, 'styles.css');
+const baseStyleImportCode =
+  packageName && !registryItem
+    ? `import '${resolvedPackageName}/base.css';`
+    : getReactRegistryStyleImport(registryItem, 'base.css');
+---
+
+<div class="registry-mdx-install">
+  <PackageManagerTabs packages={installPackages} />
+
+  <ol class="registry-steps">
+    <li>
+      <span>1</span>
+      <div>
+        <h3>Install the package.</h3>
+        <p>The command above adds the React bindings and their package dependencies.</p>
+      </div>
+    </li>
+    <li>
+      <span>2</span>
+      <div>
+        <h3>Import from the React entrypoint.</h3>
+        <code>{resolvedImportPath}</code>
+      </div>
+    </li>
+    {
+      shouldShowStyles && (
+        <li>
+          <span>3</span>
+          <div>
+            <h3>Add the timeline styles.</h3>
+            <p>
+              Use the full stylesheet with shadcn-compatible tokens, or base.css when your app owns
+              the visual theme.
+            </p>
+            <div class="registry-style-imports">
+              <div class="registry-style-import">
+                <CodeBlock code={defaultStyleImportCode} lang="tsx" title="Default visuals" />
+              </div>
+              <div class="registry-style-import">
+                <CodeBlock code={baseStyleImportCode} lang="tsx" title="Base geometry" />
+              </div>
+            </div>
+          </div>
+        </li>
+      )
+    }
+  </ol>
+</div>

@@ -1,0 +1,52 @@
+{
+  "name": "@techsquidtv/canvas-timeline-html-media-adapter",
+  "version": "0.0.1",
+  "license": "MPL-2.0",
+  "description": "HTMLMediaElement adapter for Canvas Timeline media playback.",
+  "type": "module",
+  "homepage": "https://canvastimeline.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "directory": "packages/html-media-adapter"
+  },
+  "keywords": [
+    "timeline",
+    "video-editor",
+    "html-media",
+    "canvas-timeline"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch --no-clean",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@techsquidtv/canvas-timeline-core": "workspace:*",
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
+    "@techsquidtv/canvas-timeline-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

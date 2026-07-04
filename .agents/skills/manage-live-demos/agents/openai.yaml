@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Manage Live Demos'
+  short_description: 'Add source-backed demos as QA tools'
+  default_prompt: 'Use $manage-live-demos to add or maintain a source-backed docs demo.'

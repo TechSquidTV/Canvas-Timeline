@@ -1,0 +1,145 @@
+---
+import { site } from '@/data/site';
+import Breadcrumbs, { type BreadcrumbItem } from '@/components/Breadcrumbs.astro';
+import GitHubIcon from '@/components/GitHubIcon.astro';
+import SiteFooter from '@/components/SiteFooter.astro';
+import {
+  createSiteStructuredData,
+  normalizeStructuredData,
+  type StructuredDataInput,
+} from '@/lib/structured-data';
+import { openGraphImage, openGraphRouteForPath } from '@/lib/open-graph';
+import '@/styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  breadcrumbs?: BreadcrumbItem[];
+  canonicalUrl?: string;
+  image?: {
+    src: string;
+    alt: string;
+    width: number;
+    height: number;
+  };
+  pageType?: 'website' | 'article';
+  publishedTime?: Date;
+  modifiedTime?: Date;
+  tags?: readonly string[];
+  noindex?: boolean;
+  structuredData?: StructuredDataInput;
+}
+
+const {
+  title,
+  description = site.description,
+  breadcrumbs = [],
+  canonicalUrl: providedCanonicalUrl,
+  image,
+  pageType = 'website',
+  publishedTime,
+  modifiedTime,
+  tags = [],
+  noindex = false,
+  structuredData,
+} = Astro.props;
+const pageTitle = title ? `${title} | ${site.name}` : site.name;
+const canonicalUrl = providedCanonicalUrl ?? new URL(Astro.url.pathname, site.url).toString();
+const pageImage =
+  image ??
+  {
+    src: openGraphRouteForPath(Astro.url.pathname),
+    alt: openGraphImage.alt,
+    width: openGraphImage.width,
+    height: openGraphImage.height,
+  };
+const socialImageUrl = new URL(pageImage.src, site.url).toString();
+const metaTitle = title ?? site.name;
+const structuredDataItems = [
+  ...createSiteStructuredData({
+    breadcrumbs,
+    description,
+    image: pageImage,
+    title: metaTitle,
+    url: canonicalUrl,
+  }),
+  ...normalizeStructuredData(structuredData),
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
+    <meta name="theme-color" content="#ffffff" />
+    <link class="canonical-link" rel="canonical" href={canonicalUrl} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:type" content={pageType} />
+    <meta property="og:title" content={metaTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={socialImageUrl} />
+    <meta property="og:image:alt" content={pageImage.alt} />
+    <meta property="og:image:width" content={String(pageImage.width)} />
+    <meta property="og:image:height" content={String(pageImage.height)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={metaTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImageUrl} />
+    <meta name="twitter:image:alt" content={pageImage.alt} />
+    {publishedTime ? <meta property="article:published_time" content={publishedTime.toISOString()} /> : null}
+    {modifiedTime ? <meta property="article:modified_time" content={modifiedTime.toISOString()} /> : null}
+    {tags.map((tag) => <meta property="article:tag" content={tag} />)}
+    {
+      structuredDataItems.map((item) => (
+        <script type="application/ld+json" set:html={JSON.stringify(item)} />
+      ))
+    }
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container-page site-header__inner">
+        <a class="brand-link" href="/" aria-label={`${site.name} home`}>
+          <img
+            class="brand-logo"
+            src="/logo.svg"
+            alt=""
+            width="36"
+            height="34"
+            decoding="async"
+          />
+          <span>{site.name}</span>
+        </a>
+        <div class="site-header__actions">
+          <nav class="site-nav" aria-label="Primary navigation">
+            {site.primaryNav.map((link) => <a href={link.href}>{link.label}</a>)}
+          </nav>
+          <a
+            class="site-icon-link"
+            href={site.repository.href}
+            aria-label={`View ${site.name} on GitHub`}
+            title={`View ${site.name} on GitHub`}
+          >
+            <GitHubIcon class="github-icon" />
+          </a>
+        </div>
+      </div>
+    </header>
+    <main>
+      <Breadcrumbs items={breadcrumbs} />
+      <slot />
+    </main>
+    <SiteFooter />
+    <script>
+      import { recordPageView } from '@/lib/metrics';
+
+      recordPageView(window.location.pathname);
+    </script>
+  </body>
+</html>

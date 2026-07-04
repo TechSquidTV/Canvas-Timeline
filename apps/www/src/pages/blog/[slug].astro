@@ -1,0 +1,91 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { render } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import BlogFaq from '@/components/BlogFaq.astro';
+import {
+  formatBlogDate,
+  getBlogPostImage,
+  getBlogPostUrl,
+  getBlogPosts,
+  getReadingMinutes,
+} from '@/data/blog';
+import { site } from '@/data/site';
+import {
+  createBlogFaqStructuredData,
+  createBlogPostStructuredData,
+} from '@/lib/structured-data';
+
+type BlogEntry = CollectionEntry<'blog'>;
+
+interface Props {
+  entry: BlogEntry;
+}
+
+export async function getStaticPaths() {
+  const posts = await getBlogPosts();
+
+  return posts.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const postUrl = new URL(getBlogPostUrl(entry), site.url).toString();
+const postImage = getBlogPostImage(entry);
+const updatedDate = entry.data.updatedDate ?? entry.data.publishDate;
+const readingMinutes = getReadingMinutes(entry.body);
+const faqItems = entry.data.faq ?? [];
+const faqStructuredData = createBlogFaqStructuredData(faqItems);
+const structuredData = [
+  createBlogPostStructuredData(entry),
+  ...(faqStructuredData ? [faqStructuredData] : []),
+];
+---
+
+<BaseLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Blog', href: '/blog' },
+    { label: entry.data.title },
+  ]}
+  canonicalUrl={entry.data.canonicalUrl ?? postUrl}
+  image={postImage}
+  pageType="article"
+  publishedTime={entry.data.publishDate}
+  modifiedTime={updatedDate}
+  tags={entry.data.tags}
+  noindex={entry.data.draft}
+  structuredData={structuredData}
+>
+  <article class="blog-post">
+    <header class="blog-post__header">
+      <div class="container-page blog-post__header-inner">
+        <a class="blog-post__back" href="/blog">Blog</a>
+        <div class="blog-card__tags" aria-label="Tags">
+          {entry.data.tags.map((tag) => <span>{tag}</span>)}
+        </div>
+        <h1>{entry.data.title}</h1>
+        <p>{entry.data.description}</p>
+        <div class="blog-meta blog-post__meta" aria-label="Post metadata">
+          <span>{entry.data.author}</span>
+          <time datetime={entry.data.publishDate.toISOString()}>
+            {formatBlogDate(entry.data.publishDate)}
+          </time>
+          <span>{readingMinutes} min read</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="container-page blog-post__body">
+      <div class="prose-docs blog-prose">
+        <Content />
+        <BlogFaq items={faqItems} />
+      </div>
+    </div>
+  </article>
+</BaseLayout>

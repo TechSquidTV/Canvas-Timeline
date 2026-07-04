@@ -1,0 +1,48 @@
+---
+title: Rational time
+description: Learn how frame-accurate time is represented and computed via fractions.
+section: concepts
+order: 21
+---
+
+To prevent cumulative floating-point rounding errors common with decimal seconds, Canvas Timeline represents all time positions using `RationalTime`.
+
+```ts
+interface RationalTime {
+  v: number; // Value: the number of ticks
+  r: number; // Rate: the timescale (ticks per second)
+}
+```
+
+A time is computed as:
+
+$$time = v / r$$
+
+For example, a time of 12.5 seconds with a timescale of 60,000 is represented as `{ v: 750000, r: 60000 }`. Using integers for addition, subtraction, and comparison ensures frame-adjacent math remains completely predictable and avoids rendering gaps or overlaps.
+
+Use conversion and math helpers from the main package or `@techsquidtv/canvas-timeline-utils` to translate between seconds and rational times:
+
+```ts
+import {
+  fromSeconds,
+  toSeconds,
+  formatTime,
+  addRational,
+  subRational,
+} from '@techsquidtv/canvas-timeline';
+
+// Convert 12.5 seconds to RationalTime (default rate is 60000)
+const start = fromSeconds(12.5); // { v: 750000, r: 60000 }
+
+// Convert back to seconds
+const seconds = toSeconds(start); // 12.5
+
+// Format as human-readable timecode (e.g. "00:00:12:30")
+const label = formatTime(start);
+
+// Perform precise math
+const duration = fromSeconds(2.0);
+const end = addRational(start, duration);
+```
+
+Most UI components can work in seconds at the user interaction boundaries, and then convert to `RationalTime` when mutating engine state. Keep the same tick rate (`r`) across related values when possible to avoid unnecessary division and common-denominator calculations.

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: true
+      PACKAGE_LINE_COVERAGE_MINIMUM: 80
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Lint pull request title
+        if: github.event_name == 'pull_request'
+        run: |
+          printf '%s\n' "${{ github.event.pull_request.title }}" | vp exec commitlint --verbose
+
+      - name: Lint commit messages
+        if: github.event_name == 'pull_request'
+        run: vp run commitlint -- --from=${{ github.event.pull_request.base.sha }} --to=${{ github.event.pull_request.head.sha }}
+
+      - name: Run quality checks
+        run: vp run ci
+
+      - name: Build packages and apps
+        run: vp run build
+
+      - name: Validate publishable packages
+        run: vp run package:check
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}

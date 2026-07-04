@@ -1,0 +1,547 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import CodeBlock from '@/components/CodeBlock.astro';
+import ApiTypeText from '@/components/ApiTypeText.astro';
+import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import {
+  apiPackageHref,
+  apiReference,
+  apiSymbolHref,
+  getApiSymbol,
+  type ApiPackage,
+  type ApiSymbol,
+} from '@/lib/api-reference';
+import { createApiSymbolArticleStructuredData } from '@/lib/structured-data';
+
+interface Props {
+  packageDoc: ApiPackage;
+  symbol: ApiSymbol;
+}
+
+export function getStaticPaths() {
+  return apiReference.packages.flatMap((packageDoc) =>
+    packageDoc.symbols.map((symbol) => ({
+      params: { slug: packageDoc.slug, symbol: symbol.slug },
+      props: { packageDoc, symbol },
+    }))
+  );
+}
+
+const { packageDoc, symbol } = Astro.props;
+const resolvedSymbol = getApiSymbol(packageDoc.slug, symbol.slug) ?? symbol;
+const aliasedSymbol = resolvedSymbol.aliasOf
+  ? getApiSymbol(resolvedSymbol.aliasOf.packageSlug, resolvedSymbol.aliasOf.symbolSlug)
+  : undefined;
+const aliasHref = resolvedSymbol.aliasOf
+  ? apiSymbolHref(resolvedSymbol.aliasOf.packageSlug, resolvedSymbol.aliasOf.symbolSlug)
+  : undefined;
+const properties =
+  resolvedSymbol.properties.length > 0
+    ? resolvedSymbol.properties
+    : (aliasedSymbol?.properties ?? []);
+const methods =
+  resolvedSymbol.methods.length > 0 ? resolvedSymbol.methods : (aliasedSymbol?.methods ?? []);
+const constructors =
+  resolvedSymbol.constructors.length > 0
+    ? resolvedSymbol.constructors
+    : (aliasedSymbol?.constructors ?? []);
+const typeParameters =
+  (resolvedSymbol.typeParameters?.length ?? 0) > 0
+    ? resolvedSymbol.typeParameters
+    : (aliasedSymbol?.typeParameters ?? []);
+const returnMembers =
+  resolvedSymbol.returnMembers.length > 0
+    ? resolvedSymbol.returnMembers
+    : (aliasedSymbol?.returnMembers ?? []);
+const examples =
+  resolvedSymbol.examples.length > 0 ? resolvedSymbol.examples : (aliasedSymbol?.examples ?? []);
+const hasReturnMembers = returnMembers.length > 0;
+const propertiesHeading =
+  resolvedSymbol.properties.length > 0 ? 'Properties' : 'Aliased properties';
+const methodsHeading = resolvedSymbol.methods.length > 0 ? 'Methods' : 'Aliased methods';
+const constructorsHeading =
+  resolvedSymbol.constructors.length > 0 ? 'Constructors' : 'Aliased constructors';
+const typeParametersHeading =
+  (resolvedSymbol.typeParameters?.length ?? 0) > 0
+    ? 'Type parameters'
+    : 'Aliased type parameters';
+const returnMembersHeading =
+  resolvedSymbol.returnMembers.length > 0 ? 'Return members' : 'Aliased return members';
+const examplesHeading = resolvedSymbol.examples.length > 0 ? 'Examples' : 'Aliased examples';
+const hexColorPattern = /^#[0-9a-f]{3,8}$/i;
+const structuredData = createApiSymbolArticleStructuredData(packageDoc, resolvedSymbol);
+
+function parseExample(example: string) {
+  const trimmedExample = example.trim();
+  const match = trimmedExample.match(/^```([A-Za-z0-9_-]+)?\s*([\s\S]*?)\s*```$/);
+
+  if (!match) {
+    return { lang: 'ts', code: trimmedExample };
+  }
+
+  return {
+    lang: match[1] || 'ts',
+    code: match[2].trim(),
+  };
+}
+---
+
+<BaseLayout
+  title={`${resolvedSymbol.name} API`}
+  description={resolvedSymbol.summary || `Generated API reference for ${resolvedSymbol.name}.`}
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Packages', href: '/packages' },
+    { label: packageDoc.name, href: `/packages/${packageDoc.slug}` },
+    { label: 'API', href: apiPackageHref(packageDoc.slug) },
+    { label: resolvedSymbol.name },
+  ]}
+  structuredData={structuredData}
+>
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">
+    <!-- Subtle Background Glow -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[400px] bg-[radial-gradient(ellipse_at_top,var(--primary),transparent_60%)] opacity-10 pointer-events-none" aria-hidden="true"></div>
+
+    <div class="container-page relative z-10 px-4 flex flex-col items-center text-center">
+      <!-- Eyebrow -->
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider text-primary bg-primary/10 border border-primary/20 uppercase mb-4">
+        {resolvedSymbol.kind}
+      </span>
+
+      <!-- Title -->
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-none max-w-4xl mx-auto">
+        {resolvedSymbol.name}
+      </h1>
+
+      <!-- Summary -->
+      <p class="mt-4 text-base sm:text-lg text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+        {resolvedSymbol.summary || 'No TSDoc summary yet.'}
+      </p>
+
+    </div>
+  </section>
+
+  <!-- Main Content Layout -->
+  <div class="container-page px-4 py-12 md:py-16">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+      
+      <!-- Main Content Column -->
+      <article class="lg:col-span-8 space-y-12">
+        
+        <!-- Signature Section -->
+        <section aria-labelledby="sig-heading" class="space-y-4">
+          <h2 id="sig-heading" class="text-xl md:text-2xl font-bold text-foreground">Signature</h2>
+          <CodeBlock code={resolvedSymbol.signature} lang="ts" title="Type Definition" />
+        </section>
+
+        {
+          typeParameters.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="type-params-heading">
+              <h2 id="type-params-heading" class="text-xl md:text-2xl font-bold text-foreground">{typeParametersHeading}</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Constraint</th>
+                      <th class="p-4 font-semibold text-foreground">Default</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {typeParameters.map((typeParameter) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap">
+                          <code>{typeParameter.name}</code>
+                        </td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">
+                          {typeParameter.constraint ? (
+                            <code>
+                              <ApiTypeText
+                                text={typeParameter.constraint}
+                                packageSlug={packageDoc.slug}
+                                sourcePackage={resolvedSymbol.sourcePackage}
+                              />
+                            </code>
+                          ) : 'None'}
+                        </td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">
+                          {typeParameter.default ? (
+                            <code>
+                              <ApiTypeText
+                                text={typeParameter.default}
+                                packageSlug={packageDoc.slug}
+                                sourcePackage={resolvedSymbol.sourcePackage}
+                              />
+                            </code>
+                          ) : 'None'}
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          {typeParameter.summary || 'No type parameter summary yet.'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          resolvedSymbol.aliasOf ? (
+            <section aria-labelledby="alias-heading" class="space-y-4">
+              <h2 id="alias-heading" class="text-xl md:text-2xl font-bold text-foreground">Alias</h2>
+              <div class="p-4 bg-muted/25 rounded-xl border border-border leading-relaxed text-sm text-muted-foreground">
+                <code>{resolvedSymbol.name}</code> aliases{' '}
+                {aliasHref ? (
+                  <a href={aliasHref} class="text-primary font-semibold hover:underline">
+                    <code>{resolvedSymbol.aliasOf.symbolName}</code>
+                  </a>
+                ) : (
+                  <code>{resolvedSymbol.aliasOf.symbolName}</code>
+                )}{' '}
+                from <code>{resolvedSymbol.aliasOf.packageName}</code>.
+              </div>
+              {aliasedSymbol ? (
+                <div class="api-alias-code">
+                  <CodeBlock code={aliasedSymbol.signature} lang="ts" title="Aliased Type Definition" />
+                  {aliasedSymbol.summary ? <p>{aliasedSymbol.summary}</p> : null}
+                </div>
+              ) : null}
+            </section>
+          ) : null
+        }
+
+        {
+          resolvedSymbol.params.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="params-heading">
+              <h2 id="params-heading" class="text-xl md:text-2xl font-bold text-foreground">Parameters</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Type</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {resolvedSymbol.params.map((param) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap">{param.name}</td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">
+                          <ApiTypeText
+                            text={param.type}
+                            packageSlug={packageDoc.slug}
+                            sourcePackage={resolvedSymbol.sourcePackage}
+                          />
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          {param.summary || (param.defaultValue ? `Default: ${param.defaultValue}` : 'No parameter summary yet.')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          properties.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="props-heading">
+              <h2 id="props-heading" class="text-xl md:text-2xl font-bold text-foreground">{propertiesHeading}</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Signature</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {properties.map((property) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap">
+                          <code>{property.name}{property.optional ? '?' : ''}</code>
+                        </td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+                          <code>
+                            <ApiTypeText
+                              text={property.signature}
+                              packageSlug={packageDoc.slug}
+                              sourcePackage={resolvedSymbol.sourcePackage}
+                            />
+                          </code>
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">{property.summary || 'No property summary yet.'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          constructors.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="constructors-heading">
+              <h2 id="constructors-heading" class="text-xl md:text-2xl font-bold text-foreground">{constructorsHeading}</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Signature</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {constructors.map((constructor) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap"><code>{constructor.name}</code></td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">
+                          <code>
+                            <ApiTypeText
+                              text={constructor.signature}
+                              packageSlug={packageDoc.slug}
+                              sourcePackage={resolvedSymbol.sourcePackage}
+                            />
+                          </code>
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">{constructor.summary || 'No constructor summary yet.'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          resolvedSymbol.literalTable ? (
+            <section class="space-y-4" aria-labelledby="values-heading">
+              <h2 id="values-heading" class="text-xl md:text-2xl font-bold text-foreground">Values</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      {resolvedSymbol.literalTable.columns.map((column) => (
+                        <th class="p-4 font-semibold text-foreground capitalize">{column}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {resolvedSymbol.literalTable.rows.map((row) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        {resolvedSymbol.literalTable?.columns.map((column) => {
+                          const value = row[column] ?? '';
+
+                          return (
+                            <td class="p-4 font-mono text-xs text-muted-foreground">
+                              {column === 'value' && hexColorPattern.test(value) ? (
+                                <span class="inline-flex items-center gap-1.5 font-sans">
+                                  <span
+                                    class="w-3.5 h-3.5 rounded-full border border-border"
+                                    style={`background: ${value}`}
+                                    aria-hidden="true"
+                                  />
+                                  <code class="font-mono text-xs text-foreground">{value}</code>
+                                </span>
+                              ) : (
+                                <code>{value}</code>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          methods.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="methods-heading">
+              <h2 id="methods-heading" class="text-xl md:text-2xl font-bold text-foreground">{methodsHeading}</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Signature</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {methods.map((method) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap"><code>{method.name}</code></td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+                          <code>
+                            <ApiTypeText
+                              text={method.signature}
+                              packageSlug={packageDoc.slug}
+                              sourcePackage={resolvedSymbol.sourcePackage}
+                            />
+                          </code>
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">{method.summary || 'No method summary yet.'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          resolvedSymbol.returns ? (
+            <section class="space-y-3" aria-labelledby="returns-heading">
+              <h2 id="returns-heading" class="text-xl md:text-2xl font-bold text-foreground">Returns</h2>
+              <div class="p-4 bg-muted/10 border border-border rounded-xl font-mono text-xs text-primary">
+                <ApiTypeText
+                  text={resolvedSymbol.returns}
+                  packageSlug={packageDoc.slug}
+                  sourcePackage={resolvedSymbol.sourcePackage}
+                />
+              </div>
+              {resolvedSymbol.returnsSummary ? <p class="text-sm text-muted-foreground leading-relaxed pl-1">{resolvedSymbol.returnsSummary}</p> : null}
+            </section>
+          ) : null
+        }
+
+        {
+          hasReturnMembers ? (
+            <section class="space-y-4" aria-labelledby="return-members-heading">
+              <h2 id="return-members-heading" class="text-xl md:text-2xl font-bold text-foreground">{returnMembersHeading}</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Name</th>
+                      <th class="p-4 font-semibold text-foreground">Signature</th>
+                      <th class="p-4 font-semibold text-foreground">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {returnMembers.map((member) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 font-mono text-xs text-primary whitespace-nowrap">
+                          <code>{member.name}{member.optional ? '?' : ''}</code>
+                        </td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">
+                          <code>
+                            <ApiTypeText
+                              text={member.signature}
+                              packageSlug={packageDoc.slug}
+                              sourcePackage={resolvedSymbol.sourcePackage}
+                            />
+                          </code>
+                        </td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">{member.summary || 'No return member summary yet.'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
+
+        {
+          examples.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="examples-heading">
+              <h2 id="examples-heading" class="text-xl md:text-2xl font-bold text-foreground">{examplesHeading}</h2>
+              <div class="space-y-6">
+                {examples.map((example) => {
+                  const parsedExample = parseExample(example);
+
+                  return (
+                    <CodeBlock
+                      code={parsedExample.code}
+                      lang={parsedExample.lang}
+                      title={`${parsedExample.lang} Example`}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          ) : null
+        }
+      </article>
+
+      <!-- Sidebar Column -->
+      <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+        <MarkdownCopyButton
+          href={`/packages/${packageDoc.slug}/api/${symbol.slug}.md`}
+          class="api-symbol-markdown-copy"
+        />
+        
+        <!-- Source Details Card -->
+        <div class="bg-card border border-border rounded-xl p-5 text-left">
+          <h3 class="text-sm font-bold text-foreground mb-3">Declaration Source</h3>
+          
+          <div class="space-y-4">
+            <div class="space-y-1">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Package</span>
+              <div class="font-mono text-xs text-foreground/80 break-all">{packageDoc.name}</div>
+            </div>
+            <div class="space-y-1">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Entry Point</span>
+              <div class="font-mono text-xs text-foreground/80 break-all">{packageDoc.entryPoint}</div>
+            </div>
+            {
+              resolvedSymbol.source ? (
+                <div class="space-y-1">
+                  <span class="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">File Location</span>
+                  <div class="font-mono text-xs text-foreground/80 break-all">
+                    {resolvedSymbol.source.fileName}:{resolvedSymbol.source.line}
+                  </div>
+                </div>
+              ) : null
+            }
+          </div>
+
+          {
+            resolvedSymbol.source?.url ? (
+              <a
+                href={resolvedSymbol.source.url}
+                target="_blank"
+                rel="noreferrer"
+                class="mt-5 inline-flex items-center justify-center gap-2 w-full px-4 py-2 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/10 transition-all font-semibold text-xs text-foreground/80"
+              >
+                View Source on GitHub
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            ) : null
+          }
+        </div>
+
+        <!-- Back to Package Index Button -->
+        <a
+          class="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg border border-border bg-card text-foreground font-semibold text-xs hover:bg-muted transition-all"
+          href={apiPackageHref(packageDoc.slug)}
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to API Index
+        </a>
+      </aside>
+      
+    </div>
+  </div>
+</BaseLayout>

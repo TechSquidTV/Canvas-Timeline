@@ -1,0 +1,89 @@
+---
+title: Getting started
+description: Install Canvas Timeline and render the first editable timeline surface.
+section: intro
+order: 10
+---
+
+import Callout from '../../components/Callout.astro';
+import PackageManagerTabs from '../../components/PackageManagerTabs.astro';
+
+## Install the main package
+
+Most React applications should start with the batteries-included package. It
+re-exports the common core, React, renderer, and utility APIs from one place.
+
+<PackageManagerTabs packages="@techsquidtv/canvas-timeline" />
+
+<Callout kind="tip" title="Start broad, then choose focused packages">
+  Use the main package while you are learning the model. Reach for the lower level packages when you
+  know which layer you want to customize.
+</Callout>
+
+<Callout kind="warning" title="Alpha release stage">
+  Canvas Timeline is currently alpha. Before integrating it into production workflows, read the
+  [Release Stage &
+  Versioning](https://github.com/techsquidtv/canvas-timeline#release-stage--versioning) policy in
+  the README.
+</Callout>
+
+## Create a timeline engine
+
+The engine owns state for tracks, clips, markers, zoom, scroll, playback, and
+editing operations. It is UI-agnostic, so React components subscribe through the
+provider instead of owning the timeline model directly.
+
+```tsx
+import { TimelineEngine, TimelineProvider, fromSeconds } from '@techsquidtv/canvas-timeline';
+
+const engine = new TimelineEngine({
+  duration: fromSeconds(15),
+  tracks: [],
+});
+```
+
+## Render the surface
+
+The React package provides interaction layers, and the renderer package draws
+the canvas-backed timeline. Canvas visuals are not input handlers by themselves;
+pair visible overlays such as the playhead with their React interaction
+components.
+
+```tsx
+import {
+  CanvasRenderer,
+  Timeline,
+  TimelineEngine,
+  TimelineProvider,
+} from '@techsquidtv/canvas-timeline';
+import '@techsquidtv/canvas-timeline/styles.css';
+
+export function EditorTimeline({ engine }: { engine: TimelineEngine }) {
+  return (
+    <TimelineProvider engine={engine}>
+      <Timeline.Root>
+        <CanvasRenderer />
+        <Timeline.ClipInteractionLayer />
+        <Timeline.PlayheadArea />
+        <Timeline.PlayheadGrabber />
+      </Timeline.Root>
+    </TimelineProvider>
+  );
+}
+```
+
+`styles.css` includes required interaction geometry plus the shadcn-compatible
+default timeline theme for canvas visuals, interaction chrome, scrollbars, and
+optional timeline shell/control utility classes. Product layout around the
+timeline, such as inspectors, media previews, menus, and page sections, stays in
+your app. Apps that do not define shadcn-compatible semantic tokens can import
+`@techsquidtv/canvas-timeline/base.css` instead, or define their own semantic
+tokens and `--timeline-*` overrides. See [Styling & variables](/docs/styling) for the CSS and renderer split.
+
+`Timeline.ClipInteractionLayer` is the default clip-editing surface. It mounts a
+single delegated layer, uses pointer capture for active drags and trims, and
+leaves clip bodies, labels, and selected borders on the canvas renderer.
+
+## Next steps
+
+Read the [system architecture](/docs/architecture) guide next to understand the timeline model, then use the [styling](/docs/styling) guide before customizing the surface. When you know which layer your app needs, open the package docs for install paths, exports, and API reference.

@@ -1,0 +1,36 @@
+---
+export interface BreadcrumbItem {
+  label: string;
+  href?: string;
+}
+
+interface Props {
+  items: BreadcrumbItem[];
+}
+
+const { items } = Astro.props;
+const visibleItems = items.filter((item) => item.label.trim().length > 0);
+---
+
+{
+  visibleItems.length > 1 ? (
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol>
+        {visibleItems.map((item, index) => {
+          const isCurrent = index === visibleItems.length - 1;
+
+          return (
+            <li>
+              {item.href && !isCurrent ? (
+                <a href={item.href}>{item.label}</a>
+              ) : (
+                <span aria-current={isCurrent ? 'page' : undefined}>{item.label}</span>
+              )}
+              {!isCurrent ? <span class="breadcrumbs__separator" aria-hidden="true">/</span> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  ) : null
+}

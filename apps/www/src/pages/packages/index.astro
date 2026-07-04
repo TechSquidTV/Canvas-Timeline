@@ -1,0 +1,126 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { packageDocs } from '@/data/packages';
+import { createPackageIndexStructuredData } from '@/lib/structured-data';
+
+const corePackages = packageDocs.filter(
+  (p) => p.slug !== 'html-media-adapter' && p.slug !== 'mediabunny-adapter'
+);
+const adapterPackages = packageDocs.filter(
+  (p) => p.slug === 'html-media-adapter' || p.slug === 'mediabunny-adapter'
+);
+const structuredData = createPackageIndexStructuredData(packageDocs);
+---
+
+<BaseLayout
+  title="Canvas Timeline Packages - React Timeline Editor"
+  description="Explore modular packages for the Canvas React timeline editor, including headless core engine, React component bindings, 60fps canvas renderer, and sync adapters."
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Packages' },
+  ]}
+  structuredData={structuredData}
+>
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden bg-background pt-16 pb-20 md:pt-24 md:pb-28 border-b border-border">
+    <!-- Subtle Background Glow -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-[radial-gradient(ellipse_at_top,var(--primary),transparent_60%)] opacity-10 pointer-events-none" aria-hidden="true"></div>
+
+    <div class="container-page relative z-10 px-4 flex flex-col items-center text-center">
+      <!-- Eyebrow -->
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider text-primary bg-primary/10 border border-primary/20 uppercase mb-6">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+        </svg>
+        React Components & Core Engine
+      </span>
+
+      <!-- Title -->
+      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-foreground leading-none max-w-4xl mx-auto">
+        Canvas Timeline <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-foreground">Packages</span>
+      </h1>
+
+      <!-- Description -->
+      <p class="mt-6 text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+        Start with the main package for the common React editor path, then drop down to focused packages when you need more control.
+      </p>
+    </div>
+  </section>
+
+  <!-- Listings Section -->
+  <section class="py-16 md:py-24 bg-background">
+    <div class="container-page px-4 flex flex-col gap-16">
+      
+      <!-- Core Primitives Group -->
+      <div class="flex flex-col gap-8">
+        <div class="max-w-3xl text-left">
+          <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+            Core primitives & UI
+          </h2>
+          <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+            The main library packages containing providers, context, hooks, drawing workers, and utilities.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {
+            corePackages.map((packageDoc) => (
+              <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href={`/packages/${packageDoc.slug}`}>
+                <div>
+                  <h3 class="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                    {packageDoc.shortName}
+                  </h3>
+                  <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+                    {packageDoc.description}
+                  </p>
+                </div>
+                <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+                  Explore {packageDoc.slug}
+                  <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+
+      <!-- Sync Adapters Group -->
+      <div class="flex flex-col gap-8">
+        <div class="max-w-3xl text-left">
+          <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+            Sync adapters
+          </h2>
+          <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+            Integrations to synchronize the Canvas Timeline editor with HTMLMediaElements, audio drivers, and decoding frameworks.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {
+            adapterPackages.map((packageDoc) => (
+              <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href={`/packages/${packageDoc.slug}`}>
+                <div>
+                  <h3 class="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                    {packageDoc.shortName}
+                  </h3>
+                  <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+                    {packageDoc.description}
+                  </p>
+                </div>
+                <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+                  Explore {packageDoc.slug}
+                  <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,76 @@
+{
+  "name": "@techsquidtv/canvas-timeline-react",
+  "version": "0.0.1",
+  "license": "MPL-2.0",
+  "description": "React bindings, hooks, and interaction components for Canvas Timeline.",
+  "type": "module",
+  "homepage": "https://canvastimeline.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "directory": "packages/react"
+  },
+  "keywords": [
+    "timeline",
+    "video-editor",
+    "react",
+    "components",
+    "canvas-timeline"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js"
+    },
+    "./range-scrollbar": {
+      "types": "./dist/rangeScrollbar/index.d.ts",
+      "import": "./dist/rangeScrollbar/index.js"
+    },
+    "./timecode-input": {
+      "types": "./dist/timecodeInput/index.d.ts",
+      "import": "./dist/timecodeInput/index.js"
+    },
+    "./timecode-field": {
+      "types": "./dist/timecodeField/index.d.ts",
+      "import": "./dist/timecodeField/index.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js"
+    },
+    "./docs-metadata": {
+      "types": "./dist/docs-metadata.d.ts",
+      "import": "./dist/docs-metadata.js"
+    },
+    "./base.css": "./dist/base.css",
+    "./theme.css": "./dist/theme.css",
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vp pack && cp src/base.css dist/base.css && cp src/theme.css dist/theme.css && cp src/styles.css dist/styles.css",
+    "dev": "vp pack --watch --no-clean",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "@techsquidtv/canvas-timeline-core": "workspace:*",
+    "@techsquidtv/canvas-timeline-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

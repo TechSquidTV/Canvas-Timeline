@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "paths": {
+      "@techsquidtv/canvas-timeline-core": ["./packages/core/src/index.ts"],
+      "@techsquidtv/canvas-timeline-core/*": ["./packages/core/src/*"],
+      "@techsquidtv/canvas-timeline-react": ["./packages/react/src/index.ts"],
+      "@techsquidtv/canvas-timeline-react/range-scrollbar": [
+        "./packages/react/src/rangeScrollbar/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-react/timecode-field": [
+        "./packages/react/src/timecodeField/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-react/timecode-input": [
+        "./packages/react/src/timecodeInput/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-react/*": ["./packages/react/src/*"],
+      "@techsquidtv/canvas-timeline-html-media-adapter": [
+        "./packages/html-media-adapter/src/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-html-media-adapter/*": ["./packages/html-media-adapter/src/*"],
+      "@techsquidtv/canvas-timeline-mediabunny-adapter": [
+        "./packages/mediabunny-adapter/src/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-mediabunny-adapter/*": ["./packages/mediabunny-adapter/src/*"],
+      "@techsquidtv/canvas-timeline-renderer": ["./packages/renderer/src/index.ts"],
+      "@techsquidtv/canvas-timeline-renderer/*": ["./packages/renderer/src/*"],
+      "@techsquidtv/canvas-timeline-utils": ["./packages/utils/src/index.ts"],
+      "@techsquidtv/canvas-timeline-utils/*": ["./packages/utils/src/*"],
+      "@techsquidtv/canvas-timeline": ["./packages/timeline/src/index.ts"],
+      "@techsquidtv/canvas-timeline/*": ["./packages/timeline/src/*"]
+    }
+  }
+}

@@ -1,0 +1,171 @@
+---
+title: Canvas renderer customization
+description: Customize canvas drawing, override themes, specify metrics, and draw custom layers.
+section: concepts
+order: 27
+---
+
+## Local theme overrides
+
+Use the `theme` prop when canvas-painted visuals need explicit overrides:
+
+```tsx
+import { CanvasRenderer } from '@techsquidtv/canvas-timeline';
+
+<CanvasRenderer
+  theme={{
+    colors: {
+      clip: {
+        bg: '#252525',
+        bgSelected: '#303030',
+        borderSelected: '#eab308',
+        textSelected: '#18181b',
+      },
+      marker: {
+        fill: '#a1a1aa',
+        text: '#a1a1aa',
+      },
+    },
+  }}
+/>;
+```
+
+The renderer merges partial overrides with built-in canvas defaults. Explicit
+`theme` values win over documented `--timeline-*` variables, which win over
+documented shadcn semantic variables such as `--background`, `--foreground`,
+`--accent`, `--primary`, `--ring`, and `--font-mono`, which win over renderer
+defaults. Undocumented timeline aliases are intentionally ignored.
+
+Track row height comes from timeline data (`track.height`). Renderer metrics
+only shape the built-in clip body inside that row:
+
+```tsx
+<CanvasRenderer
+  theme={{
+    metrics: {
+      clipRadius: 6,
+      clipInsetY: 4,
+      clipLabelPaddingX: 12,
+    },
+  }}
+/>
+```
+
+## Keyframe drawing
+
+`CanvasRenderer` draws clip keyframe curves and diamonds by default. The renderer
+uses the same keyframe interpolation helpers as the engine, so canvas visuals
+match evaluated `linear`, `hold`, and `bezier` property values.
+
+Disable the built-in keyframe layer when an app wants to draw custom automation
+curves:
+
+```tsx
+<CanvasRenderer showKeyframes={false} />
+```
+
+Use `Timeline.KeyframeInteractionLayer` for DOM hit targets over canvas-drawn
+keyframes. Use `Timeline.KeyframeCurveInteractionLayer` for optional inline
+Bezier handles on selected curve segments. Fully custom renderers can read
+keyframe geometry through `useTimelineKeyframes()` and curve geometry through
+`useTimelineKeyframeCurves()`.
+
+## Theme changes
+
+When your application changes theme classes or root CSS variables, update
+`themeKey` so `CanvasRenderer` re-reads those variables and posts updated options
+to the worker:
+
+```tsx
+import { CanvasRenderer, Timeline } from '@techsquidtv/canvas-timeline';
+
+<section className={themeName === 'dark' ? 'dark editor-theme' : 'editor-theme'}>
+  <Timeline.Root>
+    <CanvasRenderer themeKey={themeName} />
+    <Timeline.PlayheadArea />
+    <Timeline.PlayheadGrabber />
+  </Timeline.Root>
+</section>;
+```
+
+Use a stable primitive such as `'light'`, `'dark'`, a brand id, or a numeric
+revision. Do not change `themeKey` on every frame.
+
+## Clip colors
+
+Clip fill color is canvas-painted. The renderer uses this order:
+
+1. `clip.color` from timeline data.
+2. The selected or default clip colors from the resolved renderer theme.
+3. Built-in renderer defaults.
+
+Treat `clip.color` as project data, not component styling. It is useful for media
+categories, track roles, labels, or imported project metadata. When a clip does
+not define `clip.color`, the package theme derives default and selected clip
+fills from the host app's panel, accent, and foreground tokens. For
+general app theme changes, prefer CSS variables plus `CanvasRenderer themeKey`.
+
+Markers follow the same data-versus-theme boundary. `marker.color` wins for the
+marker pin fill when it is present in timeline data. Otherwise, the pin fill
+uses `--timeline-marker` (falling back to `--muted-foreground` and its built-in
+neutral). The marker label text color is independently controlled by
+`--timeline-marker-text` (falling back to `--timeline-ruler-text`,
+`--muted-foreground`, and built-in neutral), and is not affected by
+`marker.color`.
+
+## Custom dense visuals
+
+Use `TimelineCanvasLayer` for thumbnail strips, waveforms, annotations, and
+other dense visuals that should not become per-clip DOM. The layer gives your
+app visible clip geometry and source-time ranges, but your app owns media
+decoding and caches. Do not fetch, decode, or generate images inside `draw()`;
+draw cached `ImageBitmap`, `HTMLImageElement`, video-frame canvas, or other
+`CanvasImageSource` values and call `requestDraw()` when an async cache finishes.
+
+```tsx
+import { CanvasRenderer, TimelineCanvasLayer } from '@techsquidtv/canvas-timeline';
+
+const thumbnailCache = new Map<string, CanvasImageSource>();
+
+// inside your timeline root:
+<CanvasRenderer showClips={false} />
+<TimelineCanvasLayer
+  overscanPixels={128}
+  draw={({ ctx, visibleClips, requestDraw }) => {
+    for (const clip of visibleClips) {
+      const image = thumbnailCache.get(clip.clip.sourceId);
+      if (!image) {
+        loadThumbnail(clip.clip.sourceId).then((nextImage) => {
+          thumbnailCache.set(clip.clip.sourceId, nextImage);
+          requestDraw();
+        });
+        continue;
+      }
+
+      ctx.drawImage(
+        image,
+        clip.visibleRect.x,
+        clip.visibleRect.y,
+        clip.visibleRect.width,
+        clip.visibleRect.height
+      );
+    }
+  }}
+/>
+```
+
+For custom DOM clip renderers, use `useTimelineVisibleClips()` and render only
+the returned visible entries. DOM composition is flexible, but large thumbnail
+or waveform timelines should prefer a canvas layer to avoid layout work.
+
+## Performance rules
+
+- Keep repeated visuals on canvas: clips, tracks, rulers, markers, snap lines,
+  in/out shading, waveforms, thumbnails, and keyframes.
+- Style low-count DOM affordances with CSS: scrollbars, grabbers, the active
+  clip interaction layer, focus rings, and editor chrome.
+- Let clip drag and trim interactions use pointer capture on the delegated
+  interaction layer; avoid window-level drag listeners that duplicate pointer
+  move handling.
+- Resolve CSS variables only when the theme changes, not during scrolling,
+  scrubbing, zooming, playback, or rendering frames.

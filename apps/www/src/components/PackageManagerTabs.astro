@@ -1,0 +1,41 @@
+---
+import CodeTabs from '@/components/CodeTabs.astro';
+
+interface Props {
+  packages: string;
+  dev?: boolean;
+}
+
+const { packages, dev = false } = Astro.props;
+const commands = [
+  {
+    id: 'pnpm',
+    label: 'pnpm',
+    command: `pnpm add ${dev ? '-D ' : ''}${packages}`,
+  },
+  {
+    id: 'npm',
+    label: 'npm',
+    command: `npm install ${dev ? '-D ' : ''}${packages}`,
+  },
+  {
+    id: 'yarn',
+    label: 'yarn',
+    command: `yarn add ${dev ? '-D ' : ''}${packages}`,
+  },
+  {
+    id: 'bun',
+    label: 'bun',
+    command: `bun add ${dev ? '-d ' : ''}${packages}`,
+  },
+];
+const groupId = `pm-${packages.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${dev ? 'dev' : 'prod'}`;
+const tabs = commands.map((item) => ({
+  id: item.id,
+  label: item.label,
+  code: item.command,
+  lang: 'shell',
+}));
+---
+
+<CodeTabs id={groupId} ariaLabel="Package manager commands" tabs={tabs} frame="terminal" />

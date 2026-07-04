@@ -1,0 +1,161 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import {
+  getReactRegistryApiHref,
+  getReactRegistryPageSections,
+  reactRegistryItems,
+  type ReactRegistryItem,
+} from '@/data/react-registry';
+import { apiPackageHref } from '@/lib/api-reference';
+import { createReactRegistryStructuredData } from '@/lib/structured-data';
+
+type ReactRegistryDocEntry = CollectionEntry<'reactRegistryDocs'>;
+
+interface Props {
+  item: ReactRegistryItem;
+  entry: ReactRegistryDocEntry;
+}
+
+export async function getStaticPaths() {
+  const registryDocs = (await getCollection('reactRegistryDocs')) as ReactRegistryDocEntry[];
+  const manifestSlugs = new Set(reactRegistryItems.map((item) => item.slug));
+  const docsByKey = new Map<string, ReactRegistryDocEntry>();
+
+  for (const entry of registryDocs) {
+    const registryKey = entry.data.registryKey;
+
+    if (!manifestSlugs.has(registryKey)) {
+      throw new Error(`Unknown React registry MDX entry "${entry.id}" for ${registryKey}`);
+    }
+
+    const existingEntry = docsByKey.get(registryKey);
+
+    if (existingEntry) {
+      throw new Error(
+        `Duplicate React registry MDX entries for ${registryKey}: ${existingEntry.id}, ${entry.id}`
+      );
+    }
+
+    docsByKey.set(registryKey, entry);
+  }
+
+  for (const item of reactRegistryItems) {
+    if (!docsByKey.has(item.slug)) {
+      throw new Error(`Missing React registry MDX entry for ${item.slug}`);
+    }
+  }
+
+  return reactRegistryItems.map((item) => {
+    const entry = docsByKey.get(item.slug) as ReactRegistryDocEntry;
+
+    return {
+      params: { slug: item.slug },
+      props: { item, entry },
+    };
+  });
+}
+
+const { item, entry } = Astro.props;
+const renderedRegistryDoc = await render(entry);
+const RegistryContent = renderedRegistryDoc.Content;
+const registryHeadings = renderedRegistryDoc.headings;
+const reactApiHref = apiPackageHref('react');
+const apiLinks = item.apis
+  .map((api) => ({ ...api, apiHref: getReactRegistryApiHref(api) }))
+  .filter((api): api is typeof api & { apiHref: string } => api.apiHref !== undefined);
+const pageTitle = entry?.data.title ?? item.title;
+const pageDescription = entry?.data.description ?? item.description;
+const generatedTocLinks = getReactRegistryPageSections(item).map((section) => ({
+  href: `#${section.id}`,
+  label: section.label,
+  nested: false,
+}));
+const mdxTocLinks = registryHeadings
+  .filter((heading) => heading.depth === 2 || heading.depth === 3)
+  .map((heading) => ({
+    href: `#${heading.slug}`,
+    label: heading.text,
+    nested: heading.depth === 3,
+  }));
+const tocLinks = [...generatedTocLinks, ...mdxTocLinks];
+const structuredData = createReactRegistryStructuredData(item, pageTitle, pageDescription);
+---
+
+<BaseLayout
+  title={`${pageTitle} | React Registry`}
+  description={pageDescription}
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Packages', href: '/packages' },
+    { label: 'React', href: '/packages/react' },
+    { label: 'Registry', href: '/packages/react/registry' },
+    { label: pageTitle },
+  ]}
+  structuredData={structuredData}
+>
+  <section class="page-band registry-page-band">
+    <div class="container-page page-heading">
+      <p class="eyebrow">React Registry</p>
+      <div class="registry-detail__meta registry-detail__meta--hero">
+        <span>{item.kind}</span>
+        <code>{item.name}</code>
+        <code>{item.importPath}</code>
+      </div>
+      <h1>{pageTitle}</h1>
+      <p>{pageDescription}</p>
+    </div>
+  </section>
+
+  <article class="container-page detail-layout registry-doc-layout">
+    <section
+      class:list={[
+        'detail-main registry-detail registry-doc-main',
+        'registry-mdx-main',
+      ]}
+    >
+      <RegistryContent />
+    </section>
+
+    <aside class="detail-aside registry-doc-aside">
+      <MarkdownCopyButton
+        href={`/packages/react/registry/${item.slug}.llms.md`}
+        label="Copy LLM Reference"
+        ariaLabel="Copy this registry LLM reference as Markdown"
+        tooltip="Copies the registry overview, usage notes, and full linked API reference as Markdown for LLMs and advanced docs lookup."
+        class="registry-llm-copy"
+      />
+
+      <h2>On This Page</h2>
+      <div class="aside-link-list">
+        {
+          tocLinks.map((link) => (
+            <a class:list={[link.nested && 'is-nested']} href={link.href}>{link.label}</a>
+          ))
+        }
+      </div>
+
+      <h2>Registry</h2>
+      <div class="aside-link-list">
+        <a href="/packages/react/registry">All React surfaces</a>
+      </div>
+
+      <h2>Reference</h2>
+      <div class="aside-link-list">
+        {
+          apiLinks.map((api) => (
+            <a href={api.apiHref}>{api.name}</a>
+          ))
+        }
+        <a href={reactApiHref}>React API index</a>
+      </div>
+
+      <h2>Package</h2>
+      <div class="aside-link-list">
+        <a href="/packages/react">React package overview</a>
+      </div>
+    </aside>
+  </article>
+</BaseLayout>

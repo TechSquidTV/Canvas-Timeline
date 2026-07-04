@@ -1,0 +1,45 @@
+{
+  "$schema": "https://knip.dev/schema-json.json",
+  "rules": {
+    "duplicates": "off"
+  },
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/check-package-coverage.mjs",
+        "scripts/check-publishable-packages.mjs",
+        "scripts/check-vite-plus-custom-rules.mjs"
+      ],
+      "project": ["*.{js,ts}", "scripts/**/*.mjs"],
+      "ignoreDependencies": ["@arethetypeswrong/cli"]
+    },
+    "apps/www": {
+      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,astro,mdx,mjs}"],
+      "ignoreDependencies": ["@fontsource-variable/outfit", "tailwindcss", "typedoc", "workerd"]
+    },
+    "packages/utils": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/core": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/react": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/renderer": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/timeline": {
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  },
+  "ignoreIssues": {
+    "apps/www/src/lib/metrics.ts": ["exports"],
+    "packages/react/src/components/controls/RangeSelector.tsx": ["exports"],
+    "packages/react/src/components/scrollbars/VerticalScrollbar.tsx": ["exports"],
+    "packages/react/src/components/scrollbars/ViewportScrollbar.tsx": ["exports"],
+    "packages/react/src/timecodeField/TimecodeField.tsx": ["exports"],
+    "packages/react/src/hooks/core/timelineScalarControlProps.ts": ["types"],
+    "packages/renderer/src/render/geometry.ts": ["exports"]
+  }
+}

@@ -1,0 +1,28 @@
+---
+title: Building for Canvas-First Timelines
+description: Learn why Canvas Timeline keeps dense editor visuals on canvas while leaving React in charge of accessible timeline controls.
+publishDate: 2026-07-02
+author: Canvas Timeline Team
+tags:
+  - Architecture
+  - React
+  - Performance
+---
+
+Canvas Timeline is built around a simple constraint: timeline editors become expensive when every clip, tick, ruler mark, and interaction hint is a DOM node. The library keeps that dense work in the canvas renderer, then lets React handle the lower-count controls that need accessibility, focus management, and product-specific composition.
+
+## Why the split matters
+
+Video, audio, and animation editors spend a lot of time responding to small changes. Scrubbing, zooming, scrolling, trimming, and selection all change the visible state quickly. If those changes force hundreds of elements through layout and paint, the editor starts to feel heavy.
+
+The canvas layer draws repeated visuals such as clips, track lanes, ruler ticks, markers, snap lines, and range fills. React stays focused on the pieces that benefit from DOM semantics: buttons, inputs, scrollbars, playhead handles, focus rings, and delegated interaction affordances.
+
+## What stays typed
+
+The public model remains serializable and explicit. Tracks, clips, markers, playhead time, zoom, and scroll offsets live in timeline state, while heavy media details such as waveforms and preview URLs stay in your application store. That separation keeps undo history compact and makes persistence easier to reason about.
+
+## Where to start
+
+Start with the default React package when you want a complete editor surface quickly. Drop into the core, renderer, or utility packages when your application needs custom state persistence, canvas theme control, or integration with media playback.
+
+The architecture is intentionally modular: use the high-performance defaults first, then replace the shell around them with the product experience your editor needs.

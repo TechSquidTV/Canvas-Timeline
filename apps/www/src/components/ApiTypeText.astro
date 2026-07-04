@@ -1,0 +1,69 @@
+---
+import { apiReference, apiSymbolHref } from '@/lib/api-reference';
+
+interface Props {
+  text: string;
+  packageSlug: string;
+  sourcePackage?: string;
+}
+
+interface ApiTypeTextToken {
+  text: string;
+  href?: string;
+}
+
+const { text, packageSlug, sourcePackage } = Astro.props;
+const identifierPattern = /[A-Za-z_$][\w$]*/g;
+const tokens = tokenizeApiTypeText(text);
+
+function symbolHrefForTypeName(typeName: string): string | undefined {
+  const packageDoc = apiReference.packages.find((candidate) => candidate.slug === packageSlug);
+  const samePackageSymbol = packageDoc?.symbols.find((candidate) => candidate.name === typeName);
+
+  if (samePackageSymbol) {
+    return apiSymbolHref(packageSlug, samePackageSymbol.slug);
+  }
+
+  const sourcePackageDoc = apiReference.packages.find((candidate) => candidate.slug === sourcePackage);
+  const sourcePackageSymbol = sourcePackageDoc?.symbols.find(
+    (candidate) => candidate.name === typeName
+  );
+
+  if (sourcePackageDoc && sourcePackageSymbol) {
+    return apiSymbolHref(sourcePackageDoc.slug, sourcePackageSymbol.slug);
+  }
+
+  const matchingSymbols = apiReference.symbols.filter((candidate) => candidate.name === typeName);
+
+  if (matchingSymbols.length !== 1) {
+    return undefined;
+  }
+
+  return apiSymbolHref(matchingSymbols[0].sourcePackage, matchingSymbols[0].slug);
+}
+
+function tokenizeApiTypeText(typeText: string): ApiTypeTextToken[] {
+  const typeTokens: ApiTypeTextToken[] = [];
+  let lastIndex = 0;
+
+  for (const match of typeText.matchAll(identifierPattern)) {
+    const tokenText = match[0];
+    const index = match.index ?? 0;
+
+    if (index > lastIndex) {
+      typeTokens.push({ text: typeText.slice(lastIndex, index) });
+    }
+
+    typeTokens.push({ text: tokenText, href: symbolHrefForTypeName(tokenText) });
+    lastIndex = index + tokenText.length;
+  }
+
+  if (lastIndex < typeText.length) {
+    typeTokens.push({ text: typeText.slice(lastIndex) });
+  }
+
+  return typeTokens;
+}
+---
+
+{tokens.map((token) => (token.href ? <a href={token.href}>{token.text}</a> : token.text))}

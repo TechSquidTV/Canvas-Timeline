@@ -1,0 +1,76 @@
+---
+import ReactRegistryDemoPreview from '@/components/ReactRegistryDemoPreview';
+import {
+  reactRegistryItems,
+  type ReactRegistryDemoVariant,
+  type ReactRegistryItem,
+} from '@/data/react-registry';
+
+interface Props {
+  name?: string;
+  registryKey?: string;
+  title?: string;
+  description?: string;
+  href?: string;
+  showCaption?: boolean;
+  styleName?: string;
+  direction?: string;
+}
+
+const {
+  name,
+  registryKey,
+  title,
+  description,
+  href,
+  showCaption = false,
+  direction,
+} = Astro.props;
+
+function itemDemos(item: ReactRegistryItem) {
+  return [item.demo, ...(item.examples ?? []).map((example) => example.demo)];
+}
+
+const registryItem = registryKey
+  ? reactRegistryItems.find((item) => item.slug === registryKey)
+  : undefined;
+
+if (registryKey && !registryItem) {
+  throw new Error(`Unknown React registry item: ${registryKey}`);
+}
+
+const allDemos = reactRegistryItems.flatMap(itemDemos);
+const normalizedName = name?.endsWith('-demo') ? name.slice(0, -'-demo'.length) : name;
+const scopedDemos = registryItem ? itemDemos(registryItem) : allDemos;
+const demo = name
+  ? scopedDemos.find(
+      (candidate) => candidate.variant === name || candidate.variant === normalizedName
+    )
+  : registryItem?.demo;
+
+if (!demo) {
+  throw new Error(`Unknown React registry preview: ${name ?? registryKey ?? 'missing name'}`);
+}
+
+const previewTitle = title ?? demo.title;
+const previewDescription = description ?? demo.description;
+const previewHref = href ?? demo.href;
+const previewDirection = direction === 'rtl' ? 'rtl' : undefined;
+---
+
+<div class="component-preview" dir={previewDirection}>
+  <div class="component-preview__stage">
+    <ReactRegistryDemoPreview variant={demo.variant as ReactRegistryDemoVariant} client:load />
+  </div>
+  {
+    showCaption && (
+      <div class="component-preview__caption">
+        <div>
+          <h3>{previewTitle}</h3>
+          <p>{previewDescription}</p>
+        </div>
+        {previewHref && <a href={previewHref}>Open full demo</a>}
+      </div>
+    )
+  }
+</div>

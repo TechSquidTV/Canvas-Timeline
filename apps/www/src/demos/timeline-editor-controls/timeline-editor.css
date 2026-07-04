@@ -1,0 +1,24 @@
+@import '../shared-timeline-editor.css';
+
+.timeline-editor-controls-shell {
+  --demo-editor-shell-height: 20rem;
+  width: 100%;
+  max-width: 100%;
+  height: var(--demo-editor-shell-height);
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.timeline-editor-controls-shell .timeline-stage {
+  min-height: 0;
+}
+
+.timeline-editor-track-header-content {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+.timeline-editor-track-header-lock-button[data-track-locked='false']:not(:hover) {
+  border-color: color-mix(in oklch, var(--foreground) 8%, transparent);
+  background: transparent;
+  color: var(--muted-foreground);
+}

@@ -1,0 +1,277 @@
+import { afterEach, expect, test, vi } from 'vite-plus/test';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { ActiveClip, ActiveLayerResult } from '@techsquidtv/canvas-timeline-core';
+import type { MediabunnyAdapter } from './index';
+
+afterEach(() => {
+  vi.doUnmock('react');
+  vi.doUnmock('./index');
+  vi.doUnmock('@techsquidtv/canvas-timeline-react');
+  vi.unstubAllGlobals();
+  vi.resetModules();
+});
+
+function createMediaSyncEngine() {
+  return new TimelineEngine({
+    duration: fromSeconds(8),
+    playheadTime: fromSeconds(0),
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'video-clip',
+            sourceId: 'source-1',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+      },
+      {
+        id: 'audio-1',
+        kind: 'audio',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'audio-clip',
+            sourceId: 'source-1',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}) {
+  return {
+    ready: true,
+    status: 'Ready.',
+    error: null,
+    lastFrameTime: null,
+    durationBySourceId: new Map([['source-1', 4]]),
+    syncAdapter: {
+      getClockTime: vi.fn(() => 0),
+      startClock: vi.fn(() => true),
+      stopClock: vi.fn(),
+      seek: vi.fn(),
+      syncLayers: vi.fn(),
+    },
+    setCanvas: vi.fn(),
+    getClockTime: () => 0,
+    startClock: () => true,
+    stopClock: () => {},
+    resumeClock: () => Promise.resolve(),
+    setClockRate: () => {},
+    seek: () => Promise.resolve(),
+    renderVideo: () => Promise.resolve(),
+    syncAudio: () => {},
+    syncLayers: () => Promise.resolve(),
+    clearVideo: () => {},
+    getFrame: () => Promise.resolve(null),
+    dispose: vi.fn(),
+    ...overrides,
+  } satisfies MediabunnyAdapter;
+}
+
+test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', () => {
+  const canvas = document.createElement('canvas');
+  const dispose = vi.fn();
+  const setCanvas = vi.fn();
+  const adapter = createTestAdapter({ dispose, setCanvas });
+  const createMediabunnyAdapter = vi.fn(() => adapter);
+
+  vi.doMock('./index', async () => ({
+    createMediabunnyAdapter,
+  }));
+
+  return import('./react').then(async ({ useMediabunnyAdapter: useMockedMediabunnyAdapter }) => {
+    const canvasRef = { current: canvas };
+    const { result, unmount } = renderHook(() =>
+      useMockedMediabunnyAdapter({
+        canvasRef,
+        mediabunny: () => Promise.resolve({} as never),
+        sources: [],
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current).toBe(adapter);
+    });
+    expect(createMediabunnyAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: undefined,
+        mediabunny: expect.any(Function),
+        sources: [],
+        onChange: expect.any(Function),
+      })
+    );
+    expect(setCanvas).toHaveBeenCalledWith(canvas);
+
+    unmount();
+    expect(dispose).toHaveBeenCalled();
+  });
+});
+
+test('useMediabunnyAdapter returns noop behavior when window is unavailable', async () => {
+  const useEffect = vi.fn((effect: () => void | (() => void)) => {
+    effect();
+  });
+  const useState = <T,>(value: T) => [value, vi.fn()] as const;
+
+  vi.doMock('react', async () => ({
+    useEffect,
+    useReducer: () => [0, vi.fn()],
+    useState,
+  }));
+  vi.doMock('@techsquidtv/canvas-timeline-react', async () => ({
+    useTimelineMediaSync: vi.fn(),
+  }));
+  vi.stubGlobal('window', undefined);
+
+  const { useMediabunnyAdapter: useServerMediabunnyAdapter } = await import('./react');
+  const adapter = useServerMediabunnyAdapter({
+    mediabunny: () => Promise.resolve({} as never),
+    sources: [],
+  });
+
+  expect(adapter.ready).toBe(false);
+  expect(adapter.status).toBe('Mediabunny is waiting for the browser.');
+  expect(adapter.getClockTime()).toBe(0);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(false);
+  adapter.stopClock();
+  await adapter.resumeClock(1);
+  adapter.setClockRate(1);
+  await adapter.seek(fromSeconds(0), {
+    time: fromSeconds(0),
+    all: [],
+    byTrack: new Map(),
+    layers: {},
+    primary: {},
+    hasActiveClips: false,
+  } satisfies ActiveLayerResult<string>);
+  await adapter.renderVideo({} as ActiveClip, fromSeconds(0));
+  adapter.syncAudio(undefined, fromSeconds(0), 'pause');
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(0),
+    reason: 'pause',
+    activeLayers: {
+      time: fromSeconds(0),
+      all: [],
+      byTrack: new Map(),
+      layers: {},
+      primary: {},
+      hasActiveClips: false,
+    },
+  });
+  adapter.clearVideo();
+  await expect(adapter.getFrame({} as ActiveClip)).resolves.toBeNull();
+  adapter.dispose();
+  expect(adapter.syncAdapter.startClock(fromSeconds(0), 1)).toBe(false);
+  expect(useEffect).toHaveBeenCalled();
+});
+
+test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', async () => {
+  const canvas = document.createElement('canvas');
+  const adapter = createTestAdapter({
+    status: 'Ready. Mediabunny can drive timeline video and audio.',
+    lastFrameTime: 1.25,
+  });
+  const createMediabunnyAdapter = vi.fn(() => adapter);
+  const engine = createMediaSyncEngine();
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+    audio: { trackKind: 'audio', sourceId: 'source-1' },
+  } as const;
+
+  vi.doMock('./index', async () => ({
+    createMediabunnyAdapter,
+  }));
+
+  const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
+    import('./react'),
+    import('@techsquidtv/canvas-timeline-react'),
+  ]);
+  const { result } = renderHook(
+    () =>
+      useMediabunnyTimelineMedia({
+        canvasRef: { current: canvas },
+        sources: [{ id: 'source-1', url: '/sample.mp4' }],
+        layers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  expect(createMediabunnyAdapter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mediabunny: expect.any(Function),
+      sources: [{ id: 'source-1', url: '/sample.mp4' }],
+      onChange: expect.any(Function),
+    })
+  );
+  expect(result.current.adapter).toBe(adapter);
+  expect(result.current.ready).toBe(true);
+  expect(result.current.status).toBe('Ready. Mediabunny can drive timeline video and audio.');
+  expect(result.current.lastFrameTime).toBe(1.25);
+  expect(result.current.durationBySourceId.get('source-1')).toBe(4);
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(0) });
+  });
+
+  expect(adapter.syncAdapter.seek).toHaveBeenCalled();
+  expect(adapter.syncAdapter.startClock).toHaveBeenCalledWith(fromSeconds(0), 1);
+});
+
+test('useMediabunnyTimelineMedia accepts an explicit Mediabunny loader', async () => {
+  const adapter = createTestAdapter();
+  const createMediabunnyAdapter = vi.fn(() => adapter);
+  const explicitLoader = () => Promise.resolve({} as never);
+  const engine = createMediaSyncEngine();
+
+  vi.doMock('./index', async () => ({
+    createMediabunnyAdapter,
+  }));
+
+  const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
+    import('./react'),
+    import('@techsquidtv/canvas-timeline-react'),
+  ]);
+  renderHook(
+    () =>
+      useMediabunnyTimelineMedia({
+        mediabunny: explicitLoader,
+        sources: [],
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  expect(createMediabunnyAdapter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mediabunny: explicitLoader,
+    })
+  );
+});

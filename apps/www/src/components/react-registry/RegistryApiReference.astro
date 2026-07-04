@@ -1,0 +1,107 @@
+---
+import {
+  getReactRegistryApiHref,
+  reactRegistryItems,
+  type ReactRegistryApi,
+} from '@/data/react-registry';
+
+interface Props {
+  registryKey: string;
+}
+
+const { registryKey } = Astro.props;
+const item = reactRegistryItems.find((candidate) => candidate.slug === registryKey);
+
+if (!item) {
+  throw new Error(`Unknown React registry API reference: ${registryKey}`);
+}
+
+const showHookMetadata = item.kind === 'hook';
+const exportGroups = showHookMetadata
+  ? groupApisByCategory(item.apis)
+  : [{ category: undefined, apis: item.apis }];
+
+function metadataLabel(value: string | undefined): string {
+  return value ? value.replace(/-/g, ' ') : 'General';
+}
+
+function groupApisByCategory(apis: ReactRegistryApi[]) {
+  const groups = new Map<string | undefined, ReactRegistryApi[]>();
+
+  for (const api of apis) {
+    const group = groups.get(api.category) ?? [];
+    group.push(api);
+    groups.set(api.category, group);
+  }
+
+  return [...groups].map(([category, groupApis]) => ({ category, apis: groupApis }));
+}
+---
+
+<div class="registry-api-reference">
+  <h3>{item.title}</h3>
+  <p>{item.description}</p>
+
+  <h4>Exports</h4>
+  {
+    exportGroups.map((group) => (
+      <section class="registry-api-reference__group">
+        {showHookMetadata ? <h5>{metadataLabel(group.category)}</h5> : null}
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Reference</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.apis.map((api) => {
+              const apiHref = getReactRegistryApiHref(api);
+
+              return (
+                <tr>
+                  <td><code>{api.name}</code></td>
+                  <td>
+                    {apiHref ? (
+                      <a href={apiHref}>API reference</a>
+                    ) : (
+                      <span class="registry-muted">Namespace export</span>
+                    )}
+                  </td>
+                  <td>{api.description}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    ))
+  }
+
+  {
+    item.props && item.props.length > 0 && (
+      <>
+        <h4>Props and Inputs</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {item.props.map((prop) => (
+              <tr>
+                <td><code>{prop.name}</code></td>
+                <td><code>{prop.type}</code></td>
+                <td>{prop.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    )
+  }
+</div>

@@ -1,0 +1,34 @@
+---
+title: Demos overview
+description: A map for source-backed Canvas Timeline examples.
+section: demos
+order: 40
+---
+
+## Demo path
+
+The demos section is built from source-backed examples. Each route pairs a live
+Canvas Timeline surface with the same TSX, data, and CSS files shown in the code
+tabs, so the docs work as a small QA surface for package usage.
+
+[Browse the demo registry](/demos)
+
+## Starter demo
+
+The first starter demos are:
+
+- Basic Timeline: render the canvas and editable timeline layers with the
+  source-backed fixture from `apps/www/src/demos/basic-timeline/`, then drag
+  clips in the embedded surface.
+- Mediabunny Adapter Sync and HTML Media Adapter Sync: compare external media
+  playback adapters using the same source-backed preview fixture. The package
+  pages lead with `useHTMLTimelineMedia` and `useMediabunnyTimelineMedia`; the
+  demos use those same hooks in a complete preview surface so you can inspect
+  how `clip.sourceId`, source maps, selected layers, and transport state move
+  together. The HTML adapter demo uses one media element; separate audio/video
+  track sync remains a multi-element adapter concern.
+
+## Documentation role
+
+Use demos alongside the guides. A guide explains the concept; a demo lets you
+inspect the working surface and copy the actual source that rendered it.

@@ -1,0 +1,176 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import { groupApiSymbols, groupNameForApiSymbol } from '@/lib/api-symbol-groups';
+import { apiReference, apiSymbolHref, type ApiPackage } from '@/lib/api-reference';
+import { createApiPackageArticleStructuredData } from '@/lib/structured-data';
+
+interface Props {
+  packageDoc: ApiPackage;
+}
+
+export function getStaticPaths() {
+  return apiReference.packages.map((packageDoc) => ({
+    params: { slug: packageDoc.slug },
+    props: { packageDoc },
+  }));
+}
+
+const { packageDoc } = Astro.props;
+const symbolGroups = groupApiSymbols(packageDoc.slug, packageDoc.symbols);
+const commonEntryPointNames: Partial<Record<string, string[]>> = {
+  timeline: [
+    'TimelineEngine',
+    'TimelineProvider',
+    'Timeline',
+    'CanvasRenderer',
+    'fromSeconds',
+    'useTimeline',
+  ],
+  core: ['TimelineEngine', 'TimelineState', 'Track', 'Clip', 'fromSeconds', 'SpatialIndex'],
+  react: [
+    'TimelineProvider',
+    'Timeline',
+    'useTimeline',
+    'useTimelineState',
+    'useTimelinePlayback',
+    'TimecodeField',
+  ],
+  renderer: ['CanvasRenderer', 'CanvasRendererProps', 'createTimelineRendererTheme'],
+  utils: ['fromSeconds', 'toSeconds', 'formatTime', 'formatTimecode', 'addRational'],
+  'html-media-adapter': [
+    'useHTMLTimelineMedia',
+    'createHTMLMediaAdapter',
+    'useHTMLMediaAdapter',
+    'HTMLMediaAdapter',
+  ],
+  'mediabunny-adapter': [
+    'useMediabunnyTimelineMedia',
+    'createMediabunnyAdapter',
+    'useMediabunnyAdapter',
+    'MediabunnyAdapter',
+  ],
+};
+const commonEntryPoints = (commonEntryPointNames[packageDoc.slug] ?? [])
+  .map((symbolName) => packageDoc.symbols.find((symbol) => symbol.name === symbolName))
+  .filter(Boolean) as typeof packageDoc.symbols;
+const structuredData = createApiPackageArticleStructuredData(packageDoc);
+---
+
+<BaseLayout
+  title={`${packageDoc.name} API`}
+  description={`Generated API reference for ${packageDoc.name}.`}
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Packages', href: '/packages' },
+    { label: packageDoc.name, href: `/packages/${packageDoc.slug}` },
+    { label: 'API' },
+  ]}
+  structuredData={structuredData}
+>
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">
+    <!-- Subtle Background Glow -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[400px] bg-[radial-gradient(ellipse_at_top,var(--primary),transparent_60%)] opacity-10 pointer-events-none" aria-hidden="true"></div>
+
+    <div class="container-page relative z-10 px-4 flex flex-col items-center text-center">
+      <!-- Eyebrow -->
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider text-primary bg-primary/10 border border-primary/20 uppercase mb-4">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        </svg>
+        API Reference
+      </span>
+
+      <!-- Title -->
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground leading-none max-w-4xl mx-auto">
+        {packageDoc.name}
+      </h1>
+
+      <!-- Entry Point Subtitle -->
+      <p class="mt-4 font-mono text-[11px] sm:text-xs text-muted-foreground bg-muted/60 border border-border/60 px-3 py-1.5 rounded-lg inline-block select-all">
+        {packageDoc.entryPoint}
+      </p>
+
+      <MarkdownCopyButton href={`/packages/${packageDoc.slug}/api.md`} class="mt-5" />
+    </div>
+  </section>
+
+  <!-- Listings Section -->
+  <section class="py-12 md:py-16 bg-background">
+    <div class="container-page px-4 flex flex-col gap-12">
+      
+      {
+        packageDoc.warnings.length > 0 ? (
+          <div class="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-300 max-w-4xl mx-auto w-full text-left">
+            <details class="cursor-pointer select-none">
+              <summary class="font-semibold text-sm">{packageDoc.warnings.length} documentation warnings (click to expand)</summary>
+              <ul class="mt-2 space-y-1.5 list-disc pl-5 text-xs text-muted-foreground leading-relaxed">
+                {packageDoc.warnings.map((warning) => <li>{warning}</li>)}
+              </ul>
+            </details>
+          </div>
+        ) : null
+      }
+
+      {
+        commonEntryPoints.length > 0 ? (
+          <section class="space-y-6" aria-labelledby="common-heading">
+            <div class="text-left border-b border-border pb-4">
+              <h2 id="common-heading" class="text-xl md:text-2xl font-bold text-foreground">Common Entry Points</h2>
+              <p class="mt-1 text-sm text-muted-foreground leading-relaxed">Start with these essential APIs, then check the full reference index below.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {commonEntryPoints.map((symbol) => (
+                <a
+                  class="group block bg-card border border-border rounded-xl p-5 hover:border-primary hover:shadow-sm transition-all duration-200 text-left"
+                  href={apiSymbolHref(packageDoc.slug, symbol.slug)}
+                >
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary mb-2.5">
+                    {groupNameForApiSymbol(packageDoc.slug, symbol)}
+                  </span>
+                  <h3 class="text-base font-bold text-foreground group-hover:text-primary transition-colors">{symbol.name}</h3>
+                  <p class="mt-1.5 text-xs md:text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                    {symbol.summary || 'No TSDoc summary yet.'}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null
+      }
+
+      <section class="space-y-8" aria-labelledby="index-heading">
+        <div class="text-left border-b border-border pb-4">
+          <h2 id="index-heading" class="text-xl md:text-2xl font-bold text-foreground">API Index</h2>
+          <p class="mt-1 text-sm text-muted-foreground leading-relaxed">Exhaustive list of all public exports grouped by category.</p>
+        </div>
+        
+        <div class="space-y-6">
+          {symbolGroups.map(([group, groupSymbols]) => (
+            <div class="bg-card border border-border rounded-xl p-5 md:p-6 text-left">
+              <div class="flex items-center justify-between border-b border-border pb-3 mb-4">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-muted-foreground">{group}</h3>
+                <span class="px-2 py-0.5 rounded bg-muted text-[10px] text-muted-foreground font-semibold">{groupSymbols.length}</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groupSymbols.map((symbol) => (
+                  <a
+                    class="group block bg-muted/10 border border-border/50 hover:border-primary/40 hover:bg-primary/5 rounded-xl p-3.5 transition-all text-left"
+                    href={apiSymbolHref(packageDoc.slug, symbol.slug)}
+                  >
+                    <strong class="block text-xs font-bold text-foreground group-hover:text-primary transition-colors">{symbol.name}</strong>
+                    <p class="mt-1.5 text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                      {symbol.summary || 'No TSDoc summary yet.'}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+    </div>
+  </section>
+</BaseLayout>

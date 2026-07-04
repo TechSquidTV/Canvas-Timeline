@@ -1,0 +1,95 @@
+---
+import { sponsorsSnapshot } from '@/data/sponsors.generated';
+import { site, type SponsorshipTier, type SponsorshipTierId } from '@/data/site';
+import { privateSponsorCountForTier, sponsorsForTier } from '@/lib/sponsors';
+
+const tierOrder = [...site.sponsorship.tiers].reverse();
+const hasSponsors =
+  sponsorsSnapshot.sponsors.length > 0 || sponsorsSnapshot.privateSponsors.length > 0;
+
+function tierTone(tier: SponsorshipTierId) {
+  return `sponsor-tier sponsor-tier--${tier}`;
+}
+
+function priceLabel(tier: SponsorshipTier) {
+  return `$${tier.monthlyPriceInDollars}/mo`;
+}
+---
+
+<section class="sponsor-band" aria-labelledby="sponsors-heading">
+  <div class="container-page sponsor-band__inner">
+    <div class="sponsor-band__header">
+      <div>
+        <p class="eyebrow">Open source sponsorship</p>
+        <h2 id="sponsors-heading">Made possible by Canvas Timeline sponsors</h2>
+        <p>
+          Sponsorship helps fund maintenance, docs, examples, and the editor roadmap. Sponsor data
+          is pulled from GitHub Sponsors at build time and limited to public GitHub profile data.
+        </p>
+      </div>
+      <a class="button button-primary" href={site.sponsorship.href}>{site.sponsorship.label}</a>
+    </div>
+
+    {
+      hasSponsors ? (
+        <div class="sponsor-tier-list">
+          {tierOrder.map((tier) => {
+            const sponsors = sponsorsForTier(sponsorsSnapshot, tier.id);
+            const privateCount = privateSponsorCountForTier(sponsorsSnapshot, tier.id);
+
+            if (sponsors.length === 0 && privateCount === 0) {
+              return null;
+            }
+
+            return (
+              <section class={tierTone(tier.id)} aria-labelledby={`sponsor-tier-${tier.id}`}>
+                <div class="sponsor-tier__heading">
+                  <h3 id={`sponsor-tier-${tier.id}`}>{tier.label}</h3>
+                  <span>{priceLabel(tier)}</span>
+                </div>
+                <div class="sponsor-grid">
+                  {sponsors.map((sponsor) => (
+                    <a class="sponsor-card" href={sponsor.url}>
+                      <img
+                        src={sponsor.avatarUrl}
+                        alt=""
+                        width="48"
+                        height="48"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span>
+                        <strong>{sponsor.name}</strong>
+                        <small>@{sponsor.login}</small>
+                      </span>
+                    </a>
+                  ))}
+                  {privateCount > 0 ? (
+                    <div class="sponsor-card sponsor-card--private">
+                      <span class="sponsor-card__private-avatar" aria-hidden="true">
+                        {privateCount}
+                      </span>
+                      <span>
+                        <strong>
+                          {privateCount === 1 ? 'Private sponsor' : 'Private sponsors'}
+                        </strong>
+                        <small>
+                          {privateCount === 1 ? 'Anonymous supporter' : `${privateCount} supporters`}
+                        </small>
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div class="sponsor-empty">
+          <p>No public Canvas Timeline sponsors yet.</p>
+          <a href={site.sponsorship.href}>Become the first sponsor</a>
+        </div>
+      )
+    }
+  </div>
+</section>

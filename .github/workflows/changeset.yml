@@ -1,0 +1,37 @@
+name: Changeset
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: changeset-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  status:
+    name: Changeset status
+    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Require a changeset or an empty changeset
+        run: vp exec changeset status --since=origin/${{ github.base_ref }}

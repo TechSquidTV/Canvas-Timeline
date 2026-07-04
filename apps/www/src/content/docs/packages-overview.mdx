@@ -1,0 +1,81 @@
+---
+title: Packages overview
+description: Decide which Canvas Timeline package to start with and when to use each lower-level layer.
+section: packages
+order: 30
+---
+
+## Start with the main package
+
+Use `@techsquidtv/canvas-timeline` first when you are building the normal React
+and canvas editor path. It keeps the first install simple while you learn the
+timeline model and supports focused package imports when your integration needs
+a narrower package boundary.
+
+The package pages contain install commands, imports, and practical usage notes.
+This page is the map.
+
+For styling, React and renderer packages work together. React CSS controls DOM
+interaction layers, while the renderer theme controls canvas-painted timeline
+visuals such as clips, tracks, ruler ticks, markers, and snap lines. Start with
+`styles.css` in apps that define shadcn-compatible semantic tokens, or use
+`base.css` plus your own theme when integrating with another design system. The
+package theme covers the reusable timeline surface, interaction chrome,
+scrollbars, and optional timeline shell/control utilities. Product panels, media
+previews, dialogs, and page framing stay in application CSS.
+
+For clip editing, the React package exposes a delegated interaction layer rather
+than one DOM subtree per clip. It uses Pointer Events pointer capture for active
+drag and trim gestures, while the renderer keeps repeated clip visuals on canvas.
+
+## When to drop down a layer
+
+| If you are...                               | Go to                                                                             | Why                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Building the common React timeline editor   | [`@techsquidtv/canvas-timeline`](/packages/timeline)                              | It collects the usual public APIs in one package.              |
+| Owning state and edits without UI           | [`@techsquidtv/canvas-timeline-core`](/packages/core)                             | It is framework-agnostic and renderer-agnostic.                |
+| Binding an engine to React controls         | [`@techsquidtv/canvas-timeline-react`](/packages/react)                           | It provides the provider, hooks, and components.               |
+| Syncing one HTML media element              | [`@techsquidtv/canvas-timeline-html-media-adapter`](/packages/html-media-adapter) | Use `useHTMLTimelineMedia` for native single-element sync.     |
+| Syncing Mediabunny playback and frames      | [`@techsquidtv/canvas-timeline-mediabunny-adapter`](/packages/mediabunny-adapter) | Use `useMediabunnyTimelineMedia` for decoded frame/audio sync. |
+| Drawing the default canvas timeline surface | [`@techsquidtv/canvas-timeline-renderer`](/packages/renderer)                     | It owns canvas rendering and theme helpers.                    |
+| Sharing time helpers outside editor UI      | [`@techsquidtv/canvas-timeline-utils`](/packages/utils)                           | It keeps rational-time helpers lightweight.                    |
+
+## Media adapter choice
+
+Both media adapters keep media bytes, decoded frames, and element state outside
+`TimelineState`. Timeline clips point at media through `clip.sourceId`; the
+adapter receives a matching `sources` collection and turns timeline playback
+into media playback.
+
+Choose the HTML media adapter when one native `<video>` or `<audio>` element
+should follow timeline transport. Start with `useHTMLTimelineMedia`, which takes
+the element ref, a `Record<sourceId, string | Blob | File>`, and the timeline
+layers you want to sync.
+
+Choose the Mediabunny adapter when you need decoded frames on a canvas, local
+files/blobs, custom Mediabunny inputs, or separate visual/audio scheduling.
+Start with `useMediabunnyTimelineMedia`; it lazy-loads the `mediabunny` peer in
+the browser unless you pass your own module or loader.
+
+The lower-level `useTimelineMediaSync` hook and adapter factories remain useful
+when your app owns a custom media clock, multiple media surfaces, or a
+nonstandard preview pipeline.
+
+## Docs versus API reference
+
+Use the [package directory](/packages) when you want human guidance: what to
+install, what to import, and when a package belongs in your app.
+
+Use the generated API reference linked from each [package page](/packages) when
+you need exact exported symbols, signatures, parameters, return types, and
+source packages. The API reference is generated from TypeScript and TSDoc. Use
+it to answer "what does this symbol look like?" without turning the guide pages
+into raw reference dumps.
+
+## Recommended reading path
+
+1. Read [Getting started](/docs/getting-started).
+2. Read [Styling & variables](/docs/styling) if you need custom or shadcn-compatible styling.
+3. Choose a package from the [package directory](/packages).
+4. Open that package page for install and usage notes.
+5. Use the generated API reference on that package page when you need exact types or signatures.

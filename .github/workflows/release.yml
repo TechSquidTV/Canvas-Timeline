@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag to publish'
+        required: true
+        default: 'canary'
+      snapshot:
+        description: 'Publish Changesets snapshot versions'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Version or publish packages
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run release validation
+        run: vp run ci
+
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11
+
+      - name: Create release PR or publish to npm
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          title: 'chore(release): version packages'
+          commit: 'chore(release): version packages'
+          version: vp run changeset:version
+          publish: vp run release:publish
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize published packages
+        if: steps.changesets.outputs.published == 'true'
+        run: echo '${{ steps.changesets.outputs.publishedPackages }}' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
+
+  canary:
+    name: Publish snapshot packages
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    if: github.event_name == 'workflow_dispatch' && inputs.snapshot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run quality checks
+        run: vp run ci
+
+      - name: Version snapshot packages
+        run: vp exec changeset version --snapshot ${{ inputs.tag }}
+
+      - name: Validate publishable packages
+        run: vp run package:check
+
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11
+
+      - name: Publish snapshot packages
+        run: vp exec changeset publish --tag ${{ inputs.tag }} --no-git-tag
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}

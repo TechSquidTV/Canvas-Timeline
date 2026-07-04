@@ -1,0 +1,176 @@
+---
+title: 'Video Editor Timeline Anatomy: Ruler, Tracks, Clips, and Playhead'
+description: Learn the parts of a video editor timeline, including the sequence, timeline ruler, playhead, clips, tracks, markers, and in and out points.
+publishDate: 2026-07-02
+author: Canvas Timeline Team
+tags:
+  - Concepts
+  - Editing
+  - Video Editing
+  - Timeline UI
+faq:
+  - question: Why does one video clip cover another clip in the timeline?
+    answer: Video tracks usually stack from bottom to top. If two video clips overlap in time, the clip on the higher track is normally the one you see in the preview.
+  - question: Why can I hear several audio clips at the same time?
+    answer: Audio tracks usually mix together instead of hiding each other. Dialogue, music, and sound effects can all play at once unless a track is muted, soloed, lowered in volume, or disabled.
+  - question: What is the difference between moving a clip and trimming a clip?
+    answer: Moving a clip changes where it happens in the sequence. Trimming changes the clip's head or tail, so the clip starts later, starts earlier, ends sooner, or lasts longer.
+  - question: Are in and out points the same as trimming a clip?
+    answer: No. In and out points define a temporary range for playback, export, insert, overwrite, or review. Trimming changes the actual start or end of a clip.
+  - question: Why does the timeline ruler change when I zoom in?
+    answer: The ruler adapts to the visible time range. When you zoom out it shows broader time marks; when you zoom in it can show smaller units such as seconds, frames, or detailed edit points.
+  - question: What does the track header do in a video editor?
+    answer: The track header, or track head, is the control area at the left of a track. It usually shows the track name and controls for locking, muting, soloing, targeting, or changing track height.
+---
+
+import TimelineAnatomyFigure from '../../components/TimelineAnatomyFigure';
+import LiveDemoRenderer from '../../components/LiveDemoRenderer';
+
+A video editor timeline is the workspace where raw footage becomes an edited video. It is the main editing area in apps like Premiere Pro, Final Cut Pro, DaVinci Resolve, and browser-based video editors: a horizontal line of time, a vertical stack of tracks, and a set of tools for moving, trimming, syncing, and reviewing clips.
+
+Most timeline vocabulary comes from that layout. Left-to-right means earlier-to-later. Top-to-bottom usually means front-to-back visual stacking or separate media roles. The playhead shows the current time. Clips take up time ranges. Tracks organize what can play at the same time.
+
+This beginner guide breaks down the common parts of a video editing timeline: the sequence, timeline ruler, playhead, clips, tracks, markers, and in and out points. Real editors combine all of these into one surface, but the parts are easier to learn one at a time.
+
+<figure
+  className="timeline-editor-overview-figure"
+  aria-label="Interactive video editor timeline demo"
+>
+  <LiveDemoRenderer liveDemoId="editor-controls" client:only="react" />
+  <figcaption>
+    A complete video editor timeline combines the ruler, playhead, clips, tracks, markers, and
+    timeline controls into one editing surface.
+  </figcaption>
+</figure>
+
+## Video editor timeline parts at a glance
+
+| Timeline part  | What it does                                                                |
+| :------------- | :-------------------------------------------------------------------------- |
+| Sequence       | Holds the edit you are building, including duration, frame rate, and clips. |
+| Timeline ruler | Shows time across the top of the timeline.                                  |
+| Playhead       | Marks the current frame shown in the preview.                               |
+| Clips          | Represent video, audio, images, titles, or other media in the edit.         |
+| Tracks         | Organize clips into horizontal lanes.                                       |
+| Markers        | Pin notes, beats, chapters, or review points to time or clips.              |
+| In/out points  | Define a selected time range for playback, export, insert, or review.       |
+
+## Sequence
+
+A sequence is the edited video you are building in the timeline. In some apps it may be called a timeline, project timeline, composition, or edit. It has a duration, frame rate, tracks, clips, markers, and a playhead position.
+
+When you preview or export, the sequence is what the editor plays or renders. Think of it as the container that holds your edit decisions: which clips appear, when they start, how long they last, and how they line up with everything else.
+
+## Timeline ruler
+
+<TimelineAnatomyFigure
+  client:load
+  variant="ruler"
+  caption="The ruler is the horizontal time scale. The scrollbar below it represents the visible time range."
+/>
+
+The timeline ruler is the time scale across the top of the edit area. It helps you see where you are in the video, just like a measuring tape helps you see distance. When you scrub, trim, or place a clip, the ruler gives you time reference points.
+
+Common ruler vocabulary:
+
+| Term            | Purpose                                                                                     |
+| :-------------- | :------------------------------------------------------------------------------------------ |
+| Timecode labels | Show exact positions such as `00:01:12:08`, usually as hours, minutes, seconds, and frames. |
+| Major ticks     | Larger marks that help you stay oriented when you are zoomed out.                           |
+| Minor ticks     | Smaller marks that appear when you zoom in for detailed edits.                              |
+| Playhead lane   | The ruler area where you can drag or scrub the current-time indicator.                      |
+| Work area       | An optional highlighted range used for previewing, looping, or exporting part of the edit.  |
+
+The ruler changes as you zoom. When zoomed out, it may show seconds or minutes. When zoomed in, it may show individual frames so you can make precise cuts.
+
+Many editors pair the ruler with a horizontal zoom scrollbar. The scrollbar shows the visible time range, also called the viewport. Dragging the middle of the scrollbar pans through time, while resizing its handles changes how much of the sequence fits on screen. When the visible range gets smaller, the ruler becomes more detailed; when the visible range gets wider, the ruler shows a broader map of the edit.
+
+## Playhead
+
+<TimelineAnatomyFigure
+  client:load
+  variant="playhead"
+  caption="The playhead is the current-time indicator. Preview, split, paste, and insert operations usually reference it."
+/>
+
+The playhead, also called the current-time indicator, is the vertical line that says "this is the frame I am looking at." It connects the timeline to the preview monitor.
+
+During playback, the playhead moves through the sequence. During editing, it becomes a placement tool. You can cut at the playhead, paste at the playhead, insert footage at the playhead, or jump the preview to the playhead.
+
+## Clips
+
+<TimelineAnatomyFigure
+  client:load
+  variant="clip"
+  caption="A clip has a body for moving and edges for trimming. The same source can appear in multiple clips."
+/>
+
+A clip is a piece of media placed in the timeline. It might be a video shot, audio recording, music track, title, image, caption, or generated graphic. The same source file can appear more than once as separate clips.
+
+Editors talk about the clip body and its edges separately:
+
+| Term        | Purpose                                                                   |
+| :---------- | :------------------------------------------------------------------------ |
+| Clip body   | The main rectangle you drag to move the clip in time or to another track. |
+| Head        | The left edge, where the clip starts in the sequence.                     |
+| Tail        | The right edge, where the clip ends in the sequence.                      |
+| Trim handle | An edge you drag to shorten or extend the clip.                           |
+| Slip        | Change which part of the source is used without moving the clip itself.   |
+| Slide       | Move a clip while adjusting nearby edits to keep the same overall timing. |
+
+For beginners, the most important idea is this: trimming a clip changes its start or end, while moving a clip changes where it happens in the timeline.
+
+## Tracks
+
+<TimelineAnatomyFigure
+  client:load
+  variant="tracks"
+  caption="Tracks are lanes. Video tracks usually stack visually; audio tracks usually mix together."
+/>
+
+Tracks are horizontal lanes that organize clips. They answer two practical questions: what kind of media is this, and what happens when it overlaps with other clips?
+
+Video tracks usually stack visually. A clip on `V2` appears above a clip on `V1`, so titles, overlays, picture-in-picture, and adjustment layers often live on higher tracks. Audio tracks usually mix together, so `A1`, `A2`, and `A3` may hold dialogue, music, and sound effects.
+
+The track header, sometimes called the track head, is the label and control area at the left edge of each track. It tells you which lane you are editing and usually holds buttons for locking, muting, targeting, or resizing that track.
+
+Track controls often include:
+
+| Control      | Purpose                                                            |
+| :----------- | :----------------------------------------------------------------- |
+| Track header | The left-side area that shows the track name and common controls.  |
+| Lock         | Prevent accidental edits on a track.                               |
+| Mute         | Silence an audio track or hide a visual track during preview.      |
+| Solo         | Listen to or preview one track while suppressing others.           |
+| Target       | Choose which tracks receive pasted clips or inserted media.        |
+| Height       | Expand a track to see labels, waveforms, thumbnails, or keyframes. |
+
+## Markers
+
+<TimelineAnatomyFigure
+  client:load
+  variant="markers"
+  caption="Markers annotate time or clips. They are useful for beats, review notes, chapters, and sync points."
+/>
+
+Markers are notes pinned to a time or to a clip. Timeline markers are useful for beats, review notes, chapters, export targets, and important sync points. Clip markers travel with a specific clip and can mark source moments such as a quote, clap, or music cue.
+
+Markers usually do not change playback by themselves. Their job is to help you find, discuss, and return to important moments.
+
+## In and out points
+
+<TimelineAnatomyFigure
+  client:load
+  variant="range"
+  caption="In and out points define an operation range for playback, export, insert, overwrite, or focused review."
+/>
+
+In and out points define a selected time range. The in point marks where the range starts, and the out point marks where it ends. Editors use them for loop playback, exporting part of a timeline, inserting footage, overwrite edits, and focused review.
+
+In/out points are not the same as clip trim points. A trim point belongs to a clip edge. An in/out range belongs to the timeline or source viewer and describes the span you want an operation to use.
+
+## Why this vocabulary matters
+
+Learning timeline vocabulary makes editing less mysterious. When a tutorial says "trim the tail of the clip," "move the playhead," "add a marker," or "set an out point," you know exactly which part of the timeline it means.
+
+These words also make troubleshooting easier. If audio is playing too early, you can look at the audio clip and its track. If an export is too short, you can check the in and out points. If a title is hidden, you can check which video track is stacked above the other. The timeline is easier to use once each part has a name.

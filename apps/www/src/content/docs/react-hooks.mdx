@@ -1,0 +1,165 @@
+---
+title: React editor hooks
+description: Bind your custom UI to engine state with domain-specific React hooks and accessible primitives.
+section: concepts
+order: 25
+---
+
+The React package exposes hooks for binding product chrome, interaction layers,
+media preview surfaces, and accessible controls to a shared `TimelineEngine`.
+This page explains how to choose timeline hooks imported from
+`@techsquidtv/canvas-timeline-react/hooks`; the maintained catalog lives in the
+[React registry Hook groups](/packages/react/registry#hook-groups), with
+category-grouped API references on each timeline hook group page. Primitive
+hooks from other React subpaths, such as `useRangeScrollbar()` from
+`@techsquidtv/canvas-timeline-react/range-scrollbar`, are documented with their
+own primitive registry entries.
+
+The four visible hook groups are curated task groups. The API rows inside those
+groups are populated from `@techsquidtv/canvas-timeline-react/docs-metadata`, and the
+registry verifier checks that metadata against the public
+`@techsquidtv/canvas-timeline-react/hooks` export barrel. Internal helper hooks
+are intentionally excluded until they are exported as public APIs.
+
+Use the timeline hook registry groups as the source of truth:
+
+- **Timeline State**: engine context, state snapshots, active clips/layers,
+  viewport data, ruler ticks, clip geometry, and visible clip queries.
+- **Editing Hooks**: edit mode, typed edit commands, shared edit previews,
+  range selection, clip, track, marker, selection, clipboard, history, track
+  header, edit consequences, and cross-track drag/drop interactions.
+- **Playback Controls**: transport state, live playhead time, snapping, media
+  synchronization, and clip playback effects.
+- **Accessible Controls**: Base UI-compatible sliders, viewport scrollbar
+  adapters, pan/zoom controls, and constant-DOM clip navigation.
+
+Start with the narrowest hook that matches the component. Toolbar buttons usually
+need command/state hooks such as `useTimelinePlayback()` or `useTimelineClips()`.
+Readouts that must follow scrubbing or playback should use focused live hooks
+such as `useTimelinePlayheadTime()`, `useActiveMarkers()`, or
+`useTimelineClipDropFeedback()`. Use `useTimeline()` directly only when a
+component needs both the shared engine and the synchronized state snapshot.
+
+Mutating hook commands return `TimelineCommandResult`, so custom controls can
+branch on `ok` and machine-readable failure reasons without reading private
+engine state.
+
+## Edit command hooks
+
+Use `useTimelineEditCommands()` for product chrome and custom gestures that
+need to validate, preview, commit, or cancel timeline edits. The hook calls
+`TimelineEngine` command APIs; the engine resolves snapping, ripple, overwrite,
+split, range, history, and event consequences.
+
+Compose the focused hooks around it:
+
+- `useTimelineEditMode()` stores the selected tool or edit intent for toolbar
+  chrome without mutating engine state.
+- `useTimelineEditPreview()` subscribes to the shared command preview for live
+  guides and affected-clip affordances.
+- `useTimelineRangeSelection()` adapts In/Out points to `delete-range` and
+  `lift-range` commands.
+
+```tsx
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import {
+  useTimelineClips,
+  useTimelineEditCommands,
+  useTimelineEditMode,
+  useTimelineEditPreview,
+  useTimelineRangeSelection,
+} from '@techsquidtv/canvas-timeline-react/hooks';
+
+function EditToolbar() {
+  const { selectedClip } = useTimelineClips();
+  const { mode, setMode } = useTimelineEditMode();
+  const editCommands = useTimelineEditCommands();
+  const editPreview = useTimelineEditPreview();
+  const rangeSelection = useTimelineRangeSelection();
+
+  return (
+    <>
+      <button aria-pressed={mode === 'trim'} onClick={() => setMode('trim')}>
+        Trim
+      </button>
+      <button
+        disabled={!selectedClip}
+        onClick={() =>
+          selectedClip &&
+          editCommands.moveClip({
+            clipId: selectedClip.id,
+            startTime: fromSeconds(4),
+          })
+        }
+      >
+        Move
+      </button>
+      <button disabled={!rangeSelection.hasRange} onClick={() => rangeSelection.liftRange()}>
+        Lift
+      </button>
+      {editPreview.previewing && <span>{editPreview.impacts.length} affected</span>}
+    </>
+  );
+}
+```
+
+## Accessibility and keyboard composition
+
+Canvas Timeline keeps repeated clips and track visuals on canvas for
+performance, while low-count interaction chrome stays in DOM. The hook layer is
+the bridge between those two surfaces.
+
+Use control adapters when composing semantic UI:
+
+- `useTimelinePlayheadControl()`, `useTimelineInOutRangeControl()`,
+  `useTimelineZoomControl()`, and `useTimelinePanControl()` return
+  Base UI-compatible props and formatted value text.
+- `useTimelineViewportScrollbar()` and `useTimelineViewportRangeControl()` adapt
+  viewport state to generic range scrollbar primitives.
+- `useTimelineVerticalScrollbar()` and `useTimelineVerticalRangeControl()` adapt
+  track-stack scroll state to the same primitives.
+- `useTimelineClipNavigation()` exposes one active canvas clip at a time instead
+  of requiring one DOM node per clip.
+- `useTimelineKeyboard()` returns focus-scoped keyboard shortcut props for
+  opt-in editor transport, mark, marker, snapping, and zoom commands.
+- `useTimelineTrack()` and `useTimelineTrackHeader()` expose one track's
+  first-party state, canvas-aligned row geometry, and DOM-ready header props for
+  custom track header compositions.
+- `useTimelineKeyframes()`, `useTimelineKeyframeDrag()`,
+  `useTimelineKeyframeCurves()`, and `useTimelineKeyframeCurveDrag()` expose
+  headless keyframe geometry, curve handles, commands, property evaluation, and
+  drag previews for custom keyframe editors.
+
+Keyboard behavior from these hooks is opt-in and scoped to the element that
+spreads the returned props. Canvas Timeline does not install global hotkeys or
+override application shortcuts.
+
+For shadcn-like composition, wrap the interactive editor region instead of
+registering document-level listeners:
+
+```tsx
+<Timeline.KeyboardScope frameRate={24}>
+  <Timeline.Root>
+    <Timeline.ClipInteractionLayer />
+    <Timeline.PlayheadArea />
+    <Timeline.PlayheadGrabber />
+  </Timeline.Root>
+</Timeline.KeyboardScope>
+```
+
+Pass `bindings` when your product owns a different shortcut map. Custom bindings
+replace the preset so applications can avoid collisions with their own command
+system. Frame-step shortcuts are included only when `frameRate` is supplied. Use
+`platform` when tests, server rendering, or product settings need deterministic
+platform-specific preset bindings.
+
+## Related guides
+
+- [React registry Hook groups](/packages/react/registry#hook-groups) for the
+  grouped timeline hook pages, examples, and API links.
+- [Tracks and clips](/docs/tracks-and-clips) for clip movement, cross-track drag,
+  and drop feedback hooks.
+- [Keyframes](/docs/keyframes) for clip property keyframes, interpolation modes,
+  and keyframe interaction composition.
+- [Canvas renderer customization](/docs/renderer-customization) for custom
+  drawing layers, renderer theme options, and canvas overlays.

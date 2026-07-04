@@ -1,0 +1,24 @@
+---
+import CodeBlock from '@/components/CodeBlock.astro';
+import { reactRegistryItems } from '@/data/react-registry';
+
+interface Props {
+  registryKey: string;
+  title?: string;
+  code?: string;
+  lang?: string;
+}
+
+const { registryKey, title, code, lang = 'tsx' } = Astro.props;
+const item = reactRegistryItems.find((candidate) => candidate.slug === registryKey);
+const source = code ?? item?.usageCode;
+const sourceTitle = title ?? item?.sourceTitle ?? 'Component source';
+
+if (!source) {
+  throw new Error(`Unknown React registry source: ${registryKey}`);
+}
+---
+
+<div class="component-source">
+  <CodeBlock code={source} lang={lang} title={sourceTitle} />
+</div>

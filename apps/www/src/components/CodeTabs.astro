@@ -1,0 +1,92 @@
+---
+import { renderExpressiveCode } from '@/lib/expressive-code';
+
+interface CodeTab {
+  id: string;
+  label: string;
+  code: string;
+  lang: string;
+}
+
+interface Props {
+  id: string;
+  ariaLabel: string;
+  tabs: CodeTab[];
+  frame?: 'none' | 'code' | 'terminal';
+  class?: string;
+}
+
+const { id, ariaLabel, tabs, frame = 'none' } = Astro.props;
+const className = Astro.props.class;
+const groupId = id.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+const renderedTabs = await Promise.all(
+  tabs.map(async (tab) => ({
+    ...tab,
+    html: await renderExpressiveCode({
+      code: tab.code,
+      lang: tab.lang,
+      meta: frame === 'none' ? 'frame="none"' : `frame="${frame}" title="${tab.label}"`,
+      sourceUrl: Astro.url.href,
+    }),
+  }))
+);
+---
+
+<div
+  class:list={['package-tabs code-tabs', frame !== 'none' && 'code-tabs--framed', className]}
+  data-code-tabs={groupId}
+>
+  <div class="package-tabs__list" role="tablist" aria-label={ariaLabel}>
+    {
+      renderedTabs.map((tab, index) => (
+        <button
+          type="button"
+          class:list={['package-tabs__button', index === 0 && 'is-active']}
+          role="tab"
+          aria-selected={index === 0 ? 'true' : 'false'}
+          aria-controls={`${groupId}-${tab.id}`}
+          id={`${groupId}-${tab.id}-tab`}
+          data-code-tab={tab.id}
+        >
+          {tab.label}
+        </button>
+      ))
+    }
+  </div>
+  {
+    renderedTabs.map((tab, index) => (
+      <div
+        class:list={['code-tabs__panel', index !== 0 && 'is-hidden']}
+        id={`${groupId}-${tab.id}`}
+        role="tabpanel"
+        aria-labelledby={`${groupId}-${tab.id}-tab`}
+        data-code-panel={tab.id}
+      >
+        <Fragment set:html={tab.html} />
+      </div>
+    ))
+  }
+</div>
+
+<script>
+  document.querySelectorAll('[data-code-tabs]').forEach((group) => {
+    const buttons = Array.from(group.querySelectorAll('[data-code-tab]'));
+    const panels = Array.from(group.querySelectorAll('[data-code-panel]'));
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const selected = button.getAttribute('data-code-tab');
+
+        buttons.forEach((candidate) => {
+          const isActive = candidate === button;
+          candidate.classList.toggle('is-active', isActive);
+          candidate.setAttribute('aria-selected', String(isActive));
+        });
+
+        panels.forEach((panel) => {
+          panel.classList.toggle('is-hidden', panel.getAttribute('data-code-panel') !== selected);
+        });
+      });
+    });
+  });
+</script>

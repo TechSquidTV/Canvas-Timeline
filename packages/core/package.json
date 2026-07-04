@@ -1,0 +1,55 @@
+{
+  "name": "@techsquidtv/canvas-timeline-core",
+  "version": "0.0.1",
+  "license": "MPL-2.0",
+  "description": "Standalone timeline engine for Canvas Timeline libraries.",
+  "type": "module",
+  "homepage": "https://canvastimeline.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "timeline",
+    "video-editor",
+    "timeline-engine",
+    "editing",
+    "canvas-timeline"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./engine": {
+      "types": "./dist/engine.d.ts",
+      "import": "./dist/engine.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./snapping": {
+      "types": "./dist/snapping.d.ts",
+      "import": "./dist/snapping.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch --no-clean",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@techsquidtv/canvas-timeline-utils": "workspace:*"
+  }
+}

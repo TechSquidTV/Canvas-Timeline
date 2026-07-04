@@ -1,0 +1,26 @@
+---
+import CodeTabs from '@/components/CodeTabs.astro';
+
+interface Props {
+  id: string;
+  tsx: string;
+  data?: string;
+  css?: string;
+  extraTabs?: {
+    id: string;
+    label: string;
+    code: string;
+    lang: string;
+  }[];
+}
+
+const { id, tsx, data, css, extraTabs = [] } = Astro.props;
+const tabs = [
+  { id: 'tsx', label: 'Component', code: tsx, lang: 'tsx' },
+  ...extraTabs,
+  data ? { id: 'data', label: 'Data', code: data, lang: 'tsx' } : null,
+  css ? { id: 'css', label: 'Styles', code: css, lang: 'css' } : null,
+].filter(Boolean);
+---
+
+<CodeTabs id={`code-${id}`} ariaLabel="Demo code examples" tabs={tabs} />

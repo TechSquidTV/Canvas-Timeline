@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Canvas Timeline General'
+  short_description: 'Repo map, invariants, and validation'
+  default_prompt: 'Use $canvas-timeline-general to orient yourself before making a general Canvas Timeline repo change.'

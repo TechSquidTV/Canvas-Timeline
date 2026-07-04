@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "techsquidtv/canvas-timeline"
+    }
+  ],
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "bumpVersionsWithWorkspaceProtocolOnly": true,
+  "ignore": ["@techsquidtv/canvas-timeline-demo", "@techsquidtv/canvas-timeline-www"]
+}

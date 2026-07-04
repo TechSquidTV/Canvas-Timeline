@@ -1,0 +1,220 @@
+---
+title: Tracks and clips
+description: Structure tracks, clips, and handle drag and drop interactions.
+section: concepts
+order: 22
+---
+
+import Callout from '../../components/Callout.astro';
+
+The timeline structure is made of tracks (horizontal lanes) and clips (placed intervals inside lanes).
+
+### Understanding Tracks
+
+A track describes row-level configuration and editing permissions:
+
+```ts
+interface Track {
+  id: string; // Stable lane identifier
+  kind: string; // App-defined lane category: e.g. "visual", "audio", "subtitle", "effect"
+  clips: Clip[]; // Sorted clips inside the track
+  selected: boolean; // Track selection state
+  locked: boolean; // If true, edits are prevented on this lane
+  muted: boolean; // If true, playback/routing is muted and UI may dim it
+  visible: boolean; // If false, active media lookup ignores this lane
+  height?: number; // Row layout height in pixels
+  collapsed?: boolean; // Minimizes the track row UI
+  name?: string; // User-facing track label
+  targeted: boolean; // Receives operations like insert or paste
+  groupId?: string; // Grouping identifier for multi-lane coordination
+}
+```
+
+### Understanding Clips
+
+A clip represents a segment of media or action placed on the sequence timeline:
+
+```ts
+interface Clip {
+  id: string; // Stable placement identifier
+  timelineStart: RationalTime; // When the clip starts on the sequence
+  timelineEnd: RationalTime; // When the clip ends on the sequence
+  sourceStart: RationalTime; // Offset into the media asset where playback begins
+  sourceId: string; // Identifier linking to your actual media/asset metadata
+  selected: boolean; // Whether the clip is selected in the editor
+  color?: string; // Optional background color override
+  opacity?: number; // Optional opacity override
+  label?: string; // Optional label text to draw on the clip
+  movable?: boolean; // If false, prevents horizontal dragging
+  resizable?: boolean; // If false, prevents edge trimming
+  disabled?: boolean; // Suppresses rendering and playback sync
+  minStart?: RationalTime; // Earliest boundary for trimming
+  maxEnd?: RationalTime; // Latest boundary for trimming
+  editPreview?: EditPreview; // Transient state details during an active edit gesture
+}
+```
+
+### Choosing Track Kinds
+
+Canvas Timeline does not ship a fixed track-type enum. Your app owns the taxonomy by assigning `track.kind` strings that match its editing model.
+
+For video-editor style applications, a practical starting point is:
+
+- `visual`: composited visual content such as video clips, images, SVGs, title cards, generated visuals, and nested sequences.
+- `audio`: audible clips, music, voiceover, sound effects, and stems.
+- `subtitle`: timed text, captions, translated subtitle tracks, and transcript overlays that should stay separate from visual content.
+- `effect`: adjustment layers, transitions, filters, generators, or automation lanes that modify other content.
+
+The source file format belongs in your asset store, not in `track.kind`. For example, an `.mp4`, `.png`, `.svg`, and generated title card can all appear on `visual` tracks while your app stores each asset's MIME type, dimensions, decoding strategy, and renderer metadata behind `sourceId`.
+
+### Managing Track Header State
+
+Canvas Timeline keeps common track-header semantics as first-party `Track` state
+when the engine, renderer, history, hooks, or media synchronization need to agree
+on behavior. Use `muted` for playback/output muting, `visible` for active media
+lookup participation, `locked` for edit permission, `targeted` for edit
+destinations, and `collapsed`/`height` for row layout.
+
+Do not add arbitrary product state to `Track`. Keep app-specific header metadata
+in a typed store keyed by stable `track.id` values:
+
+```ts
+interface AudioTrackMeta {
+  recordArmed: boolean;
+  routeId: string;
+  meterSourceId: string;
+}
+
+const audioTrackMetaById: Record<string, AudioTrackMeta> = {
+  'audio-1': {
+    recordArmed: false,
+    routeId: 'mix-bus',
+    meterSourceId: 'meter-audio-1',
+  },
+};
+```
+
+Then compose first-party controls from Canvas Timeline hooks with your app-owned
+metadata:
+
+```tsx
+import { useTimelineTrackHeader } from '@techsquidtv/canvas-timeline-react/hooks';
+
+function AudioHeader({ trackId }: { trackId: string }) {
+  const header = useTimelineTrackHeader(trackId);
+  const audioMeta = audioTrackMetaById[trackId];
+
+  return (
+    <div {...header.rootProps}>
+      <button type="button" onClick={() => header.toggleMute()}>
+        {header.muted ? 'Unmute' : 'Mute'}
+      </button>
+      <button type="button" aria-pressed={audioMeta.recordArmed}>
+        Record
+      </button>
+    </div>
+  );
+}
+```
+
+Clip body drags use `track.kind` as the default compatibility boundary for cross-track movement.
+Dragging a clip into another unlocked track of the same kind previews and commits the transfer. Apps
+that intentionally allow cross-kind moves can opt into that behavior through the headless clip drag
+and track drop hooks.
+
+<Callout kind="warning" title="Edit command API">
+  Timeline editing uses typed edit commands. This is a breaking API: use `validateEdit`,
+  `previewEdit`, and `commitEdit` for engine integrations, and use `useTimelineEditCommands` for
+  React chrome and gestures.
+</Callout>
+
+```ts
+import { fromSeconds } from '@techsquidtv/canvas-timeline';
+
+const preview = engine.previewEdit({
+  type: 'move',
+  clipId: 'clip-title',
+  startTime: fromSeconds(4),
+  targetTrackId: 'track-visual-2',
+});
+
+if (preview.valid) {
+  engine.commitEdit(preview.command);
+}
+```
+
+React command hooks build the same command shapes and return `TimelineCommandResult`:
+
+```tsx
+import { fromSeconds } from '@techsquidtv/canvas-timeline';
+import {
+  useTimelineClips,
+  useTimelineEditCommands,
+} from '@techsquidtv/canvas-timeline-react/hooks';
+
+function MoveSelectedClip() {
+  const { selectedClip } = useTimelineClips();
+  const { moveClip } = useTimelineEditCommands();
+
+  return (
+    <button
+      disabled={!selectedClip}
+      onClick={() =>
+        selectedClip &&
+        moveClip({
+          clipId: selectedClip.id,
+          startTime: fromSeconds(4),
+          targetTrackId: 'track-visual-2',
+        })
+      }
+    >
+      Move
+    </button>
+  );
+}
+```
+
+For custom interaction layers, use `useTimelineClipDrag` with `useTimelineTrackDropTargets` and
+`useTimelineClipDropFeedback`. The built-in drag policy accepts unlocked same-kind tracks by default.
+Return `allowCrossKindTrackMove: true` only when your app intentionally permits a cross-kind transfer.
+If you render custom feedback, disable the default canvas lane feedback with `showClipDropFeedback={false}`.
+
+```tsx
+import {
+  useTimelineClipDrag,
+  useTimelineClipDropFeedback,
+} from '@techsquidtv/canvas-timeline-react/hooks';
+
+function CustomClipDragLayer() {
+  const drag = useTimelineClipDrag({
+    verticalSnapThreshold: 0.3,
+    minVerticalSnapPixels: 8,
+    canDropClipOnTrack({ sourceTrack, targetTrack }) {
+      if (sourceTrack.kind === targetTrack.kind) {
+        return true;
+      }
+
+      if (sourceTrack.kind === 'visual' && targetTrack.kind === 'effect') {
+        return {
+          canDrop: true,
+          reason: null,
+          allowCrossKindTrackMove: true,
+        };
+      }
+
+      return {
+        canDrop: false,
+        reason: 'incompatible-track-kind',
+        allowCrossKindTrackMove: false,
+      };
+    },
+  });
+  const feedback = useTimelineClipDropFeedback();
+
+  return (
+    <div data-drop-track={feedback.activeTargetTrackId ?? undefined}>
+      {/* Connect pointer handlers to drag.startClipDrag, drag.moveClipDrag, and drag.endClipDrag. */}
+    </div>
+  );
+}
+```

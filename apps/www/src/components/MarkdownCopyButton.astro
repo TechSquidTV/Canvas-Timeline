@@ -1,0 +1,97 @@
+---
+interface Props {
+  href: string;
+  label?: string;
+  ariaLabel?: string;
+  tooltip?: string;
+  class?: string;
+}
+
+const {
+  href,
+  label = 'Copy Markdown',
+  ariaLabel = 'Copy this page as Markdown',
+  tooltip,
+} = Astro.props;
+const className = Astro.props.class;
+const tooltipId = tooltip
+  ? `markdown-copy-tooltip-${href}-${label}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
+  : undefined;
+---
+
+{
+  tooltip ? (
+    <span class="markdown-copy-tooltip-wrap">
+      <button
+        type="button"
+        class:list={['markdown-copy-button', className]}
+        data-copy-markdown={href}
+        aria-label={ariaLabel}
+        aria-describedby={tooltipId}
+      >
+        <span data-copy-label>{label}</span>
+      </button>
+      <span id={tooltipId} class="markdown-copy-tooltip" role="tooltip">
+        {tooltip}
+      </span>
+    </span>
+  ) : (
+    <button
+      type="button"
+      class:list={['markdown-copy-button', className]}
+      data-copy-markdown={href}
+      aria-label={ariaLabel}
+    >
+      <span data-copy-label>{label}</span>
+    </button>
+  )
+}
+
+<script is:inline>
+  if (!window.__canvasTimelineMarkdownCopy) {
+    window.__canvasTimelineMarkdownCopy = true;
+
+    document.addEventListener('click', async (event) => {
+      const target = event.target;
+      const button = target instanceof Element ? target.closest('[data-copy-markdown]') : null;
+
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const markdownHref = button.getAttribute('data-copy-markdown');
+      const label = button.querySelector('[data-copy-label]');
+
+      if (!markdownHref || !(label instanceof HTMLElement)) {
+        return;
+      }
+
+      const originalLabel = label.textContent ?? 'Copy Markdown';
+
+      button.disabled = true;
+      button.dataset.state = 'copying';
+      label.textContent = 'Copying';
+
+      try {
+        const response = await fetch(markdownHref);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${markdownHref}`);
+        }
+
+        await navigator.clipboard.writeText(await response.text());
+        button.dataset.state = 'copied';
+        label.textContent = 'Copied';
+      } catch {
+        button.dataset.state = 'error';
+        label.textContent = 'Copy failed';
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.dataset.state = 'idle';
+          label.textContent = originalLabel;
+        }, 1800);
+      }
+    });
+  }
+</script>

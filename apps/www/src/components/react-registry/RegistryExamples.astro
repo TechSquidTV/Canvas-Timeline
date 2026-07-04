@@ -1,0 +1,41 @@
+---
+import CodeBlock from '@/components/CodeBlock.astro';
+import ReactRegistryDemoPreview from '@/components/ReactRegistryDemoPreview';
+import { reactRegistryItems } from '@/data/react-registry';
+
+interface Props {
+  registryKey: string;
+}
+
+const { registryKey } = Astro.props;
+const item = reactRegistryItems.find((candidate) => candidate.slug === registryKey);
+
+if (!item) {
+  throw new Error(`Unknown React registry examples: ${registryKey}`);
+}
+
+const examples = item.examples ?? [];
+---
+
+{
+  examples.length > 0 && (
+    <div class="registry-example-list">
+      {examples.map((example) => (
+        <section class="registry-example">
+          <div class="registry-example__header">
+            <h3>{example.title}</h3>
+            <p>{example.description}</p>
+          </div>
+          <div class="registry-example__stage">
+            <ReactRegistryDemoPreview variant={example.demo.variant} client:load />
+          </div>
+          {
+            example.usageCode && (
+              <CodeBlock code={example.usageCode} lang="tsx" title="Example source" />
+            )
+          }
+        </section>
+      ))}
+    </div>
+  )
+}

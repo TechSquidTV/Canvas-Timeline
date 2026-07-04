@@ -1,0 +1,53 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { demoDocs } from '@/data/demos';
+import { createDemoIndexStructuredData } from '@/lib/structured-data';
+
+const structuredData = createDemoIndexStructuredData(demoDocs);
+---
+
+<BaseLayout
+  title="Demos"
+  description="Source-backed Canvas Timeline demos for editor basics."
+  breadcrumbs={[
+    { label: 'Home', href: '/' },
+    { label: 'Demos' },
+  ]}
+  structuredData={structuredData}
+>
+  <section class="page-band">
+    <div class="container-page page-heading">
+      <p class="eyebrow">Demos</p>
+      <h1>Timeline editor demos</h1>
+      <p>
+        Start with focused, source-backed examples where the live demo and code
+        tabs come from the same files.
+      </p>
+    </div>
+  </section>
+  <section class="container-page listing-section">
+    <div class="resource-grid">
+      {
+        demoDocs.map((demoDoc) => (
+          <a class="resource-card" href={`/demos/${demoDoc.slug}`}>
+            <div>
+              <span>{demoDoc.status}</span>
+              <h2>{demoDoc.title}</h2>
+              <p>{demoDoc.description}</p>
+              <div class="demo-meta-row" style="margin-top: 0.75rem;">
+                <span class="difficulty-tag">{demoDoc.difficulty}</span>
+                <span class="packages-tag">{demoDoc.packageFocus.length} Package{demoDoc.packageFocus.length > 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div class="package-card__footer" style="margin-top: 1.5rem;">
+              <span>View demo</span>
+              <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+              </svg>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+</BaseLayout>

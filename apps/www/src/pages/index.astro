@@ -1,0 +1,367 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import CodeBlock from '@/components/CodeBlock.astro';
+import GitHubIcon from '@/components/GitHubIcon.astro';
+import LiveDemoRenderer from '@/components/LiveDemoRenderer';
+import SponsorBand from '@/components/SponsorBand.astro';
+import { site } from '@/data/site';
+
+const appExampleCode = `import {
+  CanvasRenderer,
+  Timeline,
+  TimelineEngine,
+  TimelineProvider,
+  fromSeconds,
+  type Track,
+} from '@techsquidtv/canvas-timeline';
+import '@techsquidtv/canvas-timeline/styles.css';
+import { useMemo } from 'react';
+
+const tracks: Track[] = [
+  {
+    id: 'video',
+    kind: 'visual',
+    name: 'Video',
+    height: 48,
+    clips: [
+      {
+        id: 'intro',
+        sourceId: 'intro.mov',
+        timelineStart: fromSeconds(1),
+        timelineEnd: fromSeconds(5.5),
+        sourceStart: fromSeconds(0),
+        label: 'Intro',
+      },
+    ],
+  },
+  {
+    id: 'audio',
+    kind: 'audio',
+    name: 'Audio',
+    height: 48,
+    clips: [
+      {
+        id: 'score',
+        sourceId: 'score.wav',
+        timelineStart: fromSeconds(0),
+        timelineEnd: fromSeconds(15),
+        sourceStart: fromSeconds(0),
+        label: 'Score',
+      },
+    ],
+  },
+];
+
+function App() {
+  const engine = useMemo(
+    () =>
+      new TimelineEngine({
+        duration: fromSeconds(15),
+        playheadTime: fromSeconds(2),
+        tracks,
+      }),
+    []
+  );
+
+  return (
+    <TimelineProvider engine={engine}>
+      <div className="timeline-shell">
+        <div className="timeline-stage">
+          <Timeline.Root className="timeline-fill">
+            <CanvasRenderer />
+            <Timeline.PlayheadArea />
+            <Timeline.PlayheadGrabber />
+            <Timeline.ClipInteractionLayer />
+          </Timeline.Root>
+        </div>
+        <div className="timeline-scrollbar-row">
+          <Timeline.ViewportScrollbar>
+            <Timeline.ViewportScrollbarThumb>
+              <Timeline.ViewportScrollbarHandle side="start" />
+              <Timeline.ViewportScrollbarHandle side="end" />
+            </Timeline.ViewportScrollbarThumb>
+          </Timeline.ViewportScrollbar>
+        </div>
+      </div>
+    </TimelineProvider>
+  );
+}`;
+---
+
+<BaseLayout
+  title="React Timeline Component & Canvas Editor"
+  description="A high-performance canvas react timeline editor and component. Build frame-accurate editing interfaces in React with 60fps rendering, headless state, and customizable UI."
+>
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden bg-background pt-16 pb-20 md:pt-24 md:pb-28 border-b border-border">
+    <!-- Subtle Background Glow -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-[radial-gradient(ellipse_at_top,var(--primary),transparent_60%)] opacity-10 pointer-events-none" aria-hidden="true"></div>
+
+    <div class="container-page relative z-10 px-4 flex flex-col items-center text-center">
+      <!-- Eyebrow -->
+      <div class="flex flex-wrap items-center justify-center gap-2 mb-6">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider text-primary bg-primary/10 border border-primary/20 uppercase">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Open Source Editor Engine
+        </span>
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold tracking-wider text-warning-foreground bg-warning/20 border border-warning/40 uppercase">
+          Alpha
+        </span>
+      </div>
+
+      <!-- Title -->
+      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-foreground leading-none max-w-4xl mx-auto">
+        A Canvas-Based <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-foreground">React Timeline Editor</span>
+      </h1>
+
+      <!-- Description -->
+      <p class="mt-6 text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+        A high-performance modular framework combining headless state, React interaction layers, and a 60fps canvas renderer. Build professional video, audio, or animation timelines that stay butter smooth under any workload.
+      </p>
+
+      <!-- Actions -->
+      <div class="flex flex-wrap items-center justify-center gap-4 mt-8" aria-label="Primary Call to Actions">
+        <a class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-foreground text-background font-semibold hover:bg-primary hover:text-primary-foreground transition-all duration-200 shadow-md hover:shadow-lg" href="/docs">
+          Get Started
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border bg-card text-foreground font-semibold hover:bg-muted transition-all duration-200" href="/demos">
+          Explore Demos
+        </a>
+        <a
+          class="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-all duration-200"
+          href={site.repository.href}
+          aria-label={`View ${site.name} on GitHub`}
+          title={`View ${site.name} on GitHub`}
+        >
+          <GitHubIcon class="h-5 w-5" />
+        </a>
+      </div>
+
+      <!-- Real Timeline Interactive Showcase -->
+      <div class="mt-16 w-full max-w-5xl mx-auto rounded-xl border border-border bg-card overflow-hidden shadow-xl transition-all duration-300 hover:border-primary/40">
+        <!-- Dashboard Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted select-none">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-destructive opacity-90"></span>
+            <span class="w-3 h-3 rounded-full bg-warning opacity-90"></span>
+            <span class="w-3 h-3 rounded-full bg-success opacity-90"></span>
+          </div>
+          <span class="text-xs font-mono text-muted-foreground tracking-tight">interactive-editor-showcase.tsx</span>
+          <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-medium bg-background px-2 py-0.5 rounded border border-border">
+            <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+            Live Demo
+          </div>
+        </div>
+        <!-- Editor Content -->
+        <div class="p-0 bg-background min-h-[220px]">
+          <LiveDemoRenderer liveDemoId="editor-controls" client:only="react" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Capabilities / Features Grid -->
+  <section class="py-20 md:py-28 bg-muted/30 border-b border-border" aria-label="Key Capabilities">
+    <div class="container-page px-4">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+          Built for Professional Grade Editing
+        </h2>
+        <p class="mt-4 text-base md:text-lg text-muted-foreground leading-relaxed">
+          Engineered to overcome web rendering bottlenecks, keeping interaction physics snappy and rendering layouts precise.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <!-- Feature 1 -->
+        <div class="bg-card border border-border rounded-xl p-6 md:p-8 hover:border-primary/40 hover:shadow-lg transition-all duration-300 flex gap-5 text-left">
+          <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-foreground">Canvas Rendering Engine</h3>
+            <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+              Drawn using a 2D HTML5 canvas context in a background worker. Keeps the main DOM tree completely flat, bypassing reflow paint storms during scrubbing, zooming, and playback.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="bg-card border border-border rounded-xl p-6 md:p-8 hover:border-primary/40 hover:shadow-lg transition-all duration-300 flex gap-5 text-left">
+          <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-foreground">Frame-Accurate Edits</h3>
+            <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+              Native implementation of linear track layouts, spatial search indexes, snapping lines, in/out marker ranges, and professional slip/slide/trim calculations.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="bg-card border border-border rounded-xl p-6 md:p-8 hover:border-primary/40 hover:shadow-lg transition-all duration-300 flex gap-5 text-left">
+          <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-foreground">React Or Your Own UI Surface</h3>
+            <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+              Use our pre-bundled React hooks, provider states, and delegated hit-testing interaction layers, or write custom CSS/DOM interfaces around the headless engine core.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="bg-card border border-border rounded-xl p-6 md:p-8 hover:border-primary/40 hover:shadow-lg transition-all duration-300 flex gap-5 text-left">
+          <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 text-primary">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-foreground">Modular & Lightweight</h3>
+            <p class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed">
+              A monorepo structure separating state logic, React bindings, canvas drawing pipeline, and math utilities. Import only the sub-packages your application requires.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code Showcase Section -->
+  <section class="py-20 md:py-28 bg-background border-b border-border" aria-label="Getting Started Code Example">
+    <div class="container-page px-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center text-left">
+        <!-- Text info -->
+        <div class="lg:col-span-5">
+          <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
+            Designed for Developers
+          </h2>
+          <p class="mt-4 text-base md:text-lg text-muted-foreground leading-relaxed">
+            Get up and running in minutes. Simply construct a timeline engine, wrap your application in the provider context, and drop in ready-made canvas renderers and drag interaction nodes.
+          </p>
+
+          <div class="mt-8 p-4 rounded-xl border border-border bg-card shadow-sm max-w-sm flex items-center justify-between">
+            <div class="font-mono text-sm text-foreground">
+              <span class="text-primary select-none font-bold">pnpm</span> add @techsquidtv/canvas-timeline
+            </div>
+            <button class="text-xs text-muted-foreground hover:text-foreground font-semibold px-2.5 py-1 rounded bg-muted border border-border cursor-pointer active:scale-95 transition-all" onclick="navigator.clipboard.writeText('pnpm add @techsquidtv/canvas-timeline')">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Block -->
+        <div class="lg:col-span-7">
+          <CodeBlock
+            code={appExampleCode}
+            lang="tsx"
+            title="App.tsx"
+            collapse="12-43"
+            collapseStyle="collapsible-auto"
+            class="homepage-code-block"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Packages Section -->
+  <section class="py-20 md:py-28 bg-muted/20 border-b border-border" aria-label="Packages Family">
+    <div class="container-page px-4">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+          The Package Ecosystem
+        </h2>
+        <p class="mt-4 text-base md:text-lg text-muted-foreground">
+          Discrete, lightweight packages designed to fit your exact integration needs.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Core -->
+        <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href="/packages/core">
+          <div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground mb-4">@core</span>
+            <h3 class="text-base font-bold text-foreground group-hover:text-primary transition-colors">core</h3>
+            <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+              Headless state manager, playhead clock transport, spatial interval indexing, snapping, and command-stack history.
+            </p>
+          </div>
+          <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+            Explore core
+            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </a>
+
+        <!-- React -->
+        <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href="/packages/react">
+          <div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-secondary text-secondary-foreground mb-4">@react</span>
+            <h3 class="text-base font-bold text-foreground group-hover:text-primary transition-colors">react</h3>
+            <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+              State contexts, drag & trim pointer handles, zoom/scroll integrations, playheads, and keyboard/accessible keybindings.
+            </p>
+          </div>
+          <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+            Explore react
+            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </a>
+
+        <!-- Renderer -->
+        <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href="/packages/renderer">
+          <div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary text-primary-foreground mb-4">@renderer</span>
+            <h3 class="text-base font-bold text-foreground group-hover:text-primary transition-colors">renderer</h3>
+            <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+              HTML5 Canvas drawing pipeline. Renders dense tracks, clips, grids, markers, and waveforms at 60fps inside an Offscreen Canvas worker.
+            </p>
+          </div>
+          <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+            Explore renderer
+            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </a>
+
+        <!-- Utils -->
+        <a class="group bg-card border border-border rounded-xl p-6 flex flex-col justify-between hover:border-primary hover:shadow-md transition-all duration-300 text-decoration-none text-inherit cursor-pointer text-left" href="/packages/utils">
+          <div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-accent text-accent-foreground mb-4">@utils</span>
+            <h3 class="text-base font-bold text-foreground group-hover:text-primary transition-colors">utils</h3>
+            <p class="mt-2 text-xs md:text-sm text-muted-foreground leading-relaxed">
+              RationalTime arithmetic (numerator/denominator) to prevent float-rounding micro-drift in high-frequency playhead or zoom operations.
+            </p>
+          </div>
+          <div class="mt-6 flex items-center gap-1.5 text-xs font-bold text-primary">
+            Explore utils
+            <svg class="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <SponsorBand />
+</BaseLayout>

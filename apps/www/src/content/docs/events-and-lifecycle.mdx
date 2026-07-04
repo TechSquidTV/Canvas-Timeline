@@ -1,0 +1,172 @@
+---
+title: Events and lifecycle
+description: Subscribe to engine events, manage history, and retrieve active layers.
+section: concepts
+order: 24
+---
+
+## Active layer lookup
+
+While rendering the editor timeline uses the full `state.tracks` tree, synchronized playback and preview pipelines only care about what is active at the playhead.
+
+To retrieve active clips at a specific time, use `engine.getActiveLayers()` (or the React hook `useActiveLayers()`). This utility filters out hidden tracks, muted tracks, and disabled clips, then returns the results in your named layer buckets:
+
+```ts
+const activeLayers = engine.getActiveLayers({
+  time: engine.getTime(),
+  layers: {
+    visuals: { trackKind: 'visual' },
+    audio: { trackKind: 'audio' },
+    subtitles: { trackKind: 'subtitle' },
+  },
+});
+
+// Primary active layer results
+const activeVisual = activeLayers.primary.visuals; // Returns single ActiveClip or undefined
+const activeAudioClips = activeLayers.layers.audio; // Returns all active clips in audio tracks
+const activeSubtitleClips = activeLayers.layers.subtitles; // Returns all active subtitle clips
+```
+
+The returned `ActiveClip` provides all timing offsets required to sync players (such as `<video>` or wavesurfer):
+
+- `clip`: The raw `Clip` object.
+- `track`: The containing `Track` object.
+- `time`: The query timeline time.
+- `sourceTime`: The computed current playback position relative to the clip's source media (sourceTime = time - timelineStart + sourceStart).
+- `syncKey`: A unique string that changes when the clip's boundaries are edited, informing players to resync.
+
+## Editing model & event lifecycle
+
+The core engine is UI-agnostic. It accepts typed edit commands for move, trim,
+ripple trim, roll trim, slip, slide, insert, overwrite, delete range, and lift
+range operations. The engine validates policy, resolves snapping and structural
+consequences, publishes previews, commits state, and records history; it does
+not dictate how your toolbar or keyboard shortcuts look.
+
+The general loop is:
+
+1. **User Gesture**: The user clicks, drags, or presses a key (e.g., drags clip edges, presses split key).
+2. **Command Construction**: React event handlers build a typed edit command with IDs and target `RationalTime` positions.
+3. **Validation & Preview**: The engine validates the command, applies optional `TimelineEditPolicy` callbacks, resolves snapping and edit consequences, then emits `edit:preview`.
+4. **Commit**: The engine applies the already-resolved edit through one history-aware path, emits structural clip events and `edit:commit`, then clears the active preview.
+5. **UI Render**: The React provider publishes the state update, forcing canvas redrawing and DOM updates.
+
+```ts
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+
+const command = {
+  type: 'trim',
+  clipId: 'clip-intro',
+  edge: 'end',
+  newTime: fromSeconds(6),
+} as const;
+
+const preview = engine.previewEdit(command);
+
+if (preview.valid) {
+  engine.commitEdit(preview.command);
+}
+```
+
+Use `engine.cancelEdit()` to clear the active command preview without mutating
+timeline state.
+
+Pass `TimelineEditPolicy` callbacks when your application needs to reject edit
+commands for product-specific reasons. Policy callbacks return structured
+validation results; the engine resolves edit consequences and applies commits.
+
+### Storing Custom Clip Metadata
+
+To keep your application data in sync with the timeline engine, attach custom properties directly to a clip's `metadata` field.
+
+The `metadata` property accepts a flexible key-value object (`Record<string, unknown>`). Since the engine serializes and snapshots track states during editing, clip metadata is automatically snapshotted, duplicated on splits, and restored via Undo/Redo operations without writing any custom event synchronization logic.
+
+```ts
+// 1. Attach custom app data when creating a clip
+engine.addClip('track1', {
+  sourceId: 'video-asset-1',
+  timelineStart: fromSeconds(0),
+  timelineEnd: fromSeconds(5),
+  metadata: {
+    caption: 'Intro Scene',
+    colorGradeId: 'grade-abc',
+  },
+});
+
+// 2. Read custom metadata anywhere you have a clip reference
+const clip = engine.getClip('clip1')?.clip;
+console.log(clip?.metadata?.caption); // 'Intro Scene'
+
+// 3. Update metadata fields using updateClipProperties
+engine.updateClipProperties('clip1', {
+  metadata: {
+    caption: 'Revised Intro Scene',
+    colorGradeId: 'grade-abc',
+  },
+});
+```
+
+Keep custom metadata lightweight and serializable. For heavy assets like raw
+transcript logs or large media file blobs, store them in your application state
+and reference them from the clip using a unique ID stored in `clip.metadata.id`.
+
+## Engine events reference
+
+The `TimelineEngine` extends `TypedEventEmitter` to publish type-safe events for structural modifications, live interactions, and playback updates.
+
+You can subscribe to these events using `engine.on()`, which returns a cleanup function to unsubscribe:
+
+```ts
+const unsubscribe = engine.on('clip:split', ({ originalId, left, right }) => {
+  console.log(`Split clip ${originalId} into ${left.id} and ${right.id}`);
+});
+
+// Clean up when done
+unsubscribe();
+```
+
+### Event Lifecycle Table
+
+| Event                  | Category          | Description                                                                                              | Payload Type                                     |
+| :--------------------- | :---------------- | :------------------------------------------------------------------------------------------------------- | :----------------------------------------------- |
+| **`state:settled`**    | Structural        | Fired when a state-modifying action (split, paste, resize) is finalized and snapshot history is updated. | `void`                                           |
+| **`state:preview`**    | Structural        | Fired during live updates before final state is settled (e.g. during an active drag).                    | `void`                                           |
+| **`render`**           | Rendering         | Signals the renderer to redraw the canvas timeline. Fired on state changes and playback tick updates.    | `void`                                           |
+| **`edit:impacts`**     | Live Interaction  | Emitted when active edit consequences change for renderer and custom guide affordances.                  | `TimelineEditImpacts \| null`                    |
+| **`edit:preview`**     | Live Interaction  | Emitted when a shared command-layer edit preview is published or cleared.                                | `TimelineEditPreview \| null`                    |
+| **`edit:commit`**      | Structural        | Emitted after a command-layer edit successfully commits through the history-aware path.                  | `TimelineEditCommitResult`                       |
+| **`clip:created`**     | Clip Lifecycle    | Fired when a new clip is added (e.g. via paste or split operations).                                     | `ClipCreatedEvent`                               |
+| **`clip:removed`**     | Clip Lifecycle    | Fired when a clip is deleted, cut, or overwritten.                                                       | `ClipRemovedEvent`                               |
+| **`clip:split`**       | Clip Lifecycle    | Fired when a clip is split into two clips.                                                               | `ClipSplitEvent`                                 |
+| **`clip:move`**        | Live Interaction  | Fired when a clip move is previewed or committed, including the event phase.                             | `ClipMoveEvent`                                  |
+| **`clip:resize`**      | Live Interaction  | Fired continuously when trimming/resizing a clip boundary.                                               | `{ clip: Clip }`                                 |
+| **`clip:slip`**        | Live Interaction  | Fired when slipping a clip's source range start.                                                         | `{ clip: Clip }`                                 |
+| **`snap:change`**      | Live Interaction  | Emitted when active snap feedback changes for canvas guide rendering and UI status.                      | `TimelineSnapFeedback`                           |
+| **`clip:select`**      | Live Interaction  | Fired when a clip is selected or selection is cleared.                                                   | `{ clipId: string \| null, clip: Clip \| null }` |
+| **`clip:enter`**       | Playhead Crossing | Fired when the playhead position moves inside a clip's boundaries.                                       | `ClipPlayheadEvent`                              |
+| **`clip:update`**      | Playhead Crossing | Fired on every playback frame tick while the playhead is inside a clip.                                  | `ClipPlayheadEvent`                              |
+| **`clip:leave`**       | Playhead Crossing | Fired when the playhead moves outside a clip's boundaries.                                               | `ClipPlayheadEvent`                              |
+| **`playback:state`**   | Playback          | Fired when playback starts (`true`) or stops (`false`).                                                  | `boolean`                                        |
+| **`playback:rate`**    | Playback          | Fired when the playback speed multiplier is changed.                                                     | `number`                                         |
+| **`playhead:scrub`**   | Playback          | Fired when the playhead time changes via scrubbing or playback ticks.                                    | `RationalTime`                                   |
+| **`state:inOut`**      | State             | Fired when the timeline Selection In/Out points change.                                                  | `InOutChangeEvent`                               |
+| **`content:change`**   | State             | Fired when tracks or clips are mutated in a way that shifts active layer lookup.                         | `number` (revision)                              |
+| **`history:change`**   | State             | Emitted when history stack index or depth changes (undo/redo).                                           | `HistoryChangeEvent`                             |
+| **`clipboard:change`** | State             | Emitted when clips are copied or cut into the engine clipboard.                                          | `void`                                           |
+| **`viewport:resize`**  | State             | Fired when the layout viewport size changes.                                                             | `{ viewportWidth, viewportHeight }`              |
+| **`marker:add`**       | Markers           | Fired when a timeline marker pin is added.                                                               | `MarkerChangeEvent`                              |
+| **`marker:remove`**    | Markers           | Fired when a timeline marker pin is removed.                                                             | `MarkerChangeEvent`                              |
+| **`marker:update`**    | Markers           | Fired when a timeline marker label or properties are updated.                                            | `MarkerChangeEvent`                              |
+| **`keyframe:add`**     | Keyframes         | Fired when a clip keyframe is added.                                                                     | `ClipKeyframeChangeEvent`                        |
+| **`keyframe:update`**  | Keyframes         | Fired when a clip keyframe is updated or moved.                                                          | `ClipKeyframeChangeEvent`                        |
+| **`keyframe:remove`**  | Keyframes         | Fired when a clip keyframe is removed.                                                                   | `ClipKeyframeRemoveEvent`                        |
+| **`keyframe:select`**  | Keyframes         | Fired when keyframe selection changes.                                                                   | `ClipKeyframeSelectEvent`                        |
+| **`track:add`**        | Tracks            | Fired when a new track row is added.                                                                     | `TrackChangeEvent`                               |
+| **`track:remove`**     | Tracks            | Fired when a track row is removed.                                                                       | `TrackChangeEvent`                               |
+| **`track:mute`**       | Tracks            | Fired when a track muted state is toggled.                                                               | `TrackMuteEvent`                                 |
+| **`track:visibility`** | Tracks            | Fired when a track output visibility state is toggled.                                                   | `TrackVisibilityEvent`                           |
+| **`track:lock`**       | Tracks            | Fired when a track locked state is toggled.                                                              | `TrackLockEvent`                                 |
+| **`track:select`**     | Tracks            | Fired when a track row selection is toggled.                                                             | `TrackSelectEvent`                               |
+| **`track:resize`**     | Tracks            | Fired when a track height is modified.                                                                   | `TrackResizeEvent`                               |
+| **`zoom:change`**      | Navigation        | Fired when the timeline zoom scale factor changes.                                                       | `number`                                         |
+| **`scroll:change`**    | Navigation        | Fired when the horizontal or vertical scroll offset position changes.                                    | `{ scrollLeft, scrollTop }`                      |

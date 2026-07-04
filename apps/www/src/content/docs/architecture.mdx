@@ -1,0 +1,318 @@
+---
+title: System architecture
+description: A map of the timeline model, rendering layers, and package responsibilities.
+section: concepts
+order: 20
+---
+
+import Callout from '../../components/Callout.astro';
+
+Canvas Timeline is built as a layered, modular framework for timeline-based video, audio, and animation editors. Before diving into the packages or code, it helps to understand how the core engine, the rendering pipeline, the React bindings, and your application's metadata fit together.
+
+## System Architecture
+
+The following map illustrates how state, mutations, rendering, and application metadata interact across the Canvas Timeline ecosystem:
+
+<figure className="architecture-map" aria-label="Canvas Timeline system architecture">
+  <div className="architecture-map__group">
+    <div className="architecture-map__group-header">
+      <h3>Your Application</h3>
+    </div>
+    <div className="architecture-map__node">
+      <span className="node-title">UI & Controls</span>
+      <span className="node-desc">Inspector, assets, toolbar</span>
+    </div>
+    <div className="architecture-map__node">
+      <span className="node-title">App Store</span>
+      <span className="node-desc">Media URLs, waveforms, presets</span>
+    </div>
+  </div>
+
+<div className="architecture-map__connector">
+  <div className="architecture-map__lane architecture-map__lane--forward">
+    <div className="architecture-map__lane-label">User intents</div>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--horizontal"
+      viewBox="0 0 100 20"
+      preserveAspectRatio="none"
+    >
+      <path d="M 0,10 L 93,10" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="92,7 100,10 92,13" fill="var(--border)" />
+    </svg>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--vertical"
+      viewBox="0 0 20 100"
+      preserveAspectRatio="none"
+    >
+      <path d="M 10,0 L 10,93" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="7,92 10,100 13,92" fill="var(--border)" />
+    </svg>
+  </div>
+  <div className="architecture-map__lane architecture-map__lane--backward">
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--horizontal"
+      viewBox="0 0 100 20"
+      preserveAspectRatio="none"
+    >
+      <path d="M 100,10 L 7,10" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="8,7 0,10 8,13" fill="var(--border)" />
+    </svg>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--vertical"
+      viewBox="0 0 20 100"
+      preserveAspectRatio="none"
+    >
+      <path d="M 10,100 L 10,7" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="7,8 10,0 13,8" fill="var(--border)" />
+    </svg>
+    <div className="architecture-map__lane-label">Metadata lookup</div>
+  </div>
+</div>
+
+<div className="architecture-map__group">
+  <div className="architecture-map__group-header">
+    <h3>UI & Rendering Layers</h3>
+  </div>
+  <div className="architecture-map__node">
+    <span className="node-title">React Package</span>
+    <span className="node-desc">Provider, hooks, interaction layers</span>
+  </div>
+  <div className="architecture-map__node">
+    <span className="node-title">Canvas Renderer</span>
+    <span className="node-desc">Clips, tracks, ruler drawing</span>
+  </div>
+</div>
+
+<div className="architecture-map__connector">
+  <div className="architecture-map__lane architecture-map__lane--forward">
+    <div className="architecture-map__lane-label">Mutation APIs</div>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--horizontal"
+      viewBox="0 0 100 20"
+      preserveAspectRatio="none"
+    >
+      <path d="M 0,10 L 93,10" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="92,7 100,10 92,13" fill="var(--border)" />
+    </svg>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--vertical"
+      viewBox="0 0 20 100"
+      preserveAspectRatio="none"
+    >
+      <path d="M 10,0 L 10,93" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="7,92 10,100 13,92" fill="var(--border)" />
+    </svg>
+  </div>
+  <div className="architecture-map__lane architecture-map__lane--backward">
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--horizontal"
+      viewBox="0 0 100 20"
+      preserveAspectRatio="none"
+    >
+      <path d="M 100,10 L 7,10" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="8,7 0,10 8,13" fill="var(--border)" />
+    </svg>
+    <svg
+      className="architecture-map__arrow architecture-map__arrow--vertical"
+      viewBox="0 0 20 100"
+      preserveAspectRatio="none"
+    >
+      <path d="M 10,100 L 10,7" stroke="var(--border)" strokeWidth="1.5" fill="none" />
+      <polygon points="7,8 10,0 13,8" fill="var(--border)" />
+    </svg>
+    <div className="architecture-map__lane-label">Synced state</div>
+  </div>
+</div>
+
+  <div className="architecture-map__group">
+    <div className="architecture-map__group-header">
+      <h3>Core Engine</h3>
+    </div>
+    <div className="architecture-map__node">
+      <span className="node-title">Timeline Engine</span>
+      <span className="node-desc">Playback, snapping, history</span>
+    </div>
+    <div className="architecture-map__node">
+      <span className="node-title">Timeline State</span>
+      <span className="node-desc">Serializable editor state</span>
+    </div>
+  </div>
+</figure>
+
+## Subsystem Guides
+
+To understand specific areas of the model and integration layers, refer to these detailed guides:
+
+- [Rational time](/docs/rational-time) — Learn about fraction-based time representation and arithmetic helpers.
+- [Tracks and clips](/docs/tracks-and-clips) — Understand tracks and clips configuration, move commands, and dragging hooks.
+- [Keyframes](/docs/keyframes) — Animate clip properties with engine-level keyframes and headless interaction hooks.
+- [Events and lifecycle](/docs/events-and-lifecycle) — Retrieve active playhead layers, subscribe to events, and use metadata.
+- [React editor hooks](/docs/react-hooks) — Bind timeline state using domain hooks and accessibility wrappers.
+
+---
+
+## Timeline state
+
+Canvas Timeline centers on a serializable `TimelineState` object. This state acts as the single source of truth and the contract between the engine, React bindings, canvas renderer, and any persistence layer in your application.
+
+At the top level, `TimelineState` contains:
+
+| Field                  | Type                        | What it represents                                             |
+| :--------------------- | :-------------------------- | :------------------------------------------------------------- |
+| `tracks`               | `Track[]`                   | Ordered lanes and their clips.                                 |
+| `playheadTime`         | `RationalTime`              | The current edit or playback cursor.                           |
+| `zoomScale`            | `number`                    | Horizontal scale in pixels per second.                         |
+| `scrollLeft`           | `number`                    | Horizontal viewport offset in pixels.                          |
+| `markers`              | `TimelineMarker[]`          | Optional annotations pinned to timeline time.                  |
+| `inPoint` / `outPoint` | `RationalTime \| undefined` | Optional range boundaries for loop regions and edit selection. |
+| `duration`             | `RationalTime \| undefined` | Optional fixed sequence duration.                              |
+
+The engine owns the live structural state and emits events when edits, playback, or viewport changes occur.
+
+```ts
+import { TimelineEngine, fromSeconds } from '@techsquidtv/canvas-timeline';
+
+const engine = new TimelineEngine({
+  duration: fromSeconds(30),
+  tracks: [
+    {
+      id: 'track-visual-1',
+      kind: 'visual',
+      name: 'Visual 1',
+      selected: false,
+      locked: false,
+      muted: false,
+      visible: true,
+      clips: [],
+      targeted: true,
+    },
+  ],
+});
+```
+
+<Callout kind="warning" title="Avoid Index-based IDs">
+  Create track and clip IDs once, then keep the same strings as the timeline changes. Avoid IDs
+  derived from array positions (such as `track-0` or `clip-${index}`) because reordering, deleting,
+  splitting, or undoing edits can shift items to different indexes, causing state mismatching or
+  broken references.
+</Callout>
+
+---
+
+## Decoupling Application Metadata
+
+<Callout kind="tip" title="Decouple Heavy Metadata from Timeline State">
+  Keep `TimelineState` focused on structure and shared editor state (IDs, times, visibility, muting,
+  selection, locking). Store heavy domain metadata—such as media URLs, waveforms, transcripts,
+  preset configurations, or comments—in your application's stores or maps, keyed by `sourceId`,
+  `clip.id`, or `track.id`.
+</Callout>
+
+This separation provides significant performance benefits:
+
+1. **Lightweight History**: Canvas Timeline manages a full undo/redo stack. Keeping the state model small allows snapshots to be cloned and serialized in milliseconds.
+2. **Normalized Media Data**: If the same source asset is used 10 times in a timeline, all 10 clips share a single `sourceId`. Your app needs to load and cache the asset's duration, dimensions, waveform, thumbnails, or transcript only once.
+
+Use the table below to guide where metadata should reside:
+
+| Key Type   | What to Store                                 | Examples                                                                     |
+| :--------- | :-------------------------------------------- | :--------------------------------------------------------------------------- |
+| `sourceId` | Shared assets and media file attributes       | Video URLs, durations, dimensions, waveform caches, transcripts.             |
+| `clip.id`  | Clip-specific editorial overrides and presets | Volume levels, visual crops, color grading presets, text captions, comments. |
+| `track.id` | App-specific lane metadata                    | Audio routing, record arm, owners, language, meters, automation mode.        |
+
+```ts
+// Example: Resolving assets from a separate store
+interface AssetMeta {
+  url: string;
+  thumbnailUrl?: string;
+}
+
+const assetMetadata = new Map<string, AssetMeta>([
+  ['asset-interview-1', { url: '/media/interview.mp4', thumbnailUrl: '/thumbs/interview.jpg' }],
+]);
+
+// Inside your rendering loop or React component:
+const asset = assetMetadata.get(clip.sourceId);
+```
+
+Track-level state belongs in `Track` only when Canvas Timeline itself needs to
+understand it for rendering, media lookup, editing, history, or shared hooks. Use
+an app-owned store for product-specific header controls:
+
+```ts
+interface AudioTrackMeta {
+  recordArmed: boolean;
+  routeId: string;
+  meterSourceId: string;
+}
+
+const audioTrackMetaById: Record<string, AudioTrackMeta> = {
+  'audio-1': {
+    recordArmed: false,
+    routeId: 'mix-bus',
+    meterSourceId: 'meter-audio-1',
+  },
+};
+```
+
+---
+
+## Rendering layers
+
+Canvas Timeline splits rendering responsibilities to optimize performance:
+
+- **Canvas Layer**: Renders dense timeline graphics (ruler, time ticks, tracks, clips, In/Out range fill, snap points, etc.). Rendering hundreds of clips in DOM nodes triggers browser reflows and input lag; drawing to a 2D Canvas keeps interactions at 60fps.
+- **React Layer**: Coordinates layout structure, pointer events, click detection, scrollbar elements, and delegated editing grabbers. React excels at context injection, focus, and state bindings.
+
+CSS styles interaction layers and chrome; renderer theme styles canvas-painted timeline visuals. This keeps shadcn-style token control available without moving clips, tracks, rulers, or markers out of the canvas rendering path.
+
+| Surface            | Controlled by  | Examples                                                                               |
+| :----------------- | :------------- | :------------------------------------------------------------------------------------- |
+| Canvas visuals     | Renderer theme | Clip fills, clip labels, track lanes, ruler ticks, markers, snap lines.                |
+| Interaction layers | React and CSS  | Scrollbars, the single active clip affordance, playhead grabbers, and In/Out grabbers. |
+| Product chrome     | Your app CSS   | Toolbars, inspectors, panels, menus, dialogs, and keyboard-focus styling.              |
+| Project color data | Timeline state | Per-clip `color` metadata that overrides renderer clip background colors.              |
+
+| Layer                   | Responsibility                                                                | Output/API                     |
+| :---------------------- | :---------------------------------------------------------------------------- | :----------------------------- |
+| **Core engine**         | State transitions, editing commands, playback loops, history, snapping math.  | `TimelineEngine`               |
+| **Renderer**            | Double-buffered Canvas drawing of ticks, backgrounds, waveforms, ruler.       | `CanvasRenderer`               |
+| **React package**       | Layout components, interaction surfaces, scroll/drag hooks, Provider context. | `Timeline.Root`, `useTimeline` |
+| **Product application** | Media decoding, project persistence, hotkeys, asset panel, styling themes.    | Your application               |
+
+---
+
+## Package boundaries
+
+The easiest way to start is importing `@techsquidtv/canvas-timeline`. However, the code is separated into individual sub-packages so you can import only what your app needs:
+
+| Package                                           | Use it when                                                                                    |
+| :------------------------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `@techsquidtv/canvas-timeline-core`               | You need the data model, editing math, and playback engine in a non-React or node environment. |
+| `@techsquidtv/canvas-timeline-react`              | You are binding your custom UI or elements to the engine hooks and context.                    |
+| `@techsquidtv/canvas-timeline-html-media-adapter` | You want one native `HTMLMediaElement` to follow timeline media.                               |
+| `@techsquidtv/canvas-timeline-mediabunny-adapter` | You want Mediabunny to decode, render, or schedule media from timeline clips.                  |
+| `@techsquidtv/canvas-timeline-renderer`           | You want to configure, subclass, or theme the canvas drawing pipeline.                         |
+| `@techsquidtv/canvas-timeline-utils`              | You only need rational-time arithmetic or helper functions.                                    |
+
+Media packages follow the same boundary rule as the rest of the architecture:
+timeline state stays serializable, while heavy media objects stay in the app or
+adapter. Clips connect to media by stable `clip.sourceId` values. The HTML media
+adapter maps those IDs to a record of URLs, blobs, or files for one native media
+element; the Mediabunny adapter maps them to source descriptors for decoded
+frame/audio preview. In React apps, `useHTMLTimelineMedia` and
+`useMediabunnyTimelineMedia` are the recommended first hooks because they create
+the adapter and connect it to timeline playback in one call.
+
+---
+
+## Mental model summary
+
+When debugging or designing features, remember:
+
+1. **Serializable State**: State is pure data (`TimelineState`).
+2. **Single Mutator**: Only `TimelineEngine` updates the state.
+3. **Canvas for Density**: Visuals are drawn on a canvas, avoiding DOM overhead.
+4. **React for Interaction**: Handlers, hover states, scroll events, and dialogs belong in React.
+5. **Decoupled Data**: Heavy media assets and domain details live in your app state, mapped to the timeline by stable IDs.

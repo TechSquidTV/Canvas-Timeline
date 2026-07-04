@@ -1,0 +1,119 @@
+---
+import type { MarkdownHeading } from 'astro';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DocsNav from '@/components/DocsNav.astro';
+import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import { docsSections, type DocsSectionId } from '@/data/docs';
+import type { StructuredDataInput } from '@/lib/structured-data';
+
+interface PagerLink {
+  id: string;
+  data: {
+    title: string;
+  };
+}
+
+interface Props {
+  title: string;
+  description: string;
+  currentSlug?: string;
+  section?: DocsSectionId;
+  headings?: MarkdownHeading[];
+  previous?: PagerLink;
+  next?: PagerLink;
+  markdownHref?: string;
+  structuredData?: StructuredDataInput;
+}
+
+const {
+  title,
+  description,
+  currentSlug = '',
+  section,
+  headings = [],
+  previous,
+  next,
+  markdownHref,
+  structuredData,
+} = Astro.props;
+const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+const currentSection = section
+  ? docsSections.find((docsSection) => docsSection.id === section)
+  : undefined;
+const breadcrumbs = [
+  { label: 'Home', href: '/' },
+  { label: 'Docs', href: currentSlug ? '/docs' : undefined },
+  ...(currentSection ? [{ label: currentSection.title }] : []),
+  ...(currentSlug ? [{ label: title }] : []),
+];
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  breadcrumbs={breadcrumbs}
+  structuredData={structuredData}
+>
+  <section class="docs-hero">
+    <div class="container-page docs-hero__content">
+      <div class="docs-hero__copy">
+        <p class="eyebrow">Documentation</p>
+        <h1>{title}</h1>
+        <p class="docs-hero__description">{description}</p>
+      </div>
+      {
+        markdownHref ? (
+          <MarkdownCopyButton href={markdownHref} class="docs-markdown-copy" />
+        ) : null
+      }
+    </div>
+  </section>
+  <div class="container-page docs-shell">
+    <aside class="docs-sidebar">
+      <DocsNav currentSlug={currentSlug} />
+    </aside>
+    <details class="docs-mobile-nav">
+      <summary>Browse documentation</summary>
+      <DocsNav currentSlug={currentSlug} />
+    </details>
+    <article class="prose-docs">
+      <slot />
+      {
+        previous || next ? (
+          <nav class="docs-pager" aria-label="Adjacent documentation pages">
+            {previous ? (
+              <a class="docs-pager__link" href={`/docs/${previous.id}`}>
+                <span>Previous</span>
+                <strong>{previous.data.title}</strong>
+              </a>
+            ) : (
+              <span></span>
+            )}
+            {next ? (
+              <a class="docs-pager__link docs-pager__link-next" href={`/docs/${next.id}`}>
+                <span>Next</span>
+                <strong>{next.data.title}</strong>
+              </a>
+            ) : null}
+          </nav>
+        ) : null
+      }
+    </article>
+    <aside class="docs-toc" aria-label="On this page">
+      <p>On this page</p>
+      {
+        tocHeadings.length > 0 ? (
+          <ol>
+            {tocHeadings.map((heading) => (
+              <li class:list={[heading.depth === 3 && 'is-nested']}>
+                <a href={`#${heading.slug}`}>{heading.text}</a>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <span>No sections yet</span>
+        )
+      }
+    </aside>
+  </div>
+</BaseLayout>

@@ -1,0 +1,75 @@
+{
+  "name": "@techsquidtv/canvas-timeline",
+  "version": "0.0.1",
+  "license": "MPL-2.0",
+  "description": "Batteries-included Canvas Timeline package for React timeline editing.",
+  "type": "module",
+  "homepage": "https://canvastimeline.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "directory": "packages/timeline"
+  },
+  "keywords": [
+    "timeline",
+    "timeline-editor",
+    "react",
+    "canvas",
+    "offscreen-canvas",
+    "video-editor",
+    "canvas-timeline"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./html-media": {
+      "types": "./dist/html-media.d.ts",
+      "import": "./dist/html-media.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "import": "./dist/renderer.js"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js"
+    },
+    "./base.css": "./dist/base.css",
+    "./theme.css": "./dist/theme.css",
+    "./styles.css": "./dist/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vp pack && cp src/base.css dist/base.css && cp src/theme.css dist/theme.css && cp src/styles.css dist/styles.css",
+    "dev": "vp pack --watch --no-clean",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@techsquidtv/canvas-timeline-core": "workspace:*",
+    "@techsquidtv/canvas-timeline-html-media-adapter": "workspace:*",
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
+    "@techsquidtv/canvas-timeline-renderer": "workspace:*",
+    "@techsquidtv/canvas-timeline-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7"
+  }
+}

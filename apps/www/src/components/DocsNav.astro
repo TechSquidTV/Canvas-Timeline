@@ -1,0 +1,51 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
+import { docsForSection, docsSections } from '@/data/docs';
+
+interface Props {
+  currentSlug?: string;
+}
+
+type DocsEntry = CollectionEntry<'docs'>;
+
+const { currentSlug = '' } = Astro.props;
+const docs = (await getCollection('docs')) as DocsEntry[];
+---
+
+<nav class="docs-nav" aria-label="Documentation navigation">
+  <a
+    href="/docs"
+    aria-current={currentSlug === '' ? 'page' : undefined}
+    class:list={['docs-nav__home', currentSlug === '' && 'is-active']}
+  >
+    Docs home
+  </a>
+  <div class="docs-nav__sections">
+    {
+      docsSections.map((section) => {
+        const sectionDocs = docsForSection(docs, section.id);
+
+        return sectionDocs.length > 0 ? (
+          <section class="docs-nav__section" aria-label={section.title}>
+            <p class="docs-nav__section-title">{section.title}</p>
+            <div class="docs-nav__links">
+              {sectionDocs.map((entry) => (
+                <a
+                  href={`/docs/${entry.id}`}
+                  aria-current={currentSlug === entry.id ? 'page' : undefined}
+                  class:list={[
+                    'docs-nav__link',
+                    currentSlug === entry.id && 'is-active',
+                  ]}
+                >
+                  {entry.data.title}
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null;
+      })
+    }
+  </div>
+</nav>
