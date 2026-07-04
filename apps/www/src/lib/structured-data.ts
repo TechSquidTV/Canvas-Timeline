@@ -202,7 +202,7 @@ export function createBlogFaqStructuredData(
   return {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    mainEntity: faqItems.map((item) => ({
+    mainEntity: faqItems.map((item: NonNullable<BlogPost['data']['faq']>[number]) => ({
       '@type': 'Question',
       name: item.question,
       acceptedAnswer: {
