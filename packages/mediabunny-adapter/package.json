@@ -1,6 +1,6 @@
 {
   "name": "@techsquidtv/canvas-timeline-mediabunny-adapter",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "MPL-2.0",
   "description": "Mediabunny adapter for Canvas Timeline media playback and frame access.",
   "type": "module",
