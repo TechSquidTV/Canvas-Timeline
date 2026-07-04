@@ -81,6 +81,8 @@ export function buildDocsIndexMarkdown(
   const body = [
     'Welcome to the documentation for **Canvas Timeline**. This library helps you build high-performance, frame-accurate, and customizable video, audio, or animation timelines in React.',
     '',
+    'This Markdown file is a generated documentation index. Each listed page also has its own Markdown endpoint for copying or LLM-assisted lookup.',
+    '',
     '```shell',
     'pnpm add @techsquidtv/canvas-timeline',
     '```',
@@ -144,7 +146,10 @@ function sectionMarkdown(sectionId: DocsSectionId, title: string, docs: readonly
   return [
     `### ${title}`,
     '',
-    ...sectionDocs.map((doc) => `- [${doc.data.title}](/docs/${doc.id}) - ${doc.data.description}`),
+    ...sectionDocs.map(
+      (doc) =>
+        `- **${doc.data.title}** - ${doc.data.description} [Page](/docs/${doc.id}) | [Markdown](/docs/${doc.id}.md)`
+    ),
     '',
   ];
 }
