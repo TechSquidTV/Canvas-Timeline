@@ -22,6 +22,9 @@ interface Props {
   previous?: PagerLink;
   next?: PagerLink;
   markdownHref?: string;
+  markdownLabel?: string;
+  markdownAriaLabel?: string;
+  markdownTooltip?: string;
   structuredData?: StructuredDataInput;
 }
 
@@ -34,6 +37,9 @@ const {
   previous,
   next,
   markdownHref,
+  markdownLabel,
+  markdownAriaLabel,
+  markdownTooltip,
   structuredData,
 } = Astro.props;
 const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
@@ -63,7 +69,13 @@ const breadcrumbs = [
       </div>
       {
         markdownHref ? (
-          <MarkdownCopyButton href={markdownHref} class="docs-markdown-copy" />
+          <MarkdownCopyButton
+            href={markdownHref}
+            label={markdownLabel}
+            ariaLabel={markdownAriaLabel}
+            tooltip={markdownTooltip}
+            class="docs-markdown-copy"
+          />
         ) : null
       }
     </div>
