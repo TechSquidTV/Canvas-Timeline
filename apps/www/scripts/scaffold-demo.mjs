@@ -9,11 +9,11 @@ const [slug, liveDemoId, componentName, ...titleParts] = process.argv.slice(2);
 const title = titleParts.join(' ') || slugToTitle(slug ?? '');
 
 if (!slug || !liveDemoId || !componentName) {
-  console.error(
-    'Usage: node scripts/scaffold-demo.mjs <slug> <liveDemoId> <ComponentName> [Title]'
-  );
+  printUsage();
   process.exit(1);
 }
+
+validateScaffoldInput({ slug, liveDemoId, componentName });
 
 const demoDir = resolve(appDir, 'src/demos', slug);
 const componentFile = `${componentName}.tsx`;
@@ -123,14 +123,14 @@ import ${liveDemoIdToIdentifier(liveDemoId)}DataSource from '../demos/${slug}/ti
     `${importBlock}import { toCopyableDemoSource } from './demo-snippets';`
   );
 
-  const key = liveDemoId.includes('-') ? `'${liveDemoId}'` : liveDemoId;
+  const key = liveDemoId.includes('-') ? singleQuotedStringLiteral(liveDemoId) : liveDemoId;
   const id = liveDemoIdToIdentifier(liveDemoId);
   const entry = `  ${key}: {
     tsx: toCopyableDemoSource(${id}TimelineSource),
     data: toCopyableDemoSource(${id}DataSource),
     sourceFiles: {
-      component: '${relativeComponentPath}',
-      data: '${relativeDataPath}',
+      component: ${singleQuotedStringLiteral(relativeComponentPath)},
+      data: ${singleQuotedStringLiteral(relativeDataPath)},
     },
   },
 `;
@@ -142,7 +142,7 @@ import ${liveDemoIdToIdentifier(liveDemoId)}DataSource from '../demos/${slug}/ti
 async function insertComponentEntry() {
   const registryPath = resolve(appDir, 'src/data/demo-components.ts');
   let source = await readFile(registryPath, 'utf8');
-  const key = liveDemoId.includes('-') ? `'${liveDemoId}'` : liveDemoId;
+  const key = liveDemoId.includes('-') ? singleQuotedStringLiteral(liveDemoId) : liveDemoId;
   const entry = `  ${key}: () =>
     import('../demos/${slug}/${componentName}').then((module) => module.${componentName}),
 `;
@@ -154,9 +154,10 @@ async function insertComponentEntry() {
 async function insertDemoDocEntry() {
   const demosPath = resolve(appDir, 'src/data/demos.ts');
   let source = await readFile(demosPath, 'utf8');
+  const liveDemoIdLiteral = singleQuotedStringLiteral(liveDemoId);
   const entry = `  {
-    slug: '${slug}',
-    title: '${title.replace(/'/g, "\\'")}',
+    slug: ${singleQuotedStringLiteral(slug)},
+    title: ${singleQuotedStringLiteral(title)},
     description: 'A source-backed Canvas Timeline demo.',
     status: 'starter',
     difficulty: 'Beginner',
@@ -165,21 +166,83 @@ async function insertDemoDocEntry() {
       '@techsquidtv/canvas-timeline-react',
       '@techsquidtv/canvas-timeline-renderer',
     ],
-    sourcePath: '${relativeComponentPath}',
-    liveDemoId: '${liveDemoId}',
+    sourcePath: ${singleQuotedStringLiteral(relativeComponentPath)},
+    liveDemoId: ${liveDemoIdLiteral},
   },
 `;
 
   source = source.replace(/export type LiveDemoId = ([^;]+);/, (match, ids) => {
-    if (ids.includes(`'${liveDemoId}'`)) {
+    if (ids.includes(liveDemoIdLiteral)) {
       return match;
     }
 
-    return `export type LiveDemoId = ${ids} | '${liveDemoId}';`;
+    return `export type LiveDemoId = ${ids} | ${liveDemoIdLiteral};`;
   });
 
   source = source.replace(/\n];\s*$/, `\n${entry}];\n`);
   await writeFile(demosPath, source);
+}
+
+function printUsage() {
+  console.error(
+    'Usage: node scripts/scaffold-demo.mjs <slug> <liveDemoId> <ComponentName> [Title]'
+  );
+}
+
+function validateScaffoldInput(input) {
+  const idPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+  const componentPattern = /^[A-Z][A-Za-z0-9]*$/;
+  const errors = [];
+
+  if (!idPattern.test(input.slug)) {
+    errors.push('slug must be lowercase kebab-case and start with a letter.');
+  }
+
+  if (!idPattern.test(input.liveDemoId)) {
+    errors.push('liveDemoId must be lowercase kebab-case and start with a letter.');
+  }
+
+  if (!componentPattern.test(input.componentName)) {
+    errors.push('ComponentName must be PascalCase and contain only letters or numbers.');
+  }
+
+  if (errors.length > 0) {
+    console.error(errors.map((error) => `- ${error}`).join('\n'));
+    printUsage();
+    process.exit(1);
+  }
+}
+
+function singleQuotedStringLiteral(value) {
+  let literal = "'";
+
+  for (const character of value) {
+    if (character === "'") {
+      literal += "\\'";
+    } else if (character === '\\') {
+      literal += '\\\\';
+    } else if (character === '\n') {
+      literal += '\\n';
+    } else if (character === '\r') {
+      literal += '\\r';
+    } else if (character === '\t') {
+      literal += '\\t';
+    } else if (character === '\b') {
+      literal += '\\b';
+    } else if (character === '\f') {
+      literal += '\\f';
+    } else {
+      const codePoint = character.codePointAt(0);
+
+      if (codePoint < 0x20 || codePoint === 0x2028 || codePoint === 0x2029) {
+        literal += `\\u${codePoint.toString(16).padStart(4, '0')}`;
+      } else {
+        literal += character;
+      }
+    }
+  }
+
+  return `${literal}'`;
 }
 
 function slugToTitle(value) {

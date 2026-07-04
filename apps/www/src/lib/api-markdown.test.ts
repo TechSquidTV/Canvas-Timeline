@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vite-plus/test';
 import { buildApiPackageMarkdown, buildApiSymbolMarkdown } from './api-markdown';
 import { apiReference } from './api-reference';
+import { markdownCode, markdownTable } from './markdown-format';
 
 describe('API Markdown builder', () => {
   test('builds static package API index Markdown', () => {
@@ -38,6 +39,15 @@ describe('API Markdown builder', () => {
     expect(markdown).toContain('## Properties');
     expect(markdown).not.toContain('<table');
     expect(markdown).not.toContain('class=');
+  });
+
+  test('escapes Markdown table cells and inline code delimiters', () => {
+    expect(markdownTable(['Name|Type', 'Path\\Segment'], [['line\nbreak', 'a|b\\c']])).toBe(
+      '| Name\\|Type | Path\\\\Segment |\n| :--- | :--- |\n| line<br>break | a\\|b\\\\c |'
+    );
+
+    expect(markdownCode('Timeline.`Track`')).toBe('`` Timeline.`Track` ``');
+    expect(markdownCode('`already wrapped`')).toBe('`` `already wrapped` ``');
   });
 });
 

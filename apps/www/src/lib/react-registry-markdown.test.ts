@@ -15,6 +15,13 @@ describe('React registry LLM Markdown builder', () => {
         title: 'Track preview',
         description: 'A focused row layout showing track lanes and nested clip content.',
       },
+      props: [
+        {
+          name: 'track|id',
+          type: 'Timeline.`Track` | string',
+          description: 'Escapes docs paths like src\\tracks before table rendering.',
+        },
+      ],
       usageCode: `import { Timeline } from '@techsquidtv/canvas-timeline-react';
 
 export function VideoTrack() {
@@ -53,6 +60,8 @@ export function VideoTrack() {
     );
     expect(markdown).toContain('## Usage');
     expect(markdown).toContain('## Compound components and exports');
+    expect(markdown).toContain('| `track\\|id` | ``Timeline.`Track` \\| string`` |');
+    expect(markdown).toContain('src\\\\tracks');
     expect(markdown).toContain('`Timeline.Track`');
     expect(markdown).toContain('# TrackItemProps API');
     expect(markdown).toContain('# TrackHeaderProps API');
