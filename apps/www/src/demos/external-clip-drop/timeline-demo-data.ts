@@ -4,11 +4,9 @@ import { getDemoClipColor } from '../demo-clip-colors';
 
 export type ExternalClipDropTrackKind = 'visual' | 'audio';
 
-export type ExternalClipAssetKind = 'visual' | 'linked-av';
-
 export interface ExternalClipAsset {
   id: string;
-  kind: ExternalClipAssetKind;
+  kind: 'visual' | 'linked-av';
   label: string;
   sourceId: string;
   durationSeconds: number;
