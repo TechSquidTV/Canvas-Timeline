@@ -4,7 +4,7 @@ export type EditorTrackKind = 'audio' | 'visual';
 
 export const demoProject = {
   id: 'full-editor-lab',
-  title: 'Launch Cut Lab',
+  title: 'Untitled Project',
   description: 'Private integration project for Canvas Timeline feature QA.',
   frameRate: 30,
   height: 1080,

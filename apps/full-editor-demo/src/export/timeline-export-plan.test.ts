@@ -13,7 +13,7 @@ import { createTimelineExportPlan } from './timeline-export-plan';
 
 const file = new File(['media'], 'source.mp4', { type: 'video/mp4' });
 const profile = createTimelineExportProfile({
-  filename: 'Launch Cut Lab.mp4',
+  filename: 'Untitled Project.mp4',
   projectMetadata: getDefaultProjectMetadata(),
   resolutionId: '1080p',
 });
