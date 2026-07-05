@@ -810,13 +810,13 @@
     border-top: 1px solid var(--timeline-border);
   }
 
-  .timeline-timecode-control-wrapper {
+  .full-editor-timecode-control-wrapper {
     display: inline-flex;
     align-items: center;
     min-width: 8.5rem;
   }
 
-  .timeline-range-badge {
+  .full-editor-range-badge {
     display: inline-grid;
     width: 1rem;
     height: 1rem;

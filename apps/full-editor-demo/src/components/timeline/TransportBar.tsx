@@ -122,16 +122,16 @@ export function TransportBar() {
         <StepForward aria-hidden="true" />
       </Button>
 
-      <div className="timeline-timecode-control-wrapper">
+      <div className="timeline-timecode-control-wrapper full-editor-timecode-control-wrapper">
         <PlayheadTimecodeControl />
       </div>
 
       <Button onClick={() => engine.setInPoint(engine.playheadTime)} variant="ghost">
-        <span className="timeline-range-badge">I</span>
+        <span className="timeline-range-badge full-editor-range-badge">I</span>
         In
       </Button>
       <Button onClick={() => engine.setOutPoint(engine.playheadTime)} variant="ghost">
-        <span className="timeline-range-badge">O</span>
+        <span className="timeline-range-badge full-editor-range-badge">O</span>
         Out
       </Button>
       <Button
