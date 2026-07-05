@@ -157,6 +157,13 @@ export const timelineHookMetadata = [
     description: 'Reads timeline clips and exposes canonical clip editing commands.',
   },
   {
+    name: 'useTimelineClipGroups',
+    group: 'editing-hooks',
+    category: 'clip-editing',
+    reactivity: 'snapshot',
+    description: 'Reads clip groups and exposes group management commands.',
+  },
+  {
     name: 'useTimelineEditMode',
     group: 'editing-hooks',
     category: 'clip-editing',

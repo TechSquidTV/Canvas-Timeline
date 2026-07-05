@@ -304,6 +304,10 @@ export function useTimelineClipDrag<TrackKind = string>(
         previousEndTime: activeDrag.previousEndTime,
         startTime: { ...found.clip.timelineStart },
         endTime: { ...found.clip.timelineEnd },
+        changedClips: engine.getClipGroupForClip(activeDrag.clipId)?.clipIds.flatMap((clipId) => {
+          const grouped = engine.getClip(clipId);
+          return grouped === undefined ? [] : [grouped.clip];
+        }) ?? [found.clip],
       });
     },
     [

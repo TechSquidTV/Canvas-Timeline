@@ -16,6 +16,7 @@ import type {
 /** Reason a committed engine command created a new clip. */
 export type ClipCreatedReason =
   | 'paste'
+  | 'split'
   | 'insert'
   | 'overwrite'
   | 'overwrite-split'
@@ -80,6 +81,8 @@ export interface ClipSlipEvent {
 export interface ClipSelectEvent {
   clipId: string | null;
   clip: Clip | null;
+  clipIds: string[];
+  clips: Clip[];
 }
 
 /** Keyframe add/update event payload. */

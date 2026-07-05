@@ -38,6 +38,9 @@ import type {
   TimelineEditValidationResult,
   TimelineInsertEditCommand,
   TimelineInteractionGeometry,
+  TimelineClipGroup,
+  TimelineCreateClipGroupOptions,
+  TimelineInsertClipGroupOptions,
   TimelineKeyframe,
   TimelineKeyframeCurveGeometryOptions,
   TimelineKeyframeCurveHandle,
@@ -58,6 +61,7 @@ import type {
   TimelineRippleTrimEditCommand,
   TimelineRollTrimEditCommand,
   TimelineSlideEditCommand,
+  TimelineSplitEditCommand,
   TimelineSlipEditCommand,
   TimelineState,
   TimelineSetClipKeyframeOptions,
@@ -160,6 +164,7 @@ const minimumTimelineEditDurationSeconds = 0.01;
 interface TimelineResolvedEdit {
   preview: TimelineEditPreview;
   tracks: Track[];
+  clipGroups?: TimelineClipGroup[];
   commandFingerprint: string;
   moveResult?: TimelineClipMoveResult;
   createdClipEvents: TimelineCreatedClipEvent[];
@@ -534,6 +539,43 @@ export function createLeanMarkers(markers: Marker[] | undefined): Marker[] {
   });
 }
 
+/**
+ * Creates a sanitized clip group array for timeline state and history snapshots.
+ *
+ * @param clipGroups - Optional clip group array to sanitize.
+ * @returns A sanitized clip group array.
+ */
+export function createLeanClipGroups(
+  clipGroups: TimelineClipGroup[] | undefined
+): TimelineClipGroup[] {
+  const groupIds = new Set<string>();
+  const groupedClipIds = new Set<string>();
+  return (clipGroups ?? []).map((group) => {
+    if (groupIds.has(group.id)) {
+      throw new RangeError(`duplicate clip group id "${group.id}".`);
+    }
+    groupIds.add(group.id);
+    if (group.clipIds.length < 2) {
+      throw new RangeError(`clip group "${group.id}" must contain at least two clips.`);
+    }
+    const uniqueClipIds = new Set(group.clipIds);
+    if (uniqueClipIds.size !== group.clipIds.length) {
+      throw new RangeError(`clip group "${group.id}" contains duplicate clip ids.`);
+    }
+    for (const clipId of group.clipIds) {
+      if (groupedClipIds.has(clipId)) {
+        throw new RangeError(`clip "${clipId}" belongs to more than one clip group.`);
+      }
+      groupedClipIds.add(clipId);
+    }
+    return {
+      id: group.id,
+      clipIds: [...group.clipIds],
+      ...(group.label !== undefined ? { label: group.label } : {}),
+    };
+  });
+}
+
 function cloneRationalTime(time: RationalTime): RationalTime {
   assertValidRationalTime(time);
   return { v: time.v, r: time.r };
@@ -661,6 +703,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   constructor(initialState: {
     tracks: Track[];
+    clipGroups?: TimelineClipGroup[];
     markers?: Marker[];
     zoomScale?: number;
     scrollLeft?: number;
@@ -690,6 +733,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.editPolicy = initialState.editPolicy;
     this.state = {
       tracks: createLeanTracks(initialState.tracks),
+      clipGroups: createLeanClipGroups(initialState.clipGroups),
       contentRevision: 0,
       playheadTime: initialState.playheadTime ?? { v: 0, r: 24000 },
       zoomScale: initialState.zoomScale ?? 100, // 100 px per second
@@ -707,6 +751,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.playbackManager = new PlaybackManager(this);
     this.historyManager = new HistoryManager(this);
     this.clipboardManager = new ClipboardManager(this);
+    this.normalizeClipGroups();
 
     if (this.state.duration !== undefined || this.hasZoomConstraints()) {
       this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
@@ -721,6 +766,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   get tracks() {
     return this.state.tracks;
+  }
+
+  /**
+   * Current clip groups owned by the engine.
+   */
+  get clipGroups() {
+    return this.state.clipGroups;
   }
 
   /**
@@ -2769,6 +2821,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     this.state.tracks = resolved.tracks;
+    if (resolved.clipGroups !== undefined) {
+      this.state.clipGroups = resolved.clipGroups;
+    }
+    this.normalizeClipGroups();
     for (const track of this.state.tracks) {
       this.sortTrackClips(track);
     }
@@ -2849,6 +2905,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       case 'slip':
       case 'slide':
         return command.clipId;
+      case 'split':
+        return command.clipIds[0];
       case 'roll-trim':
         return command.leftClipId;
       case 'insert':
@@ -2869,6 +2927,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     for (const created of resolved.createdClipEvents) {
+      if (created.reason === 'split') {
+        continue;
+      }
       const event: ClipCreatedEvent = {
         clip: created.clip,
         reason: created.reason,
@@ -2893,6 +2954,21 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (command.type === 'slip') {
       for (const clip of preview.changedClips) {
         this.emit('clip:slip', { clip });
+      }
+    }
+    if (command.type === 'split') {
+      for (const created of resolved.createdClipEvents) {
+        if (created.originClipId === undefined) {
+          continue;
+        }
+        const left = preview.changedClips.find((clip) => clip.id === created.originClipId);
+        if (left !== undefined) {
+          this.emit('clip:split', {
+            originalId: created.originClipId,
+            left,
+            right: created.clip,
+          } satisfies ClipSplitEvent);
+        }
       }
     }
   }
@@ -2920,6 +2996,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.resolveSlipEdit(command);
       case 'slide':
         return this.resolveSlideEdit(command);
+      case 'split':
+        return this.resolveSplitEdit(command);
       case 'insert':
         return this.resolveInsertEdit(command);
       case 'overwrite':
@@ -3020,6 +3098,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           deltaTime: timeKey(command.deltaTime),
           snap: command.snap ?? null,
         });
+      case 'split':
+        return JSON.stringify({
+          type: command.type,
+          time: timeKey(command.time),
+          clipIds: [...command.clipIds],
+        });
       case 'insert':
       case 'overwrite':
         return JSON.stringify({
@@ -3076,6 +3160,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     tracks: Track[],
     preview: TimelineEditPreview,
     options: {
+      clipGroups?: TimelineClipGroup[];
       moveResult?: TimelineClipMoveResult;
       createdClipEvents?: TimelineCreatedClipEvent[];
       removedClipEvents?: TimelineRemovedClipEvent[];
@@ -3084,6 +3169,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     return {
       tracks,
       preview,
+      ...(options.clipGroups !== undefined ? { clipGroups: options.clipGroups } : {}),
       commandFingerprint: this.createEditCommandFingerprint(command),
       ...(options.moveResult !== undefined ? { moveResult: options.moveResult } : {}),
       createdClipEvents: options.createdClipEvents ?? [],
@@ -3171,6 +3257,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.validateClipEditCommand(command.clipId, 'resizable');
       case 'slide':
         return this.validateClipEditCommand(command.clipId, 'movable');
+      case 'split':
+        return this.validateSplitEditCommand(command);
       case 'insert':
       case 'overwrite':
         return this.validatePlaceClipCommand(command);
@@ -3196,6 +3284,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         case 'slip':
         case 'slide':
           assertValidRationalTime(command.deltaTime, 'command.deltaTime');
+          break;
+        case 'split':
+          assertValidRationalTime(command.time, 'command.time');
           break;
         case 'insert':
         case 'overwrite':
@@ -3237,6 +3328,19 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
     if (targetTrack.kind !== found.track.kind && command.allowCrossKindTrackMove !== true) {
       return this.rejectEdit('incompatible-track-kind');
+    }
+    const linkedClipIds = this.getLinkedClipIds(command.clipId);
+    if (linkedClipIds.length > 1 && targetTrack.id !== found.track.id) {
+      return this.rejectEdit('unsupported');
+    }
+    for (const linkedClipId of linkedClipIds) {
+      const linked = this.getClip(linkedClipId);
+      if (!linked) {
+        return this.rejectEdit('not-found');
+      }
+      if (linked.track.locked || linked.clip.movable === false) {
+        return this.rejectEdit('locked');
+      }
     }
     return defaultTimelineEditValidationResult;
   }
@@ -3322,6 +3426,35 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       return this.rejectEdit('locked');
     }
     return defaultTimelineEditValidationResult;
+  }
+
+  private validateSplitEditCommand(
+    command: TimelineSplitEditCommand
+  ): TimelineEditValidationResult {
+    if (command.clipIds.length === 0) {
+      return this.rejectEdit('not-found');
+    }
+    const requestedClipIds = this.getLinkedCommandClipIds(command.clipIds);
+    let hasOverlappingClip = false;
+    for (const clipId of requestedClipIds) {
+      const found = this.getClip(clipId);
+      if (!found) {
+        return this.rejectEdit('not-found');
+      }
+      const overlaps =
+        compareRational(command.time, found.clip.timelineStart) > 0 &&
+        compareRational(command.time, found.clip.timelineEnd) < 0;
+      if (!overlaps) {
+        continue;
+      }
+      if (found.track.locked || found.clip.resizable === false) {
+        return this.rejectEdit('locked');
+      }
+      hasOverlappingClip ||= overlaps;
+    }
+    return hasOverlappingClip
+      ? defaultTimelineEditValidationResult
+      : this.rejectEdit('invalid-range');
   }
 
   private validatePlaceClipCommand(
@@ -3442,15 +3575,45 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       startTime = subRational(endTime, duration);
     }
 
-    const movedClip = createLeanClip(found.clip, {
-      timelineStart: startTime,
-      timelineEnd: endTime,
-    });
-    shiftClipKeyframes(movedClip, subRational(startTime, previousStartTime));
-    found.track.clips.splice(found.clipIndex, 1);
-    targetTrack.clips.push(movedClip);
-    this.sortTrackClips(found.track);
-    this.sortTrackClips(targetTrack);
+    const linkedClipIds = this.getLinkedClipIds(command.clipId);
+    if (linkedClipIds.length > 1 && targetTrack.id !== found.track.id) {
+      return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('unsupported'));
+    }
+
+    const deltaTime = subRational(startTime, previousStartTime);
+    const changedClips: Clip[] = [];
+    for (const linkedClipId of linkedClipIds) {
+      const linked = this.getClipInTracks(tracks, linkedClipId);
+      if (!linked) {
+        return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
+      }
+      const nextStart = addRational(linked.clip.timelineStart, deltaTime);
+      const nextEnd = addRational(linked.clip.timelineEnd, deltaTime);
+      if (
+        (linked.clip.minStart !== undefined &&
+          compareRational(nextStart, linked.clip.minStart) < 0) ||
+        (linked.clip.maxEnd !== undefined && compareRational(nextEnd, linked.clip.maxEnd) > 0)
+      ) {
+        return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('source-bounds'));
+      }
+
+      const movedClip = createLeanClip(linked.clip, {
+        timelineStart: nextStart,
+        timelineEnd: nextEnd,
+      });
+      shiftClipKeyframes(movedClip, deltaTime);
+      if (linkedClipId === command.clipId && targetTrack.id !== linked.track.id) {
+        linked.track.clips.splice(linked.clipIndex, 1);
+        targetTrack.clips.push(movedClip);
+      } else {
+        linked.track.clips.splice(linked.clipIndex, 1, movedClip);
+      }
+      changedClips.push(createLeanClip(movedClip));
+    }
+
+    for (const track of tracks) {
+      this.sortTrackClips(track);
+    }
     const moved = this.getClipInTracks(tracks, command.clipId);
     if (!moved) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
@@ -3458,7 +3621,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     const preview = this.createResolvedEditPreview(command, {
       snap: snap?.result ?? null,
-      changedClips: [createLeanClip(moved.clip)],
+      changedClips,
       createdClips: [],
       removedClips: [],
       affectedRanges: [
@@ -3484,6 +3647,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       previousEndTime,
       startTime: cloneRationalTime(moved.clip.timelineStart),
       endTime: cloneRationalTime(moved.clip.timelineEnd),
+      changedClips,
     };
 
     return this.createResolvedEdit(command, tracks, preview, { moveResult });
@@ -3704,6 +3868,88 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         createdClipEvents: resolved.createdClipEvents,
         removedClipEvents: resolved.removedClipEvents,
       }
+    );
+  }
+
+  private resolveSplitEdit(command: TimelineSplitEditCommand): TimelineResolvedEdit {
+    const tracks = createLeanTracks(this.state.tracks);
+    const requestedClipIds = new Set(this.getLinkedCommandClipIds(command.clipIds));
+
+    const changedClips: Clip[] = [];
+    const createdClips: Clip[] = [];
+    const createdClipEvents: TimelineCreatedClipEvent[] = [];
+    const impacts: TimelineEditImpact[] = [];
+    const splitRightClipIds = new Map<string, string>();
+
+    for (const track of tracks) {
+      const nextClips: Clip[] = [];
+      for (const clip of track.clips) {
+        const shouldSplit =
+          requestedClipIds.has(clip.id) &&
+          compareRational(command.time, clip.timelineStart) > 0 &&
+          compareRational(command.time, clip.timelineEnd) < 0;
+        if (!shouldSplit) {
+          nextClips.push(clip);
+          continue;
+        }
+
+        const originalClip = createLeanClip(clip);
+        const leftClip = createLeanClip(clip, { timelineEnd: command.time });
+        const rightClip = createLeanClip(clip, {
+          id: crypto.randomUUID(),
+          timelineStart: command.time,
+          sourceStart: addRational(clip.sourceStart, subRational(command.time, clip.timelineStart)),
+          selected: false,
+        });
+        filterClipKeyframesToClipRange(leftClip);
+        filterClipKeyframesToClipRange(rightClip);
+        nextClips.push(leftClip, rightClip);
+        splitRightClipIds.set(clip.id, rightClip.id);
+        changedClips.push(createLeanClip(leftClip), createLeanClip(rightClip));
+        createdClips.push(createLeanClip(rightClip));
+        createdClipEvents.push({
+          clip: createLeanClip(rightClip),
+          reason: 'split',
+          originClipId: clip.id,
+        });
+        impacts.push({
+          clipId: clip.id,
+          trackId: track.id,
+          originalClip,
+          resultClips: [createLeanClip(leftClip), createLeanClip(rightClip)],
+          effect: 'split',
+          affectedStartTime: command.time,
+          affectedEndTime: command.time,
+          cutStart: true,
+          cutEnd: true,
+        });
+      }
+      track.clips = nextClips;
+      this.sortTrackClips(track);
+    }
+
+    if (splitRightClipIds.size === 0) {
+      return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('invalid-range'));
+    }
+
+    const nextClipGroups = this.repartitionClipGroupsAfterSplit(
+      tracks,
+      command.time,
+      splitRightClipIds
+    );
+
+    return this.createResolvedEdit(
+      command,
+      tracks,
+      this.createResolvedEditPreview(command, {
+        snap: null,
+        changedClips,
+        createdClips,
+        removedClips: [],
+        affectedRanges: [{ startTime: command.time, endTime: command.time }],
+        impacts,
+      }),
+      { clipGroups: nextClipGroups, createdClipEvents }
     );
   }
 
@@ -3936,6 +4182,320 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       }),
       { createdClipEvents, removedClipEvents }
     );
+  }
+
+  private createValidatedClipGroup(
+    options: TimelineCreateClipGroupOptions
+  ): TimelineClipGroup | null {
+    if (options.clipIds.length < 2) {
+      return null;
+    }
+    const uniqueClipIds = new Set(options.clipIds);
+    if (uniqueClipIds.size !== options.clipIds.length) {
+      return null;
+    }
+    if (options.id !== undefined && this.getClipGroup(options.id) !== undefined) {
+      return null;
+    }
+
+    for (const clipId of options.clipIds) {
+      if (this.getClip(clipId) === undefined || this.getClipGroupForClip(clipId) !== undefined) {
+        return null;
+      }
+    }
+
+    return createLeanClipGroups([
+      {
+        id: options.id ?? crypto.randomUUID(),
+        clipIds: [...options.clipIds],
+        ...(options.label !== undefined ? { label: options.label } : {}),
+      },
+    ])[0];
+  }
+
+  private normalizeClipGroups() {
+    const existingClipIds = new Set<string>();
+    for (const track of this.state.tracks) {
+      for (const clip of track.clips) {
+        existingClipIds.add(clip.id);
+      }
+    }
+
+    const claimedClipIds = new Set<string>();
+    const nextGroups: TimelineClipGroup[] = [];
+    for (const group of this.state.clipGroups) {
+      const clipIds = group.clipIds.filter((clipId) => {
+        if (!existingClipIds.has(clipId) || claimedClipIds.has(clipId)) {
+          return false;
+        }
+        claimedClipIds.add(clipId);
+        return true;
+      });
+      if (clipIds.length >= 2) {
+        nextGroups.push({
+          id: group.id,
+          clipIds,
+          ...(group.label !== undefined ? { label: group.label } : {}),
+        });
+      }
+    }
+    this.state.clipGroups = nextGroups;
+  }
+
+  private getLinkedClipIds(clipId: string): string[] {
+    return this.getClipGroupForClip(clipId)?.clipIds ?? [clipId];
+  }
+
+  private getLinkedCommandClipIds(clipIds: readonly string[]) {
+    const linkedClipIds = new Set<string>();
+    for (const clipId of clipIds) {
+      for (const linkedClipId of this.getLinkedClipIds(clipId)) {
+        linkedClipIds.add(linkedClipId);
+      }
+    }
+    return [...linkedClipIds];
+  }
+
+  private getSelectedClipIds() {
+    const clipIds: string[] = [];
+    for (const track of this.state.tracks) {
+      for (const clip of track.clips) {
+        if (clip.selected) {
+          clipIds.push(clip.id);
+        }
+      }
+    }
+    return clipIds;
+  }
+
+  private repartitionClipGroupsAfterSplit(
+    tracks: Track[],
+    splitTime: RationalTime,
+    splitRightClipIds: ReadonlyMap<string, string>
+  ): TimelineClipGroup[] {
+    const clipById = new Map<string, Clip>();
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        clipById.set(clip.id, clip);
+      }
+    }
+
+    const nextGroups: TimelineClipGroup[] = [];
+    for (const group of this.state.clipGroups) {
+      const groupWasSplit = group.clipIds.some((clipId) => splitRightClipIds.has(clipId));
+      if (!groupWasSplit) {
+        nextGroups.push({
+          id: group.id,
+          clipIds: [...group.clipIds],
+          ...(group.label !== undefined ? { label: group.label } : {}),
+        });
+        continue;
+      }
+
+      const leftClipIds: string[] = [];
+      const rightClipIds: string[] = [];
+      for (const clipId of group.clipIds) {
+        const rightClipId = splitRightClipIds.get(clipId);
+        if (rightClipId !== undefined) {
+          leftClipIds.push(clipId);
+          rightClipIds.push(rightClipId);
+          continue;
+        }
+
+        const clip = clipById.get(clipId);
+        if (clip === undefined) {
+          continue;
+        }
+        if (compareRational(clip.timelineEnd, splitTime) <= 0) {
+          leftClipIds.push(clip.id);
+        } else if (compareRational(clip.timelineStart, splitTime) >= 0) {
+          rightClipIds.push(clip.id);
+        }
+      }
+
+      if (leftClipIds.length >= 2) {
+        nextGroups.push({
+          id: group.id,
+          clipIds: leftClipIds,
+          ...(group.label !== undefined ? { label: group.label } : {}),
+        });
+      }
+      if (rightClipIds.length >= 2) {
+        nextGroups.push({
+          id: crypto.randomUUID(),
+          clipIds: rightClipIds,
+          ...(group.label !== undefined ? { label: group.label } : {}),
+        });
+      }
+    }
+
+    return createLeanClipGroups(nextGroups);
+  }
+
+  /**
+   * Returns a clip group by id.
+   *
+   * @param groupId - Clip group id to inspect.
+   * @returns The matching group, or undefined when missing.
+   */
+  getClipGroup(groupId: string): TimelineClipGroup | undefined {
+    return this.state.clipGroups.find((group) => group.id === groupId);
+  }
+
+  /**
+   * Returns the group containing a clip.
+   *
+   * @param clipId - Clip id to inspect.
+   * @returns The containing group, or undefined when the clip is ungrouped.
+   */
+  getClipGroupForClip(clipId: string): TimelineClipGroup | undefined {
+    return this.state.clipGroups.find((group) => group.clipIds.includes(clipId));
+  }
+
+  /**
+   * Returns clips contained by a group in group order.
+   *
+   * @param groupId - Clip group id to inspect.
+   * @returns Group clip entries, or an empty array when the group is missing.
+   */
+  getClipGroupClips(groupId: string) {
+    const group = this.getClipGroup(groupId);
+    if (group === undefined) {
+      return [];
+    }
+
+    return group.clipIds.flatMap((clipId) => {
+      const found = this.getClip(clipId);
+      return found === undefined ? [] : [found];
+    });
+  }
+
+  /**
+   * Creates a clip group from existing clips.
+   *
+   * @param options - Existing clip ids and optional group metadata.
+   * @returns The created group, or null when validation fails.
+   */
+  createClipGroup(options: TimelineCreateClipGroupOptions): TimelineClipGroup | null {
+    const group = this.createValidatedClipGroup(options);
+    if (group === null) {
+      return null;
+    }
+
+    this.state.clipGroups.push(group);
+    this.selectClips(group.clipIds);
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return group;
+  }
+
+  /**
+   * Removes one clip group.
+   *
+   * @param groupId - Clip group id to remove.
+   * @returns Whether a group was removed.
+   */
+  ungroupClipGroup(groupId: string) {
+    const groupIndex = this.state.clipGroups.findIndex((group) => group.id === groupId);
+    if (groupIndex === -1) {
+      return false;
+    }
+
+    this.state.clipGroups.splice(groupIndex, 1);
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return true;
+  }
+
+  /**
+   * Removes groups containing any of the supplied clips.
+   *
+   * @param clipIds - Clip ids whose groups should be removed.
+   * @returns Whether any groups were removed.
+   */
+  ungroupClips(clipIds: readonly string[]) {
+    const clipIdSet = new Set(clipIds);
+    const previousLength = this.state.clipGroups.length;
+    this.state.clipGroups = this.state.clipGroups.filter(
+      (group) => !group.clipIds.some((clipId) => clipIdSet.has(clipId))
+    );
+    if (this.state.clipGroups.length === previousLength) {
+      return false;
+    }
+
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return true;
+  }
+
+  /**
+   * Inserts multiple clips on chosen tracks and groups them in one history entry.
+   *
+   * @param options - Placements and optional group metadata.
+   * @returns The created group, or null when validation fails.
+   */
+  insertClipGroup(options: TimelineInsertClipGroupOptions): TimelineClipGroup | null {
+    if (options.placements.length < 2) {
+      return null;
+    }
+    if (options.groupId !== undefined && this.getClipGroup(options.groupId) !== undefined) {
+      return null;
+    }
+    const insertedClipIds = new Set<string>();
+    for (const placement of options.placements) {
+      if (insertedClipIds.has(placement.clip.id) || this.getClip(placement.clip.id)) {
+        return null;
+      }
+      const targetTrack = this.state.tracks.find((track) => track.id === placement.targetTrackId);
+      if (targetTrack === undefined || targetTrack.locked) {
+        return null;
+      }
+      insertedClipIds.add(placement.clip.id);
+    }
+
+    const group = createLeanClipGroups([
+      {
+        id: options.groupId ?? crypto.randomUUID(),
+        clipIds: [...insertedClipIds],
+        ...(options.label !== undefined ? { label: options.label } : {}),
+      },
+    ])[0];
+    const tracks = createLeanTracks(this.state.tracks);
+    const createdClips: Clip[] = [];
+    try {
+      for (const placement of options.placements) {
+        const targetTrack = tracks.find((track) => track.id === placement.targetTrackId);
+        if (targetTrack === undefined) {
+          return null;
+        }
+        const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
+        const clip = createLeanClip(placement.clip, {
+          timelineStart: placement.startTime,
+          timelineEnd: addRational(placement.startTime, duration),
+        });
+        shiftClipKeyframes(clip, subRational(clip.timelineStart, placement.clip.timelineStart));
+        targetTrack.clips.push(clip);
+        this.sortTrackClips(targetTrack);
+        createdClips.push(createLeanClip(clip));
+      }
+    } catch {
+      return null;
+    }
+
+    this.state.tracks = tracks;
+    this.state.clipGroups.push(group);
+    this.selectClips(group.clipIds);
+    this.invalidateContent();
+    for (const clip of createdClips) {
+      this.emit('clip:created', { clip, reason: 'insert' } satisfies ClipCreatedEvent);
+    }
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return group;
   }
 
   private createPlacedClip(command: TimelinePlaceClipCommand): Clip {
@@ -4345,6 +4905,16 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (targetTrack.kind !== found.track.kind && options.allowCrossKindTrackMove !== true) {
       return false;
     }
+    const linkedClipIds = this.getLinkedClipIds(options.clipId);
+    if (linkedClipIds.length > 1 && targetTrack.id !== found.track.id) {
+      return false;
+    }
+    for (const linkedClipId of linkedClipIds) {
+      const linked = this.getClip(linkedClipId);
+      if (!linked || linked.clip.movable === false || linked.track.locked) {
+        return false;
+      }
+    }
 
     const previousStartTime = cloneRationalTime(found.clip.timelineStart);
     const previousEndTime = cloneRationalTime(found.clip.timelineEnd);
@@ -4387,23 +4957,46 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       actualStart = subRational(actualEnd, duration);
     }
 
-    const movingClip = targetTrack.id === found.track.id ? found.clip : createLeanClip(found.clip);
-    movingClip.timelineStart = actualStart;
-    movingClip.timelineEnd = actualEnd;
-    shiftClipKeyframes(movingClip, subRational(actualStart, previousStartTime));
+    const deltaTime = subRational(actualStart, previousStartTime);
+    const changedClips: Clip[] = [];
+    for (const linkedClipId of linkedClipIds) {
+      const linked = this.getClip(linkedClipId);
+      if (!linked) {
+        return false;
+      }
+      const nextStart = addRational(linked.clip.timelineStart, deltaTime);
+      const nextEnd = addRational(linked.clip.timelineEnd, deltaTime);
+      if (
+        (linked.clip.minStart !== undefined &&
+          compareRational(nextStart, linked.clip.minStart) < 0) ||
+        (linked.clip.maxEnd !== undefined && compareRational(nextEnd, linked.clip.maxEnd) > 0)
+      ) {
+        return false;
+      }
 
-    if (targetTrack.id !== found.track.id) {
-      found.track.clips.splice(found.clipIndex, 1);
-      targetTrack.clips.push(movingClip);
+      const movingClip =
+        linkedClipId === options.clipId && targetTrack.id !== linked.track.id
+          ? createLeanClip(linked.clip)
+          : linked.clip;
+      movingClip.timelineStart = nextStart;
+      movingClip.timelineEnd = nextEnd;
+      shiftClipKeyframes(movingClip, deltaTime);
+
+      if (linkedClipId === options.clipId && targetTrack.id !== linked.track.id) {
+        linked.track.clips.splice(linked.clipIndex, 1);
+        targetTrack.clips.push(movingClip);
+      }
+      changedClips.push(createLeanClip(movingClip));
     }
 
-    this.sortTrackClips(found.track);
-    if (targetTrack.id !== found.track.id) {
-      this.sortTrackClips(targetTrack);
+    for (const track of this.state.tracks) {
+      this.sortTrackClips(track);
     }
 
     if (this.dragSnapshot) {
-      this.applyOverwrites(options.clipId);
+      for (const linkedClipId of linkedClipIds) {
+        this.applyOverwrites(linkedClipId);
+      }
     }
 
     const moved = this.getClip(options.clipId);
@@ -4424,6 +5017,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       previousEndTime,
       startTime: cloneRationalTime(moved.clip.timelineStart),
       endTime: cloneRationalTime(moved.clip.timelineEnd),
+      changedClips,
     };
     const phase = this.dragSnapshot ? 'preview' : 'commit';
     this.emit('clip:move', { ...moveResult, phase });
@@ -4689,6 +5283,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       track.clips = newClips;
       this.sortTrackClips(track);
       if (!isPreview) {
+        this.normalizeClipGroups();
         this.invalidateContent();
         for (const clip of removedClips) {
           this.emit('clip:removed', {
@@ -4776,17 +5371,60 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param clipId - Clip id to select, or `null` to clear clip selection.
    */
   selectClip(clipId: string | null) {
-    let selectedClip: Clip | null = null;
+    const selectedClipIds = clipId === null ? [] : this.getLinkedClipIds(clipId);
+    this.selectClips(selectedClipIds);
+  }
+
+  /**
+   * Selects a set of clips and clears selection from all others.
+   *
+   * @param clipIds - Clip ids to select.
+   */
+  selectClips(clipIds: readonly string[]) {
+    const selectedClipIds = new Set(clipIds);
+    const selectedClips: Clip[] = [];
+    let primaryClip: Clip | null = null;
     for (const track of this.state.tracks) {
       for (const clip of track.clips) {
-        clip.selected = clip.id === clipId;
+        clip.selected = selectedClipIds.has(clip.id);
         if (clip.selected) {
-          selectedClip = clip;
+          selectedClips.push(clip);
+          primaryClip ??= clip;
         }
       }
     }
-    this.emit('clip:select', { clipId, clip: selectedClip });
+    this.emit('clip:select', {
+      clipId: primaryClip?.id ?? null,
+      clip: primaryClip,
+      clipIds: selectedClips.map((clip) => clip.id),
+      clips: selectedClips,
+    });
     this.emit('render');
+  }
+
+  /**
+   * Toggles one clip in the current multi-selection.
+   *
+   * @param clipId - Clip id to toggle.
+   * @param selected - Optional explicit selected state.
+   */
+  toggleClipSelection(clipId: string, selected?: boolean) {
+    if (this.getClip(clipId) === undefined) {
+      return false;
+    }
+    const currentSelection = new Set(this.getSelectedClipIds());
+    const nextSelected = selected ?? !currentSelection.has(clipId);
+    if (nextSelected) {
+      for (const linkedClipId of this.getLinkedClipIds(clipId)) {
+        currentSelection.add(linkedClipId);
+      }
+    } else {
+      for (const linkedClipId of this.getLinkedClipIds(clipId)) {
+        currentSelection.delete(linkedClipId);
+      }
+    }
+    this.selectClips([...currentSelection]);
+    return true;
   }
 
   /**
@@ -4798,36 +5436,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   splitClip(clipId: string, splitTime: RationalTime) {
     assertValidRationalTime(splitTime, 'splitTime');
-    const found = this.getClip(clipId);
-    if (found) {
-      const { track, clip, clipIndex: idx } = found;
-      if (
-        compareRational(splitTime, clip.timelineStart) > 0 &&
-        compareRational(splitTime, clip.timelineEnd) < 0
-      ) {
-        const clip1 = createLeanClip(clip, { timelineEnd: splitTime });
-        const clip2 = createLeanClip(clip, {
-          id: crypto.randomUUID(),
-          timelineStart: splitTime,
-          sourceStart: addRational(clip.sourceStart, subRational(splitTime, clip.timelineStart)),
-          selected: false,
-        });
-        filterClipKeyframesToClipRange(clip1);
-        filterClipKeyframesToClipRange(clip2);
-        track.clips.splice(idx, 1, clip1, clip2);
-        this.emit('clip:split', {
-          originalId: clipId,
-          left: clip1,
-          right: clip2,
-        } satisfies ClipSplitEvent);
-        this.snapshot();
-        this.invalidateContent();
-        this.emit('state:settled');
-        this.emit('render');
-        return true;
-      }
-    }
-    return false;
+    return this.commitEdit({ type: 'split', time: splitTime, clipIds: [clipId] }).committed;
   }
 
   /**
@@ -4861,14 +5470,26 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   deleteClip(clipId: string) {
     const found = this.getClip(clipId);
     if (found) {
-      const removedClip = createLeanClip(found.clip);
-      found.track.clips.splice(found.clipIndex, 1);
+      const clipIdsToRemove = new Set(this.getLinkedClipIds(clipId));
+      const removedClips: Clip[] = [];
+      for (const track of this.state.tracks) {
+        track.clips = track.clips.filter((clip) => {
+          if (clipIdsToRemove.has(clip.id)) {
+            removedClips.push(createLeanClip(clip));
+            return false;
+          }
+          return true;
+        });
+      }
+      this.normalizeClipGroups();
       this.snapshot();
       this.invalidateContent();
-      this.emit('clip:removed', {
-        clip: removedClip,
-        reason: 'delete',
-      } satisfies ClipRemovedEvent);
+      for (const clip of removedClips) {
+        this.emit('clip:removed', {
+          clip,
+          reason: 'delete',
+        } satisfies ClipRemovedEvent);
+      }
       this.emit('state:settled');
       this.emit('render');
       return true;
@@ -4984,6 +5605,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (idx !== -1) {
       const removed = this.state.tracks.splice(idx, 1)[0];
       const scrollChanged = this.clampScrollTop();
+      this.normalizeClipGroups();
       this.snapshot();
       this.emit('track:remove', { track: removed });
       this.invalidateContent();

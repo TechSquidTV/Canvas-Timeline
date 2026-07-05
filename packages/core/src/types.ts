@@ -694,6 +694,7 @@ export type TimelineEditOperation =
   | 'roll-trim'
   | 'slip'
   | 'slide'
+  | 'split'
   | 'insert'
   | 'overwrite'
   | 'delete-range'
@@ -795,6 +796,46 @@ export interface TimelinePlaceClipCommand {
   snap?: boolean;
 }
 
+/** One deterministic clip placement used when inserting an already-associated clip group. */
+export interface TimelineClipGroupPlacement {
+  /** Clip to place on the timeline. Its timeline range is recalculated from startTime. */
+  clip: Clip;
+  /** Destination track id. */
+  targetTrackId: string;
+  /** Timeline start for the placed clip. */
+  startTime: RationalTime;
+}
+
+/** Serializable group of timeline clips edited as a linked unit. */
+export interface TimelineClipGroup {
+  /** Stable group identifier. */
+  id: string;
+  /** Ordered clip ids that belong to this group. */
+  clipIds: string[];
+  /** Optional visible group label for app chrome. */
+  label?: string;
+}
+
+/** Options for creating a clip group from existing clips. */
+export interface TimelineCreateClipGroupOptions {
+  /** Optional stable group id. A random id is generated when omitted. */
+  id?: string;
+  /** Existing clip ids to group. */
+  clipIds: readonly string[];
+  /** Optional visible group label for app chrome. */
+  label?: string;
+}
+
+/** Options for inserting multiple clips and grouping them in one history entry. */
+export interface TimelineInsertClipGroupOptions {
+  /** Optional stable group id. A random id is generated when omitted. */
+  groupId?: string;
+  /** Optional visible group label for app chrome. */
+  label?: string;
+  /** Clip placements to insert atomically. */
+  placements: readonly TimelineClipGroupPlacement[];
+}
+
 /** Command that moves an existing clip. */
 export interface TimelineMoveEditCommand extends TimelineClipMoveOptions {
   type: 'move';
@@ -838,6 +879,13 @@ export interface TimelineSlideEditCommand {
   snap?: boolean;
 }
 
+/** Command that splits selected clips at one timeline time. */
+export interface TimelineSplitEditCommand {
+  type: 'split';
+  time: RationalTime;
+  clipIds: readonly string[];
+}
+
 /** Command that inserts a new clip and pushes later clips forward. */
 export interface TimelineInsertEditCommand extends TimelinePlaceClipCommand {
   type: 'insert';
@@ -873,6 +921,7 @@ export type TimelineEditCommand =
   | TimelineRollTrimEditCommand
   | TimelineSlipEditCommand
   | TimelineSlideEditCommand
+  | TimelineSplitEditCommand
   | TimelineInsertEditCommand
   | TimelineOverwriteEditCommand
   | TimelineDeleteRangeEditCommand
@@ -1090,6 +1139,8 @@ export interface TimelineClipMoveResult {
   startTime: RationalTime;
   /** Clip end after the move. */
   endTime: RationalTime;
+  /** All clips changed by the move, including linked group members. */
+  changedClips: Clip[];
 }
 
 /**
@@ -1213,6 +1264,8 @@ export interface SourceFrameResolver {
 export interface TimelineState {
   /** Active set of tracks. */
   tracks: Track[];
+  /** Clip groups edited as linked units. */
+  clipGroups: TimelineClipGroup[];
   /** Monotonic counter incremented when track or clip edits can change active layer lookup at a fixed playhead. */
   contentRevision: number;
   /** The current playhead position. */

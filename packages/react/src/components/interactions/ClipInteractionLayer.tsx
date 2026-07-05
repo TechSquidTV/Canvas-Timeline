@@ -416,7 +416,11 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       event.preventDefault();
       event.stopPropagation();
 
-      engine.selectClip(hit.clip.id);
+      if (event.shiftKey) {
+        engine.toggleClipSelection(hit.clip.id);
+      } else {
+        engine.selectClip(hit.clip.id);
+      }
       clipNavigation.setActiveClip(hit.clip.id);
       setHoveredClipId(hit.clip.id);
       setHoveredRegion(hit.region);

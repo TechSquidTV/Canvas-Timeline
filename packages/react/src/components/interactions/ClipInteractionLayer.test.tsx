@@ -243,6 +243,157 @@ describe('ClipInteractionLayer', () => {
     expect(moveClip).toHaveBeenCalledTimes(1);
   });
 
+  it('selects all group members when clicking one grouped clip', () => {
+    const engine = createEngine([
+      createTrack('video', [createClip('video-clip', 1, 5)]),
+      createTrack('audio', [createClip('audio-clip', 1, 5)], { kind: 'audio' }),
+    ]);
+    engine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <ClipInteractionLayer />
+      </TimelineProvider>
+    );
+
+    const layer = container.querySelector('.timeline-clip-interaction-layer') as Element;
+    fireEvent.pointerDown(layer, {
+      clientX: 130,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+    });
+
+    expect(engine.getClip('video-clip')?.clip.selected).toBe(true);
+    expect(engine.getClip('audio-clip')?.clip.selected).toBe(true);
+  });
+
+  it('toggles ungrouped clips into multi-selection with shift-click', () => {
+    const engine = createEngine([
+      createTrack('track-1', [
+        createClip('clip-a', 1, 3, { selected: true }),
+        createClip('clip-b', 4, 6),
+      ]),
+    ]);
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <ClipInteractionLayer />
+      </TimelineProvider>
+    );
+
+    const layer = container.querySelector('.timeline-clip-interaction-layer') as Element;
+    fireEvent.pointerDown(layer, {
+      clientX: 430,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    });
+
+    expect(engine.getClip('clip-a')?.clip.selected).toBe(true);
+    expect(engine.getClip('clip-b')?.clip.selected).toBe(true);
+
+    fireEvent.pointerDown(layer, {
+      clientX: 430,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 2,
+      shiftKey: true,
+    });
+
+    expect(engine.getClip('clip-a')?.clip.selected).toBe(true);
+    expect(engine.getClip('clip-b')?.clip.selected).toBe(false);
+  });
+
+  it('toggles grouped clips into multi-selection with shift-click', () => {
+    const engine = createEngine([
+      createTrack('video', [createClip('video-clip', 1, 5)]),
+      createTrack('audio', [createClip('audio-clip', 1, 5)], { kind: 'audio' }),
+    ]);
+    engine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+    engine.selectClip(null);
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <ClipInteractionLayer />
+      </TimelineProvider>
+    );
+
+    const layer = container.querySelector('.timeline-clip-interaction-layer') as Element;
+    fireEvent.pointerDown(layer, {
+      clientX: 130,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    });
+
+    expect(engine.getClip('video-clip')?.clip.selected).toBe(true);
+    expect(engine.getClip('audio-clip')?.clip.selected).toBe(true);
+
+    fireEvent.pointerDown(layer, {
+      clientX: 130,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 2,
+      shiftKey: true,
+    });
+
+    expect(engine.getClip('video-clip')?.clip.selected).toBe(false);
+    expect(engine.getClip('audio-clip')?.clip.selected).toBe(false);
+  });
+
+  it('starts body drags after shift-click selection', () => {
+    const engine = createEngine([
+      createTrack('track-1', [
+        createClip('clip-a', 1, 3, { selected: true }),
+        createClip('clip-b', 4, 6),
+      ]),
+    ]);
+    const moveClip = vi.spyOn(engine, 'moveClip');
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <ClipInteractionLayer />
+      </TimelineProvider>
+    );
+
+    const layer = container.querySelector('.timeline-clip-interaction-layer') as Element;
+    fireEvent.pointerDown(layer, {
+      clientX: 430,
+      clientY: 40,
+      pointerType: 'mouse',
+      button: 0,
+      pointerId: 1,
+      shiftKey: true,
+    });
+    fireEvent.pointerMove(layer, {
+      clientX: 450,
+      clientY: 40,
+      pointerType: 'mouse',
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(layer, {
+      clientX: 450,
+      clientY: 40,
+      pointerType: 'mouse',
+      pointerId: 1,
+    });
+
+    expect(moveClip).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clipId: 'clip-b',
+        targetTrackId: 'track-1',
+      })
+    );
+  });
+
   it('reports clip double-click hits without starting a drag', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
     const moveClip = vi.spyOn(engine, 'moveClip');

@@ -16,6 +16,7 @@ function createProviderState(engine: TimelineEngine): TimelineState {
   const engineState = engine.getState();
   return {
     tracks: [...engine.tracks],
+    clipGroups: [...engine.clipGroups],
     contentRevision: engine.contentRevision,
     playheadTime: engine.playheadTime,
     zoomScale: engine.zoomScale,

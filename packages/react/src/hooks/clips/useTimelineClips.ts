@@ -5,6 +5,7 @@ import type {
   TimelineEngine,
   TimelineClipMoveOptions,
   TimelineClipMoveResult,
+  TimelineClipGroup,
   TimelineEditValidationResult,
   TimelineInteractionGeometry,
   Track,
@@ -41,6 +42,14 @@ export interface UseTimelineClipsResult<TrackKind = string> {
   selectedClipId: string | null;
   /** ID of the track containing the selected clip, or null when no clip is selected. */
   selectedClipTrackId: string | null;
+  /** All selected clips in track order. */
+  selectedClips: Clip[];
+  /** IDs of all selected clips in track order. */
+  selectedClipIds: string[];
+  /** Selected group when the primary selected clip belongs to one. */
+  selectedGroup: TimelineClipGroup | null;
+  /** Selected group id when the primary selected clip belongs to one. */
+  selectedGroupId: string | null;
   /** Returns a clip lookup from the engine, including containing track and indexes. */
   getClip: TimelineEngine['getClip'];
   /** Returns the current viewport rectangle for a clip. */
@@ -88,8 +97,16 @@ export interface UseTimelineClipsResult<TrackKind = string> {
  */
 export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<TrackKind> {
   const { engine, state } = useTimeline();
-  const { selectedClip, selectedClipId, selectedClipTrackId, selectClip } =
-    useTimelineSelection<TrackKind>();
+  const {
+    selectedClip,
+    selectedClipId,
+    selectedClipTrackId,
+    selectedClips,
+    selectedClipIds,
+    selectedGroup,
+    selectedGroupId,
+    selectClip,
+  } = useTimelineSelection<TrackKind>();
 
   const clips = useMemo(
     () => flattenTimelineClips(state.tracks as Track<TrackKind>[]),
@@ -221,6 +238,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
         previousEndTime,
         startTime: { ...moved.clip.timelineStart },
         endTime: { ...moved.clip.timelineEnd },
+        changedClips: commit.preview.changedClips,
       });
     },
     [engine, state.tracks]
@@ -319,6 +337,10 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
     selectedClip,
     selectedClipId,
     selectedClipTrackId,
+    selectedClips,
+    selectedClipIds,
+    selectedGroup,
+    selectedGroupId,
     getClip,
     getClipRect,
     getClipAtPoint,

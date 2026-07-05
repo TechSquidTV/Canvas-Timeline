@@ -12,10 +12,12 @@ import type {
   TimelineRippleTrimEditCommand,
   TimelineRollTrimEditCommand,
   TimelineSlideEditCommand,
+  TimelineSplitEditCommand,
   TimelineTrimEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useTimeline } from '../core/useTimeline';
+import { useTimelineSelection } from '../selection/useTimelineSelection';
 import {
   timelineCommandFail,
   timelineCommandOk,
@@ -58,6 +60,17 @@ export interface UseTimelineEditCommandsResult {
   slideClip: (
     command: Omit<TimelineSlideEditCommand, 'type'>
   ) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Commits a split command for one clip. */
+  splitClip: (
+    clipId: string,
+    time: RationalTime
+  ) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Commits a split command for multiple clips. */
+  splitClips: (
+    command: Omit<TimelineSplitEditCommand, 'type'>
+  ) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Splits the current selected clips at a timeline time. */
+  splitSelectedClipsAtTime: (time: RationalTime) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits an insert command. */
   insertClip: (
     command: Omit<TimelineInsertEditCommand, 'type'>
@@ -94,6 +107,7 @@ function toTimelineCommandFailureReason(
  */
 export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
   const { engine } = useTimeline();
+  const { selectedClipIds } = useTimelineSelection();
 
   const validateEdit = useCallback(
     (command: TimelineEditCommand) => engine.validateEdit(command),
@@ -135,6 +149,11 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       slipClip: (clipId: string, deltaTime: RationalTime) =>
         commitEdit({ type: 'slip', clipId, deltaTime }),
       slideClip: (command) => commitEdit({ type: 'slide', ...command }),
+      splitClip: (clipId: string, time: RationalTime) =>
+        commitEdit({ type: 'split', clipIds: [clipId], time }),
+      splitClips: (command) => commitEdit({ type: 'split', ...command }),
+      splitSelectedClipsAtTime: (time: RationalTime) =>
+        commitEdit({ type: 'split', clipIds: selectedClipIds, time }),
       insertClip: (command: {
         clip: Clip;
         targetTrackId: string;
@@ -150,6 +169,6 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       deleteRange: (command) => commitEdit({ type: 'delete-range', ...command }),
       liftRange: (command) => commitEdit({ type: 'lift-range', ...command }),
     }),
-    [cancelEdit, commitEdit, previewEdit, validateEdit]
+    [cancelEdit, commitEdit, previewEdit, selectedClipIds, validateEdit]
   );
 }

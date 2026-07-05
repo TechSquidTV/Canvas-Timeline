@@ -18,6 +18,10 @@ export const liveDemoLoaders: Record<LiveDemoId, LiveDemoLoader> = {
     import('../demos/timeline-editor-controls/TimelineEditorControls').then(
       (module) => module.TimelineEditorControls
     ),
+  'clip-grouping-import': () =>
+    import('../demos/clip-grouping-import/ClipGroupingImportTimeline').then(
+      (module) => module.ClipGroupingImportTimeline
+    ),
   'keyframe-opacity': () =>
     import('../demos/keyframe-opacity/KeyframeOpacityTimeline').then(
       (module) => module.KeyframeOpacityTimeline

@@ -56,6 +56,27 @@ export function fromSeconds(sec: number, rate: number = 60000): RationalTime {
   return { v: Math.round(sec * rate), r: rate };
 }
 
+function greatestCommonDivisor(a: number, b: number): number {
+  let left = Math.abs(a);
+  let right = Math.abs(b);
+  while (right !== 0) {
+    const remainder = left % right;
+    left = right;
+    right = remainder;
+  }
+  return left;
+}
+
+function getCommonIntegerRate(a: RationalTime, b: RationalTime): number | null {
+  if (!Number.isInteger(a.r) || !Number.isInteger(b.r)) {
+    return null;
+  }
+
+  const divisor = greatestCommonDivisor(a.r, b.r);
+  const commonRate = a.r * (b.r / divisor);
+  return Number.isFinite(commonRate) && Number.isInteger(commonRate) ? commonRate : null;
+}
+
 /**
  * Adds two rational timeline times.
  *
@@ -69,9 +90,11 @@ export function addRational(a: RationalTime, b: RationalTime): RationalTime {
   if (a.r === b.r) {
     return { v: a.v + b.v, r: a.r };
   }
-  const r = a.r * b.r;
-  const v = a.v * b.r + b.v * a.r;
-  return { v, r };
+  const r = getCommonIntegerRate(a, b);
+  if (r !== null) {
+    return { v: a.v * (r / a.r) + b.v * (r / b.r), r };
+  }
+  return fromSeconds(toSeconds(a) + toSeconds(b), Math.max(a.r, b.r));
 }
 
 /**
@@ -87,9 +110,11 @@ export function subRational(a: RationalTime, b: RationalTime): RationalTime {
   if (a.r === b.r) {
     return { v: a.v - b.v, r: a.r };
   }
-  const r = a.r * b.r;
-  const v = a.v * b.r - b.v * a.r;
-  return { v, r };
+  const r = getCommonIntegerRate(a, b);
+  if (r !== null) {
+    return { v: a.v * (r / a.r) - b.v * (r / b.r), r };
+  }
+  return fromSeconds(toSeconds(a) - toSeconds(b), Math.max(a.r, b.r));
 }
 
 /**
