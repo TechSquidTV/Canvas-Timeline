@@ -412,16 +412,10 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
       prepareDropSnapping();
       const resolved = resolveContext(event);
       if (!('context' in resolved) || !resolved.valid) {
-        const result =
-          'context' in resolved
-            ? timelineCommandFail<TimelineEditCommitResult>(
-                resolved.reason ?? 'unsupported',
-                resolved.message
-              )
-            : timelineCommandFail<TimelineEditCommitResult>(
-                resolved.reason ?? 'unsupported',
-                resolved.message
-              );
+        const result = timelineCommandFail<TimelineEditCommitResult>(
+          resolved.reason ?? 'unsupported',
+          resolved.message
+        );
         setLastResult(result);
         clearDropFeedback();
         return;
