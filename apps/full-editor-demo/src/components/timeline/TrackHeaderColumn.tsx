@@ -1,10 +1,11 @@
 import {
   Timeline,
-  useTimeline,
+  useTimelineTracks,
   useTimelineTrackLockControl,
 } from '@techsquidtv/canvas-timeline-react';
 import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { EditorTrackKind } from '@/data/demo-project';
 
 function TrackLockButton({ trackId }: { trackId: string }) {
   const lockControl = useTimelineTrackLockControl(trackId);
@@ -22,11 +23,11 @@ function TrackLockButton({ trackId }: { trackId: string }) {
 }
 
 export function TrackHeaderColumn() {
-  const { state } = useTimeline();
+  const { tracks } = useTimelineTracks<EditorTrackKind>();
 
   return (
     <Timeline.TrackHeaderList className="timeline-editor-track-headers">
-      {state.tracks.map((track) => (
+      {tracks.map((track) => (
         <Timeline.TrackHeader key={track.id} trackId={track.id}>
           {(header) => {
             const isAudio = header.kind === 'audio';

@@ -1,36 +1,27 @@
 import {
   TimecodeField,
-  useTimeline,
   useTimelineClips,
+  useTimelineMarkers,
+  useTimelinePlayback,
+  useTimelinePlayheadControl,
   useTimelinePlayheadTime,
+  useTimelineSnapping,
 } from '@techsquidtv/canvas-timeline-react';
-import { clamp, compareRational, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { compareRational } from '@techsquidtv/canvas-timeline-utils';
 import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 'lucide-react';
-import { useCallback } from 'react';
 import { useEditorMediaSync } from '@/editor/shell/media-sync-context';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { demoProject, type EditorTrackKind } from '@/data/demo-project';
 
 function PlayheadTimecodeControl() {
-  const { engine, state } = useTimeline();
+  const playheadControl = useTimelinePlayheadControl();
   const playheadTime = useTimelinePlayheadTime();
-
-  const handleTimecodeCommit = useCallback(
-    (seconds: number) => {
-      const durationSeconds =
-        state.duration !== undefined ? toSeconds(state.duration) : Number.POSITIVE_INFINITY;
-      const bounded = clamp(seconds, 0, durationSeconds);
-      engine.updatePlayhead(fromSeconds(bounded, playheadTime.r));
-      engine.settle();
-    },
-    [engine, playheadTime.r, state.duration]
-  );
 
   return (
     <TimecodeField.Root
       ariaLabel="Playhead timecode"
-      onCommit={handleTimecodeCommit}
+      onCommit={playheadControl.commit}
       value={playheadTime}
     >
       <TimecodeField.Trigger className="timeline-timecode-control-button" />
@@ -70,31 +61,20 @@ function CutSelectedClipButton() {
 }
 
 export function TransportBar() {
-  const { engine, state } = useTimeline();
   const media = useEditorMediaSync();
-  const hasInOutRange = state.inPoint !== undefined || state.outPoint !== undefined;
-  const stepFrame = useCallback(
-    (direction: -1 | 1) => {
-      const durationSeconds =
-        state.duration !== undefined ? toSeconds(state.duration) : Number.POSITIVE_INFINITY;
-      const nextSeconds = clamp(
-        toSeconds(engine.playheadTime) + direction / demoProject.frameRate,
-        0,
-        durationSeconds
-      );
-
-      engine.updatePlayhead(fromSeconds(nextSeconds, engine.playheadTime.r));
-      engine.settle();
-    },
-    [engine, state.duration]
-  );
+  const markers = useTimelineMarkers();
+  const playback = useTimelinePlayback();
+  const playheadControl = useTimelinePlayheadControl();
+  const snapping = useTimelineSnapping();
+  const hasInOutRange = playback.inPoint !== undefined || playback.outPoint !== undefined;
+  const frameStepSeconds = 1 / demoProject.frameRate;
 
   return (
     <div className="timeline-control-bar full-editor-transport">
       <Button
         aria-label="Move playhead back one frame"
         iconOnly
-        onClick={() => stepFrame(-1)}
+        onClick={() => playheadControl.commit(playheadControl.value - frameStepSeconds)}
         title="Back one frame"
         variant="ghost"
       >
@@ -115,7 +95,7 @@ export function TransportBar() {
       <Button
         aria-label="Move playhead forward one frame"
         iconOnly
-        onClick={() => stepFrame(1)}
+        onClick={() => playheadControl.commit(playheadControl.value + frameStepSeconds)}
         title="Forward one frame"
         variant="ghost"
       >
@@ -126,11 +106,11 @@ export function TransportBar() {
         <PlayheadTimecodeControl />
       </div>
 
-      <Button onClick={() => engine.setInPoint(engine.playheadTime)} variant="ghost">
+      <Button onClick={() => playback.setInPoint()} variant="ghost">
         <span className="timeline-range-badge full-editor-range-badge">I</span>
         In
       </Button>
-      <Button onClick={() => engine.setOutPoint(engine.playheadTime)} variant="ghost">
+      <Button onClick={() => playback.setOutPoint()} variant="ghost">
         <span className="timeline-range-badge full-editor-range-badge">O</span>
         Out
       </Button>
@@ -138,7 +118,7 @@ export function TransportBar() {
         aria-label="Clear in and out points"
         disabled={!hasInOutRange}
         iconOnly
-        onClick={() => engine.clearInOutPoints()}
+        onClick={() => playback.clearInOutPoints()}
         title="Clear range"
         variant="ghost"
       >
@@ -148,12 +128,12 @@ export function TransportBar() {
       <Separator orientation="vertical" />
 
       <Button
-        aria-label={engine.isSnappingEnabled ? 'Disable snapping' : 'Enable snapping'}
-        aria-pressed={engine.isSnappingEnabled}
-        className={engine.isSnappingEnabled ? 'is-active' : undefined}
+        aria-label={snapping.enabled ? 'Disable snapping' : 'Enable snapping'}
+        aria-pressed={snapping.enabled}
+        className={snapping.enabled ? 'is-active' : undefined}
         iconOnly
-        onClick={() => engine.setSnappingEnabled(!engine.isSnappingEnabled)}
-        title={engine.isSnappingEnabled ? 'Disable snapping' : 'Enable snapping'}
+        onClick={() => snapping.setEnabled(!snapping.enabled)}
+        title={snapping.enabled ? 'Disable snapping' : 'Enable snapping'}
         variant="ghost"
       >
         <Magnet aria-hidden="true" />
@@ -161,9 +141,7 @@ export function TransportBar() {
       <Button
         aria-label="Add marker"
         iconOnly
-        onClick={() =>
-          engine.addMarker(engine.playheadTime, `M${(state.markers?.length ?? 0) + 1}`)
-        }
+        onClick={() => markers.addMarkerAtPlayhead(`M${markers.markers.length + 1}`)}
         title="Add marker"
         variant="ghost"
       >

@@ -1,10 +1,15 @@
-import { useTimeline } from '@techsquidtv/canvas-timeline-react';
-import { demoProject } from '@/data/demo-project';
+import {
+  useTimelineClips,
+  useTimelineState,
+  useTimelineTracks,
+} from '@techsquidtv/canvas-timeline-react';
+import { demoProject, type EditorTrackKind } from '@/data/demo-project';
 import { formatRationalTime } from '@/lib/timeline-format';
 
 export function ProjectPanel() {
-  const { state } = useTimeline();
-  const clipCount = state.tracks.reduce((count, track) => count + track.clips.length, 0);
+  const state = useTimelineState();
+  const { clips } = useTimelineClips<EditorTrackKind>();
+  const { tracks } = useTimelineTracks<EditorTrackKind>();
 
   return (
     <dl className="panel-readout">
@@ -22,11 +27,11 @@ export function ProjectPanel() {
       </div>
       <div>
         <dt>Tracks</dt>
-        <dd>{state.tracks.length}</dd>
+        <dd>{tracks.length}</dd>
       </div>
       <div>
         <dt>Clips</dt>
-        <dd>{clipCount}</dd>
+        <dd>{clips.length}</dd>
       </div>
     </dl>
   );

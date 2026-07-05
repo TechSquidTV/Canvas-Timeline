@@ -1,9 +1,9 @@
-import { useTimelineClips } from '@techsquidtv/canvas-timeline-react';
+import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react';
 import { formatRationalTime } from '@/lib/timeline-format';
 import type { EditorTrackKind } from '@/data/demo-project';
 
 export function ClipInspectorPanel() {
-  const { selectedClip, selectedClipTrackId } = useTimelineClips<EditorTrackKind>();
+  const { selectedClip, selectedClipTrackId } = useTimelineSelection<EditorTrackKind>();
 
   if (selectedClip === null) {
     return <p className="panel-empty">Select a clip to inspect timing and media metadata.</p>;
