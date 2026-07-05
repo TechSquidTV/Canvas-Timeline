@@ -1,16 +1,5 @@
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import type {
-  MediaLibraryImportableKind,
-  MediaLibraryMediaKind,
-  MediaLibraryMediaMetadata,
-  MediaLibrarySource,
-  MediaLibraryStatus,
-} from '@/media/library/media-library-types';
-
-export type SourceBinImportableKind = MediaLibraryImportableKind;
-export type SourceBinMediaKind = MediaLibraryMediaKind;
-export type SourceBinMediaMetadata = MediaLibraryMediaMetadata;
-export type SourceBinStatus = MediaLibraryStatus;
+import type { MediaLibrarySource } from '@/media/library/media-library-types';
 
 export interface SourceBinSource extends MediaLibrarySource {
   thumbnailUrl: string | null;

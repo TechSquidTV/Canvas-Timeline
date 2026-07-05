@@ -7,6 +7,7 @@ interface ToolPanelProps {
   badge?: string;
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
   defaultOpen?: boolean;
   icon: ReactNode;
   title: string;
@@ -16,6 +17,7 @@ export function ToolPanel({
   badge,
   children,
   className,
+  contentClassName,
   defaultOpen = true,
   icon,
   title,
@@ -32,7 +34,9 @@ export function ToolPanel({
           <ChevronDown aria-hidden="true" className="tool-panel-chevron" />
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="tool-panel-content">{children}</CollapsibleContent>
+      <CollapsibleContent className={cn('tool-panel-content', contentClassName)}>
+        {children}
+      </CollapsibleContent>
     </Collapsible>
   );
 }

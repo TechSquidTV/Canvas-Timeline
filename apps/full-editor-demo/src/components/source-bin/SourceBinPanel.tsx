@@ -1,9 +1,12 @@
+import { useRef } from 'react';
 import { SourceBinDropZone } from './SourceBinDropZone';
 import { SourceBinList } from './SourceBinList';
-import { SourceImportButton } from './SourceImportButton';
 import { useSourceBin } from './source-bin-context';
 
+const acceptedSourceTypes = 'video/*,audio/*,image/*,video/x-matroska,video/mp2t,.ts,audio/aac';
+
 export function SourceBinPanel() {
+  const inputRef = useRef<HTMLInputElement>(null);
   const {
     importFiles,
     importing,
@@ -21,12 +24,27 @@ export function SourceBinPanel() {
         <span className="source-bin-toolbar-count">
           {sources.length === 1 ? '1 item' : `${sources.length} items`}
         </span>
-        <SourceImportButton
-          disabled={!storageAvailable}
-          importing={importing}
-          onImportFiles={(files) => {
-            void importFiles(files);
+        <button
+          className="source-bin-import-action"
+          disabled={!storageAvailable || importing}
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          {importing ? 'Importing' : 'Import'}
+        </button>
+        <input
+          ref={inputRef}
+          accept={acceptedSourceTypes}
+          className="source-bin-file-input"
+          disabled={!storageAvailable || importing}
+          multiple
+          onChange={(event) => {
+            if (event.currentTarget.files !== null) {
+              void importFiles(event.currentTarget.files);
+            }
+            event.currentTarget.value = '';
           }}
+          type="file"
         />
       </div>
       <SourceBinDropZone

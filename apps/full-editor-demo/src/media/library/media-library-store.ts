@@ -31,7 +31,7 @@ const POSTER_FILE = 'poster.webp';
 
 const mediaLibraryQueue = createMutationQueue();
 
-export function createMediaLibraryStore(): MediaLibraryStore {
+function createMediaLibraryStore(): MediaLibraryStore {
   let sources: readonly MediaLibrarySource[] = [];
 
   const load = async () => {

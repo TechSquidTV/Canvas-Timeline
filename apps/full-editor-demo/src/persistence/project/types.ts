@@ -1,4 +1,4 @@
-import type { Marker, TimelineState, Track } from '@techsquidtv/canvas-timeline-core';
+import type { Marker, Track } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { EditorTrackKind } from '@/data/demo-project';
 
@@ -25,16 +25,3 @@ export interface ProjectStorageSnapshot {
   title: string;
   version: 1;
 }
-
-export type ProjectTimelineSeed = Pick<
-  TimelineState,
-  | 'duration'
-  | 'markers'
-  | 'playheadTime'
-  | 'scrollLeft'
-  | 'scrollTop'
-  | 'snapEnabled'
-  | 'snapThresholdPixels'
-  | 'tracks'
-  | 'zoomScale'
->;

@@ -19,6 +19,7 @@ export function ToolPanelStack() {
       </ToolPanel>
       <ToolPanel
         badge={sources.length.toString()}
+        contentClassName="source-bin-tool-panel-content"
         icon={<Boxes aria-hidden="true" />}
         title="Source Bin"
       >
