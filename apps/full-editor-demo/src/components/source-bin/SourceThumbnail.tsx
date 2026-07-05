@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { AlertTriangle, FileImage, Film, LoaderCircle, Music2 } from 'lucide-react';
 import type { SourceBinSource } from './types';
 
@@ -6,10 +7,20 @@ interface SourceThumbnailProps {
 }
 
 export function SourceThumbnail({ source }: SourceThumbnailProps) {
-  if (source.thumbnailUrl !== null) {
+  const [failedThumbnailUrl, setFailedThumbnailUrl] = useState<string | null>(null);
+  const thumbnailUrl =
+    source.thumbnailUrl !== null && source.thumbnailUrl !== failedThumbnailUrl
+      ? source.thumbnailUrl
+      : null;
+
+  useEffect(() => {
+    setFailedThumbnailUrl(null);
+  }, [source.thumbnailUrl]);
+
+  if (thumbnailUrl !== null) {
     return (
       <span className="source-bin-thumbnail">
-        <img alt="" src={source.thumbnailUrl} />
+        <img alt="" onError={() => setFailedThumbnailUrl(thumbnailUrl)} src={thumbnailUrl} />
       </span>
     );
   }

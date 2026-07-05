@@ -24,6 +24,7 @@ export function ExportToolPanel() {
   return (
     <ToolPanel
       badge={getExportStatusBadge(status)}
+      defaultOpen={false}
       icon={<FileDown aria-hidden="true" />}
       title="Export"
     >

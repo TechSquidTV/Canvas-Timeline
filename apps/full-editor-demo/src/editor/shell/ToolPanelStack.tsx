@@ -15,7 +15,7 @@ export function ToolPanelStack() {
         <span>Inspector</span>
         <span>Full editor lab</span>
       </div>
-      <ToolPanel icon={<FolderKanban aria-hidden="true" />} title="Project">
+      <ToolPanel defaultOpen={false} icon={<FolderKanban aria-hidden="true" />} title="Project">
         <ProjectPanel />
       </ToolPanel>
       <ExportToolPanel />
@@ -27,7 +27,11 @@ export function ToolPanelStack() {
       >
         <SourceBinPanel />
       </ToolPanel>
-      <ToolPanel icon={<Clapperboard aria-hidden="true" />} title="Clip Inspector">
+      <ToolPanel
+        defaultOpen={false}
+        icon={<Clapperboard aria-hidden="true" />}
+        title="Clip Inspector"
+      >
         <ClipInspectorPanel />
       </ToolPanel>
     </aside>

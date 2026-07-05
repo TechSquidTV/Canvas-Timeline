@@ -111,9 +111,12 @@
   .source-bin-list {
     display: grid;
     align-content: start;
+    align-items: start;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.5rem;
-    overflow: auto;
+    justify-items: start;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 0.5rem;
   }
 
@@ -124,9 +127,12 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    max-width: 8.75rem;
+    height: 11.5rem;
     min-width: 0;
-    min-height: 8.75rem;
+    min-height: 0;
     gap: 0.75rem;
+    overflow: hidden;
     border: 1px solid var(--editor-border);
     background: var(--editor-panel-muted);
     color: var(--foreground);
@@ -152,9 +158,13 @@
   .source-bin-item-main {
     display: grid;
     align-content: start;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
     min-width: 0;
     min-height: 0;
     gap: 0.5rem;
+    overflow: hidden;
     border: 0;
     background: transparent;
     color: inherit;
@@ -171,6 +181,7 @@
   .source-bin-thumbnail {
     display: inline-grid;
     width: 100%;
+    max-height: 8rem;
     aspect-ratio: 1;
     overflow: hidden;
     border: 1px solid var(--editor-border);
@@ -197,7 +208,10 @@
 
   .source-bin-copy {
     display: grid;
+    align-content: start;
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     gap: 0.1875rem;
   }
 
