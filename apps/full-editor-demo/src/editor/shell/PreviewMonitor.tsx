@@ -7,7 +7,6 @@ import { useEditorMediaSync } from './media-sync-context';
 export function PreviewMonitor() {
   const media = useEditorMediaSync();
   const { metadata } = useEditorProject();
-  const statusText = media.playbackError ?? (media.hasMediaSources ? media.status : 'No media');
   const overlayText = media.hasMediaSources ? 'Loading media' : 'No media loaded';
   const previewResolution = getPreviewVideoResolution(metadata);
   const canvasStyle = {
@@ -22,7 +21,6 @@ export function PreviewMonitor() {
           <MonitorPlay aria-hidden="true" />
           Program
         </span>
-        <span>{statusText}</span>
       </div>
       <div className="preview-monitor-frame">
         <canvas
