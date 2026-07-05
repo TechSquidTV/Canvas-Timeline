@@ -6,14 +6,12 @@ import {
 import {
   Timeline,
   TimelineProvider,
-  useTimeline,
   useTimelineExternalClipDrop,
-  type TimelineExternalClipDropContext,
 } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { Clapperboard, Film, Rows3 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   demoMarkers,
   demoTracks,
@@ -25,13 +23,12 @@ import '@techsquidtv/canvas-timeline-react/styles.css';
 import './timeline-editor.css';
 
 const externalAssetMimeType = 'application/x-canvas-timeline-external-asset';
+const demoAudioTrackId = 'audio-main';
 
 function TrackHeaderColumn() {
-  const { state } = useTimeline();
-
   return (
     <Timeline.TrackHeaderList className="timeline-editor-track-headers">
-      {state.tracks.map((track) => (
+      {demoTracks.map((track) => (
         <Timeline.TrackHeader key={track.id} trackId={track.id}>
           {(header) => (
             <div className="timeline-editor-track-header-content external-drop-track-header-content">
@@ -45,14 +42,12 @@ function TrackHeaderColumn() {
 }
 
 function TimelineLayers() {
-  const { state } = useTimeline();
-
   return (
     <>
       <Timeline.PlayheadArea />
       <Timeline.PlayheadGrabber />
       <Timeline.TrackList className="timeline-track-list-overlay">
-        {state.tracks.map((track) => (
+        {demoTracks.map((track) => (
           <Timeline.Track key={track.id} trackId={track.id} />
         ))}
       </Timeline.TrackList>
@@ -75,69 +70,64 @@ function createExternalClip(asset: ExternalClipAsset, id: string, label: string)
   };
 }
 
+function createPlacement(
+  asset: ExternalClipAsset,
+  input: {
+    id: string;
+    label: string;
+    targetTrackId: string;
+    startTime: RationalTime;
+  }
+): TimelineClipGroupPlacement {
+  return {
+    clip: createExternalClip(asset, input.id, input.label),
+    targetTrackId: input.targetTrackId,
+    startTime: input.startTime,
+  };
+}
+
+function resolveExternalAsset(event: DragEvent<HTMLElement>) {
+  const assetId = event.dataTransfer.getData(externalAssetMimeType);
+  return externalClipAssets.find((asset) => asset.id === assetId) ?? null;
+}
+
 function ExternalDropWorkspace() {
-  const { state } = useTimeline();
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('overwrite');
-  const activeAssetRef = useRef<ExternalClipAsset | null>(null);
   const clipCounterRef = useRef(1);
-  const audioTrack = state.tracks.find((track) => track.kind === 'audio') ?? null;
 
-  const resolveDragData = useCallback((event: DragEvent<HTMLElement>) => {
-    const assetId = event.dataTransfer.getData(externalAssetMimeType) || activeAssetRef.current?.id;
-    return externalClipAssets.find((asset) => asset.id === assetId) ?? null;
-  }, []);
-
-  const createPlacements = useCallback(
-    (
-      context: TimelineExternalClipDropContext<ExternalClipAsset, ExternalClipDropTrackKind>
-    ): readonly TimelineClipGroupPlacement[] | null => {
+  const drop = useTimelineExternalClipDrop<ExternalClipAsset, ExternalClipDropTrackKind>({
+    editMode,
+    resolveDragData: resolveExternalAsset,
+    createPlacements: (context) => {
       const instance = clipCounterRef.current;
       clipCounterRef.current += 1;
 
       if (context.data.kind === 'visual') {
         return [
-          {
-            clip: createExternalClip(
-              context.data,
-              `${context.data.id}-${instance}`,
-              context.data.label
-            ),
+          createPlacement(context.data, {
+            id: `${context.data.id}-${instance}`,
+            label: context.data.label,
             targetTrackId: context.targetTrack.id,
             startTime: context.dropTime,
-          },
+          }),
         ];
       }
-      if (audioTrack === null) {
-        return null;
-      }
+
       return [
-        {
-          clip: createExternalClip(
-            context.data,
-            `${context.data.id}-video-${instance}`,
-            `${context.data.label} video`
-          ),
+        createPlacement(context.data, {
+          id: `${context.data.id}-video-${instance}`,
+          label: `${context.data.label} video`,
           targetTrackId: context.targetTrack.id,
           startTime: context.dropTime,
-        },
-        {
-          clip: createExternalClip(
-            context.data,
-            `${context.data.id}-audio-${instance}`,
-            `${context.data.label} audio`
-          ),
-          targetTrackId: audioTrack.id,
+        }),
+        createPlacement(context.data, {
+          id: `${context.data.id}-audio-${instance}`,
+          label: `${context.data.label} audio`,
+          targetTrackId: demoAudioTrackId,
           startTime: context.dropTime,
-        },
+        }),
       ];
     },
-    [audioTrack]
-  );
-
-  const drop = useTimelineExternalClipDrop<ExternalClipAsset, ExternalClipDropTrackKind>({
-    editMode,
-    resolveDragData,
-    createPlacements,
     canDropOnTrack: (context) =>
       context.targetTrack.kind === 'visual'
         ? true
@@ -164,16 +154,11 @@ function ExternalDropWorkspace() {
               className="external-drop-asset"
               draggable
               onDragStart={(event) => {
-                activeAssetRef.current = asset;
                 event.dataTransfer.effectAllowed = 'copy';
                 event.dataTransfer.setData(externalAssetMimeType, asset.id);
               }}
-              onDragEnd={() => {
-                activeAssetRef.current = null;
-              }}
               style={{ '--asset-color': asset.color } as CSSProperties}
-              role="button"
-              tabIndex={0}
+              aria-label={`Drag ${asset.label} onto the timeline`}
             >
               {asset.kind === 'linked-av' ? (
                 <Clapperboard aria-hidden="true" />
