@@ -19,7 +19,30 @@ import {
 } from '@/project/video-settings';
 import type { TimelineExportStatus } from '@/export/timeline-export-types';
 
-type OpenMenu = 'export' | 'project' | null;
+const aboutLinks = [
+  {
+    description: 'Project website and demos.',
+    href: 'https://canvastimeline.com',
+    label: 'Website',
+  },
+  {
+    description: 'Guides, API notes, and examples.',
+    href: 'https://canvastimeline.com/docs',
+    label: 'Documentation',
+  },
+  {
+    description: 'Full editor demo app source.',
+    href: 'https://github.com/TechSquidTV/Canvas-Timeline/tree/main/apps/full-editor-demo',
+    label: 'Demo source code',
+  },
+  {
+    description: 'Canvas Timeline monorepo.',
+    href: 'https://github.com/TechSquidTV/Canvas-Timeline',
+    label: 'GitHub repository',
+  },
+] as const;
+
+type OpenMenu = 'about' | 'export' | 'project' | null;
 
 export function TopMenuBar() {
   const { autosaveStatus, metadata, resetProject, storageAvailable } = useEditorProject();
@@ -212,6 +235,42 @@ export function TopMenuBar() {
           {openMenu === 'export' ? (
             <div className="editor-menu-popover editor-export-menu">
               <ExportPanel status={exportStatus} onStatusChange={setExportStatus} />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="editor-menu-popover-root">
+          <Button
+            aria-expanded={openMenu === 'about'}
+            aria-haspopup="menu"
+            className={`editor-menu-trigger${openMenu === 'about' ? ' is-active' : ''}`}
+            onClick={() => {
+              setOpenMenu((currentMenu) => (currentMenu === 'about' ? null : 'about'));
+            }}
+            variant="ghost"
+          >
+            About
+          </Button>
+          {openMenu === 'about' ? (
+            <div className="editor-menu-popover editor-about-menu">
+              <section className="editor-menu-section">
+                <h2 className="editor-menu-section-title">About Canvas Timeline</h2>
+                <div className="editor-menu-link-list">
+                  {aboutLinks.map((link) => (
+                    <a
+                      className="editor-menu-link"
+                      href={link.href}
+                      key={link.href}
+                      onClick={() => setOpenMenu(null)}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <span>{link.label}</span>
+                      <small>{link.description}</small>
+                    </a>
+                  ))}
+                </div>
+              </section>
             </div>
           ) : null}
         </div>
