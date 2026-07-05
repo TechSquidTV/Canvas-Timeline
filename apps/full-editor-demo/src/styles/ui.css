@@ -1,0 +1,69 @@
+@layer components {
+  .editor-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    min-height: 2rem;
+    gap: 0.375rem;
+    border: 1px solid transparent;
+    border-radius: calc(var(--radius) - 0.125rem);
+    cursor: pointer;
+    padding: 0 0.625rem;
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    font-weight: 650;
+    line-height: 1;
+  }
+
+  .editor-button svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .editor-button-icon-only {
+    width: 2rem;
+    padding: 0;
+  }
+
+  .editor-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .editor-button-ghost {
+    background: transparent;
+  }
+
+  .editor-button-subtle {
+    border-color: var(--editor-border);
+    background: var(--editor-raised);
+  }
+
+  .editor-button-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .editor-button:not(:disabled):hover,
+  .editor-button.is-active {
+    border-color: var(--primary);
+    background: color-mix(in oklch, var(--primary) 18%, transparent);
+    color: var(--foreground);
+  }
+
+  .editor-separator {
+    flex: 0 0 auto;
+    background: var(--editor-border);
+  }
+
+  .editor-separator-horizontal {
+    width: 100%;
+    height: 1px;
+  }
+
+  .editor-separator-vertical {
+    width: 1px;
+    height: 1.5rem;
+  }
+}

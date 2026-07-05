@@ -1,4 +1,7 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
+import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
+import type { EditorTrackKind } from '@/data/demo-project';
+import { countTimelineSourceUsage } from '@/timeline/source-usage';
 import { SourceBinDropZone } from './SourceBinDropZone';
 import { SourceBinList } from './SourceBinList';
 import { useSourceBin } from './source-bin-context';
@@ -7,15 +10,29 @@ const acceptedSourceTypes = 'video/*,audio/*,image/*,video/x-matroska,video/mp2t
 
 export function SourceBinPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { tracks } = useTimelineTracks<EditorTrackKind>();
   const {
+    clearSourceActionMessage,
+    endSourceDrag,
     importFiles,
     importing,
     removeSource,
     selectSource,
+    sourceActionMessage,
     selectedSourceId,
+    setSourceActionMessage,
     sources,
+    startSourceDrag,
     storageAvailable,
   } = useSourceBin();
+  const sourceUsageCounts = useMemo(() => countTimelineSourceUsage(tracks), [tracks]);
+  const actionMessageBySourceId = useMemo(
+    () =>
+      sourceActionMessage === null
+        ? new Map<string, string>()
+        : new Map([[sourceActionMessage.sourceId, sourceActionMessage.message]]),
+    [sourceActionMessage]
+  );
 
   return (
     <div className="source-bin-panel">
@@ -60,12 +77,27 @@ export function SourceBinPanel() {
             </p>
           ) : (
             <SourceBinList
+              actionMessageBySourceId={actionMessageBySourceId}
+              onEndSourceDrag={endSourceDrag}
               onRemoveSource={(sourceId) => {
                 void removeSource(sourceId);
               }}
-              onSelectSource={selectSource}
+              onSelectSource={(sourceId) => {
+                clearSourceActionMessage(sourceId);
+                selectSource(sourceId);
+              }}
+              onStartSourceDrag={startSourceDrag}
               selectedSourceId={selectedSourceId}
               sources={sources}
+              usageCounts={sourceUsageCounts}
+              onRequestBlockedRemove={(sourceId, usageCount) => {
+                setSourceActionMessage({
+                  sourceId,
+                  message: `Used by ${usageCount} timeline ${
+                    usageCount === 1 ? 'clip' : 'clips'
+                  }. Remove those clips before deleting the source.`,
+                });
+              }}
             />
           )
         ) : (

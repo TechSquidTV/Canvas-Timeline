@@ -1,14 +1,15 @@
 import {
   useTimelineClipboard,
+  useTimelineClipGroups,
   useTimelineClips,
   useTimelineHistory,
   useTimelinePlayheadTime,
-  useTimelineRangeSelection,
 } from '@techsquidtv/canvas-timeline-react';
-import { ClipboardPaste, Copy, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { ClipboardPaste, Copy, Redo2, Trash2, Undo2, Unlink2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type { EditorTrackKind } from '@/data/demo-project';
+import { useTimelineDropMode, type TimelineSourceDropMode } from '@/timeline/drop-mode-context';
 
 function HistoryCommandGroup() {
   const history = useTimelineHistory();
@@ -105,39 +106,93 @@ function DeleteSelectedClipButton() {
   );
 }
 
-function RangeEditCommandGroup() {
-  const rangeSelection = useTimelineRangeSelection();
+function UngroupSelectedClipsButton() {
+  const clipGroups = useTimelineClipGroups();
+  const canUngroupSelectedClips = clipGroups.selectedGroupId !== null;
 
   return (
-    <div className="timeline-command-group" role="group" aria-label="Range and clip edits">
+    <Button
+      aria-label="Ungroup selected linked clips"
+      className="timeline-command-text-button"
+      disabled={!canUngroupSelectedClips}
+      onClick={clipGroups.ungroupSelectedClips}
+      title="Ungroup selected linked clips"
+      variant="ghost"
+    >
+      <Unlink2 aria-hidden="true" />
+      Ungroup
+    </Button>
+  );
+}
+
+function SelectionEditCommandGroup() {
+  return (
+    <div className="timeline-command-group" role="group" aria-label="Selection edits">
       <DeleteSelectedClipButton />
-      <Button
-        aria-label="Lift In/Out range"
-        className="timeline-command-text-button"
-        disabled={!rangeSelection.hasRange}
-        onClick={() => rangeSelection.liftRange()}
-        title="Lift In/Out range"
-        variant="ghost"
-      >
-        Lift
-      </Button>
-      <Button
-        aria-label="Delete In/Out range"
-        className="timeline-command-text-button"
-        disabled={!rangeSelection.hasRange}
-        onClick={() => rangeSelection.deleteRange()}
-        title="Delete In/Out range"
-        variant="ghost"
-      >
-        Del
-      </Button>
+      <UngroupSelectedClipsButton />
     </div>
+  );
+}
+
+function DropModeCommandGroup() {
+  const { dropMode, setDropMode } = useTimelineDropMode();
+
+  return (
+    <div className="timeline-command-group" role="group" aria-label="Source drop mode">
+      <DropModeButton
+        activeDropMode={dropMode}
+        dropMode="insert"
+        label="Ins"
+        onSelectDropMode={setDropMode}
+        title="Insert source drops"
+      />
+      <DropModeButton
+        activeDropMode={dropMode}
+        dropMode="overwrite"
+        label="Ovr"
+        onSelectDropMode={setDropMode}
+        title="Overwrite source drops"
+      />
+    </div>
+  );
+}
+
+function DropModeButton({
+  activeDropMode,
+  dropMode,
+  label,
+  onSelectDropMode,
+  title,
+}: {
+  activeDropMode: TimelineSourceDropMode;
+  dropMode: TimelineSourceDropMode;
+  label: string;
+  onSelectDropMode: (dropMode: TimelineSourceDropMode) => void;
+  title: string;
+}) {
+  const active = activeDropMode === dropMode;
+
+  return (
+    <Button
+      aria-label={title}
+      aria-pressed={active}
+      className={active ? 'is-active timeline-command-text-button' : 'timeline-command-text-button'}
+      onClick={() => onSelectDropMode(dropMode)}
+      title={title}
+      variant="ghost"
+    >
+      {label}
+    </Button>
   );
 }
 
 export function TimelineCommandBar() {
   return (
     <div className="timeline-command-bar" aria-label="Timeline edit commands">
+      <DropModeCommandGroup />
+
+      <Separator orientation="vertical" />
+
       <HistoryCommandGroup />
 
       <Separator orientation="vertical" />
@@ -146,7 +201,7 @@ export function TimelineCommandBar() {
 
       <Separator orientation="vertical" />
 
-      <RangeEditCommandGroup />
+      <SelectionEditCommandGroup />
     </div>
   );
 }

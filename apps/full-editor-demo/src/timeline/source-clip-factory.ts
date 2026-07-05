@@ -14,12 +14,6 @@ export interface CreateSourceClipOptions {
   trackKind: EditorTrackKind;
 }
 
-export interface LinkedSourceClips {
-  audio?: Clip;
-  importGroupId: string;
-  visual?: Clip;
-}
-
 export function createClipFromSource(
   source: MediaLibrarySource,
   options: CreateSourceClipOptions
@@ -43,41 +37,13 @@ export function createClipFromSource(
   };
 }
 
-export function createLinkedSourceClips(
-  source: MediaLibrarySource,
-  options: {
-    startTime: RationalTime;
-    importGroupId?: string;
-  }
-): LinkedSourceClips {
-  const importGroupId = options.importGroupId ?? `import-${crypto.randomUUID()}`;
-  const clips: LinkedSourceClips = { importGroupId };
-
-  if (source.kind === 'video' || source.kind === 'image' || source.metadata.hasVideo === true) {
-    clips.visual = createClipFromSource(source, {
-      importGroupId,
-      startTime: options.startTime,
-      trackKind: 'visual',
-    });
-  }
-
-  if (source.kind === 'audio' || source.metadata.hasAudio === true) {
-    clips.audio = createClipFromSource(source, {
-      importGroupId,
-      startTime: options.startTime,
-      trackKind: 'audio',
-    });
-  }
-
-  return clips;
+function getDefaultClipDuration(source: MediaLibrarySource, timebase: number) {
+  return fromSeconds(getSourceClipDurationSeconds(source), timebase);
 }
 
-function getDefaultClipDuration(source: MediaLibrarySource, timebase: number) {
+export function getSourceClipDurationSeconds(source: MediaLibrarySource) {
   const durationSeconds = source.metadata.durationSeconds;
-  const seconds =
-    durationSeconds === undefined || durationSeconds <= 0
-      ? DEFAULT_STILL_DURATION_SECONDS
-      : durationSeconds;
-
-  return fromSeconds(seconds, timebase);
+  return durationSeconds === undefined || durationSeconds <= 0
+    ? DEFAULT_STILL_DURATION_SECONDS
+    : durationSeconds;
 }

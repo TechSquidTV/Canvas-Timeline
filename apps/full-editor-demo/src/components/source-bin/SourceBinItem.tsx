@@ -1,33 +1,62 @@
+import type { DragEvent } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatSeconds } from '@/lib/timeline-format';
 import { cn } from '@/lib/cn';
+import { writeSourceBinDragPayload } from '@/timeline/source-drag-payload';
 import { SourceThumbnail } from './SourceThumbnail';
 import type { SourceBinSource } from './types';
 
 interface SourceBinItemProps {
+  onDragEnd: (sourceId: string) => void;
+  onDragStart: (sourceId: string) => void;
   onRemove: (sourceId: string) => void;
   onSelect: (sourceId: string) => void;
   selected: boolean;
   source: SourceBinSource;
+  usageCount: number;
+  warningMessage?: string;
 }
 
-export function SourceBinItem({ onRemove, onSelect, selected, source }: SourceBinItemProps) {
+export function SourceBinItem({
+  onDragEnd,
+  onDragStart,
+  onRemove,
+  onSelect,
+  selected,
+  source,
+  usageCount,
+  warningMessage,
+}: SourceBinItemProps) {
+  const draggable = source.status === 'ready';
+
   return (
     <div
       className={cn(
         'source-bin-item',
+        draggable && 'is-draggable',
         selected && 'is-selected',
         source.status === 'failed' && 'is-failed'
       )}
+      draggable={draggable}
+      onDragEnd={() => onDragEnd(source.id)}
+      onDragStart={(event) => handleDragStart(event, source, onDragStart)}
     >
       <button className="source-bin-item-main" onClick={() => onSelect(source.id)} type="button">
         <SourceThumbnail source={source} />
         <span className="source-bin-copy">
-          <span>{source.name}</span>
-          <span>{getSourceDetail(source)}</span>
+          <span className="source-bin-name">{source.name}</span>
+          <span className="source-bin-detail">{getSourceDetail(source)}</span>
           {source.status === 'failed' ? (
-            <span>{source.errorMessage ?? 'Import failed.'}</span>
+            <span className="source-bin-error">{source.errorMessage ?? 'Import failed.'}</span>
+          ) : null}
+          {usageCount > 0 ? (
+            <span className="source-bin-usage">{`${usageCount} timeline ${
+              usageCount === 1 ? 'clip' : 'clips'
+            }`}</span>
+          ) : null}
+          {warningMessage !== undefined ? (
+            <span className="source-bin-warning">{warningMessage}</span>
           ) : null}
         </span>
       </button>
@@ -42,6 +71,20 @@ export function SourceBinItem({ onRemove, onSelect, selected, source }: SourceBi
       </Button>
     </div>
   );
+}
+
+function handleDragStart(
+  event: DragEvent<HTMLDivElement>,
+  source: SourceBinSource,
+  onDragStart: (sourceId: string) => void
+) {
+  if (source.status !== 'ready') {
+    event.preventDefault();
+    return;
+  }
+
+  onDragStart(source.id);
+  writeSourceBinDragPayload(event.dataTransfer, source.id);
 }
 
 function getSourceDetail(source: SourceBinSource) {

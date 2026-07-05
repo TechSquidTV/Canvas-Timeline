@@ -9,6 +9,7 @@ import {
 import { EditorShell } from './editor/shell/EditorShell';
 import { MediaSyncProvider } from './editor/shell/MediaSyncProvider';
 import { SourceBinProvider } from './components/source-bin/SourceBinProvider';
+import { TimelineDropModeProvider } from './timeline/TimelineDropModeProvider';
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<EditorBootstrapState | null>(null);
@@ -38,6 +39,7 @@ function LoadedEditor({ bootstrapState }: { bootstrapState: EditorBootstrapState
   const engine = useMemo(
     () =>
       new TimelineEngine({
+        clipGroups: bootstrapState.projectState.clipGroups,
         duration: bootstrapState.projectState.duration,
         markers: bootstrapState.projectState.markers,
         playheadTime: bootstrapState.projectState.playheadTime,
@@ -60,7 +62,9 @@ function LoadedEditor({ bootstrapState }: { bootstrapState: EditorBootstrapState
         storageAvailable={bootstrapState.storageAvailable}
       >
         <MediaSyncProvider>
-          <EditorShell />
+          <TimelineDropModeProvider>
+            <EditorShell />
+          </TimelineDropModeProvider>
         </MediaSyncProvider>
       </SourceBinProvider>
     </TimelineProvider>

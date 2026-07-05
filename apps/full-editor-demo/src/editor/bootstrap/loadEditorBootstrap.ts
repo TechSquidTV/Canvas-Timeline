@@ -51,6 +51,7 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
 
 function createSeedProjectState(): PersistedTimelineState {
   return {
+    clipGroups: [],
     duration: fromSeconds(demoProject.durationSeconds),
     markers: timelineMarkers,
     playheadTime: fromSeconds(0),

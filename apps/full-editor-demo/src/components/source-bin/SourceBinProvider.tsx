@@ -1,20 +1,14 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-  type ReactNode,
-} from 'react';
-import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPlayableSources } from '@/media/library/media-library-runtime';
 import { mediaLibraryStore } from '@/media/library/media-library-store';
-import type {
-  MediaLibraryImportResult,
-  MediaLibrarySource,
-} from '@/media/library/media-library-types';
-import { SourceBinContext } from './source-bin-context';
-import type { SourceBinSource } from './types';
+import type { MediaLibrarySource } from '@/media/library/media-library-types';
+import { SourceBinContext, SourceBinMediaContext } from './source-bin-context';
+import {
+  createInitialSources,
+  createRuntimeSourceFromImport,
+  upsertSource,
+} from './source-bin-runtime';
+import type { SourceBinActionMessage, SourceBinSource } from './types';
 
 interface SourceBinProviderProps {
   children: ReactNode;
@@ -33,6 +27,10 @@ export function SourceBinProvider({
   const [sources, setSources] = useState<readonly SourceBinSource[]>(() =>
     createInitialSources(initialSources, restoreError, thumbnailUrlsRef)
   );
+  const [sourceActionMessage, setSourceActionMessage] = useState<SourceBinActionMessage | null>(
+    null
+  );
+  const [activeDragSourceId, setActiveDragSourceId] = useState<string | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
@@ -90,122 +88,73 @@ export function SourceBinProvider({
       }
 
       setSources((currentSources) => currentSources.filter((source) => source.id !== sourceId));
+      setActiveDragSourceId((currentSourceId) =>
+        currentSourceId === sourceId ? null : currentSourceId
+      );
       setSelectedSourceId((currentSourceId) =>
         currentSourceId === sourceId ? null : currentSourceId
+      );
+      setSourceActionMessage((currentMessage) =>
+        currentMessage?.sourceId === sourceId ? null : currentMessage
       );
     },
     [sources, storageAvailable]
   );
 
-  const toMediabunnySources = useCallback(
-    (): readonly MediabunnySource[] =>
-      sources
-        .filter(
-          (source): source is SourceBinSource & { file: File } =>
-            source.status === 'ready' && source.file !== null && source.kind !== 'image'
-        )
-        .map((source) => ({
-          id: source.id,
-          blob: source.file,
-        })),
-    [sources]
+  const clearSourceActionMessage = useCallback((sourceId: string) => {
+    setSourceActionMessage((currentMessage) =>
+      currentMessage?.sourceId === sourceId ? null : currentMessage
+    );
+  }, []);
+
+  const endSourceDrag = useCallback((sourceId: string) => {
+    setActiveDragSourceId((currentSourceId) =>
+      currentSourceId === sourceId ? null : currentSourceId
+    );
+  }, []);
+
+  const toMediabunnySources = useCallback(() => createPlayableSources(sources), [sources]);
+  const mediaValue = useMemo(
+    () => ({
+      toMediabunnySources,
+    }),
+    [toMediabunnySources]
   );
 
   const value = useMemo(
     () => ({
+      activeDragSourceId,
+      clearSourceActionMessage,
+      endSourceDrag,
       importFiles,
       importing,
       removeSource,
       selectSource: setSelectedSourceId,
+      sourceActionMessage,
       selectedSourceId,
+      setSourceActionMessage,
       sources,
+      startSourceDrag: setActiveDragSourceId,
       storageAvailable,
-      toMediabunnySources,
     }),
     [
+      activeDragSourceId,
+      clearSourceActionMessage,
+      endSourceDrag,
       importFiles,
       importing,
       removeSource,
       selectedSourceId,
+      setSourceActionMessage,
+      sourceActionMessage,
       sources,
       storageAvailable,
-      toMediabunnySources,
     ]
   );
 
-  return <SourceBinContext.Provider value={value}>{children}</SourceBinContext.Provider>;
-}
-
-function createRuntimeSource(
-  storedSource: MediaLibrarySource,
-  thumbnailUrlsRef: MutableRefObject<Set<string>>
-): SourceBinSource {
-  const thumbnailUrl =
-    storedSource.posterFile === null ? null : URL.createObjectURL(storedSource.posterFile);
-
-  if (thumbnailUrl !== null) {
-    thumbnailUrlsRef.current.add(thumbnailUrl);
-  }
-
-  return {
-    ...storedSource,
-    thumbnailUrl,
-  };
-}
-
-function createRuntimeSourceFromImport(
-  importedSource: MediaLibraryImportResult,
-  thumbnailUrlsRef: MutableRefObject<Set<string>>
-): SourceBinSource {
-  const thumbnailUrl =
-    importedSource.poster === null ? null : URL.createObjectURL(importedSource.poster);
-
-  if (thumbnailUrl !== null) {
-    thumbnailUrlsRef.current.add(thumbnailUrl);
-  }
-
-  return {
-    ...importedSource.source,
-    thumbnailUrl,
-  };
-}
-
-function createInitialSources(
-  initialSources: readonly MediaLibrarySource[],
-  restoreError: string | undefined,
-  thumbnailUrlsRef: MutableRefObject<Set<string>>
-) {
-  const sources = initialSources.map((source) => createRuntimeSource(source, thumbnailUrlsRef));
-  return restoreError === undefined
-    ? sources
-    : [...sources, createRestoreFailureSource(restoreError)];
-}
-
-function createRestoreFailureSource(errorMessage: string): SourceBinSource {
-  return {
-    id: `failed-${crypto.randomUUID()}`,
-    kind: 'unsupported',
-    mimeType: '',
-    name: 'Source Bin restore failed',
-    originalPath: null,
-    posterFile: null,
-    sizeBytes: 0,
-    status: 'failed',
-    metadata: {},
-    errorMessage,
-    file: null,
-    thumbnailUrl: null,
-  };
-}
-
-function upsertSource(
-  sources: readonly SourceBinSource[],
-  nextSource: SourceBinSource
-): readonly SourceBinSource[] {
-  const existingIndex = sources.findIndex((source) => source.id === nextSource.id);
-  if (existingIndex === -1) {
-    return [...sources, nextSource];
-  }
-
-  return sources.map((source) => (source.id === nextSource.id ? nextSource : source));
+  return (
+    <SourceBinMediaContext.Provider value={mediaValue}>
+      <SourceBinContext.Provider value={value}>{children}</SourceBinContext.Provider>
+    </SourceBinMediaContext.Provider>
+  );
 }

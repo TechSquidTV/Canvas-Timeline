@@ -1,16 +1,17 @@
 import { Timeline } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { TimelineLayers } from './TimelineLayers';
+import { TimelineSourceDropTarget } from './TimelineSourceDropTarget';
 
 export function TimelineSurface() {
   return (
     <div className="timeline-editor-timeline-panel">
       <div className="timeline-editor-stage-row">
         <div className="timeline-stage timeline-editor-timeline-stage">
-          <Timeline.Root className="timeline-fill timeline-editor-root-with-headers">
+          <TimelineSourceDropTarget>
             <CanvasRenderer />
             <TimelineLayers />
-          </Timeline.Root>
+          </TimelineSourceDropTarget>
         </div>
         <div className="timeline-editor-vertical-scrollbar-column">
           <Timeline.VerticalScrollbar className="timeline-editor-vertical-scrollbar">

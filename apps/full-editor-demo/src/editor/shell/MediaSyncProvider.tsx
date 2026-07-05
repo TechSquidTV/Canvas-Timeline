@@ -1,6 +1,6 @@
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
+import { useSourceBinMedia } from '@/components/source-bin/source-bin-context';
 import {
   EditorMediaSyncContext,
   type EditorMediaSyncContextValue,
@@ -15,7 +15,7 @@ const previewLayerSelectors = {
 export function MediaSyncProvider({ children }: { children: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const { toMediabunnySources } = useSourceBin();
+  const { toMediabunnySources } = useSourceBinMedia();
   const sources = useMemo(() => toMediabunnySources(), [toMediabunnySources]);
   const hasMediaSources = sources.length > 0;
 

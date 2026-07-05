@@ -1,0 +1,121 @@
+import type { Clip, Marker, TimelineClipGroup, Track } from '@techsquidtv/canvas-timeline-core';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import type { EditorTrackKind } from '@/data/demo-project';
+import type { PersistedTimelineState, ProjectStorageSnapshot } from './types';
+
+interface JsonObject {
+  readonly [key: string]: unknown;
+}
+
+export function parseProjectSnapshot(text: string): ProjectStorageSnapshot | null {
+  const parsed: unknown = JSON.parse(text);
+  return isProjectSnapshot(parsed) ? parsed : null;
+}
+
+function isProjectSnapshot(value: unknown): value is ProjectStorageSnapshot {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return (
+    value.version === 2 &&
+    typeof value.projectId === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.description === 'string' &&
+    typeof value.frameRate === 'number' &&
+    typeof value.savedAt === 'string' &&
+    isPersistedTimelineState(value.timelineState)
+  );
+}
+
+function isPersistedTimelineState(value: unknown): value is PersistedTimelineState {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return (
+    Array.isArray(value.clipGroups) &&
+    value.clipGroups.every(isClipGroup) &&
+    (value.duration === undefined || isRationalTime(value.duration)) &&
+    (value.inPoint === undefined || isRationalTime(value.inPoint)) &&
+    Array.isArray(value.markers) &&
+    value.markers.every(isMarker) &&
+    (value.outPoint === undefined || isRationalTime(value.outPoint)) &&
+    isRationalTime(value.playheadTime) &&
+    typeof value.scrollLeft === 'number' &&
+    typeof value.scrollTop === 'number' &&
+    typeof value.snapEnabled === 'boolean' &&
+    typeof value.snapThresholdPixels === 'number' &&
+    Array.isArray(value.tracks) &&
+    value.tracks.every(isTrack) &&
+    typeof value.zoomScale === 'number'
+  );
+}
+
+function isClipGroup(value: unknown): value is TimelineClipGroup {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    Array.isArray(value.clipIds) &&
+    value.clipIds.every((clipId) => typeof clipId === 'string') &&
+    (value.label === undefined || typeof value.label === 'string')
+  );
+}
+
+function isTrack(value: unknown): value is Track<EditorTrackKind> {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    (value.kind === 'audio' || value.kind === 'visual') &&
+    Array.isArray(value.clips) &&
+    value.clips.every(isClip) &&
+    typeof value.selected === 'boolean' &&
+    typeof value.locked === 'boolean' &&
+    typeof value.muted === 'boolean' &&
+    typeof value.visible === 'boolean'
+  );
+}
+
+function isClip(value: unknown): value is Clip {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.sourceId === 'string' &&
+    isRationalTime(value.timelineStart) &&
+    isRationalTime(value.timelineEnd) &&
+    isRationalTime(value.sourceStart) &&
+    typeof value.selected === 'boolean'
+  );
+}
+
+function isMarker(value: unknown): value is Marker {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return typeof value.id === 'string' && isRationalTime(value.time);
+}
+
+function isRationalTime(value: unknown): value is RationalTime {
+  return (
+    isJsonObject(value) &&
+    typeof value.v === 'number' &&
+    typeof value.r === 'number' &&
+    Number.isFinite(value.v) &&
+    Number.isFinite(value.r) &&
+    value.r > 0
+  );
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

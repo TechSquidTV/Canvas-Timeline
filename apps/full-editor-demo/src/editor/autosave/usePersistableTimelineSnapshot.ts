@@ -1,4 +1,5 @@
 import {
+  useTimelineClipGroups,
   useTimelineMarkers,
   useTimelinePlayback,
   useTimelinePlayheadTime,
@@ -12,7 +13,12 @@ import {
 import { useMemo } from 'react';
 import type { EditorTrackKind } from '@/data/demo-project';
 import type { PersistedTimelineState } from '@/persistence/project/types';
-import { sanitizePersistedTimelineState } from '@/persistence/project/project-store';
+import { sanitizePersistedTimelineState } from '@/persistence/project/timeline-state-persistence';
+
+type PersistedTimelineContentState = Omit<
+  PersistedTimelineState,
+  'playheadTime' | 'scrollLeft' | 'scrollTop' | 'zoomScale'
+>;
 
 export interface PersistableTimelineSnapshot {
   fingerprint: string;
@@ -21,6 +27,7 @@ export interface PersistableTimelineSnapshot {
 
 export function usePersistableTimelineSnapshot(): PersistableTimelineSnapshot {
   const state = useTimelineState();
+  const clipGroups = useTimelineClipGroups();
   const markers = useTimelineMarkers();
   const playback = useTimelinePlayback();
   const playheadTime = useTimelinePlayheadTime();
@@ -30,37 +37,56 @@ export function usePersistableTimelineSnapshot(): PersistableTimelineSnapshot {
   const tracks = useTimelineTracks<EditorTrackKind>();
   const zoomScale = useTimelineZoomScale();
 
+  const contentState = useMemo<PersistedTimelineContentState>(() => {
+    const sanitizedState = sanitizePersistedTimelineState({
+      clipGroups: clipGroups.groups,
+      duration: state.duration,
+      inPoint: playback.inPoint,
+      markers: markers.markers,
+      outPoint: playback.outPoint,
+      playheadTime: { v: 0, r: 60000 },
+      scrollLeft: 0,
+      scrollTop: 0,
+      snapEnabled: snapping.enabled,
+      snapThresholdPixels: snapping.thresholdPixels,
+      tracks: tracks.tracks,
+      zoomScale: 1,
+    });
+    return {
+      clipGroups: sanitizedState.clipGroups,
+      duration: sanitizedState.duration,
+      inPoint: sanitizedState.inPoint,
+      markers: sanitizedState.markers,
+      outPoint: sanitizedState.outPoint,
+      snapEnabled: sanitizedState.snapEnabled,
+      snapThresholdPixels: sanitizedState.snapThresholdPixels,
+      tracks: sanitizedState.tracks,
+    };
+  }, [
+    clipGroups.groups,
+    markers.markers,
+    playback.inPoint,
+    playback.outPoint,
+    snapping.enabled,
+    snapping.thresholdPixels,
+    state.duration,
+    tracks.tracks,
+  ]);
+
   const timelineState = useMemo(
-    () =>
-      sanitizePersistedTimelineState({
-        duration: state.duration,
-        inPoint: playback.inPoint,
-        markers: markers.markers,
-        outPoint: playback.outPoint,
-        playheadTime,
-        scrollLeft,
-        scrollTop,
-        snapEnabled: snapping.enabled,
-        snapThresholdPixels: snapping.thresholdPixels,
-        tracks: tracks.tracks,
-        zoomScale,
-      }),
-    [
-      markers.markers,
-      playback.inPoint,
-      playback.outPoint,
-      playheadTime,
+    () => ({
+      ...contentState,
+      playheadTime: { ...playheadTime },
       scrollLeft,
       scrollTop,
-      snapping.enabled,
-      snapping.thresholdPixels,
-      state.duration,
-      tracks.tracks,
       zoomScale,
-    ]
+    }),
+    [contentState, playheadTime, scrollLeft, scrollTop, zoomScale]
   );
 
-  const fingerprint = useMemo(() => JSON.stringify(timelineState), [timelineState]);
+  const contentFingerprint = useMemo(() => JSON.stringify(contentState), [contentState]);
+  const liveFingerprint = `${timelineState.playheadTime.v}:${timelineState.playheadTime.r}:${timelineState.scrollLeft}:${timelineState.scrollTop}:${timelineState.zoomScale}`;
+  const fingerprint = `${contentFingerprint}:${liveFingerprint}`;
 
   return { fingerprint, timelineState };
 }
