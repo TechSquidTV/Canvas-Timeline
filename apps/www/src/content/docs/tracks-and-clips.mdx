@@ -214,17 +214,24 @@ placement factories. The hook owns event handling and track/time resolution, the
 `insert`/`overwrite` commands or grouped `insert-clip-group`/`overwrite-clip-group` commands through
 the engine.
 
+Some browsers do not expose custom `DataTransfer` values during `dragover`. When the drag source
+lives in the same React app, keep the currently dragged asset id in app state or a ref and use it as
+a fallback while still writing the canonical payload to `DataTransfer` for the final drop.
+
 ```tsx
+import { useRef } from 'react';
 import { useTimeline, useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react/hooks';
 
 function ExternalAssetDropSurface() {
   const { state } = useTimeline();
+  const activeAssetIdRef = useRef<string | null>(null);
   const audioTrack = state.tracks.find((track) => track.kind === 'audio');
   const drop = useTimelineExternalClipDrop({
     editMode: 'overwrite',
     resolveDragData(event) {
-      const assetId = event.dataTransfer.getData('application/x-my-asset');
-      return assetId === '' ? null : { assetId };
+      const assetId =
+        event.dataTransfer.getData('application/x-my-asset') || activeAssetIdRef.current;
+      return assetId === null ? null : { assetId };
     },
     createPlacements(context) {
       if (!audioTrack) {
@@ -248,7 +255,25 @@ function ExternalAssetDropSurface() {
     group: { label: 'Linked import' },
   });
 
-  return <div {...drop.rootProps} data-valid-drop={drop.valid} />;
+  return (
+    <>
+      <button
+        type="button"
+        draggable
+        onDragStart={(event) => {
+          activeAssetIdRef.current = 'asset-1';
+          event.dataTransfer.effectAllowed = 'copy';
+          event.dataTransfer.setData('application/x-my-asset', 'asset-1');
+        }}
+        onDragEnd={() => {
+          activeAssetIdRef.current = null;
+        }}
+      >
+        External asset
+      </button>
+      <div {...drop.rootProps} data-valid-drop={drop.valid} />
+    </>
+  );
 }
 ```
 
