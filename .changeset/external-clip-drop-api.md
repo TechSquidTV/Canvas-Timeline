@@ -4,4 +4,4 @@
 '@techsquidtv/canvas-timeline-react': minor
 ---
 
-Add grouped insert/overwrite edit commands and `useTimelineExternalClipDrop` for app-owned native browser clip data drops.
+Add grouped insert/overwrite edit commands and `useTimelineExternalClipDrop` for dragging app-owned media onto the timeline.

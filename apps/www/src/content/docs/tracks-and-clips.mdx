@@ -208,10 +208,11 @@ function MoveSelectedClip() {
 }
 ```
 
-External clip data drops use native browser drag-and-drop through `useTimelineExternalClipDrop`.
-Apps own payload formats, media inspection, source IDs, labels, and placement factories. The hook
-owns event handling and track/time resolution, then commits single `insert`/`overwrite` commands or
-grouped `insert-clip-group`/`overwrite-clip-group` commands through the engine.
+Dragging app-owned media onto the timeline uses native browser drag-and-drop through
+`useTimelineExternalClipDrop`. Apps own payload formats, media inspection, source IDs, labels, and
+placement factories. The hook owns event handling and track/time resolution, then commits single
+`insert`/`overwrite` commands or grouped `insert-clip-group`/`overwrite-clip-group` commands through
+the engine.
 
 ```tsx
 import { useTimeline, useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react/hooks';

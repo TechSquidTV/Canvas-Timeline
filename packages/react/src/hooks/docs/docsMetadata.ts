@@ -281,7 +281,7 @@ export const timelineHookMetadata = [
     category: 'drag-drop',
     reactivity: 'adapter',
     description:
-      'Adapts native browser drag-and-drop payloads into single or grouped timeline placement commands.',
+      'Turns app-owned native drag payloads into single-clip or grouped media placement commands.',
   },
   {
     name: 'useTimelineKeyframeDrag',

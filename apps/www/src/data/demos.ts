@@ -145,9 +145,9 @@ export const demoDocs: DemoDoc[] = [
   },
   {
     slug: 'external-clip-drop',
-    title: 'External Clip Drop',
+    title: 'Drag Media Onto Timeline',
     description:
-      'A two-track editor surface where app-owned draggable assets create single clips or grouped video/audio placements through native browser drag-and-drop.',
+      'Drop app-owned media assets onto a two-track timeline, including linked video and audio placements that land as one grouped edit.',
     status: 'Controls',
     difficulty: 'Intermediate',
     packageFocus: [

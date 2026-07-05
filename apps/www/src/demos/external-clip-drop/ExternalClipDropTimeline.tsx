@@ -12,7 +12,7 @@ import {
 } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { Link2, MousePointer2, Rows3 } from 'lucide-react';
+import { Clapperboard, Film, Rows3 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   demoMarkers,
@@ -176,9 +176,9 @@ function ExternalDropWorkspace() {
               tabIndex={0}
             >
               {asset.kind === 'linked-av' ? (
-                <Link2 aria-hidden="true" />
+                <Clapperboard aria-hidden="true" />
               ) : (
-                <MousePointer2 aria-hidden="true" />
+                <Film aria-hidden="true" />
               )}
               <span>{asset.label}</span>
             </div>
