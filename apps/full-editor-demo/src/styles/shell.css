@@ -36,15 +36,17 @@
 
   .editor-monitor-panel,
   .editor-inspector-panel,
-  .editor-timeline-shell-panel,
-  .editor-track-header-shell-panel,
-  .editor-timeline-surface-panel {
+  .editor-timeline-shell-panel {
     border: 1px solid var(--editor-border);
+  }
+
+  .editor-monitor-panel,
+  .editor-inspector-panel {
+    border-top: 0;
   }
 
   .editor-monitor-panel {
     background: var(--editor-monitor);
-    padding: 0.5rem;
   }
 
   .editor-inspector-panel,
@@ -52,6 +54,11 @@
   .editor-track-header-shell-panel,
   .editor-timeline-surface-panel {
     background: var(--editor-panel);
+  }
+
+  .editor-track-header-shell-panel,
+  .editor-timeline-surface-panel {
+    border: 0;
   }
 
   .editor-resizable-handle {
@@ -323,7 +330,7 @@
     min-height: 0;
     overflow: hidden;
     place-items: center;
-    padding: 1.25rem;
+    padding: 1.75rem;
   }
 
   .preview-monitor-canvas {
@@ -379,6 +386,10 @@
 
   .tool-panel {
     border-bottom: 1px solid var(--editor-border);
+  }
+
+  .tool-panel:last-child {
+    border-bottom: 0;
   }
 
   .tool-panel-trigger {
