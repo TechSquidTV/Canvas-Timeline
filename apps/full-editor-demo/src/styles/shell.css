@@ -169,7 +169,11 @@
   .editor-top-menu-brand:hover,
   .editor-top-menu-brand:focus-visible {
     color: var(--foreground);
+  }
+
+  .editor-top-menu-brand:focus-visible {
     outline: none;
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 35%, transparent);
   }
 
   .editor-top-menu-actions {
@@ -227,25 +231,12 @@
     padding: 0.875rem;
   }
 
-  .editor-menu-popover .editor-button:not(:disabled):hover,
-  .editor-menu-popover .editor-button.is-active {
-    border-color: var(--foreground);
-    background: var(--foreground);
-    color: var(--background);
-  }
-
   .editor-export-menu {
     width: min(24rem, calc(100vw - 2rem));
   }
 
   .editor-project-menu {
     width: min(22rem, calc(100vw - 2rem));
-  }
-
-  .editor-menu-field {
-    display: grid;
-    min-width: 0;
-    gap: 0.375rem;
   }
 
   .editor-menu-section {
@@ -260,11 +251,6 @@
     font-size: 0.75rem;
     font-weight: 750;
     line-height: 1;
-  }
-
-  .editor-menu-field span {
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
   }
 
   .editor-menu-readout {
@@ -395,10 +381,6 @@
     flex: 0 0 2.75rem;
     justify-content: flex-start;
     padding-inline: 1rem;
-  }
-
-  .tool-panel-stack-header span:last-child {
-    color: var(--primary);
   }
 
   .tool-panel {

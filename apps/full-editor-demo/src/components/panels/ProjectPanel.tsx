@@ -77,18 +77,18 @@ export function ProjectPanel() {
 
       <section className="project-panel-settings">
         <h3 className="project-panel-heading">Project Settings</h3>
-        <label className="editor-menu-field">
+        <label className="editor-field">
           <span>Project name</span>
           <input
-            className="export-input"
+            className="editor-input"
             onChange={(event) => setTitleDraft(event.currentTarget.value)}
             value={titleDraft}
           />
         </label>
-        <label className="editor-menu-field">
+        <label className="editor-field">
           <span>Resolution</span>
           <select
-            className="export-input"
+            className="editor-input"
             onChange={(event) => {
               if (isVideoResolutionPresetId(event.currentTarget.value)) {
                 setResolutionDraft(event.currentTarget.value);

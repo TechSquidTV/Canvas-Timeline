@@ -42,7 +42,7 @@ export function SourceBinPanel() {
           {sources.length === 1 ? '1 item' : `${sources.length} items`}
         </span>
         <button
-          className="source-bin-import-action"
+          className="editor-toolbar-action source-bin-import-action"
           disabled={!storageAvailable || importing}
           onClick={() => inputRef.current?.click()}
           type="button"

@@ -90,10 +90,10 @@ export function ExportPanel({
 
   return (
     <div className="export-panel">
-      <label className="export-field">
+      <label className="editor-field">
         <span>Filename</span>
         <input
-          className="export-input"
+          className="editor-input"
           disabled={running}
           onBlur={() => setFilename(profile.filename)}
           onChange={(event) => setFilename(event.currentTarget.value)}
@@ -101,10 +101,10 @@ export function ExportPanel({
         />
       </label>
 
-      <label className="export-field">
+      <label className="editor-field">
         <span>Resolution</span>
         <select
-          className="export-input"
+          className="editor-input"
           disabled={running}
           onChange={(event) =>
             setResolutionId(event.currentTarget.value as TimelineExportResolutionId)

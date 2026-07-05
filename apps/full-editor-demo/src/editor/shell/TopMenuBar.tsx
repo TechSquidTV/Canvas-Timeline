@@ -130,18 +130,18 @@ export function TopMenuBar() {
                 <h2 className="editor-menu-section-title">New Project</h2>
                 {confirmingNewProject ? (
                   <div className="editor-new-project-confirm">
-                    <label className="editor-menu-field">
+                    <label className="editor-field">
                       <span>Project name</span>
                       <input
-                        className="export-input"
+                        className="editor-input"
                         onChange={(event) => setNewProjectTitleDraft(event.currentTarget.value)}
                         value={newProjectTitleDraft}
                       />
                     </label>
-                    <label className="editor-menu-field">
+                    <label className="editor-field">
                       <span>Resolution</span>
                       <select
-                        className="export-input"
+                        className="editor-input"
                         onChange={(event) => {
                           if (isVideoResolutionPresetId(event.currentTarget.value)) {
                             setNewProjectResolutionDraft(event.currentTarget.value);
