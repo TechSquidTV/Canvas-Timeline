@@ -3,11 +3,12 @@ import type { VideoResolutionPresetId } from '@/project/video-settings';
 import type { ProjectMetadata } from '@/persistence/project/types';
 
 export type ProjectAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unavailable';
+export type ProjectMetadataOverride = Partial<Pick<ProjectMetadata, 'height' | 'title' | 'width'>>;
 
 export interface ProjectContextValue {
   autosaveStatus: ProjectAutosaveStatus;
   metadata: ProjectMetadata;
-  resetProject: () => Promise<void>;
+  resetProject: (metadataOverride?: ProjectMetadataOverride) => Promise<void>;
   setProjectResolutionPreset: (presetId: VideoResolutionPresetId) => void;
   setProjectTitle: (title: string) => void;
   storageAvailable: boolean;

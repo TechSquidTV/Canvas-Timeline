@@ -7,12 +7,18 @@ import {
   type EditorBootstrapState,
 } from './editor/bootstrap/loadEditorBootstrap';
 import { ProjectProvider } from './editor/project/ProjectProvider';
-import type { ProjectAutosaveStatus } from './editor/project/project-context';
+import type {
+  ProjectAutosaveStatus,
+  ProjectMetadataOverride,
+} from './editor/project/project-context';
 import { EditorShell } from './editor/shell/EditorShell';
 import { MediaSyncProvider } from './editor/shell/MediaSyncProvider';
 import { SourceBinProvider } from './components/source-bin/SourceBinProvider';
 import { mediaLibraryStore } from './media/library/media-library-store';
-import { resetProjectSnapshot } from './persistence/project/project-store';
+import {
+  resetProjectSnapshot,
+  savePersistedProjectState,
+} from './persistence/project/project-store';
 import type { ProjectMetadata } from './persistence/project/types';
 import { findVideoResolutionPreset, type VideoResolutionPresetId } from './project/video-settings';
 import { TimelineDropModeProvider } from './timeline/TimelineDropModeProvider';
@@ -35,7 +41,7 @@ export function App() {
     };
   }, []);
 
-  const resetEditorProject = useCallback(async () => {
+  const resetEditorProject = useCallback(async (metadataOverride?: ProjectMetadataOverride) => {
     setBootstrapState(null);
     let resetError: unknown;
 
@@ -47,7 +53,25 @@ export function App() {
     }
 
     const nextBootstrapState = await loadEditorBootstrap();
-    setBootstrapState(nextBootstrapState);
+    const nextProjectMetadata = {
+      ...nextBootstrapState.projectMetadata,
+      ...metadataOverride,
+    };
+
+    if (nextBootstrapState.storageAvailable) {
+      try {
+        await savePersistedProjectState(nextBootstrapState.projectState, nextProjectMetadata);
+      } catch (error) {
+        if (resetError === undefined) {
+          resetError = error;
+        }
+      }
+    }
+
+    setBootstrapState({
+      ...nextBootstrapState,
+      projectMetadata: nextProjectMetadata,
+    });
     setEditorKey((currentKey) => currentKey + 1);
 
     if (resetError !== undefined) {
@@ -73,7 +97,7 @@ function LoadedEditor({
   resetEditorProject,
 }: {
   bootstrapState: EditorBootstrapState;
-  resetEditorProject: () => Promise<void>;
+  resetEditorProject: (metadataOverride?: ProjectMetadataOverride) => Promise<void>;
 }) {
   const [autosaveStatus, setAutosaveStatus] = useState<ProjectAutosaveStatus>(
     bootstrapState.storageAvailable ? 'saved' : 'unavailable'

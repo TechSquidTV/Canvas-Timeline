@@ -53,6 +53,10 @@ export function getVideoResolutionPresetId(
   );
 }
 
+export function isVideoResolutionPresetId(value: string): value is VideoResolutionPresetId {
+  return videoResolutionPresets.some((preset) => preset.id === value);
+}
+
 export function formatVideoResolution(resolution: VideoResolution) {
   return `${resolution.width}x${resolution.height}`;
 }

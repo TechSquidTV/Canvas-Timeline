@@ -12,7 +12,6 @@ export function ToolPanelStack() {
     <aside className="tool-panel-stack" aria-label="Editor tool panels">
       <div className="tool-panel-stack-header">
         <span>Inspector</span>
-        <span>Full editor lab</span>
       </div>
       <ToolPanel defaultOpen={false} icon={<FolderKanban aria-hidden="true" />} title="Project">
         <ProjectPanel />
