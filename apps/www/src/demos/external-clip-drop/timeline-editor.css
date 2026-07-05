@@ -23,7 +23,7 @@
   display: grid;
   min-width: 0;
   gap: 0.75rem;
-  grid-template-columns: minmax(13rem, 1fr) auto minmax(8rem, auto);
+  grid-template-columns: minmax(13rem, 1fr) auto auto minmax(8rem, auto);
   align-items: center;
   padding: 0.75rem;
   border-bottom: 1px solid var(--border);
@@ -61,7 +61,8 @@
 }
 
 .external-drop-asset svg,
-.external-drop-controls svg {
+.external-drop-controls svg,
+.external-drop-actions svg {
   width: 0.9rem;
   height: 0.9rem;
   flex: 0 0 auto;
@@ -102,6 +103,30 @@
 .external-drop-controls button.external-drop-mode-active {
   background: color-mix(in oklch, var(--primary) 22%, var(--background));
   color: var(--foreground);
+}
+
+.external-drop-actions {
+  display: inline-flex;
+}
+
+.external-drop-actions button {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 0.125rem);
+  background: color-mix(in oklch, var(--background) 88%, var(--muted));
+  color: var(--foreground);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.external-drop-actions button:disabled {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .external-drop-readout {
@@ -163,6 +188,7 @@
   }
 
   .external-drop-controls,
+  .external-drop-actions,
   .external-drop-readout {
     justify-self: start;
   }

@@ -6,11 +6,12 @@ import {
 import {
   Timeline,
   TimelineProvider,
+  useTimelineClipGroups,
   useTimelineExternalClipDrop,
 } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { Clapperboard, Film, Rows3 } from 'lucide-react';
+import { Clapperboard, Film, Rows3, Unlink2 } from 'lucide-react';
 import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import {
   demoMarkers,
@@ -93,8 +94,10 @@ function resolveExternalAsset(event: DragEvent<HTMLElement>, fallbackAssetId: st
 
 function ExternalDropWorkspace() {
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('overwrite');
+  const { selectedGroupId, ungroupSelectedClips } = useTimelineClipGroups();
   const activeAssetIdRef = useRef<string | null>(null);
   const clipCounterRef = useRef(1);
+  const canUngroup = selectedGroupId !== null;
 
   const drop = useTimelineExternalClipDrop<ExternalClipAsset, ExternalClipDropTrackKind>({
     editMode,
@@ -191,6 +194,13 @@ function ExternalDropWorkspace() {
           >
             <Rows3 aria-hidden="true" />
             Insert
+          </button>
+        </div>
+
+        <div className="external-drop-actions" aria-label="Selected group actions">
+          <button type="button" disabled={!canUngroup} onClick={() => ungroupSelectedClips()}>
+            <Unlink2 aria-hidden="true" />
+            Ungroup
           </button>
         </div>
 
