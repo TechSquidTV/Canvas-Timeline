@@ -86,18 +86,19 @@ function createPlacement(
   };
 }
 
-function resolveExternalAsset(event: DragEvent<HTMLElement>) {
-  const assetId = event.dataTransfer.getData(externalAssetMimeType);
+function resolveExternalAsset(event: DragEvent<HTMLElement>, fallbackAssetId: string | null) {
+  const assetId = event.dataTransfer.getData(externalAssetMimeType) || fallbackAssetId;
   return externalClipAssets.find((asset) => asset.id === assetId) ?? null;
 }
 
 function ExternalDropWorkspace() {
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('overwrite');
+  const activeAssetIdRef = useRef<string | null>(null);
   const clipCounterRef = useRef(1);
 
   const drop = useTimelineExternalClipDrop<ExternalClipAsset, ExternalClipDropTrackKind>({
     editMode,
-    resolveDragData: resolveExternalAsset,
+    resolveDragData: (event) => resolveExternalAsset(event, activeAssetIdRef.current),
     createPlacements: (context) => {
       const instance = clipCounterRef.current;
       clipCounterRef.current += 1;
@@ -154,8 +155,12 @@ function ExternalDropWorkspace() {
               className="external-drop-asset"
               draggable
               onDragStart={(event) => {
+                activeAssetIdRef.current = asset.id;
                 event.dataTransfer.effectAllowed = 'copy';
                 event.dataTransfer.setData(externalAssetMimeType, asset.id);
+              }}
+              onDragEnd={() => {
+                activeAssetIdRef.current = null;
               }}
               style={{ '--asset-color': asset.color } as CSSProperties}
               aria-label={`Drag ${asset.label} onto the timeline`}
