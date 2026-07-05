@@ -8,58 +8,44 @@ import {
   type ReactNode,
 } from 'react';
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import {
-  hasOpfsSupport,
-  loadStoredSources,
-  removeStoredSource,
-  type StoredSourceBinSource,
-} from './source-bin-storage';
-import { importSourceFile, type SourceBinImportResult } from './source-bin-import';
+import { mediaLibraryStore } from '@/media/library/media-library-store';
+import type {
+  MediaLibraryImportResult,
+  MediaLibrarySource,
+} from '@/media/library/media-library-types';
 import { SourceBinContext } from './source-bin-context';
 import type { SourceBinSource } from './types';
 
-export function SourceBinProvider({ children }: { children: ReactNode }) {
-  const [sources, setSources] = useState<readonly SourceBinSource[]>([]);
+interface SourceBinProviderProps {
+  children: ReactNode;
+  initialSources: readonly MediaLibrarySource[];
+  restoreError?: string;
+  storageAvailable: boolean;
+}
+
+export function SourceBinProvider({
+  children,
+  initialSources,
+  restoreError,
+  storageAvailable,
+}: SourceBinProviderProps) {
+  const thumbnailUrlsRef = useRef(new Set<string>());
+  const [sources, setSources] = useState<readonly SourceBinSource[]>(() =>
+    createInitialSources(initialSources, restoreError, thumbnailUrlsRef)
+  );
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [storageAvailable] = useState(hasOpfsSupport);
-  const thumbnailUrlsRef = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!storageAvailable) {
-      return;
-    }
-
-    let cancelled = false;
-
-    void loadStoredSources()
-      .then((storedSources) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSources(storedSources.map((source) => createRuntimeSource(source, thumbnailUrlsRef)));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setSources([createRestoreFailureSource(error)]);
-        }
-      });
+    const thumbnailUrls = thumbnailUrlsRef.current;
 
     return () => {
-      cancelled = true;
-    };
-  }, [storageAvailable]);
-
-  useEffect(
-    () => () => {
-      for (const url of thumbnailUrlsRef.current) {
+      for (const url of thumbnailUrls) {
         URL.revokeObjectURL(url);
       }
-      thumbnailUrlsRef.current.clear();
-    },
-    []
-  );
+      thumbnailUrls.clear();
+    };
+  }, []);
 
   const importFiles = useCallback(
     async (files: FileList | readonly File[]) => {
@@ -74,11 +60,10 @@ export function SourceBinProvider({ children }: { children: ReactNode }) {
 
       setImporting(true);
       try {
-        for (const file of fileList) {
-          const source = createRuntimeSourceFromImport(
-            await importSourceFile(file),
-            thumbnailUrlsRef
-          );
+        const importedSources = await mediaLibraryStore.importFiles(fileList);
+
+        for (const importedSource of importedSources) {
+          const source = createRuntimeSourceFromImport(importedSource, thumbnailUrlsRef);
           setSources((currentSources) => upsertSource(currentSources, source));
           if (source.status !== 'failed') {
             setSelectedSourceId(source.id);
@@ -94,13 +79,14 @@ export function SourceBinProvider({ children }: { children: ReactNode }) {
   const removeSource = useCallback(
     async (sourceId: string) => {
       const existingSource = sources.find((source) => source.id === sourceId);
+
+      if (storageAvailable) {
+        await mediaLibraryStore.removeSource(sourceId);
+      }
+
       if (existingSource?.thumbnailUrl !== null && existingSource?.thumbnailUrl !== undefined) {
         URL.revokeObjectURL(existingSource.thumbnailUrl);
         thumbnailUrlsRef.current.delete(existingSource.thumbnailUrl);
-      }
-
-      if (storageAvailable) {
-        await removeStoredSource(sourceId);
       }
 
       setSources((currentSources) => currentSources.filter((source) => source.id !== sourceId));
@@ -151,29 +137,28 @@ export function SourceBinProvider({ children }: { children: ReactNode }) {
 }
 
 function createRuntimeSource(
-  storedSource: StoredSourceBinSource,
+  storedSource: MediaLibrarySource,
   thumbnailUrlsRef: MutableRefObject<Set<string>>
 ): SourceBinSource {
   const thumbnailUrl =
-    storedSource.thumbnailFile === null ? null : URL.createObjectURL(storedSource.thumbnailFile);
+    storedSource.posterFile === null ? null : URL.createObjectURL(storedSource.posterFile);
 
   if (thumbnailUrl !== null) {
     thumbnailUrlsRef.current.add(thumbnailUrl);
   }
 
   return {
-    ...storedSource.manifest,
-    file: storedSource.file,
+    ...storedSource,
     thumbnailUrl,
   };
 }
 
 function createRuntimeSourceFromImport(
-  importedSource: SourceBinImportResult,
+  importedSource: MediaLibraryImportResult,
   thumbnailUrlsRef: MutableRefObject<Set<string>>
 ): SourceBinSource {
   const thumbnailUrl =
-    importedSource.thumbnail === null ? null : URL.createObjectURL(importedSource.thumbnail);
+    importedSource.poster === null ? null : URL.createObjectURL(importedSource.poster);
 
   if (thumbnailUrl !== null) {
     thumbnailUrlsRef.current.add(thumbnailUrl);
@@ -185,17 +170,29 @@ function createRuntimeSourceFromImport(
   };
 }
 
-function createRestoreFailureSource(error: unknown): SourceBinSource {
+function createInitialSources(
+  initialSources: readonly MediaLibrarySource[],
+  restoreError: string | undefined,
+  thumbnailUrlsRef: MutableRefObject<Set<string>>
+) {
+  const sources = initialSources.map((source) => createRuntimeSource(source, thumbnailUrlsRef));
+  return restoreError === undefined
+    ? sources
+    : [...sources, createRestoreFailureSource(restoreError)];
+}
+
+function createRestoreFailureSource(errorMessage: string): SourceBinSource {
   return {
     id: `failed-${crypto.randomUUID()}`,
     kind: 'unsupported',
     mimeType: '',
     name: 'Source Bin restore failed',
     originalPath: null,
+    posterFile: null,
     sizeBytes: 0,
     status: 'failed',
     metadata: {},
-    errorMessage: error instanceof Error ? error.message : String(error),
+    errorMessage,
     file: null,
     thumbnailUrl: null,
   };

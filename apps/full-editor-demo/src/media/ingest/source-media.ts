@@ -1,15 +1,18 @@
 import type * as Mediabunny from 'mediabunny';
 import type { Input } from 'mediabunny';
-import type { SourceBinImportableKind, SourceBinProbeResult } from './types';
+import type {
+  MediaLibraryImportableKind,
+  MediaLibraryProbeResult,
+} from '@/media/library/media-library-types';
 
-const THUMBNAIL_WIDTH = 160;
-const THUMBNAIL_HEIGHT = 90;
+const POSTER_WIDTH = 160;
+const POSTER_HEIGHT = 90;
 
 const videoExtensions = new Set(['m4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ts', 'webm']);
 const audioExtensions = new Set(['aac', 'aiff', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wav']);
 const imageExtensions = new Set(['avif', 'gif', 'jpeg', 'jpg', 'png', 'webp']);
 
-export function getSupportedSourceKind(file: File): SourceBinImportableKind | null {
+export function getSupportedSourceKind(file: File): MediaLibraryImportableKind | null {
   if (file.type.startsWith('video/')) {
     return 'video';
   }
@@ -40,8 +43,8 @@ export function getSupportedSourceKind(file: File): SourceBinImportableKind | nu
 
 export async function probeSourceFile(
   file: File,
-  expectedKind: SourceBinImportableKind
-): Promise<SourceBinProbeResult> {
+  expectedKind: MediaLibraryImportableKind
+): Promise<MediaLibraryProbeResult> {
   if (expectedKind === 'image') {
     return probeImageFile(file);
   }
@@ -49,7 +52,7 @@ export async function probeSourceFile(
   return probeTimelineMediaFile(file);
 }
 
-async function probeImageFile(file: File): Promise<SourceBinProbeResult> {
+async function probeImageFile(file: File): Promise<MediaLibraryProbeResult> {
   const bitmap = await createImageBitmap(file);
 
   try {
@@ -59,14 +62,14 @@ async function probeImageFile(file: File): Promise<SourceBinProbeResult> {
         width: bitmap.width,
         height: bitmap.height,
       },
-      thumbnail: await createImageThumbnail(bitmap),
+      poster: await createImagePoster(bitmap),
     };
   } finally {
     bitmap.close();
   }
 }
 
-async function probeTimelineMediaFile(file: File): Promise<SourceBinProbeResult> {
+async function probeTimelineMediaFile(file: File): Promise<MediaLibraryProbeResult> {
   const mediabunny = await import('mediabunny');
   const input = new mediabunny.Input({
     source: new mediabunny.BlobSource(file),
@@ -115,13 +118,13 @@ async function probeTimelineMediaFile(file: File): Promise<SourceBinProbeResult>
         hasAudio: audioTrack !== null,
         hasVideo: false,
       },
-      thumbnail: null,
+      poster: null,
     };
   }
 
   const width = await videoTrack.getDisplayWidth();
   const height = await videoTrack.getDisplayHeight();
-  const thumbnail = await createVideoThumbnail(videoTrack, mediabunny, firstTimestamp);
+  const poster = await createVideoPoster(videoTrack, mediabunny, firstTimestamp);
 
   return {
     kind: 'video',
@@ -132,18 +135,18 @@ async function probeTimelineMediaFile(file: File): Promise<SourceBinProbeResult>
       hasAudio: audioTrack !== null,
       hasVideo: true,
     },
-    thumbnail,
+    poster,
   };
 }
 
-async function createVideoThumbnail(
+async function createVideoPoster(
   videoTrack: NonNullable<Awaited<ReturnType<Input['getPrimaryVideoTrack']>>>,
   mediabunny: typeof Mediabunny,
   timestampSeconds: number
 ) {
   const sink = new mediabunny.CanvasSink(videoTrack, {
-    width: THUMBNAIL_WIDTH,
-    height: THUMBNAIL_HEIGHT,
+    width: POSTER_WIDTH,
+    height: POSTER_HEIGHT,
     fit: 'contain',
     alpha: await videoTrack.canBeTransparent(),
   });
@@ -153,20 +156,20 @@ async function createVideoThumbnail(
       return null;
     }
 
-    return createCanvasThumbnail(wrappedCanvas.canvas);
+    return createCanvasPoster(wrappedCanvas.canvas);
   }
 
   return null;
 }
 
-async function createImageThumbnail(source: CanvasImageSource) {
-  return createCanvasThumbnail(source);
+async function createImagePoster(source: CanvasImageSource) {
+  return createCanvasPoster(source);
 }
 
-async function createCanvasThumbnail(source: CanvasImageSource) {
+async function createCanvasPoster(source: CanvasImageSource) {
   const canvas = document.createElement('canvas');
-  canvas.width = THUMBNAIL_WIDTH;
-  canvas.height = THUMBNAIL_HEIGHT;
+  canvas.width = POSTER_WIDTH;
+  canvas.height = POSTER_HEIGHT;
 
   const context = canvas.getContext('2d');
   if (context === null) {
@@ -174,8 +177,8 @@ async function createCanvasThumbnail(source: CanvasImageSource) {
   }
 
   context.fillStyle = '#000';
-  context.fillRect(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
-  context.drawImage(source, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+  context.fillRect(0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+  context.drawImage(source, 0, 0, POSTER_WIDTH, POSTER_HEIGHT);
 
   return canvasToBlob(canvas);
 }

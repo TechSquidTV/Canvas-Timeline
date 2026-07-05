@@ -108,6 +108,17 @@
     background: var(--editor-workspace);
   }
 
+  .full-editor-loading {
+    display: grid;
+    width: 100%;
+    height: 100svh;
+    place-items: center;
+    background: var(--editor-workspace);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+
   .full-editor-layout,
   .full-editor-top-row {
     width: 100%;

@@ -7,7 +7,7 @@ import {
 import { clamp, compareRational, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 'lucide-react';
 import { useCallback } from 'react';
-import { useEditorMediaSync } from '@/components/editor-shell/media-sync-context';
+import { useEditorMediaSync } from '@/editor/shell/media-sync-context';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { demoProject, type EditorTrackKind } from '@/data/demo-project';
