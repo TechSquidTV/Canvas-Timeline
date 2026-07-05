@@ -1,0 +1,77 @@
+@layer components {
+  .export-panel {
+    display: grid;
+    min-width: 0;
+    gap: 0.75rem;
+  }
+
+  .export-field {
+    display: grid;
+    min-width: 0;
+    gap: 0.375rem;
+  }
+
+  .export-field span {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  .export-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 2rem;
+    border: 1px solid var(--editor-border);
+    border-radius: 0;
+    background: var(--editor-raised);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    outline: none;
+    padding-inline: 0.625rem;
+  }
+
+  .export-input:focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 25%, transparent);
+  }
+
+  .export-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .export-readout {
+    border-top: 1px solid var(--editor-border);
+    padding-block-start: 0.75rem;
+  }
+
+  .export-message {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .export-message.is-error {
+    color: var(--destructive);
+  }
+
+  .export-progress {
+    height: 0.375rem;
+    overflow: hidden;
+    border: 1px solid var(--editor-border);
+    background: var(--editor-raised);
+  }
+
+  .export-progress span {
+    display: block;
+    block-size: 100%;
+    background: var(--primary);
+    transition: inline-size 150ms ease;
+  }
+
+  .export-actions {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+}

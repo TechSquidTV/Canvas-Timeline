@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@mediabunny/aac-encoder": "^1.50.3",
     "@techsquidtv/canvas-timeline-core": "workspace:*",
     "@techsquidtv/canvas-timeline-mediabunny-adapter": "workspace:*",
     "@techsquidtv/canvas-timeline-react": "workspace:*",
