@@ -5,7 +5,8 @@ type DemoStatus =
   | 'Keyframes'
   | 'Performance'
   | 'DOM renderer'
-  | 'Custom design';
+  | 'Custom design'
+  | 'Full editor';
 
 export type LiveDemoId =
   | 'basic'
@@ -29,7 +30,7 @@ export interface DemoDoc {
   title: string;
   description: string;
   status: DemoStatus;
-  difficulty: 'Beginner' | 'Intermediate';
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   packageFocus: string[];
   sourcePath: string;
   externalUrl?: string;
@@ -217,5 +218,23 @@ export const demoDocs: DemoDoc[] = [
     ],
     sourcePath: 'apps/www/src/demos/custom-playhead/CustomPlayheadTimeline.tsx',
     liveDemoId: 'custom-playhead',
+  },
+  {
+    slug: 'full-editor-demo',
+    title: 'Full Editor Demo',
+    description:
+      'A private SPA/PWA editor lab with a resizable preview, inspector panels, Mediabunny media sync, and the main Canvas Timeline editing surface.',
+    status: 'Full editor',
+    difficulty: 'Advanced',
+    packageFocus: [
+      '@techsquidtv/canvas-timeline-core',
+      '@techsquidtv/canvas-timeline-mediabunny-adapter',
+      '@techsquidtv/canvas-timeline-react',
+      '@techsquidtv/canvas-timeline-renderer',
+      '@techsquidtv/canvas-timeline-utils',
+      'mediabunny',
+    ],
+    sourcePath: 'apps/full-editor-demo/src/App.tsx',
+    externalUrl: 'http://localhost:5173/',
   },
 ];

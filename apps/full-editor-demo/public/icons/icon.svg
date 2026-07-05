@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Canvas Timeline">
+  <rect width="128" height="128" rx="24" fill="#171717" />
+  <path fill="#f3bd52" d="M31 32h10v64H31z" />
+  <path fill="#78b7ff" d="M50 40h47v16H50z" />
+  <path fill="#70d896" d="M50 64h32v16H50z" />
+  <path fill="#f2876a" d="M50 88h55v16H50z" />
+</svg>
