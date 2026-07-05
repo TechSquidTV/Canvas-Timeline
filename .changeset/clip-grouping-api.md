@@ -1,8 +1,4 @@
 ---
-'@techsquidtv/canvas-timeline': major
-'@techsquidtv/canvas-timeline-core': major
-'@techsquidtv/canvas-timeline-react': major
-'@techsquidtv/canvas-timeline-utils': patch
 ---
 
 Add first-class clip grouping support for linked timeline edits.
