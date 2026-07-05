@@ -1,21 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
-import {
-  sanitizeTimelineState,
-  savePersistedProjectState,
-} from '@/persistence/project/project-store';
+import { useEffect, useRef } from 'react';
+import { savePersistedProjectState } from '@/persistence/project/project-store';
+import { usePersistableTimelineSnapshot } from './usePersistableTimelineSnapshot';
 
 const PROJECT_AUTOSAVE_DELAY_MS = 600;
 
 export function ProjectAutosave({ enabled }: { enabled: boolean }) {
-  const state = useTimelineState();
-  const persistedState = useMemo(() => sanitizeTimelineState(state), [state]);
-  const persistedStateRef = useRef(persistedState);
-  const persistedStateFingerprint = useMemo(() => JSON.stringify(persistedState), [persistedState]);
+  const snapshot = usePersistableTimelineSnapshot();
+  const persistedStateRef = useRef(snapshot.timelineState);
 
   useEffect(() => {
-    persistedStateRef.current = persistedState;
-  }, [persistedState]);
+    persistedStateRef.current = snapshot.timelineState;
+  }, [snapshot.timelineState]);
 
   useEffect(() => {
     if (!enabled) {
@@ -29,7 +24,7 @@ export function ProjectAutosave({ enabled }: { enabled: boolean }) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [enabled, persistedStateFingerprint]);
+  }, [enabled, snapshot.fingerprint]);
 
   return null;
 }

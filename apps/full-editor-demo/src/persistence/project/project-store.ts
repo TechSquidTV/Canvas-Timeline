@@ -69,10 +69,28 @@ export async function resetProjectSnapshot() {
 }
 
 export function sanitizeTimelineState(state: TimelineState): PersistedTimelineState {
+  return sanitizePersistedTimelineState({
+    duration: state.duration,
+    inPoint: state.inPoint,
+    markers: state.markers ?? [],
+    outPoint: state.outPoint,
+    playheadTime: state.playheadTime,
+    scrollLeft: state.scrollLeft,
+    scrollTop: state.scrollTop,
+    snapEnabled: state.snapEnabled,
+    snapThresholdPixels: state.snapThresholdPixels,
+    tracks: state.tracks as Track<EditorTrackKind>[],
+    zoomScale: state.zoomScale,
+  });
+}
+
+export function sanitizePersistedTimelineState(
+  state: PersistedTimelineState
+): PersistedTimelineState {
   return {
     duration: cloneOptionalRationalTime(state.duration),
     inPoint: cloneOptionalRationalTime(state.inPoint),
-    markers: (state.markers ?? []).map(cloneMarker),
+    markers: state.markers.map(cloneMarker),
     outPoint: cloneOptionalRationalTime(state.outPoint),
     playheadTime: cloneRationalTime(state.playheadTime),
     scrollLeft: state.scrollLeft,
