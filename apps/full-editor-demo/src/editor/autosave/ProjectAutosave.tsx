@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { savePersistedProjectState } from '@/persistence/project/project-store';
-import type { ProjectMetadata } from '@/persistence/project/types';
+import type { ProjectMetadata } from '@/project/project-metadata';
 import type { ProjectAutosaveStatus } from '@/editor/project/project-context';
 import { usePersistableTimelineSnapshot } from './usePersistableTimelineSnapshot';
 

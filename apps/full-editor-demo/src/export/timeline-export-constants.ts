@@ -1,0 +1,3 @@
+export const EXPORT_AUDIO_CHANNELS = 2;
+export const EXPORT_AUDIO_SAMPLE_RATE = 48_000;
+export const EXPORT_SILENCE_CHUNK_SECONDS = 0.1;

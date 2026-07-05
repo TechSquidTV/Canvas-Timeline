@@ -10,7 +10,7 @@ export type SourceDropRejectReason =
   | 'track-kind-mismatch'
   | 'unsupported-source';
 
-export interface SourceDropTrackResolution {
+interface SourceDropTrackResolution {
   audioTrack?: Track<EditorTrackKind>;
   reason?: SourceDropRejectReason;
   visualTrack?: Track<EditorTrackKind>;

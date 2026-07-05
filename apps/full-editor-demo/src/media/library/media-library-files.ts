@@ -14,11 +14,12 @@ import {
 } from './media-library-manifest';
 import type { MediaLibraryManifestSource } from './media-library-types';
 
-export const MEDIA_LIBRARY_DIRECTORY = 'media-library';
 export const ASSETS_DIRECTORY = 'assets';
-export const MANIFEST_FILE = 'manifest.json';
-export const ORIGINAL_FILE = 'original';
-export const POSTER_FILE = 'poster.webp';
+
+const MEDIA_LIBRARY_DIRECTORY = 'media-library';
+const MANIFEST_FILE = 'manifest.json';
+const ORIGINAL_FILE = 'original';
+const POSTER_FILE = 'poster.webp';
 
 const mediaLibraryQueue = createMutationQueue();
 
@@ -83,7 +84,7 @@ export async function clearStoredMediaLibrary() {
   });
 }
 
-export async function updateMediaLibraryManifestWithoutQueue(
+async function updateMediaLibraryManifestWithoutQueue(
   root: FileSystemDirectoryHandle,
   updater: (sources: readonly MediaLibraryManifestSource[]) => readonly MediaLibraryManifestSource[]
 ) {
@@ -130,11 +131,11 @@ export async function persistSourcePoster(
   return path;
 }
 
-export function getOriginalPath(sourceId: string) {
+function getOriginalPath(sourceId: string) {
   return `${ASSETS_DIRECTORY}/${sourceId}/${ORIGINAL_FILE}`;
 }
 
-export function getPosterPath(sourceId: string) {
+function getPosterPath(sourceId: string) {
   return `${ASSETS_DIRECTORY}/${sourceId}/${POSTER_FILE}`;
 }
 

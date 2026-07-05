@@ -4,13 +4,13 @@ import {
   getDirectoryFromPath,
   removeEntryIfExists,
   writeBlobToPath,
-} from '@/persistence/opfs/files';
-import { createMutationQueue } from '@/persistence/opfs/mutation-queue';
-import { isNotFoundError } from '@/persistence/opfs/support';
-import { demoProject } from '@/data/demo-project';
+} from '../opfs/files';
+import { createMutationQueue } from '../opfs/mutation-queue';
+import { isNotFoundError } from '../opfs/support';
+import { getDefaultProjectMetadata, type ProjectMetadata } from '../../project/project-metadata';
 import { parseProjectSnapshot } from './project-snapshot-schema';
 import { sanitizeTimelineState } from './timeline-state-persistence';
-import type { PersistedTimelineState, ProjectMetadata, ProjectStorageSnapshot } from './types';
+import type { PersistedTimelineState, ProjectStorageSnapshot } from './types';
 
 const PROJECT_DIRECTORY = 'project';
 const PROJECT_FILE = 'project.json';
@@ -73,15 +73,4 @@ export async function resetProjectSnapshot() {
 async function getProjectRoot() {
   const root = await getAppStorageRoot();
   return getDirectoryFromPath(root, [PROJECT_DIRECTORY], true);
-}
-
-export function getDefaultProjectMetadata(): ProjectMetadata {
-  return {
-    description: demoProject.description,
-    frameRate: demoProject.frameRate,
-    height: demoProject.height,
-    projectId: demoProject.id,
-    title: demoProject.title,
-    width: demoProject.width,
-  };
 }

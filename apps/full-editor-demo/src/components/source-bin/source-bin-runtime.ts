@@ -5,7 +5,7 @@ import type {
 } from '@/media/library/media-library-types';
 import type { SourceBinSource } from './types';
 
-export function createRuntimeSource(
+function createRuntimeSource(
   storedSource: MediaLibrarySource,
   thumbnailUrlsRef: MutableRefObject<Set<string>>
 ): SourceBinSource {

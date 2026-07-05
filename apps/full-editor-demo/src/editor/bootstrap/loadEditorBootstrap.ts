@@ -3,11 +3,9 @@ import { demoProject, timelineMarkers, timelineTracks } from '@/data/demo-projec
 import { mediaLibraryStore } from '@/media/library/media-library-store';
 import type { MediaLibrarySource } from '@/media/library/media-library-types';
 import { errorMessage, hasOpfsSupport } from '@/persistence/opfs/support';
-import {
-  getDefaultProjectMetadata,
-  loadProjectSnapshot,
-} from '@/persistence/project/project-store';
-import type { PersistedTimelineState, ProjectMetadata } from '@/persistence/project/types';
+import { loadProjectSnapshot } from '@/persistence/project/project-store';
+import { getDefaultProjectMetadata, type ProjectMetadata } from '@/project/project-metadata';
+import type { PersistedTimelineState } from '@/persistence/project/types';
 
 export interface EditorBootstrapState {
   projectState: PersistedTimelineState;

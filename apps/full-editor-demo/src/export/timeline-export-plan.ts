@@ -1,7 +1,7 @@
 import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import type { EditorTrackKind } from '@/data/demo-project';
-import type { SourceBinSource } from '@/components/source-bin/types';
+import type { SourceBinSource } from '../components/source-bin/types';
+import type { EditorTrackKind } from '../data/demo-project';
 import type {
   TimelineExportPlanInput,
   TimelineExportPlanResult,

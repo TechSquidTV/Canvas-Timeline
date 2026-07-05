@@ -7,10 +7,7 @@ import {
   type EditorBootstrapState,
 } from './editor/bootstrap/loadEditorBootstrap';
 import { ProjectProvider } from './editor/project/ProjectProvider';
-import type {
-  ProjectAutosaveStatus,
-  ProjectMetadataOverride,
-} from './editor/project/project-context';
+import type { ProjectAutosaveStatus } from './editor/project/project-context';
 import { EditorShell } from './editor/shell/EditorShell';
 import { MediaSyncProvider } from './editor/shell/MediaSyncProvider';
 import { SourceBinProvider } from './components/source-bin/SourceBinProvider';
@@ -19,7 +16,7 @@ import {
   resetProjectSnapshot,
   savePersistedProjectState,
 } from './persistence/project/project-store';
-import type { ProjectMetadata } from './persistence/project/types';
+import type { ProjectMetadata, ProjectMetadataOverride } from './project/project-metadata';
 import { findVideoResolutionPreset, type VideoResolutionPresetId } from './project/video-settings';
 import { TimelineDropModeProvider } from './timeline/TimelineDropModeProvider';
 

@@ -1,9 +1,9 @@
 import type { Clip, TimelineState, Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import type { SourceBinSource } from '@/components/source-bin/types';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { getDefaultProjectMetadata } from '@/persistence/project/project-store';
+import type { SourceBinSource } from '../components/source-bin/types';
+import type { EditorTrackKind } from '../data/demo-project';
+import { getDefaultProjectMetadata } from '../project/project-metadata';
 import {
   createTimelineExportProfile,
   getTimelineExportResolutionOptions,

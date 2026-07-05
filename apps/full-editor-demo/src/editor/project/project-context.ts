@@ -1,9 +1,8 @@
 import { createContext, useContext } from 'react';
 import type { VideoResolutionPresetId } from '@/project/video-settings';
-import type { ProjectMetadata } from '@/persistence/project/types';
+import type { ProjectMetadata, ProjectMetadataOverride } from '@/project/project-metadata';
 
 export type ProjectAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unavailable';
-export type ProjectMetadataOverride = Partial<Pick<ProjectMetadata, 'height' | 'title' | 'width'>>;
 
 export interface ProjectContextValue {
   autosaveStatus: ProjectAutosaveStatus;

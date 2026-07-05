@@ -1,6 +1,6 @@
 import type { Clip, Marker, TimelineClipGroup, Track } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import type { EditorTrackKind } from '@/data/demo-project';
+import type { EditorTrackKind } from '../../data/demo-project';
 import type { PersistedTimelineState, ProjectStorageSnapshot } from './types';
 
 interface JsonObject {

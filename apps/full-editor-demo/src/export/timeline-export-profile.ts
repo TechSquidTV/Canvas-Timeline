@@ -1,17 +1,16 @@
-import { demoProject } from '@/data/demo-project';
-import type { ProjectMetadata } from '@/persistence/project/types';
 import {
   formatVideoResolution,
   getRecommendedVideoBitrate,
   videoResolutionPresets,
-} from '@/project/video-settings';
+} from '../project/video-settings';
+import { getDefaultProjectMetadata, type ProjectMetadata } from '../project/project-metadata';
 import type {
   TimelineExportProfile,
   TimelineExportResolution,
   TimelineExportResolutionId,
 } from './timeline-export-types';
 
-export const timelineExportResolutions = videoResolutionPresets.map((preset) => ({
+const timelineExportResolutions = videoResolutionPresets.map((preset) => ({
   ...preset,
   videoBitrate: getRecommendedVideoBitrate(preset),
 })) satisfies readonly TimelineExportResolution[];
@@ -31,11 +30,11 @@ export function createTimelineExportProfile(options: {
   };
 }
 
-export function getDefaultExportFilename(projectTitle: string = demoProject.title) {
+export function getDefaultExportFilename(projectTitle: string = getDefaultProjectMetadata().title) {
   return normalizeExportFilename(projectTitle);
 }
 
-export function getTimelineExportResolution(
+function getTimelineExportResolution(
   resolutionId: TimelineExportResolutionId,
   projectMetadata: ProjectMetadata
 ): TimelineExportResolution {

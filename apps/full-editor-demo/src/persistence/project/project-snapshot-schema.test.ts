@@ -1,6 +1,6 @@
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import { getDefaultProjectMetadata } from './project-store';
+import { getDefaultProjectMetadata } from '../../project/project-metadata';
 import { parseProjectSnapshot } from './project-snapshot-schema';
 import type { ProjectStorageSnapshot } from './types';
 
