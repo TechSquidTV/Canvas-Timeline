@@ -13,6 +13,7 @@ export type LiveDemoId =
   | 'html-media-sync'
   | 'editor-controls'
   | 'clip-grouping-import'
+  | 'external-clip-drop'
   | 'keyframe-opacity'
   | 'stress-test'
   | 'react-dom-timeline'
@@ -141,6 +142,22 @@ export const demoDocs: DemoDoc[] = [
     ],
     sourcePath: 'apps/www/src/demos/clip-grouping-import/ClipGroupingImportTimeline.tsx',
     liveDemoId: 'clip-grouping-import',
+  },
+  {
+    slug: 'external-clip-drop',
+    title: 'External Clip Drop',
+    description:
+      'A two-track editor surface where app-owned draggable assets create single clips or grouped video/audio placements through native browser drag-and-drop.',
+    status: 'Controls',
+    difficulty: 'Intermediate',
+    packageFocus: [
+      '@techsquidtv/canvas-timeline-core',
+      '@techsquidtv/canvas-timeline-react',
+      '@techsquidtv/canvas-timeline-renderer',
+      '@techsquidtv/canvas-timeline-utils',
+    ],
+    sourcePath: 'apps/www/src/demos/external-clip-drop/ExternalClipDropTimeline.tsx',
+    liveDemoId: 'external-clip-drop',
   },
   {
     slug: 'keyframe-opacity',

@@ -12,6 +12,9 @@ import editorControlsLocalStylesSource from '../demos/timeline-editor-controls/t
 import clipGroupingTimelineSource from '../demos/clip-grouping-import/ClipGroupingImportTimeline.tsx?raw';
 import clipGroupingDataSource from '../demos/clip-grouping-import/timeline-demo-data.ts?raw';
 import clipGroupingLocalStylesSource from '../demos/clip-grouping-import/timeline-editor.css?raw';
+import externalClipDropTimelineSource from '../demos/external-clip-drop/ExternalClipDropTimeline.tsx?raw';
+import externalClipDropDataSource from '../demos/external-clip-drop/timeline-demo-data.ts?raw';
+import externalClipDropLocalStylesSource from '../demos/external-clip-drop/timeline-editor.css?raw';
 import keyframeOpacityTimelineSource from '../demos/keyframe-opacity/KeyframeOpacityTimeline.tsx?raw';
 import keyframeOpacityDataSource from '../demos/keyframe-opacity/timeline-demo-data.ts?raw';
 import keyframeOpacityUtilsSource from '../demos/keyframe-opacity/keyframe-opacity-utils.ts?raw';
@@ -80,6 +83,9 @@ const keyframeOpacityStylesSource = inlineSharedTimelineEditorStyles(
   keyframeOpacityLocalStylesSource
 );
 const clipGroupingStylesSource = inlineSharedTimelineEditorStyles(clipGroupingLocalStylesSource);
+const externalClipDropStylesSource = inlineSharedTimelineEditorStyles(
+  externalClipDropLocalStylesSource
+);
 
 export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
   basic: {
@@ -155,6 +161,21 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
       ],
       data: 'apps/www/src/demos/clip-grouping-import/timeline-demo-data.ts',
       styles: 'apps/www/src/demos/clip-grouping-import/timeline-editor.css',
+    },
+  },
+  'external-clip-drop': {
+    tsx: toCopyableDemoSource(externalClipDropTimelineSource),
+    css: externalClipDropStylesSource,
+    extraTabs: [demoClipColorsTab],
+    data: toCopyableDemoSource(externalClipDropDataSource),
+    sourceFiles: {
+      component: 'apps/www/src/demos/external-clip-drop/ExternalClipDropTimeline.tsx',
+      utilities: [
+        'apps/www/src/demos/demo-clip-colors.ts',
+        'apps/www/src/demos/shared-timeline-editor.css',
+      ],
+      data: 'apps/www/src/demos/external-clip-drop/timeline-demo-data.ts',
+      styles: 'apps/www/src/demos/external-clip-drop/timeline-editor.css',
     },
   },
   'keyframe-opacity': {

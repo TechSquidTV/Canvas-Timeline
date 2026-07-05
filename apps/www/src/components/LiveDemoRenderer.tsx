@@ -62,6 +62,7 @@ const liveDemoComponents: Record<
   'html-media-sync': createLazyDemo(liveDemoLoaders['html-media-sync']),
   'editor-controls': createLazyDemo(liveDemoLoaders['editor-controls']),
   'clip-grouping-import': createLazyDemo(liveDemoLoaders['clip-grouping-import']),
+  'external-clip-drop': createLazyDemo(liveDemoLoaders['external-clip-drop']),
   'keyframe-opacity': createLazyDemo(liveDemoLoaders['keyframe-opacity']),
   'stress-test': createLazyDemo(liveDemoLoaders['stress-test']),
   'react-dom-timeline': createLazyDemo(liveDemoLoaders['react-dom-timeline']),

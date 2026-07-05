@@ -6,8 +6,10 @@ import type {
   TimelineEditCommitResult,
   TimelineEditPreview,
   TimelineEditValidationResult,
+  TimelineInsertClipGroupEditCommand,
   TimelineInsertEditCommand,
   TimelineMoveEditCommand,
+  TimelineOverwriteClipGroupEditCommand,
   TimelineOverwriteEditCommand,
   TimelineRippleTrimEditCommand,
   TimelineRollTrimEditCommand,
@@ -75,9 +77,17 @@ export interface UseTimelineEditCommandsResult {
   insertClip: (
     command: Omit<TimelineInsertEditCommand, 'type'>
   ) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Commits a grouped insert command. */
+  insertClipGroup: (
+    command: Omit<TimelineInsertClipGroupEditCommand, 'type'>
+  ) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits an overwrite command. */
   overwriteClip: (
     command: Omit<TimelineOverwriteEditCommand, 'type'>
+  ) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Commits a grouped overwrite command. */
+  overwriteClipGroup: (
+    command: Omit<TimelineOverwriteClipGroupEditCommand, 'type'>
   ) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits a range delete command. */
   deleteRange: (
@@ -160,12 +170,14 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
         startTime: RationalTime;
         snap?: boolean;
       }) => commitEdit({ type: 'insert', ...command }),
+      insertClipGroup: (command) => commitEdit({ type: 'insert-clip-group', ...command }),
       overwriteClip: (command: {
         clip: Clip;
         targetTrackId: string;
         startTime: RationalTime;
         snap?: boolean;
       }) => commitEdit({ type: 'overwrite', ...command }),
+      overwriteClipGroup: (command) => commitEdit({ type: 'overwrite-clip-group', ...command }),
       deleteRange: (command) => commitEdit({ type: 'delete-range', ...command }),
       liftRange: (command) => commitEdit({ type: 'lift-range', ...command }),
     }),

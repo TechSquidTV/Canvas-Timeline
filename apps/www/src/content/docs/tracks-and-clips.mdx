@@ -208,6 +208,49 @@ function MoveSelectedClip() {
 }
 ```
 
+External clip data drops use native browser drag-and-drop through `useTimelineExternalClipDrop`.
+Apps own payload formats, media inspection, source IDs, labels, and placement factories. The hook
+owns event handling and track/time resolution, then commits single `insert`/`overwrite` commands or
+grouped `insert-clip-group`/`overwrite-clip-group` commands through the engine.
+
+```tsx
+import { useTimeline, useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react/hooks';
+
+function ExternalAssetDropSurface() {
+  const { state } = useTimeline();
+  const audioTrack = state.tracks.find((track) => track.kind === 'audio');
+  const drop = useTimelineExternalClipDrop({
+    editMode: 'overwrite',
+    resolveDragData(event) {
+      const assetId = event.dataTransfer.getData('application/x-my-asset');
+      return assetId === '' ? null : { assetId };
+    },
+    createPlacements(context) {
+      if (!audioTrack) {
+        return null;
+      }
+
+      return [
+        {
+          clip: createVideoClip(context.data.assetId),
+          targetTrackId: context.targetTrack.id,
+          startTime: context.dropTime,
+        },
+        {
+          clip: createAudioClip(context.data.assetId),
+          targetTrackId: audioTrack.id,
+          startTime: context.dropTime,
+        },
+      ];
+    },
+    canDropOnTrack: (context) => context.targetTrack.kind === 'visual',
+    group: { label: 'Linked import' },
+  });
+
+  return <div {...drop.rootProps} data-valid-drop={drop.valid} />;
+}
+```
+
 For custom interaction layers, use `useTimelineClipDrag` with `useTimelineTrackDropTargets` and
 `useTimelineClipDropFeedback`. The built-in drag policy accepts unlocked same-kind tracks by default.
 Return `allowCrossKindTrackMove: true` only when your app intentionally permits a cross-kind transfer.

@@ -696,7 +696,9 @@ export type TimelineEditOperation =
   | 'slide'
   | 'split'
   | 'insert'
+  | 'insert-clip-group'
   | 'overwrite'
+  | 'overwrite-clip-group'
   | 'delete-range'
   | 'lift-range';
 
@@ -891,9 +893,23 @@ export interface TimelineInsertEditCommand extends TimelinePlaceClipCommand {
   type: 'insert';
 }
 
+/** Command that inserts grouped clips and pushes later clips forward per target track. */
+export interface TimelineInsertClipGroupEditCommand extends TimelineInsertClipGroupOptions {
+  type: 'insert-clip-group';
+  /** Whether to snap the first placement and apply that shared delta to the group. Defaults to true. */
+  snap?: boolean;
+}
+
 /** Command that places a new clip and removes or trims overlaps on the target track. */
 export interface TimelineOverwriteEditCommand extends TimelinePlaceClipCommand {
   type: 'overwrite';
+}
+
+/** Command that places grouped clips and overwrites overlaps per target track. */
+export interface TimelineOverwriteClipGroupEditCommand extends TimelineInsertClipGroupOptions {
+  type: 'overwrite-clip-group';
+  /** Whether to snap the first placement and apply that shared delta to the group. Defaults to true. */
+  snap?: boolean;
 }
 
 /** Command that removes a timeline range and ripples later clips closed by default. */
@@ -923,7 +939,9 @@ export type TimelineEditCommand =
   | TimelineSlideEditCommand
   | TimelineSplitEditCommand
   | TimelineInsertEditCommand
+  | TimelineInsertClipGroupEditCommand
   | TimelineOverwriteEditCommand
+  | TimelineOverwriteClipGroupEditCommand
   | TimelineDeleteRangeEditCommand
   | TimelineLiftRangeEditCommand;
 
@@ -954,7 +972,11 @@ export interface TimelineEditPolicy {
   /** Placement rule for move, insert, and overwrite commands. */
   canPlaceClip?: (
     context: TimelineEditPolicyContext<
-      TimelineMoveEditCommand | TimelineInsertEditCommand | TimelineOverwriteEditCommand
+      | TimelineMoveEditCommand
+      | TimelineInsertEditCommand
+      | TimelineInsertClipGroupEditCommand
+      | TimelineOverwriteEditCommand
+      | TimelineOverwriteClipGroupEditCommand
     >
   ) => TimelineEditValidationResult | undefined;
   /** Trim rule for trim, ripple-trim, and roll-trim commands. */
@@ -973,7 +995,9 @@ export interface TimelineEditPolicy {
   canEditRange?: (
     context: TimelineEditPolicyContext<
       | TimelineInsertEditCommand
+      | TimelineInsertClipGroupEditCommand
       | TimelineOverwriteEditCommand
+      | TimelineOverwriteClipGroupEditCommand
       | TimelineDeleteRangeEditCommand
       | TimelineLiftRangeEditCommand
     >
