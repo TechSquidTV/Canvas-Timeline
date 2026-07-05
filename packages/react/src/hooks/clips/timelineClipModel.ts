@@ -58,6 +58,7 @@ export function flattenTimelineClips<TrackKind>(
  * Derives selected clip and track metadata from timeline tracks.
  *
  * @param tracks - Timeline tracks to inspect.
+ * @param clipGroups - Clip group state used to derive selected group metadata.
  * @returns Current selection metadata.
  */
 export function deriveTimelineSelection<TrackKind>(

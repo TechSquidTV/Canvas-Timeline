@@ -276,6 +276,14 @@ export const timelineHookMetadata = [
     description: 'Provides headless clip body dragging, including cross-track drop resolution.',
   },
   {
+    name: 'useTimelineExternalClipDrop',
+    group: 'editing-hooks',
+    category: 'drag-drop',
+    reactivity: 'adapter',
+    description:
+      'Turns app-owned native drag payloads into single-clip or grouped media placement commands.',
+  },
+  {
     name: 'useTimelineKeyframeDrag',
     group: 'editing-hooks',
     category: 'keyframe-editing',

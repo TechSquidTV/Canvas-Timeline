@@ -1,4 +1,4 @@
-import { renderHook, act, fireEvent, render } from '@testing-library/react';
+import { renderHook, act, fireEvent, render, createEvent } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
 import { TimelineContext } from './context';
@@ -24,6 +24,7 @@ import {
   useTimelineClips,
   useTimelineClipDrag,
   useTimelineClipDropFeedback,
+  useTimelineExternalClipDrop,
   useTimelineClipGroups,
   useTimelineClipRects,
   useTimelineClipboard,
@@ -80,6 +81,46 @@ function createTrack(id: string, clips: Clip[], overrides: Partial<Track> = {}):
     clips,
     ...overrides,
   };
+}
+
+function createDragDataTransfer(value: string): DataTransfer {
+  const fileEntries: File[] = [];
+  const itemEntries: DataTransferItem[] = [];
+  const files: FileList = {
+    length: 0,
+    item: () => null,
+    [Symbol.iterator]: () => fileEntries[Symbol.iterator](),
+  };
+  const items: DataTransferItemList = {
+    length: 0,
+    add: vi.fn(() => null),
+    clear: vi.fn(),
+    remove: vi.fn(),
+    [Symbol.iterator]: () => itemEntries[Symbol.iterator](),
+  };
+  return {
+    dropEffect: 'none',
+    effectAllowed: 'all',
+    files,
+    items,
+    types: ['text/plain'],
+    clearData: vi.fn(),
+    getData: vi.fn(() => value),
+    setData: vi.fn(),
+    setDragImage: vi.fn(),
+  };
+}
+
+function createTimelineDragEvent(
+  type: 'dragOver' | 'drop',
+  surface: Element,
+  input: { clientX: number; clientY: number; dataTransfer: DataTransfer }
+) {
+  const event = type === 'dragOver' ? createEvent.dragOver(surface) : createEvent.drop(surface);
+  Object.defineProperty(event, 'clientX', { value: input.clientX });
+  Object.defineProperty(event, 'clientY', { value: input.clientY });
+  Object.defineProperty(event, 'dataTransfer', { value: input.dataTransfer });
+  return event;
 }
 
 test('useTimelinePlayback', () => {
@@ -550,6 +591,280 @@ test('useTimelineTrackDropTargets normalizes custom drop guard results', () => {
     reason: 'incompatible-track-kind',
     allowCrossKindTrackMove: false,
   });
+});
+
+test('useTimelineExternalClipDrop resolves drag-over track and time feedback', () => {
+  const engine = new TimelineEngine({
+    tracks: [createTrack('visual-a', []), createTrack('audio-a', [], { kind: 'audio' })],
+    zoomScale: 100,
+  });
+
+  function DropSurface() {
+    const drop = useTimelineExternalClipDrop<{ id: string }>({
+      resolveDragData: () => ({ id: 'asset-a' }),
+      createPlacements: () => [],
+      rulerHeight: 32,
+      trackHeight: 48,
+    });
+    return React.createElement('div', {
+      'data-testid': 'surface',
+      'data-dragging': String(drop.dragging),
+      'data-hovered-track': drop.hoveredTrackId ?? '',
+      'data-drop-seconds': drop.dropSeconds ?? '',
+      'data-valid': String(drop.valid),
+      ...drop.rootProps,
+    });
+  }
+
+  const { getByTestId } = render(
+    React.createElement(TimelineProvider, { engine }, React.createElement(DropSurface))
+  );
+  const surface = getByTestId('surface');
+  vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 600,
+    height: 160,
+    right: 600,
+    bottom: 160,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('dragOver', surface, {
+      clientX: 250,
+      clientY: 40,
+      dataTransfer: createDragDataTransfer('asset-a'),
+    })
+  );
+
+  expect(surface.getAttribute('data-dragging')).toBe('true');
+  expect(surface.getAttribute('data-hovered-track')).toBe('visual-a');
+  expect(Number(surface.getAttribute('data-drop-seconds'))).toBeCloseTo(2.5);
+  expect(surface.getAttribute('data-valid')).toBe('true');
+});
+
+test('useTimelineExternalClipDrop reports invalid payload and rejected tracks', () => {
+  const engine = new TimelineEngine({
+    tracks: [createTrack('visual-a', []), createTrack('audio-a', [], { kind: 'audio' })],
+    zoomScale: 100,
+  });
+
+  function DropSurface() {
+    const drop = useTimelineExternalClipDrop<{ id: string }>({
+      resolveDragData: (event) => {
+        const id = event.dataTransfer.getData('text/plain');
+        return id === '' ? null : { id };
+      },
+      createPlacements: () => [],
+      canDropOnTrack: (context) => context.targetTrack.kind === 'visual',
+      rulerHeight: 32,
+      trackHeight: 48,
+    });
+    return React.createElement('div', {
+      'data-testid': 'surface',
+      'data-hovered-track': drop.hoveredTrackId ?? '',
+      'data-reason': drop.reason ?? '',
+      'data-valid': String(drop.valid),
+      ...drop.rootProps,
+    });
+  }
+
+  const { getByTestId } = render(
+    React.createElement(TimelineProvider, { engine }, React.createElement(DropSurface))
+  );
+  const surface = getByTestId('surface');
+  vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 600,
+    height: 160,
+    right: 600,
+    bottom: 160,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('dragOver', surface, {
+      clientX: 250,
+      clientY: 40,
+      dataTransfer: createDragDataTransfer(''),
+    })
+  );
+  expect(surface.getAttribute('data-valid')).toBe('false');
+  expect(surface.getAttribute('data-reason')).toBe('unsupported');
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('dragOver', surface, {
+      clientX: 250,
+      clientY: 96,
+      dataTransfer: createDragDataTransfer('asset-a'),
+    })
+  );
+  expect(surface.getAttribute('data-hovered-track')).toBe('audio-a');
+  expect(surface.getAttribute('data-valid')).toBe('false');
+  expect(surface.getAttribute('data-reason')).toBe('unsupported');
+});
+
+test('useTimelineExternalClipDrop commits single and grouped drops', () => {
+  const engine = new TimelineEngine({
+    tracks: [createTrack('visual-a', []), createTrack('audio-a', [], { kind: 'audio' })],
+    zoomScale: 100,
+  });
+  engine.setSnappingEnabled(false);
+
+  function DropSurface() {
+    const drop = useTimelineExternalClipDrop<{ kind: 'single' | 'av'; id: string }>({
+      resolveDragData: (event) => {
+        const value = event.dataTransfer.getData('text/plain');
+        return value === 'av' ? { kind: 'av', id: 'av' } : { kind: 'single', id: 'single' };
+      },
+      createPlacements: (context) => {
+        if (context.data.kind === 'single') {
+          return [
+            {
+              clip: createClip('single-drop', 0, 1),
+              targetTrackId: context.targetTrack.id,
+              startTime: context.dropTime,
+            },
+          ];
+        }
+        return [
+          {
+            clip: createClip('video-drop', 0, 2),
+            targetTrackId: context.targetTrack.id,
+            startTime: context.dropTime,
+          },
+          {
+            clip: createClip('audio-drop', 0, 2),
+            targetTrackId: 'audio-a',
+            startTime: context.dropTime,
+          },
+        ];
+      },
+      group: { groupId: 'external-av', label: 'External AV' },
+      editMode: 'overwrite',
+      snap: false,
+      rulerHeight: 32,
+      trackHeight: 48,
+    });
+    return React.createElement('div', {
+      'data-testid': 'surface',
+      'data-last-ok': drop.lastResult === null ? '' : String(drop.lastResult.ok),
+      'data-dragging': String(drop.dragging),
+      ...drop.rootProps,
+    });
+  }
+
+  const { getByTestId } = render(
+    React.createElement(TimelineProvider, { engine }, React.createElement(DropSurface))
+  );
+  const surface = getByTestId('surface');
+  vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 600,
+    height: 160,
+    right: 600,
+    bottom: 160,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('drop', surface, {
+      clientX: 100,
+      clientY: 40,
+      dataTransfer: createDragDataTransfer('single'),
+    })
+  );
+
+  expect(engine.getClip('single-drop')).toBeDefined();
+  expect(surface.getAttribute('data-last-ok')).toBe('true');
+  expect(surface.getAttribute('data-dragging')).toBe('false');
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('drop', surface, {
+      clientX: 300,
+      clientY: 40,
+      dataTransfer: createDragDataTransfer('av'),
+    })
+  );
+
+  expect(engine.getClip('video-drop')).toBeDefined();
+  expect(engine.getClip('audio-drop')).toBeDefined();
+  expect(engine.getClipGroup('external-av')).toMatchObject({
+    label: 'External AV',
+    clipIds: ['video-drop', 'audio-drop'],
+  });
+});
+
+test('useTimelineExternalClipDrop prepares snapping before committing a drop', () => {
+  const engine = new TimelineEngine({
+    markers: [{ id: 'snap-marker', time: fromSeconds(2), label: 'Snap' }],
+    tracks: [createTrack('visual-a', [])],
+    zoomScale: 100,
+  });
+
+  function DropSurface() {
+    const drop = useTimelineExternalClipDrop<{ id: string }>({
+      resolveDragData: () => ({ id: 'asset-a' }),
+      createPlacements: (context) => [
+        {
+          clip: createClip('snapped-drop', 0, 1),
+          targetTrackId: context.targetTrack.id,
+          startTime: context.dropTime,
+        },
+      ],
+      rulerHeight: 32,
+      trackHeight: 48,
+    });
+    return React.createElement('div', {
+      'data-testid': 'surface',
+      'data-last-ok': drop.lastResult === null ? '' : String(drop.lastResult.ok),
+      ...drop.rootProps,
+    });
+  }
+
+  const { getByTestId } = render(
+    React.createElement(TimelineProvider, { engine }, React.createElement(DropSurface))
+  );
+  const surface = getByTestId('surface');
+  vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 600,
+    height: 120,
+    right: 600,
+    bottom: 120,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+
+  fireEvent(
+    surface,
+    createTimelineDragEvent('drop', surface, {
+      clientX: 205,
+      clientY: 40,
+      dataTransfer: createDragDataTransfer('asset-a'),
+    })
+  );
+
+  expect(surface.getAttribute('data-last-ok')).toBe('true');
+  expect(
+    toSeconds(engine.getClip('snapped-drop')?.clip.timelineStart ?? fromSeconds(0))
+  ).toBeCloseTo(2);
 });
 
 test('useTimelineClipDrag activates cross-track targets after penetration threshold', () => {

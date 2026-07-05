@@ -22,6 +22,10 @@ export const liveDemoLoaders: Record<LiveDemoId, LiveDemoLoader> = {
     import('../demos/clip-grouping-import/ClipGroupingImportTimeline').then(
       (module) => module.ClipGroupingImportTimeline
     ),
+  'external-clip-drop': () =>
+    import('../demos/external-clip-drop/ExternalClipDropTimeline').then(
+      (module) => module.ExternalClipDropTimeline
+    ),
   'keyframe-opacity': () =>
     import('../demos/keyframe-opacity/KeyframeOpacityTimeline').then(
       (module) => module.KeyframeOpacityTimeline

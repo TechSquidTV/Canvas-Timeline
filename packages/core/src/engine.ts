@@ -16,6 +16,7 @@ import type {
   TimelineClipMoveOptions,
   TimelineClipMoveResult,
   TimelineClipGeometryOptions,
+  TimelineClipGroupPlacement,
   TimelineClipRect,
   TimelineDeleteRangeEditCommand,
   TimelineEditAffectedRange,
@@ -37,6 +38,7 @@ import type {
   TimelineEditRejectionReason,
   TimelineEditValidationResult,
   TimelineInsertEditCommand,
+  TimelineInsertClipGroupEditCommand,
   TimelineInteractionGeometry,
   TimelineClipGroup,
   TimelineCreateClipGroupOptions,
@@ -57,6 +59,7 @@ import type {
   TimelineLiftRangeEditCommand,
   TimelineMoveEditCommand,
   TimelineOverwriteEditCommand,
+  TimelineOverwriteClipGroupEditCommand,
   TimelinePlaceClipCommand,
   TimelineRippleTrimEditCommand,
   TimelineRollTrimEditCommand,
@@ -180,6 +183,20 @@ interface TimelineCreatedClipEvent {
 interface TimelineRemovedClipEvent {
   clip: Clip;
   reason: ClipRemovedReason;
+}
+
+interface TimelineResolvedClipGroupPlacement {
+  clip: Clip;
+  track: Track;
+}
+
+interface TimelineResolvedClipGroupPlacements {
+  placements: TimelineResolvedClipGroupPlacement[];
+  firstSnap: TimelineSnapResult | null;
+}
+
+interface TimelineRejectedClipGroupPlacements {
+  validation: TimelineEditValidationResult;
 }
 
 /** Default zoom-in density when a frame rate constrains timeline zoom. */
@@ -2912,6 +2929,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       case 'insert':
       case 'overwrite':
         return command.clip.id;
+      case 'insert-clip-group':
+      case 'overwrite-clip-group':
+        return command.placements[0]?.clip.id;
       case 'delete-range':
       case 'lift-range':
         return undefined;
@@ -3000,8 +3020,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.resolveSplitEdit(command);
       case 'insert':
         return this.resolveInsertEdit(command);
+      case 'insert-clip-group':
+        return this.resolveInsertClipGroupEdit(command);
       case 'overwrite':
         return this.resolveOverwriteEdit(command);
+      case 'overwrite-clip-group':
+        return this.resolveOverwriteClipGroupEdit(command);
       case 'delete-range':
         return this.resolveRangeRemovalEdit(command, command.ripple !== false);
       case 'lift-range':
@@ -3113,6 +3137,19 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           startTime: timeKey(command.startTime),
           snap: command.snap ?? null,
         });
+      case 'insert-clip-group':
+      case 'overwrite-clip-group':
+        return JSON.stringify({
+          type: command.type,
+          groupId: command.groupId ?? null,
+          label: command.label ?? null,
+          placements: command.placements.map((placement) => ({
+            clip: clipKey(placement.clip),
+            targetTrackId: placement.targetTrackId,
+            startTime: timeKey(placement.startTime),
+          })),
+          snap: command.snap ?? null,
+        });
       case 'delete-range':
         return JSON.stringify({
           type: command.type,
@@ -3184,18 +3221,31 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     const context = this.createPolicyContext(command);
+    const placementContexts = this.createPlacementPolicyContexts(command);
     const policyResults: (TimelineEditValidationResult | undefined)[] = [
       this.editPolicy?.validateCommand?.(context),
     ];
 
-    if (command.type === 'move' || command.type === 'insert' || command.type === 'overwrite') {
-      policyResults.push(
-        this.editPolicy?.canPlaceClip?.(
-          context as TimelineEditPolicyContext<
-            TimelineMoveEditCommand | TimelineInsertEditCommand | TimelineOverwriteEditCommand
-          >
-        )
-      );
+    if (
+      command.type === 'move' ||
+      command.type === 'insert' ||
+      command.type === 'insert-clip-group' ||
+      command.type === 'overwrite' ||
+      command.type === 'overwrite-clip-group'
+    ) {
+      for (const placementContext of placementContexts) {
+        policyResults.push(
+          this.editPolicy?.canPlaceClip?.(
+            placementContext as TimelineEditPolicyContext<
+              | TimelineMoveEditCommand
+              | TimelineInsertEditCommand
+              | TimelineInsertClipGroupEditCommand
+              | TimelineOverwriteEditCommand
+              | TimelineOverwriteClipGroupEditCommand
+            >
+          )
+        );
+      }
     }
     if (command.type === 'trim' || command.type === 'ripple-trim' || command.type === 'roll-trim') {
       policyResults.push(
@@ -3220,20 +3270,26 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
     if (
       command.type === 'insert' ||
+      command.type === 'insert-clip-group' ||
       command.type === 'overwrite' ||
+      command.type === 'overwrite-clip-group' ||
       command.type === 'delete-range' ||
       command.type === 'lift-range'
     ) {
-      policyResults.push(
-        this.editPolicy?.canEditRange?.(
-          context as TimelineEditPolicyContext<
-            | TimelineInsertEditCommand
-            | TimelineOverwriteEditCommand
-            | TimelineDeleteRangeEditCommand
-            | TimelineLiftRangeEditCommand
-          >
-        )
-      );
+      for (const placementContext of placementContexts) {
+        policyResults.push(
+          this.editPolicy?.canEditRange?.(
+            placementContext as TimelineEditPolicyContext<
+              | TimelineInsertEditCommand
+              | TimelineInsertClipGroupEditCommand
+              | TimelineOverwriteEditCommand
+              | TimelineOverwriteClipGroupEditCommand
+              | TimelineDeleteRangeEditCommand
+              | TimelineLiftRangeEditCommand
+            >
+          )
+        );
+      }
     }
 
     return policyResults.find((result) => result !== undefined && !result.valid) ?? builtIn;
@@ -3262,6 +3318,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       case 'insert':
       case 'overwrite':
         return this.validatePlaceClipCommand(command);
+      case 'insert-clip-group':
+      case 'overwrite-clip-group':
+        return this.validatePlaceClipGroupCommand(command);
       case 'delete-range':
       case 'lift-range':
         return this.validateRangeEditCommand(command);
@@ -3292,6 +3351,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         case 'overwrite':
           assertValidRationalTime(command.startTime, 'command.startTime');
           assertValidClipTiming(command.clip, 'command.clip');
+          break;
+        case 'insert-clip-group':
+        case 'overwrite-clip-group':
+          for (const [index, placement] of command.placements.entries()) {
+            assertValidRationalTime(placement.startTime, `command.placements[${index}].startTime`);
+            assertValidClipTiming(placement.clip, `command.placements[${index}].clip`);
+          }
           break;
         case 'delete-range':
         case 'lift-range':
@@ -3479,6 +3545,57 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     return defaultTimelineEditValidationResult;
   }
 
+  private validatePlaceClipGroupCommand(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand
+  ): TimelineEditValidationResult {
+    if (command.placements.length < 2) {
+      return this.rejectEdit('invalid-range');
+    }
+    if (command.groupId !== undefined && this.getClipGroup(command.groupId) !== undefined) {
+      return this.rejectEdit('duplicate-id');
+    }
+
+    const clipIds = new Set<string>();
+    const placedByTrack = new Map<string, Clip[]>();
+    for (const placement of command.placements) {
+      if (clipIds.has(placement.clip.id) || this.getClip(placement.clip.id)) {
+        return this.rejectEdit('duplicate-id');
+      }
+      clipIds.add(placement.clip.id);
+
+      const targetTrack = this.state.tracks.find((track) => track.id === placement.targetTrackId);
+      if (!targetTrack) {
+        return this.rejectEdit('invalid-track');
+      }
+      if (targetTrack.locked) {
+        return this.rejectEdit('locked');
+      }
+
+      const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
+      if (
+        compareRational(duration, fromSeconds(minimumTimelineEditDurationSeconds, duration.r)) < 0
+      ) {
+        return this.rejectEdit('invalid-duration');
+      }
+
+      const placedClip = this.createPlacedClipFromGroupPlacement(command, placement);
+      const placedClips = placedByTrack.get(placement.targetTrackId) ?? [];
+      if (
+        placedClips.some(
+          (clip) =>
+            compareRational(placedClip.timelineStart, clip.timelineEnd) < 0 &&
+            compareRational(placedClip.timelineEnd, clip.timelineStart) > 0
+        )
+      ) {
+        return this.rejectEdit('invalid-range');
+      }
+      placedClips.push(placedClip);
+      placedByTrack.set(placement.targetTrackId, placedClips);
+    }
+
+    return defaultTimelineEditValidationResult;
+  }
+
   private validateRangeEditCommand(
     command: TimelineDeleteRangeEditCommand | TimelineLiftRangeEditCommand
   ): TimelineEditValidationResult {
@@ -3529,6 +3646,23 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     };
   }
 
+  private createPlacementPolicyContexts(command: TimelineEditCommand): TimelineEditPolicyContext[] {
+    if (command.type === 'insert-clip-group' || command.type === 'overwrite-clip-group') {
+      return command.placements.map((placement) => {
+        const targetTrack = this.state.tracks.find((track) => track.id === placement.targetTrackId);
+        return {
+          command,
+          state: this.state,
+          clip: placement.clip,
+          targetTrack,
+          range: this.getGroupPlacementPolicyRange(command, placement),
+        };
+      });
+    }
+
+    return [this.createPolicyContext(command)];
+  }
+
   private getCommandPolicyRange(
     command: TimelineEditCommand,
     trackId: string | undefined
@@ -3545,6 +3679,18 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       };
     }
     return undefined;
+  }
+
+  private getGroupPlacementPolicyRange(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand,
+    placement: TimelineClipGroupPlacement
+  ): TimelineEditAffectedRange {
+    const placedClip = this.createPlacedClipFromGroupPlacement(command, placement);
+    return {
+      trackId: placement.targetTrackId,
+      startTime: placedClip.timelineStart,
+      endTime: placedClip.timelineEnd,
+    };
   }
 
   private resolveMoveEdit(command: TimelineMoveEditCommand): TimelineResolvedEdit {
@@ -4047,6 +4193,185 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     );
   }
 
+  private resolveInsertClipGroupEdit(
+    command: TimelineInsertClipGroupEditCommand
+  ): TimelineResolvedEdit {
+    const tracks = createLeanTracks(this.state.tracks);
+    const resolvedPlacements = this.resolveClipGroupPlacements(command, tracks);
+    if ('validation' in resolvedPlacements) {
+      return this.createRejectedResolvedEdit(command, tracks, resolvedPlacements.validation);
+    }
+
+    const changedClips: Clip[] = [];
+    const createdClips = resolvedPlacements.placements.map((placement) =>
+      createLeanClip(placement.clip)
+    );
+    const affectedRanges = resolvedPlacements.placements.map((placement) => ({
+      trackId: placement.track.id,
+      startTime: placement.clip.timelineStart,
+      endTime: placement.clip.timelineEnd,
+    }));
+    const placementsByTrack = new Map<
+      string,
+      { clip: Clip; duration: RationalTime; track: Track }[]
+    >();
+
+    for (const placement of resolvedPlacements.placements) {
+      const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
+      const trackPlacements = placementsByTrack.get(placement.track.id) ?? [];
+      trackPlacements.push({ clip: placement.clip, duration, track: placement.track });
+      placementsByTrack.set(placement.track.id, trackPlacements);
+    }
+
+    for (const [, trackPlacements] of placementsByTrack) {
+      const track = trackPlacements[0]?.track;
+      if (track === undefined) {
+        continue;
+      }
+      for (const clip of track.clips) {
+        const originalStart = cloneRationalTime(clip.timelineStart);
+        let delta = fromSeconds(0, originalStart.r);
+        for (const placement of trackPlacements) {
+          if (compareRational(originalStart, placement.clip.timelineStart) >= 0) {
+            delta = addRational(delta, placement.duration);
+          }
+        }
+        if (toSeconds(delta) === 0) {
+          continue;
+        }
+        clip.timelineStart = addRational(clip.timelineStart, delta);
+        clip.timelineEnd = addRational(clip.timelineEnd, delta);
+        shiftClipKeyframes(clip, delta);
+        changedClips.push(createLeanClip(clip));
+      }
+    }
+
+    for (const placement of resolvedPlacements.placements) {
+      placement.track.clips.push(placement.clip);
+      this.sortTrackClips(placement.track);
+    }
+
+    return this.createResolvedEdit(
+      command,
+      tracks,
+      this.createResolvedEditPreview(command, {
+        snap: resolvedPlacements.firstSnap,
+        changedClips,
+        createdClips,
+        removedClips: [],
+        affectedRanges,
+        impacts: [],
+      }),
+      {
+        clipGroups: this.createClipGroupsAfterGroupedPlacement(command),
+        createdClipEvents: createdClips.map((clip) => ({
+          clip,
+          reason: 'insert',
+        })),
+      }
+    );
+  }
+
+  private resolveOverwriteClipGroupEdit(
+    command: TimelineOverwriteClipGroupEditCommand
+  ): TimelineResolvedEdit {
+    const tracks = createLeanTracks(this.state.tracks);
+    const resolvedPlacements = this.resolveClipGroupPlacements(command, tracks);
+    if ('validation' in resolvedPlacements) {
+      return this.createRejectedResolvedEdit(command, tracks, resolvedPlacements.validation);
+    }
+
+    const changedClips: Clip[] = [];
+    const placedClips = resolvedPlacements.placements.map((placement) =>
+      createLeanClip(placement.clip)
+    );
+    const createdClips: Clip[] = [...placedClips];
+    const removedClips: Clip[] = [];
+    const impacts: TimelineEditImpact[] = [];
+    const createdClipEvents: TimelineCreatedClipEvent[] = placedClips.map((clip) => ({
+      clip,
+      reason: 'overwrite',
+    }));
+    const removedClipEvents: TimelineRemovedClipEvent[] = [];
+    const affectedRanges = resolvedPlacements.placements.map((placement) => ({
+      trackId: placement.track.id,
+      startTime: placement.clip.timelineStart,
+      endTime: placement.clip.timelineEnd,
+    }));
+
+    for (const placement of resolvedPlacements.placements) {
+      placement.track.clips.push(placement.clip);
+    }
+
+    for (const placement of resolvedPlacements.placements) {
+      const overwriteResult = this.resolveTrackOverwrite(placement.track, placement.clip);
+      changedClips.push(...overwriteResult.changedClips);
+      createdClips.push(...overwriteResult.createdClips);
+      removedClips.push(...overwriteResult.removedClips);
+      impacts.push(...overwriteResult.impacts);
+      createdClipEvents.push(...overwriteResult.createdClipEvents);
+      removedClipEvents.push(
+        ...overwriteResult.removedClips.map((clip) => ({
+          clip,
+          reason: 'overwrite' as const,
+        }))
+      );
+    }
+
+    return this.createResolvedEdit(
+      command,
+      tracks,
+      this.createResolvedEditPreview(command, {
+        snap: resolvedPlacements.firstSnap,
+        changedClips,
+        createdClips,
+        removedClips,
+        affectedRanges,
+        impacts,
+      }),
+      {
+        clipGroups: this.createClipGroupsAfterGroupedPlacement(command),
+        createdClipEvents,
+        removedClipEvents,
+      }
+    );
+  }
+
+  private resolveClipGroupPlacements(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand,
+    tracks: Track[]
+  ): TimelineResolvedClipGroupPlacements | TimelineRejectedClipGroupPlacements {
+    const placements: TimelineResolvedClipGroupPlacement[] = [];
+    const snap = this.resolveClipGroupPlacementSnap(command);
+
+    for (const placement of command.placements) {
+      const track = tracks.find((candidate) => candidate.id === placement.targetTrackId);
+      if (track === undefined) {
+        return { validation: this.rejectEdit('invalid-track') };
+      }
+      const resolvedPlacement = this.resolveGroupPlacement(placement, snap.deltaTime);
+      placements.push({
+        clip: resolvedPlacement.clip,
+        track,
+      });
+    }
+
+    return { placements, firstSnap: snap.result };
+  }
+
+  private createClipGroupsAfterGroupedPlacement(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand
+  ): TimelineClipGroup[] {
+    return createLeanClipGroups([
+      ...this.state.clipGroups,
+      {
+        id: command.groupId ?? crypto.randomUUID(),
+        clipIds: command.placements.map((placement) => placement.clip.id),
+        ...(command.label !== undefined ? { label: command.label } : {}),
+      },
+    ]);
+  }
+
   private resolveRangeRemovalEdit(
     command: TimelineDeleteRangeEditCommand | TimelineLiftRangeEditCommand,
     ripple: boolean
@@ -4509,6 +4834,54 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     });
     shiftClipKeyframes(placedClip, subRational(startTime, command.clip.timelineStart));
     return placedClip;
+  }
+
+  private createPlacedClipFromGroupPlacement(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand,
+    placement: TimelineClipGroupPlacement
+  ): Clip {
+    const snap = this.resolveClipGroupPlacementSnap(command);
+    return this.resolveGroupPlacement(placement, snap.deltaTime).clip;
+  }
+
+  private resolveClipGroupPlacementSnap(
+    command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand
+  ): { deltaTime: RationalTime | null; result: TimelineSnapResult | null } {
+    const primaryPlacement = command.placements[0];
+    if (primaryPlacement === undefined || command.snap === false) {
+      return { deltaTime: null, result: null };
+    }
+
+    const duration = subRational(
+      primaryPlacement.clip.timelineEnd,
+      primaryPlacement.clip.timelineStart
+    );
+    const snap = this.resolveClipBoundarySnap(primaryPlacement.startTime, duration);
+    if (snap === null) {
+      return { deltaTime: null, result: null };
+    }
+
+    return {
+      deltaTime: subRational(snap.startTime, primaryPlacement.startTime),
+      result: snap.result,
+    };
+  }
+
+  private resolveGroupPlacement(
+    placement: TimelineClipGroupPlacement,
+    snapDeltaTime: RationalTime | null
+  ): { clip: Clip } {
+    const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
+    const startTime =
+      snapDeltaTime === null
+        ? placement.startTime
+        : addRational(placement.startTime, snapDeltaTime);
+    const placedClip = createLeanClip(placement.clip, {
+      timelineStart: startTime,
+      timelineEnd: addRational(startTime, duration),
+    });
+    shiftClipKeyframes(placedClip, subRational(startTime, placement.clip.timelineStart));
+    return { clip: placedClip };
   }
 
   private resolveClipBoundarySnap(startTime: RationalTime, duration: RationalTime) {

@@ -376,6 +376,146 @@ describe('TimelineEngine', () => {
       expect(previewEngine.getClip(previewSplitClip.id)).toBeDefined();
     });
 
+    it('commits active grouped overwrite previews so split clip ids stay stable', () => {
+      const previewEngine = new TimelineEngine({
+        tracks: [
+          createEditTrack('track1', [createEditClip('video-victim', 0, 10)]),
+          createEditTrack('track2', []),
+        ],
+      });
+      const command = {
+        type: 'overwrite-clip-group' as const,
+        groupId: 'preview-group',
+        placements: [
+          {
+            clip: createEditClip('video-winner', 0, 2),
+            targetTrackId: 'track1',
+            startTime: fromSeconds(3),
+          },
+          {
+            clip: createEditClip('audio-winner', 0, 2),
+            targetTrackId: 'track2',
+            startTime: fromSeconds(3),
+          },
+        ],
+        snap: false,
+      };
+      const preview = previewEngine.previewEdit(command);
+      const previewSplitClip = expectDefined(
+        preview.createdClips.find(
+          (clip) => clip.id !== 'video-winner' && clip.id !== 'audio-winner'
+        ),
+        'preview split clip'
+      );
+
+      previewEngine.commitEdit(command);
+
+      expect(previewEngine.getClip(previewSplitClip.id)).toBeDefined();
+      expect(previewEngine.getClipGroup('preview-group')?.clipIds).toEqual([
+        'video-winner',
+        'audio-winner',
+      ]);
+    });
+
+    it('rejects grouped placement commands through edit policy without mutation', () => {
+      const policyEngine = new TimelineEngine({
+        tracks: [createEditTrack('track1', []), createEditTrack('track2', [])],
+      });
+      policyEngine.setEditPolicy({
+        canEditRange: (context) =>
+          context.range?.trackId === 'track2'
+            ? { valid: false, reason: 'policy-rejected' }
+            : undefined,
+      });
+      const beforeTracks = JSON.stringify(policyEngine.tracks);
+      const beforeGroups = JSON.stringify(policyEngine.clipGroups);
+
+      const result = policyEngine.commitEdit({
+        type: 'insert-clip-group',
+        groupId: 'policy-group',
+        placements: [
+          {
+            clip: createEditClip('video-drop', 0, 2),
+            targetTrackId: 'track1',
+            startTime: fromSeconds(1),
+          },
+          {
+            clip: createEditClip('audio-drop', 0, 2),
+            targetTrackId: 'track2',
+            startTime: fromSeconds(1),
+          },
+        ],
+        snap: false,
+      });
+
+      expect(result.committed).toBe(false);
+      expect(result.preview.reason).toBe('policy-rejected');
+      expect(JSON.stringify(policyEngine.tracks)).toBe(beforeTracks);
+      expect(JSON.stringify(policyEngine.clipGroups)).toBe(beforeGroups);
+    });
+
+    it('emits lifecycle events and restores clip groups for grouped overwrite undo and redo', () => {
+      const lifecycleEngine = new TimelineEngine({
+        tracks: [
+          createEditTrack('track1', [createEditClip('video-victim', 2, 4)]),
+          createEditTrack('track2', [createEditClip('audio-victim', 2, 4)]),
+        ],
+      });
+      const created: ClipCreatedEvent[] = [];
+      const removed: ClipRemovedEvent[] = [];
+      lifecycleEngine.on('clip:created', (event) => created.push(event));
+      lifecycleEngine.on('clip:removed', (event) => removed.push(event));
+
+      const result = lifecycleEngine.commitEdit({
+        type: 'overwrite-clip-group',
+        groupId: 'lifecycle-group',
+        placements: [
+          {
+            clip: createEditClip('video-drop', 0, 2),
+            targetTrackId: 'track1',
+            startTime: fromSeconds(2),
+          },
+          {
+            clip: createEditClip('audio-drop', 0, 2),
+            targetTrackId: 'track2',
+            startTime: fromSeconds(2),
+          },
+        ],
+        snap: false,
+      });
+
+      expect(result.committed).toBe(true);
+      expect(created.map((event) => [event.reason, event.clip.id])).toEqual([
+        ['overwrite', 'video-drop'],
+        ['overwrite', 'audio-drop'],
+      ]);
+      expect(removed.map((event) => [event.reason, event.clip.id])).toEqual([
+        ['overwrite', 'video-victim'],
+        ['overwrite', 'audio-victim'],
+      ]);
+      expect(lifecycleEngine.getClipGroup('lifecycle-group')?.clipIds).toEqual([
+        'video-drop',
+        'audio-drop',
+      ]);
+
+      lifecycleEngine.undo();
+
+      expect(lifecycleEngine.getClipGroup('lifecycle-group')).toBeUndefined();
+      expect(lifecycleEngine.getClip('video-drop')).toBeUndefined();
+      expect(lifecycleEngine.getClip('audio-drop')).toBeUndefined();
+      expect(lifecycleEngine.getClip('video-victim')).toBeDefined();
+      expect(lifecycleEngine.getClip('audio-victim')).toBeDefined();
+
+      lifecycleEngine.redo();
+
+      expect(lifecycleEngine.getClipGroup('lifecycle-group')?.clipIds).toEqual([
+        'video-drop',
+        'audio-drop',
+      ]);
+      expect(lifecycleEngine.getClip('video-victim')).toBeUndefined();
+      expect(lifecycleEngine.getClip('audio-victim')).toBeUndefined();
+    });
+
     it('preserves created clip lineage for overwrite and range split commands', () => {
       const lineageEngine = new TimelineEngine({
         tracks: [createEditTrack('track1', [createEditClip('victim', 0, 10)])],
@@ -2053,6 +2193,165 @@ describe('TimelineEngine', () => {
       expect(groupedEngine.getClip('valid-clip')).toBeUndefined();
       expect(groupedEngine.getClip('invalid-clip')).toBeUndefined();
       expect(groupedEngine.clipGroups).toHaveLength(1);
+    });
+
+    it('commits grouped insert commands atomically and ripples affected target tracks', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          createConstraintTrack('video', [createConstraintClip('video-after', 5, 7)]),
+          createConstraintTrack('audio', [createConstraintClip('audio-after', 6, 8)], 'audio'),
+        ],
+      });
+      groupedEngine.setSnappingEnabled(false);
+
+      const result = groupedEngine.commitEdit({
+        type: 'insert-clip-group',
+        groupId: 'dropped-av',
+        label: 'Dropped AV',
+        placements: [
+          {
+            clip: createConstraintClip('video-drop', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(3),
+          },
+          {
+            clip: createConstraintClip('audio-drop', 0, 3),
+            targetTrackId: 'audio',
+            startTime: fromSeconds(4),
+          },
+        ],
+        snap: false,
+      });
+
+      expect(result.committed).toBe(true);
+      expect(result.preview.createdClips.map((clip) => clip.id)).toEqual([
+        'video-drop',
+        'audio-drop',
+      ]);
+      expect(result.preview.changedClips.map((clip) => clip.id).sort()).toEqual([
+        'audio-after',
+        'video-after',
+      ]);
+      expect(groupedEngine.getClipGroup('dropped-av')).toMatchObject({
+        id: 'dropped-av',
+        label: 'Dropped AV',
+        clipIds: ['video-drop', 'audio-drop'],
+      });
+      expect(
+        toSeconds(groupedEngine.getClip('video-after')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(7);
+      expect(
+        toSeconds(groupedEngine.getClip('audio-after')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(9);
+    });
+
+    it('snaps grouped insert commands with one shared delta to preserve relative offsets', () => {
+      const groupedEngine = new TimelineEngine({
+        markers: [
+          { id: 'primary-marker', time: fromSeconds(3), label: 'Primary' },
+          { id: 'secondary-marker', time: fromSeconds(6.9), label: 'Secondary' },
+        ],
+        tracks: [createConstraintTrack('video', []), createConstraintTrack('audio', [], 'audio')],
+        zoomScale: 100,
+      });
+      groupedEngine.prepareSnapping();
+
+      const result = groupedEngine.commitEdit({
+        type: 'insert-clip-group',
+        groupId: 'snapped-av',
+        placements: [
+          {
+            clip: createConstraintClip('video-drop', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(3.05),
+          },
+          {
+            clip: createConstraintClip('audio-drop', 0, 2),
+            targetTrackId: 'audio',
+            startTime: fromSeconds(6.86),
+          },
+        ],
+      });
+
+      expect(result.committed).toBe(true);
+      expect(
+        toSeconds(groupedEngine.getClip('video-drop')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBeCloseTo(3);
+      expect(
+        toSeconds(groupedEngine.getClip('audio-drop')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBeCloseTo(6.81);
+    });
+
+    it('commits grouped overwrite commands atomically and trims overlaps per target track', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          createConstraintTrack('video', [createConstraintClip('video-victim', 1, 6)]),
+          createConstraintTrack('audio', [createConstraintClip('audio-victim', 2, 8)], 'audio'),
+        ],
+      });
+      groupedEngine.setSnappingEnabled(false);
+
+      const result = groupedEngine.commitEdit({
+        type: 'overwrite-clip-group',
+        groupId: 'overwrite-av',
+        placements: [
+          {
+            clip: createConstraintClip('video-drop', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(3),
+          },
+          {
+            clip: createConstraintClip('audio-drop', 0, 3),
+            targetTrackId: 'audio',
+            startTime: fromSeconds(4),
+          },
+        ],
+        snap: false,
+      });
+
+      expect(result.committed).toBe(true);
+      expect(groupedEngine.getClipGroup('overwrite-av')?.clipIds).toEqual([
+        'video-drop',
+        'audio-drop',
+      ]);
+      expect(result.preview.impacts.map((impact) => impact.clipId).sort()).toEqual([
+        'audio-victim',
+        'video-victim',
+      ]);
+      expect(groupedEngine.getClip('video-victim')).toBeDefined();
+      expect(groupedEngine.getClip('audio-victim')).toBeDefined();
+      expect(groupedEngine.tracks[0].clips.map((clip) => clip.id)).toHaveLength(3);
+      expect(groupedEngine.tracks[1].clips.map((clip) => clip.id)).toHaveLength(3);
+    });
+
+    it('rejects invalid grouped placement commands without mutating tracks or groups', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [createConstraintTrack('video', [createConstraintClip('existing', 0, 2)])],
+      });
+      const beforeTracks = JSON.stringify(groupedEngine.tracks);
+      const beforeGroups = JSON.stringify(groupedEngine.clipGroups);
+
+      const result = groupedEngine.commitEdit({
+        type: 'insert-clip-group',
+        placements: [
+          {
+            clip: createConstraintClip('new-a', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(3),
+          },
+          {
+            clip: createConstraintClip('new-a', 0, 2),
+            targetTrackId: 'missing',
+            startTime: fromSeconds(3),
+          },
+        ],
+        snap: false,
+      });
+
+      expect(result.committed).toBe(false);
+      expect(result.preview.reason).toBe('duplicate-id');
+      expect(JSON.stringify(groupedEngine.tracks)).toBe(beforeTracks);
+      expect(JSON.stringify(groupedEngine.clipGroups)).toBe(beforeGroups);
     });
 
     it('applies overwrite cleanup for every grouped member during drag preview', () => {
