@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { addRational, assertValidRationalTime, fromSeconds, toSeconds } from './time';
+import { addRational, assertValidRationalTime, fromSeconds, subRational, toSeconds } from './time';
 
 describe('rational time utilities', () => {
   it('rejects invalid rational times with field-specific messages', () => {
@@ -25,5 +25,17 @@ describe('rational time utilities', () => {
     expect(() => addRational(fromSeconds(1), { v: 1, r: Number.NaN })).toThrow(
       'b.r must be a positive finite tick rate.'
     );
+  });
+
+  it('uses the least common tick rate for mixed-rate arithmetic', () => {
+    const timelineTime = fromSeconds(6.5);
+    const dragTime = fromSeconds(6.25, 24000);
+
+    const delta = subRational(dragTime, timelineTime);
+    const moved = addRational(timelineTime, delta);
+
+    expect(delta.r).toBe(120000);
+    expect(moved.r).toBe(120000);
+    expect(toSeconds(moved)).toBeCloseTo(6.25);
   });
 });

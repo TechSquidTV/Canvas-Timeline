@@ -6,12 +6,16 @@ import {
 } from './keyframes';
 import type { Clip, Track } from './types';
 import type { ClipCreatedEvent, ClipMoveEvent, ClipRemovedEvent, ClipSplitEvent } from './events';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import {
+  assertValidRationalTime,
+  fromSeconds,
+  toSeconds,
+} from '@techsquidtv/canvas-timeline-utils';
 import { expectDefined } from '../../../test-utils/assertions';
 
 type TimelineEngineInternals = {
   historyManager: {
-    history: { tracks: string; markers: string }[];
+    history: { tracks: string; markers: string; clipGroups: string }[];
   };
   dragSnapshot: string | null;
   clipboardManager: {
@@ -1631,6 +1635,29 @@ describe('TimelineEngine', () => {
   });
 
   describe('Editing constraints and preview', () => {
+    function createConstraintClip(id: string, start: number, end: number): Clip {
+      return {
+        id,
+        sourceId: `${id}-source`,
+        timelineStart: fromSeconds(start),
+        timelineEnd: fromSeconds(end),
+        sourceStart: fromSeconds(0),
+        selected: false,
+      };
+    }
+
+    function createConstraintTrack(id: string, clips: Clip[], kind = 'visual'): Track {
+      return {
+        id,
+        kind,
+        clips,
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+      };
+    }
+
     it('should clamp start trims to minStart', () => {
       engine.getState().tracks[0].clips[0].minStart = fromSeconds(2);
 
@@ -1858,6 +1885,442 @@ describe('TimelineEngine', () => {
       expect(payload.right.id).not.toBe('clip1');
       expect(toSeconds(payload.left.timelineEnd)).toBeCloseTo(2);
       expect(toSeconds(payload.right.timelineStart)).toBeCloseTo(2);
+    });
+
+    it('groups arbitrary clips, expands selection, and moves linked clips together', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          {
+            id: 'video',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'video-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(1),
+                timelineEnd: fromSeconds(5),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+          {
+            id: 'audio',
+            kind: 'audio',
+            clips: [
+              {
+                id: 'audio-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(2),
+                timelineEnd: fromSeconds(6),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+
+      const group = expectDefined(
+        groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] }),
+        'created clip group'
+      );
+      expect(group.clipIds).toEqual(['video-clip', 'audio-clip']);
+
+      groupedEngine.selectClip('video-clip');
+      expect(groupedEngine.getClip('video-clip')?.clip.selected).toBe(true);
+      expect(groupedEngine.getClip('audio-clip')?.clip.selected).toBe(true);
+
+      const move = groupedEngine.commitEdit({
+        type: 'move',
+        clipId: 'video-clip',
+        startTime: fromSeconds(4),
+      });
+      expect(move.committed).toBe(true);
+      expect(move.preview.changedClips.map((clip) => clip.id).sort()).toEqual([
+        'audio-clip',
+        'video-clip',
+      ]);
+      expect(
+        toSeconds(groupedEngine.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBeCloseTo(4);
+      expect(
+        toSeconds(groupedEngine.getClip('audio-clip')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBeCloseTo(5);
+    });
+
+    it('rejects duplicate group ids in initial clip group state', () => {
+      expect(
+        () =>
+          new TimelineEngine({
+            tracks: [
+              createConstraintTrack('video', [
+                createConstraintClip('clip-a', 0, 2),
+                createConstraintClip('clip-b', 3, 5),
+                createConstraintClip('clip-c', 6, 8),
+                createConstraintClip('clip-d', 9, 11),
+              ]),
+            ],
+            clipGroups: [
+              { id: 'duplicate-group', clipIds: ['clip-a', 'clip-b'] },
+              { id: 'duplicate-group', clipIds: ['clip-c', 'clip-d'] },
+            ],
+          })
+      ).toThrow('duplicate clip group id "duplicate-group".');
+    });
+
+    it('rejects clips assigned to more than one initial clip group', () => {
+      expect(
+        () =>
+          new TimelineEngine({
+            tracks: [
+              createConstraintTrack('video', [
+                createConstraintClip('clip-a', 0, 2),
+                createConstraintClip('clip-b', 3, 5),
+                createConstraintClip('clip-c', 6, 8),
+              ]),
+            ],
+            clipGroups: [
+              { id: 'group-a', clipIds: ['clip-a', 'clip-b'] },
+              { id: 'group-b', clipIds: ['clip-b', 'clip-c'] },
+            ],
+          })
+      ).toThrow('clip "clip-b" belongs to more than one clip group.');
+    });
+
+    it('inserts clip groups atomically and shifts placed keyframes', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [createConstraintTrack('video', []), createConstraintTrack('audio', [], 'audio')],
+      });
+      const group = groupedEngine.insertClipGroup({
+        groupId: 'import-group',
+        placements: [
+          {
+            clip: {
+              ...createConstraintClip('video-clip', 0, 2),
+              keyframes: [
+                { id: 'video-opacity', property: 'opacity', time: fromSeconds(1), value: 1 },
+              ],
+            },
+            targetTrackId: 'video',
+            startTime: fromSeconds(5),
+          },
+          {
+            clip: createConstraintClip('audio-clip', 0, 2),
+            targetTrackId: 'audio',
+            startTime: fromSeconds(5),
+          },
+        ],
+      });
+
+      expect(group?.clipIds).toEqual(['video-clip', 'audio-clip']);
+      expect(
+        toSeconds(groupedEngine.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(5);
+      expect(
+        groupedEngine
+          .getClip('video-clip')
+          ?.clip.keyframes?.map((keyframe) => toSeconds(keyframe.time))
+      ).toEqual([6]);
+
+      const failed = groupedEngine.insertClipGroup({
+        placements: [
+          {
+            clip: createConstraintClip('valid-clip', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(8),
+          },
+          {
+            clip: {
+              ...createConstraintClip('invalid-clip', 0, 2),
+              timelineStart: { v: 0.5, r: 60000 },
+            },
+            targetTrackId: 'audio',
+            startTime: fromSeconds(8),
+          },
+        ],
+      });
+
+      expect(failed).toBeNull();
+      expect(groupedEngine.getClip('valid-clip')).toBeUndefined();
+      expect(groupedEngine.getClip('invalid-clip')).toBeUndefined();
+      expect(groupedEngine.clipGroups).toHaveLength(1);
+    });
+
+    it('applies overwrite cleanup for every grouped member during drag preview', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          createConstraintTrack('video', [createConstraintClip('video-clip', 0, 2)]),
+          createConstraintTrack(
+            'audio',
+            [createConstraintClip('audio-clip', 0, 2), createConstraintClip('audio-victim', 4, 6)],
+            'audio'
+          ),
+        ],
+      });
+      groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+
+      groupedEngine.startDrag();
+      expect(
+        groupedEngine.moveClip({
+          clipId: 'video-clip',
+          startTime: fromSeconds(4),
+          snap: false,
+        })
+      ).toBe(true);
+
+      expect(groupedEngine.getClip('audio-victim')).toBeUndefined();
+      groupedEngine.endDrag();
+    });
+
+    it('splits selected grouped clips and repartitions the group at the blade time', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          {
+            id: 'video',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'video-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(0),
+                timelineEnd: fromSeconds(10),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+          {
+            id: 'audio',
+            kind: 'audio',
+            clips: [
+              {
+                id: 'audio-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(0),
+                timelineEnd: fromSeconds(10),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+      groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+      groupedEngine.selectClip('video-clip');
+
+      const split = groupedEngine.commitEdit({
+        type: 'split',
+        clipIds: ['video-clip', 'audio-clip'],
+        time: fromSeconds(4),
+      });
+
+      expect(split.committed).toBe(true);
+      expect(split.preview.createdClips).toHaveLength(2);
+      expect(groupedEngine.clipGroups).toHaveLength(2);
+      expect(groupedEngine.getClipGroup('linked-av')?.clipIds).toEqual([
+        'video-clip',
+        'audio-clip',
+      ]);
+      const rightGroup = expectDefined(
+        groupedEngine.clipGroups.find((group) => group.id !== 'linked-av'),
+        'right-side group'
+      );
+      expect(rightGroup.clipIds).toHaveLength(2);
+      expect(
+        rightGroup.clipIds.every((clipId) => groupedEngine.getClip(clipId) !== undefined)
+      ).toBe(true);
+    });
+
+    it('keeps grouped split pieces valid across repeated mixed-rate moves', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          {
+            id: 'video',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'video-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(3),
+                timelineEnd: fromSeconds(9),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+          {
+            id: 'audio',
+            kind: 'audio',
+            clips: [
+              {
+                id: 'audio-clip',
+                sourceId: 'source',
+                timelineStart: fromSeconds(3),
+                timelineEnd: fromSeconds(9),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+      groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+      groupedEngine.selectClip('video-clip');
+      groupedEngine.commitEdit({
+        type: 'split',
+        clipIds: ['video-clip', 'audio-clip'],
+        time: fromSeconds(6.5),
+      });
+
+      for (let index = 0; index < 8; index += 1) {
+        expect(
+          groupedEngine.moveClip({
+            clipId: 'video-clip',
+            startTime: fromSeconds(4 + index * 0.01, 24000),
+          })
+        ).toBe(true);
+      }
+
+      const videoClip = expectDefined(groupedEngine.getClip('video-clip')?.clip, 'video clip');
+      const audioClip = expectDefined(groupedEngine.getClip('audio-clip')?.clip, 'audio clip');
+      assertValidRationalTime(videoClip.timelineStart, 'videoClip.timelineStart');
+      assertValidRationalTime(audioClip.timelineStart, 'audioClip.timelineStart');
+      expect(videoClip.timelineStart.r).toBeLessThanOrEqual(120000);
+      expect(audioClip.timelineStart.r).toBeLessThanOrEqual(120000);
+      expect(toSeconds(audioClip.timelineStart)).toBeCloseTo(toSeconds(videoClip.timelineStart));
+    });
+
+    it('rejects grouped splits when an overlapping linked member cannot be split', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          createConstraintTrack('video', [createConstraintClip('video-clip', 0, 10)]),
+          createConstraintTrack(
+            'audio',
+            [
+              {
+                ...createConstraintClip('audio-clip', 0, 10),
+                resizable: false,
+              },
+            ],
+            'audio'
+          ),
+        ],
+      });
+      groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
+
+      const split = groupedEngine.commitEdit({
+        type: 'split',
+        clipIds: ['video-clip'],
+        time: fromSeconds(4),
+      });
+
+      expect(split.committed).toBe(false);
+      expect(split.preview.reason).toBe('locked');
+      expect(groupedEngine.getClip('video-clip')?.track.clips).toHaveLength(1);
+      expect(groupedEngine.getClip('audio-clip')?.track.clips).toHaveLength(1);
+      expect(groupedEngine.getClipGroup('linked-av')?.clipIds).toEqual([
+        'video-clip',
+        'audio-clip',
+      ]);
+    });
+
+    it('skips non-overlapping selected clips when splitting at a blade time', () => {
+      const splitEngine = new TimelineEngine({
+        tracks: [
+          createConstraintTrack('track1', [
+            createConstraintClip('selected-overlap', 0, 10),
+            {
+              ...createConstraintClip('selected-later', 20, 30),
+              resizable: false,
+            },
+          ]),
+        ],
+      });
+
+      const split = splitEngine.commitEdit({
+        type: 'split',
+        clipIds: ['selected-overlap', 'selected-later'],
+        time: fromSeconds(4),
+      });
+
+      expect(split.committed).toBe(true);
+      expect(split.preview.createdClips).toHaveLength(1);
+      expect(splitEngine.getClip('selected-overlap')?.track.clips).toHaveLength(3);
+    });
+
+    it('preserves copied group membership on paste and restores groups through history', () => {
+      const groupedEngine = new TimelineEngine({
+        tracks: [
+          {
+            id: 'track1',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'clip-a',
+                sourceId: 'source-a',
+                timelineStart: fromSeconds(0),
+                timelineEnd: fromSeconds(2),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+              {
+                id: 'clip-b',
+                sourceId: 'source-b',
+                timelineStart: fromSeconds(3),
+                timelineEnd: fromSeconds(5),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+
+      groupedEngine.createClipGroup({ id: 'copy-group', clipIds: ['clip-a', 'clip-b'] });
+      groupedEngine.undo();
+      expect(groupedEngine.clipGroups).toEqual([]);
+      groupedEngine.redo();
+      expect(groupedEngine.getClipGroup('copy-group')?.clipIds).toEqual(['clip-a', 'clip-b']);
+
+      groupedEngine.selectClip('clip-a');
+      groupedEngine.copySelection();
+      groupedEngine.pasteSelection(fromSeconds(10));
+
+      expect(groupedEngine.clipGroups).toHaveLength(2);
+      const pastedGroup = expectDefined(
+        groupedEngine.clipGroups.find((group) => group.id !== 'copy-group'),
+        'pasted group'
+      );
+      expect(pastedGroup.clipIds).toHaveLength(2);
     });
 
     it('emits clip lifecycle events for committed overwrite edits', () => {

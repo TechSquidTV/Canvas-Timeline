@@ -26,8 +26,9 @@ Use the timeline hook registry groups as the source of truth:
 - **Timeline State**: engine context, state snapshots, active clips/layers,
   viewport data, ruler ticks, clip geometry, and visible clip queries.
 - **Editing Hooks**: edit mode, typed edit commands, shared edit previews,
-  range selection, clip, track, marker, selection, clipboard, history, track
-  header, edit consequences, and cross-track drag/drop interactions.
+  range selection, clip, clip group, track, marker, selection, clipboard,
+  history, track header, edit consequences, and cross-track drag/drop
+  interactions.
 - **Playback Controls**: transport state, live playhead time, snapping, media
   synchronization, and clip playback effects.
 - **Accessible Controls**: Base UI-compatible sliders, viewport scrollbar
@@ -59,6 +60,8 @@ Compose the focused hooks around it:
   guides and affected-clip affordances.
 - `useTimelineRangeSelection()` adapts In/Out points to `delete-range` and
   `lift-range` commands.
+- `useTimelineClipGroups()` reads timeline clip groups and exposes group,
+  ungroup, and selected-group commands for editor chrome.
 
 ```tsx
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';

@@ -12,6 +12,7 @@ export type LiveDemoId =
   | 'media-sync'
   | 'html-media-sync'
   | 'editor-controls'
+  | 'clip-grouping-import'
   | 'keyframe-opacity'
   | 'stress-test'
   | 'react-dom-timeline'
@@ -124,6 +125,22 @@ export const demoDocs: DemoDoc[] = [
     ],
     sourcePath: 'apps/www/src/demos/timeline-editor-controls/TimelineEditorControls.tsx',
     liveDemoId: 'editor-controls',
+  },
+  {
+    slug: 'clip-grouping-import',
+    title: 'Clip Grouping',
+    description:
+      'A two-track timeline with one video clip and one audio clip that can be selected, grouped, moved together, and ungrouped.',
+    status: 'Controls',
+    difficulty: 'Intermediate',
+    packageFocus: [
+      '@techsquidtv/canvas-timeline-core',
+      '@techsquidtv/canvas-timeline-react',
+      '@techsquidtv/canvas-timeline-renderer',
+      '@techsquidtv/canvas-timeline-utils',
+    ],
+    sourcePath: 'apps/www/src/demos/clip-grouping-import/ClipGroupingImportTimeline.tsx',
+    liveDemoId: 'clip-grouping-import',
   },
   {
     slug: 'keyframe-opacity',

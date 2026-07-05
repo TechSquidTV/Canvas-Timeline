@@ -1,5 +1,6 @@
 import {
   type TimelineEngine,
+  createLeanClipGroups,
   createLeanMarkers,
   createLeanTracks,
   stringifyLeanTracks,
@@ -7,7 +8,7 @@ import {
 
 export class HistoryManager {
   private engine: TimelineEngine;
-  private history: { tracks: string; markers: string }[] = [];
+  private history: { tracks: string; markers: string; clipGroups: string }[] = [];
   private historyIndex: number = -1;
 
   constructor(engine: TimelineEngine) {
@@ -18,9 +19,15 @@ export class HistoryManager {
     const state = this.engine.getState();
     const tracksStr = stringifyLeanTracks(state.tracks);
     const markersStr = JSON.stringify(state.markers ?? []);
+    const clipGroupsStr = JSON.stringify(createLeanClipGroups(state.clipGroups));
 
     const last = this.history[this.historyIndex];
-    if (last !== undefined && last.tracks === tracksStr && last.markers === markersStr) {
+    if (
+      last !== undefined &&
+      last.tracks === tracksStr &&
+      last.markers === markersStr &&
+      last.clipGroups === clipGroupsStr
+    ) {
       return;
     }
 
@@ -33,6 +40,7 @@ export class HistoryManager {
     this.history.push({
       tracks: tracksStr,
       markers: markersStr,
+      clipGroups: clipGroupsStr,
     });
 
     this.historyIndex = this.history.length - 1;
@@ -63,10 +71,11 @@ export class HistoryManager {
     return this.historyIndex < this.history.length - 1;
   }
 
-  private restoreSnapshot(snapshot: { tracks: string; markers: string }) {
+  private restoreSnapshot(snapshot: { tracks: string; markers: string; clipGroups: string }) {
     const state = this.engine.getState();
     state.tracks = createLeanTracks(JSON.parse(snapshot.tracks));
     state.markers = createLeanMarkers(JSON.parse(snapshot.markers));
+    state.clipGroups = createLeanClipGroups(JSON.parse(snapshot.clipGroups));
     this.engine.invalidateContent();
     this.engine.emit('state:settled');
     this.engine.emit('render');

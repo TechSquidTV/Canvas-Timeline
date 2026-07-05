@@ -3,6 +3,7 @@ export * from './useActiveClips';
 export * from './useActiveLayers';
 export * from './useTimelineClipDrag';
 export * from './useTimelineClipDropFeedback';
+export * from './useTimelineClipGroups';
 export * from './useTimelineClipNavigation';
 export * from './useTimelineClipRects';
 export * from './useTimelineClips';

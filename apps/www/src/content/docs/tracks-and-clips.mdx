@@ -26,7 +26,7 @@ interface Track {
   collapsed?: boolean; // Minimizes the track row UI
   name?: string; // User-facing track label
   targeted: boolean; // Receives operations like insert or paste
-  groupId?: string; // Grouping identifier for multi-lane coordination
+  groupId?: string; // Optional visual/header grouping for tracks
 }
 ```
 
@@ -53,6 +53,40 @@ interface Clip {
   editPreview?: EditPreview; // Transient state details during an active edit gesture
 }
 ```
+
+### Grouping Clips
+
+Clip grouping is stored in top-level `TimelineState.clipGroups`, not on each
+clip. A group links arbitrary clip ids at their existing timeline positions, so
+clips can live on different tracks and still select, move, delete, copy, paste,
+and split together.
+
+```ts
+interface TimelineClipGroup {
+  id: string; // Stable group identifier
+  clipIds: string[]; // Ordered clip ids in the group
+  label?: string; // Optional app-facing group label
+}
+```
+
+Use `createClipGroup` when clips already exist on the timeline. Use
+`insertClipGroup` when your app has created multiple clips, such as video and
+audio clips from one imported media file, and wants to place them on chosen
+tracks in one history entry.
+
+```ts
+engine.insertClipGroup({
+  groupId: 'import-1',
+  placements: [
+    { clip: videoClip, targetTrackId: 'video-1', startTime },
+    { clip: audioClip, targetTrackId: 'audio-1', startTime },
+  ],
+});
+```
+
+Canvas Timeline owns the generic edit behavior for groups. Your application
+still owns file picking, media inspection, waveform and thumbnail data, source
+metadata, track choice, and deciding whether imported media should be grouped.
 
 ### Choosing Track Kinds
 

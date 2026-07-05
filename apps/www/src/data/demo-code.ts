@@ -9,6 +9,9 @@ import editorControlsTimelineSource from '../demos/timeline-editor-controls/Time
 import editorControlsDataSource from '../demos/timeline-editor-controls/timeline-demo-data.ts?raw';
 import editorControlsUtilitiesSource from '../demos/timeline-editor-controls/timeline-controls.tsx?raw';
 import editorControlsLocalStylesSource from '../demos/timeline-editor-controls/timeline-editor.css?raw';
+import clipGroupingTimelineSource from '../demos/clip-grouping-import/ClipGroupingImportTimeline.tsx?raw';
+import clipGroupingDataSource from '../demos/clip-grouping-import/timeline-demo-data.ts?raw';
+import clipGroupingLocalStylesSource from '../demos/clip-grouping-import/timeline-editor.css?raw';
 import keyframeOpacityTimelineSource from '../demos/keyframe-opacity/KeyframeOpacityTimeline.tsx?raw';
 import keyframeOpacityDataSource from '../demos/keyframe-opacity/timeline-demo-data.ts?raw';
 import keyframeOpacityUtilsSource from '../demos/keyframe-opacity/keyframe-opacity-utils.ts?raw';
@@ -76,6 +79,7 @@ const editorControlsStylesSource = inlineSharedTimelineEditorStyles(
 const keyframeOpacityStylesSource = inlineSharedTimelineEditorStyles(
   keyframeOpacityLocalStylesSource
 );
+const clipGroupingStylesSource = inlineSharedTimelineEditorStyles(clipGroupingLocalStylesSource);
 
 export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
   basic: {
@@ -136,6 +140,21 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
       ],
       data: 'apps/www/src/demos/timeline-editor-controls/timeline-demo-data.ts',
       styles: 'apps/www/src/demos/timeline-editor-controls/timeline-editor.css',
+    },
+  },
+  'clip-grouping-import': {
+    tsx: toCopyableDemoSource(clipGroupingTimelineSource),
+    css: clipGroupingStylesSource,
+    extraTabs: [demoClipColorsTab],
+    data: toCopyableDemoSource(clipGroupingDataSource),
+    sourceFiles: {
+      component: 'apps/www/src/demos/clip-grouping-import/ClipGroupingImportTimeline.tsx',
+      utilities: [
+        'apps/www/src/demos/demo-clip-colors.ts',
+        'apps/www/src/demos/shared-timeline-editor.css',
+      ],
+      data: 'apps/www/src/demos/clip-grouping-import/timeline-demo-data.ts',
+      styles: 'apps/www/src/demos/clip-grouping-import/timeline-editor.css',
     },
   },
   'keyframe-opacity': {

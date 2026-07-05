@@ -24,6 +24,7 @@ import {
   useTimelineClips,
   useTimelineClipDrag,
   useTimelineClipDropFeedback,
+  useTimelineClipGroups,
   useTimelineClipRects,
   useTimelineClipboard,
   useTimelineEvent,
@@ -1397,6 +1398,81 @@ test('useTimelineSelection derives and clears clip and track selection', () => {
 
   expect(result.current.selectedClipId).toBeNull();
   expect(result.current.selectedTrackId).toBeNull();
+});
+
+test('useTimelineClipGroups exposes grouping commands and selected group state', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video', [createClip('video-clip', 0, 8)]),
+      createTrack('audio', [createClip('audio-clip', 0, 8)], { kind: 'audio' }),
+    ],
+  });
+
+  const groupsHook = renderHook(() => useTimelineClipGroups(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+  const selectionHook = renderHook(() => useTimelineSelection(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+  const editHook = renderHook(() => useTimelineEditCommands(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+
+  act(() => {
+    expect(groupsHook.result.current.groupClips(['video-clip', 'audio-clip']).ok).toBe(true);
+  });
+
+  expect(groupsHook.result.current.groups).toHaveLength(1);
+
+  act(() => {
+    selectionHook.result.current.selectClip('video-clip');
+  });
+
+  expect(selectionHook.result.current.selectedClipIds).toEqual(['video-clip', 'audio-clip']);
+  expect(selectionHook.result.current.selectedGroupId).toBe(groupsHook.result.current.groups[0].id);
+
+  act(() => {
+    expect(editHook.result.current.splitSelectedClipsAtTime(fromSeconds(4)).ok).toBe(true);
+  });
+
+  expect(engine.clipGroups).toHaveLength(2);
+
+  act(() => {
+    expect(groupsHook.result.current.ungroupSelectedClips().ok).toBe(true);
+  });
+
+  expect(engine.clipGroups.length).toBeLessThan(2);
+});
+
+test('useTimelineClipGroups ungroups every selected clip group', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video', [
+        createClip('video-a', 0, 2),
+        createClip('video-b', 3, 5),
+        createClip('video-c', 6, 8),
+        createClip('video-d', 9, 11),
+      ]),
+    ],
+  });
+  engine.createClipGroup({ id: 'group-a', clipIds: ['video-a', 'video-b'] });
+  engine.createClipGroup({ id: 'group-b', clipIds: ['video-c', 'video-d'] });
+
+  const groupsHook = renderHook(() => useTimelineClipGroups(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+  const selectionHook = renderHook(() => useTimelineSelection(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+
+  act(() => {
+    selectionHook.result.current.selectClips(['video-a', 'video-c']);
+  });
+  act(() => {
+    expect(groupsHook.result.current.ungroupSelectedClips().ok).toBe(true);
+  });
+
+  expect(engine.clipGroups).toEqual([]);
 });
 
 test('useTimelineViewport derives visible range and controls viewport state', () => {
