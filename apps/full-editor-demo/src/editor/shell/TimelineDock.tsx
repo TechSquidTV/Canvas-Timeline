@@ -1,4 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { TimelineCommandBar } from '@/components/timeline/TimelineCommandBar';
 import { TimelineSurface } from '@/components/timeline/TimelineSurface';
 import { TrackHeaderColumn } from '@/components/timeline/TrackHeaderColumn';
 import { TransportBar } from '@/components/timeline/TransportBar';
@@ -6,7 +7,10 @@ import { TransportBar } from '@/components/timeline/TransportBar';
 export function TimelineDock() {
   return (
     <section className="full-editor-timeline-dock" aria-label="Timeline editor">
-      <TransportBar />
+      <div className="timeline-editor-command-strip">
+        <TransportBar />
+        <TimelineCommandBar />
+      </div>
       <ResizablePanelGroup
         className="timeline-editor-body-with-headers"
         orientation="horizontal"
