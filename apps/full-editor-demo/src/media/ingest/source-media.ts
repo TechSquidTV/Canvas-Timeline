@@ -7,6 +7,7 @@ import type {
 
 const POSTER_WIDTH = 160;
 const POSTER_HEIGHT = 90;
+const FRAME_RATE_SAMPLE_PACKET_COUNT = 120;
 
 const videoExtensions = new Set(['m4v', 'mkv', 'mov', 'mp4', 'mpeg', 'mpg', 'ts', 'webm']);
 const audioExtensions = new Set(['aac', 'aiff', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wav']);
@@ -124,11 +125,13 @@ async function probeTimelineMediaFile(file: File): Promise<MediaLibraryProbeResu
 
   const width = await videoTrack.getDisplayWidth();
   const height = await videoTrack.getDisplayHeight();
+  const averageFrameRate = await getAverageFrameRate(videoTrack);
   const poster = await createVideoPoster(videoTrack, mediabunny, firstTimestamp);
 
   return {
     kind: 'video',
     metadata: {
+      ...(averageFrameRate === undefined ? {} : { averageFrameRate }),
       durationSeconds,
       width,
       height,
@@ -160,6 +163,22 @@ async function createVideoPoster(
   }
 
   return null;
+}
+
+async function getAverageFrameRate(
+  videoTrack: NonNullable<Awaited<ReturnType<Input['getPrimaryVideoTrack']>>>
+) {
+  let frameRate: number;
+  try {
+    const packetStats = await videoTrack.computePacketStats(FRAME_RATE_SAMPLE_PACKET_COUNT, {
+      skipLiveWait: true,
+    });
+    frameRate = packetStats.averagePacketRate;
+  } catch {
+    return undefined;
+  }
+
+  return Number.isFinite(frameRate) && frameRate > 0 ? frameRate : undefined;
 }
 
 async function createImagePoster(source: CanvasImageSource) {

@@ -1,13 +1,19 @@
 import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react';
+import { useSourceBin } from '@/components/source-bin/source-bin-context';
+import { formatFrameRate } from '@/lib/media-format';
 import { formatRationalTime } from '@/lib/timeline-format';
 import type { EditorTrackKind } from '@/data/demo-project';
 
 export function ClipInspectorPanel() {
   const { selectedClip, selectedClipTrackId } = useTimelineSelection<EditorTrackKind>();
+  const { sources } = useSourceBin();
 
   if (selectedClip === null) {
     return <p className="panel-empty">Select a clip to inspect timing and media metadata.</p>;
   }
+
+  const source = sources.find((candidate) => candidate.id === selectedClip.sourceId);
+  const sourceFrameRate = source?.metadata.averageFrameRate;
 
   return (
     <dl className="panel-readout">
@@ -23,6 +29,12 @@ export function ClipInspectorPanel() {
         <dt>Source</dt>
         <dd>{selectedClip.sourceId}</dd>
       </div>
+      {sourceFrameRate !== undefined ? (
+        <div>
+          <dt>Source FPS</dt>
+          <dd>{formatFrameRate(sourceFrameRate)} fps</dd>
+        </div>
+      ) : null}
       <div>
         <dt>Timeline</dt>
         <dd>

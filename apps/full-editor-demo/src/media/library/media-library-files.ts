@@ -97,7 +97,8 @@ export async function readSourcePoster(
   root: FileSystemDirectoryHandle,
   path: string | undefined
 ): Promise<File | null> {
-  return path === undefined ? null : readFileFromPath(root, path);
+  const file = path === undefined ? null : await readFileFromPath(root, path);
+  return file === null ? null : ensureFileType(file, 'image/webp');
 }
 
 export async function persistSourceOriginal(sourceId: string, file: File): Promise<string> {
@@ -127,4 +128,15 @@ export function getOriginalPath(sourceId: string) {
 
 export function getPosterPath(sourceId: string) {
   return `${ASSETS_DIRECTORY}/${sourceId}/${POSTER_FILE}`;
+}
+
+function ensureFileType(file: File, mimeType: string) {
+  if (file.type === mimeType) {
+    return file;
+  }
+
+  return new File([file], file.name, {
+    lastModified: file.lastModified,
+    type: mimeType,
+  });
 }

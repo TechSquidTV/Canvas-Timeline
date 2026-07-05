@@ -64,6 +64,7 @@ function isSourceMetadata(value: unknown): value is MediaLibraryMediaMetadata {
   }
 
   return (
+    isOptionalNumber(value.averageFrameRate) &&
     isOptionalNumber(value.durationSeconds) &&
     isOptionalNumber(value.height) &&
     isOptionalNumber(value.width) &&

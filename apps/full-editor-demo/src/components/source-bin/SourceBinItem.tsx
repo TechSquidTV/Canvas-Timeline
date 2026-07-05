@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatSeconds } from '@/lib/timeline-format';
 import { cn } from '@/lib/cn';
+import { formatFrameRate } from '@/lib/media-format';
 import { writeSourceBinDragPayload } from '@/timeline/source-drag-payload';
 import { SourceThumbnail } from './SourceThumbnail';
 import type { SourceBinSource } from './types';
@@ -98,6 +99,9 @@ function getSourceDetail(source: SourceBinSource) {
   }
   if (source.metadata.width !== undefined && source.metadata.height !== undefined) {
     parts.push(`${source.metadata.width}x${source.metadata.height}`);
+  }
+  if (source.metadata.averageFrameRate !== undefined) {
+    parts.push(`${formatFrameRate(source.metadata.averageFrameRate)} fps`);
   }
   parts.push(formatFileSize(source.sizeBytes));
 

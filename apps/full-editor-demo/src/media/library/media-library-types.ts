@@ -5,6 +5,7 @@ export type MediaLibraryMediaKind = MediaLibraryImportableKind | 'unsupported';
 export type MediaLibraryStatus = 'failed' | 'importing' | 'ready';
 
 export interface MediaLibraryMediaMetadata {
+  averageFrameRate?: number;
   durationSeconds?: number;
   height?: number;
   width?: number;
