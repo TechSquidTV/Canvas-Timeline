@@ -3,6 +3,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import { demoDocs } from '@/data/demos';
 import { createDemoIndexStructuredData } from '@/lib/structured-data';
 
+const featuredDemoDocs = demoDocs.filter((demoDoc) => demoDoc.featured);
+const standardDemoDocs = demoDocs.filter((demoDoc) => !demoDoc.featured);
 const structuredData = createDemoIndexStructuredData(demoDocs);
 ---
 
@@ -26,9 +28,36 @@ const structuredData = createDemoIndexStructuredData(demoDocs);
     </div>
   </section>
   <section class="container-page listing-section">
+    {
+      featuredDemoDocs.length > 0 ? (
+        <div class="featured-demo-grid" aria-label="Featured demos">
+          {featuredDemoDocs.map((demoDoc) => (
+            <a class="resource-card featured-demo-card" href={`/demos/${demoDoc.slug}`}>
+              <div class="featured-demo-card__content">
+                <div>
+                  <span>{demoDoc.status}</span>
+                  <h2>{demoDoc.title}</h2>
+                  <p>{demoDoc.description}</p>
+                </div>
+                <div class="featured-demo-card__meta">
+                  <span>{demoDoc.difficulty}</span>
+                  <span>{demoDoc.packageFocus.length} Packages</span>
+                </div>
+              </div>
+              <div class="package-card__footer">
+                <span>Launch editor</span>
+                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+                </svg>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : null
+    }
     <div class="resource-grid">
       {
-        demoDocs.map((demoDoc) => (
+        standardDemoDocs.map((demoDoc) => (
           <a class="resource-card" href={`/demos/${demoDoc.slug}`}>
             <div>
               <span>{demoDoc.status}</span>

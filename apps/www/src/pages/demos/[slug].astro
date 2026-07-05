@@ -11,10 +11,12 @@ interface Props {
 }
 
 export function getStaticPaths() {
-  return demoDocs.map((demoDoc) => ({
-    params: { slug: demoDoc.slug },
-    props: { demoDoc },
-  }));
+  return demoDocs
+    .filter((demoDoc) => demoDoc.liveDemoId)
+    .map((demoDoc) => ({
+      params: { slug: demoDoc.slug },
+      props: { demoDoc },
+    }));
 }
 
 const { demoDoc } = Astro.props;
@@ -89,7 +91,7 @@ const structuredData = createDemoStructuredData(demoDoc);
           {
             demoDoc.externalUrl ? (
               <a class="button button-secondary detail-button" href={demoDoc.externalUrl}>
-                Open local demo
+                Open demo
               </a>
             ) : null
           }

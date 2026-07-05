@@ -31,6 +31,7 @@ export interface DemoDoc {
   description: string;
   status: DemoStatus;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  featured?: boolean;
   packageFocus: string[];
   sourcePath: string;
   externalUrl?: string;
@@ -223,9 +224,10 @@ export const demoDocs: DemoDoc[] = [
     slug: 'full-editor-demo',
     title: 'Full Editor Demo',
     description:
-      'A private SPA/PWA editor lab with a resizable preview, inspector panels, Mediabunny media sync, and the main Canvas Timeline editing surface.',
+      'A full SPA/PWA editor test bed with OPFS media import, grouped timeline drops, Mediabunny playback, project autosave, and MP4 export.',
     status: 'Full editor',
     difficulty: 'Advanced',
+    featured: true,
     packageFocus: [
       '@techsquidtv/canvas-timeline-core',
       '@techsquidtv/canvas-timeline-mediabunny-adapter',
@@ -235,6 +237,20 @@ export const demoDocs: DemoDoc[] = [
       'mediabunny',
     ],
     sourcePath: 'apps/full-editor-demo/src/App.tsx',
-    externalUrl: 'http://localhost:5173/',
+    externalUrl: '/demos/full-editor-demo/',
+    references: [
+      {
+        label: 'Full editor app source',
+        url: 'https://github.com/techsquidtv/canvas-timeline/tree/main/apps/full-editor-demo',
+      },
+      {
+        label: 'Mediabunny adapter guide',
+        url: '/packages/mediabunny-adapter',
+      },
+      {
+        label: 'External clip drop demo',
+        url: '/demos/external-clip-drop',
+      },
+    ],
   },
 ];

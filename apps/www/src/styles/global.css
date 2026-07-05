@@ -1374,6 +1374,12 @@
     padding-block: clamp(3rem, 6vw, 5rem);
   }
 
+  .featured-demo-grid {
+    display: grid;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
   .resource-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1395,6 +1401,35 @@
   .resource-card:hover {
     border-color: var(--primary);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  }
+
+  .featured-demo-card {
+    gap: 1.5rem;
+    background:
+      linear-gradient(135deg, color-mix(in oklch, var(--primary) 8%, transparent), transparent 52%),
+      var(--card);
+  }
+
+  .featured-demo-card__content {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .featured-demo-card h2 {
+    max-width: 42rem;
+    font-size: clamp(1.45rem, 3vw, 2.25rem);
+  }
+
+  .featured-demo-card p {
+    max-width: 44rem;
+    font-size: 1rem;
+  }
+
+  .featured-demo-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: start;
+    gap: 0.55rem;
   }
 
   .resource-card span,
@@ -3522,6 +3557,11 @@ html body .expressive-code pre::-webkit-scrollbar-corner {
   .resource-grid,
   .symbol-list-compact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .featured-demo-card__content {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
   }
 
   .registry-install-grid {

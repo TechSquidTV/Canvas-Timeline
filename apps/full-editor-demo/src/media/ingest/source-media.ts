@@ -76,70 +76,87 @@ async function probeTimelineMediaFile(file: File): Promise<MediaLibraryProbeResu
     source: new mediabunny.BlobSource(file),
     formats: mediabunny.ALL_FORMATS,
   });
-  const videoTrack = await input.getPrimaryVideoTrack();
-  const audioTrack = await input.getPrimaryAudioTrack();
-  type InputTrack = NonNullable<typeof videoTrack> | NonNullable<typeof audioTrack>;
-  const tracks = [videoTrack, audioTrack].filter((track): track is InputTrack => track !== null);
 
-  if (tracks.length === 0) {
-    throw new Error('No audio or video track found.');
-  }
+  try {
+    const videoTrack = await input.getPrimaryVideoTrack();
+    const audioTrack = await input.getPrimaryAudioTrack();
+    type InputTrack = NonNullable<typeof videoTrack> | NonNullable<typeof audioTrack>;
+    const tracks = [videoTrack, audioTrack].filter((track): track is InputTrack => track !== null);
 
-  if (videoTrack !== null) {
-    if ((await videoTrack.getCodec()) === null) {
-      throw new Error('Unsupported video codec.');
+    if (tracks.length === 0) {
+      throw new Error('No audio or video track found.');
     }
 
-    if (!(await videoTrack.canDecode())) {
-      throw new Error('Unable to decode the video track.');
+    if (videoTrack !== null) {
+      if ((await videoTrack.getCodec()) === null) {
+        throw new Error('Unsupported video codec.');
+      }
+
+      if (!(await videoTrack.canDecode())) {
+        throw new Error('Unable to decode the video track.');
+      }
     }
-  }
 
-  if (audioTrack !== null) {
-    if ((await audioTrack.getCodec()) === null) {
-      throw new Error('Unsupported audio codec.');
+    if (audioTrack !== null) {
+      if ((await audioTrack.getCodec()) === null) {
+        throw new Error('Unsupported audio codec.');
+      }
+
+      if (!(await audioTrack.canDecode())) {
+        throw new Error('Unable to decode the audio track.');
+      }
     }
 
-    if (!(await audioTrack.canDecode())) {
-      throw new Error('Unable to decode the audio track.');
+    const firstTimestamp = Math.max(await input.getFirstTimestamp(tracks), 0);
+    const endTimestamp =
+      (await input.getDurationFromMetadata(tracks, { skipLiveWait: true })) ??
+      (await input.computeDuration(tracks, { skipLiveWait: true }));
+    const durationSeconds = Math.max(0, endTimestamp - firstTimestamp);
+
+    if (videoTrack === null) {
+      return {
+        kind: 'audio',
+        metadata: {
+          durationSeconds,
+          hasAudio: audioTrack !== null,
+          hasVideo: false,
+        },
+        poster: null,
+      };
     }
-  }
 
-  const firstTimestamp = Math.max(await input.getFirstTimestamp(tracks), 0);
-  const endTimestamp =
-    (await input.getDurationFromMetadata(tracks, { skipLiveWait: true })) ??
-    (await input.computeDuration(tracks, { skipLiveWait: true }));
-  const durationSeconds = Math.max(0, endTimestamp - firstTimestamp);
+    const width = await videoTrack.getDisplayWidth();
+    const height = await videoTrack.getDisplayHeight();
+    const averageFrameRate = await getAverageFrameRate(videoTrack);
+    const poster = await createOptionalVideoPoster(videoTrack, mediabunny, firstTimestamp);
 
-  if (videoTrack === null) {
     return {
-      kind: 'audio',
+      kind: 'video',
       metadata: {
+        ...(averageFrameRate === undefined ? {} : { averageFrameRate }),
         durationSeconds,
         hasAudio: audioTrack !== null,
-        hasVideo: false,
+        hasVideo: true,
+        width,
+        height,
       },
-      poster: null,
+      poster,
     };
+  } finally {
+    input.dispose();
   }
+}
 
-  const width = await videoTrack.getDisplayWidth();
-  const height = await videoTrack.getDisplayHeight();
-  const averageFrameRate = await getAverageFrameRate(videoTrack);
-  const poster = await createVideoPoster(videoTrack, mediabunny, firstTimestamp);
-
-  return {
-    kind: 'video',
-    metadata: {
-      ...(averageFrameRate === undefined ? {} : { averageFrameRate }),
-      durationSeconds,
-      width,
-      height,
-      hasAudio: audioTrack !== null,
-      hasVideo: true,
-    },
-    poster,
-  };
+async function createOptionalVideoPoster(
+  videoTrack: NonNullable<Awaited<ReturnType<Input['getPrimaryVideoTrack']>>>,
+  mediabunny: typeof Mediabunny,
+  timestampSeconds: number
+) {
+  try {
+    return await createVideoPoster(videoTrack, mediabunny, timestampSeconds);
+  } catch {
+    return null;
+  }
 }
 
 async function createVideoPoster(
