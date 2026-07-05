@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@techsquidtv/canvas-timeline-core": ["../../packages/core/src/index.ts"],
+      "@techsquidtv/canvas-timeline-core/*": ["../../packages/core/src/*"],
+      "@techsquidtv/canvas-timeline-mediabunny-adapter": [
+        "../../packages/mediabunny-adapter/src/index.ts"
+      ],
+      "@techsquidtv/canvas-timeline-mediabunny-adapter/*": [
+        "../../packages/mediabunny-adapter/src/*"
+      ],
+      "@techsquidtv/canvas-timeline-react": ["../../packages/react/src/index.ts"],
+      "@techsquidtv/canvas-timeline-react/*": ["../../packages/react/src/*"],
+      "@techsquidtv/canvas-timeline-renderer": ["../../packages/renderer/src/index.ts"],
+      "@techsquidtv/canvas-timeline-renderer/*": ["../../packages/renderer/src/*"],
+      "@techsquidtv/canvas-timeline-utils": ["../../packages/utils/src/index.ts"],
+      "@techsquidtv/canvas-timeline-utils/*": ["../../packages/utils/src/*"]
+    },
+    "strict": true
+  },
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["dist"]
+}

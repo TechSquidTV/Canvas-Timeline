@@ -17,6 +17,11 @@
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,astro,mdx,mjs}"],
       "ignoreDependencies": ["@fontsource-variable/outfit", "tailwindcss", "typedoc", "workerd"]
     },
+    "apps/full-editor-demo": {
+      "entry": ["public/sw.js", "src/timeline/source-clip-factory.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["tailwindcss"]
+    },
     "packages/utils": {
       "project": ["src/**/*.ts"]
     },
@@ -40,6 +45,7 @@
     "packages/react/src/components/scrollbars/ViewportScrollbar.tsx": ["exports"],
     "packages/react/src/timecodeField/TimecodeField.tsx": ["exports"],
     "packages/react/src/hooks/core/timelineScalarControlProps.ts": ["types"],
-    "packages/renderer/src/render/geometry.ts": ["exports"]
+    "packages/renderer/src/render/geometry.ts": ["exports"],
+    "apps/full-editor-demo/src/persistence/project/project-store.ts": ["exports"]
   }
 }

@@ -93,6 +93,10 @@ export default defineConfig({
         command: 'vp run --filter @techsquidtv/canvas-timeline-www dev',
         cache: false,
       },
+      'repo:dev:editor': {
+        command: 'vp run --filter @techsquidtv/canvas-timeline-full-editor-demo dev',
+        cache: false,
+      },
       'repo:build': [
         'vp run build:packages',
         'vp run --filter @techsquidtv/canvas-timeline-www build',

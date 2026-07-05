@@ -13,5 +13,5 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "bumpVersionsWithWorkspaceProtocolOnly": true,
-  "ignore": ["@techsquidtv/canvas-timeline-www"]
+  "ignore": ["@techsquidtv/canvas-timeline-full-editor-demo", "@techsquidtv/canvas-timeline-www"]
 }

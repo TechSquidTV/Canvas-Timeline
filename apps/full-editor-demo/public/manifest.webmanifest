@@ -1,0 +1,17 @@
+{
+  "name": "Canvas Timeline Full Editor Demo",
+  "short_name": "Timeline Editor",
+  "description": "A private Canvas Timeline editor test bed for integration and feature QA.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#171717",
+  "theme_color": "#171717",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

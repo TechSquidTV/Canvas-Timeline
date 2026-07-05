@@ -5,7 +5,8 @@ type DemoStatus =
   | 'Keyframes'
   | 'Performance'
   | 'DOM renderer'
-  | 'Custom design';
+  | 'Custom design'
+  | 'Full editor';
 
 export type LiveDemoId =
   | 'basic'
@@ -29,7 +30,8 @@ export interface DemoDoc {
   title: string;
   description: string;
   status: DemoStatus;
-  difficulty: 'Beginner' | 'Intermediate';
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  featured?: boolean;
   packageFocus: string[];
   sourcePath: string;
   externalUrl?: string;
@@ -217,5 +219,38 @@ export const demoDocs: DemoDoc[] = [
     ],
     sourcePath: 'apps/www/src/demos/custom-playhead/CustomPlayheadTimeline.tsx',
     liveDemoId: 'custom-playhead',
+  },
+  {
+    slug: 'full-editor-demo',
+    title: 'Full Editor Demo',
+    description:
+      'A full SPA/PWA editor test bed with OPFS media import, grouped timeline drops, Mediabunny playback, project autosave, and MP4 export.',
+    status: 'Full editor',
+    difficulty: 'Advanced',
+    featured: true,
+    packageFocus: [
+      '@techsquidtv/canvas-timeline-core',
+      '@techsquidtv/canvas-timeline-mediabunny-adapter',
+      '@techsquidtv/canvas-timeline-react',
+      '@techsquidtv/canvas-timeline-renderer',
+      '@techsquidtv/canvas-timeline-utils',
+      'mediabunny',
+    ],
+    sourcePath: 'apps/full-editor-demo/src/App.tsx',
+    externalUrl: '/demos/full-editor-demo/',
+    references: [
+      {
+        label: 'Full editor app source',
+        url: 'https://github.com/techsquidtv/canvas-timeline/tree/main/apps/full-editor-demo',
+      },
+      {
+        label: 'Mediabunny adapter guide',
+        url: '/packages/mediabunny-adapter',
+      },
+      {
+        label: 'External clip drop demo',
+        url: '/demos/external-clip-drop',
+      },
+    ],
   },
 ];

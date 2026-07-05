@@ -14,6 +14,7 @@
     "clean": "vp run repo:clean",
     "commitlint": "commitlint --verbose",
     "dev": "vp run repo:dev",
+    "dev:editor": "vp run repo:dev:editor",
     "dev:www": "vp run repo:dev:www",
     "package:check": "vp run repo:package:check",
     "prepare": "vp config --hooks-dir .vite-hooks --no-agent",

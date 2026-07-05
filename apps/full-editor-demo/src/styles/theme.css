@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+  --background: oklch(0.17352 0 0);
+  --foreground: oklch(0.8576 0 0);
+  --card: oklch(0.17352 0 0);
+  --card-foreground: oklch(0.8576 0 0);
+  --popover: oklch(0.2024 0 0);
+  --popover-foreground: oklch(0.8576 0 0);
+  --primary: oklch(0.6753 0.1208 82.7652);
+  --primary-foreground: oklch(0.2178 0 0);
+  --secondary: oklch(0.929 0.0439 85.2366);
+  --secondary-foreground: oklch(0.2178 0 0);
+  --muted: oklch(0.2024 0 0);
+  --muted-foreground: oklch(0.6268 0 0);
+  --accent: oklch(0.238 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.5783 0.2301 28.5639);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.2542 0 0);
+  --input: oklch(0.2024 0 0);
+  --ring: var(--primary);
+  --radius: 0.25rem;
+  --font-sans:
+    'Lexend Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --editor-workspace: color-mix(in oklch, var(--background) 90%, black);
+  --editor-panel: var(--background);
+  --editor-panel-muted: var(--muted);
+  --editor-raised: var(--accent);
+  --editor-border: color-mix(in oklch, var(--border) 72%, var(--foreground));
+  --editor-monitor: color-mix(in oklch, var(--background) 92%, black);
+  --editor-monitor-frame: color-mix(in oklch, var(--background) 76%, black);
+  --editor-blue: oklch(0.62 0.16 250);
+  --timeline-inout-accent: var(--editor-blue);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
