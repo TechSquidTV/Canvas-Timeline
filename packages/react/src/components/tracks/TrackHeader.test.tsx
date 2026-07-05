@@ -80,11 +80,12 @@ describe('TrackHeader', () => {
     const list = container.querySelector('.timeline-track-header-list');
     const header = container.querySelector('.timeline-track-header') as HTMLElement;
 
-    expect(list?.getAttribute('role')).toBe('rowgroup');
-    expect(header.getAttribute('role')).toBe('row');
+    expect(list?.getAttribute('role')).toBe('group');
+    expect(list?.getAttribute('aria-label')).toBe('Timeline track headers');
+    expect(header.getAttribute('role')).toBe('group');
     expect(header.getAttribute('aria-label')).toBe('Video 1');
-    expect(header.getAttribute('aria-selected')).toBe('true');
     expect(header.getAttribute('data-track-id')).toBe('video-1');
+    expect(header.getAttribute('data-track-selected')).toBe('true');
     expect(header.getAttribute('data-track-visible')).toBe('true');
     expect(header.style.height).toBe('48px');
 
@@ -119,5 +120,34 @@ describe('TrackHeader', () => {
     expect(engine.getState().tracks[0].height).toBe(68);
     expect(setPointerCaptureMock).toHaveBeenCalledWith(1);
     expect(releasePointerCaptureMock).toHaveBeenCalledWith(1);
+  });
+
+  it('exposes resize handle value semantics and keyboard resizing', () => {
+    const engine = createEngine();
+
+    const { container } = render(
+      <TimelineProvider engine={engine}>
+        <TrackHeader trackId="video-1">
+          <TrackHeaderResizeHandle trackId="video-1" maxHeight={72} />
+        </TrackHeader>
+      </TimelineProvider>
+    );
+
+    const handle = container.querySelector('.timeline-track-header-resize-handle') as HTMLElement;
+
+    expect(handle.getAttribute('role')).toBe('separator');
+    expect(handle.getAttribute('aria-valuemin')).toBe('24');
+    expect(handle.getAttribute('aria-valuemax')).toBe('72');
+    expect(handle.getAttribute('aria-valuenow')).toBe('48');
+    expect(handle.getAttribute('aria-valuetext')).toBe('48 pixels');
+
+    fireEvent.keyDown(handle, { key: 'ArrowDown' });
+    expect(engine.getState().tracks[0].height).toBe(56);
+
+    fireEvent.keyDown(handle, { key: 'End' });
+    expect(engine.getState().tracks[0].height).toBe(72);
+
+    fireEvent.keyDown(handle, { key: 'ArrowDown' });
+    expect(engine.getState().tracks[0].height).toBe(72);
   });
 });

@@ -541,7 +541,9 @@ describe('timeline accessibility control hooks', () => {
 
     fireEvent.keyDown(scope, { key: 'K' });
     expect(engine.getState().playing).toBe(true);
-    engine.pause();
+    act(() => {
+      engine.pause();
+    });
 
     rerender(
       <TimelineProvider engine={engine}>
