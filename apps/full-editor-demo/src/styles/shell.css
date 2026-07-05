@@ -123,6 +123,7 @@
     height: 100%;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
     background: var(--editor-monitor);
   }
 
@@ -159,16 +160,20 @@
 
   .preview-monitor-frame {
     position: relative;
+    container: preview-monitor-frame / size;
     display: grid;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
     place-items: center;
     padding: 1.25rem;
   }
 
   .preview-monitor-canvas {
+    box-sizing: border-box;
     display: block;
-    width: min(100%, calc((100vh - 21rem) * 1.7778));
+    width: min(100cqw, calc(100cqh * 16 / 9));
+    height: min(100cqh, calc(100cqw * 9 / 16));
     max-width: 100%;
     max-height: 100%;
     aspect-ratio: 16 / 9;

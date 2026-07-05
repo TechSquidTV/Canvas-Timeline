@@ -25,6 +25,7 @@ export function EditorShell() {
               className="editor-shell-panel editor-monitor-panel"
               defaultSize="68%"
               minSize="24rem"
+              style={{ overflow: 'hidden' }}
             >
               <PreviewMonitor />
             </ResizablePanel>
