@@ -1,6 +1,5 @@
 import { Boxes, Clapperboard, FolderKanban } from 'lucide-react';
 import { ClipInspectorPanel } from '@/components/panels/ClipInspectorPanel';
-import { ExportToolPanel } from '@/components/panels/ExportPanel';
 import { ProjectPanel } from '@/components/panels/ProjectPanel';
 import { SourceBinPanel } from '@/components/source-bin/SourceBinPanel';
 import { useSourceBin } from '@/components/source-bin/source-bin-context';
@@ -18,7 +17,6 @@ export function ToolPanelStack() {
       <ToolPanel defaultOpen={false} icon={<FolderKanban aria-hidden="true" />} title="Project">
         <ProjectPanel />
       </ToolPanel>
-      <ExportToolPanel />
       <ToolPanel
         badge={sources.length.toString()}
         contentClassName="source-bin-tool-panel-content"

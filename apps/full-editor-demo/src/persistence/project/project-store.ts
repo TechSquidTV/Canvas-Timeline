@@ -10,7 +10,7 @@ import { isNotFoundError } from '@/persistence/opfs/support';
 import { demoProject } from '@/data/demo-project';
 import { parseProjectSnapshot } from './project-snapshot-schema';
 import { sanitizeTimelineState } from './timeline-state-persistence';
-import type { PersistedTimelineState, ProjectStorageSnapshot } from './types';
+import type { PersistedTimelineState, ProjectMetadata, ProjectStorageSnapshot } from './types';
 
 const PROJECT_DIRECTORY = 'project';
 const PROJECT_FILE = 'project.json';
@@ -37,13 +37,18 @@ export async function saveProjectSnapshot(state: TimelineState) {
   await savePersistedProjectState(sanitizeTimelineState(state));
 }
 
-export async function savePersistedProjectState(timelineState: PersistedTimelineState) {
+export async function savePersistedProjectState(
+  timelineState: PersistedTimelineState,
+  metadata: ProjectMetadata = getDefaultProjectMetadata()
+) {
   const snapshot: ProjectStorageSnapshot = {
-    version: 2,
-    projectId: demoProject.id,
-    title: demoProject.title,
-    description: demoProject.description,
-    frameRate: demoProject.frameRate,
+    version: 3,
+    projectId: metadata.projectId,
+    title: metadata.title,
+    description: metadata.description,
+    frameRate: metadata.frameRate,
+    height: metadata.height,
+    width: metadata.width,
     savedAt: new Date().toISOString(),
     timelineState,
   };
@@ -68,4 +73,15 @@ export async function resetProjectSnapshot() {
 async function getProjectRoot() {
   const root = await getAppStorageRoot();
   return getDirectoryFromPath(root, [PROJECT_DIRECTORY], true);
+}
+
+export function getDefaultProjectMetadata(): ProjectMetadata {
+  return {
+    description: demoProject.description,
+    frameRate: demoProject.frameRate,
+    height: demoProject.height,
+    projectId: demoProject.id,
+    title: demoProject.title,
+    width: demoProject.width,
+  };
 }

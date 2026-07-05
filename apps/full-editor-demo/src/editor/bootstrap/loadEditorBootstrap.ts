@@ -3,11 +3,15 @@ import { demoProject, timelineMarkers, timelineTracks } from '@/data/demo-projec
 import { mediaLibraryStore } from '@/media/library/media-library-store';
 import type { MediaLibrarySource } from '@/media/library/media-library-types';
 import { errorMessage, hasOpfsSupport } from '@/persistence/opfs/support';
-import { loadProjectSnapshot } from '@/persistence/project/project-store';
-import type { PersistedTimelineState } from '@/persistence/project/types';
+import {
+  getDefaultProjectMetadata,
+  loadProjectSnapshot,
+} from '@/persistence/project/project-store';
+import type { PersistedTimelineState, ProjectMetadata } from '@/persistence/project/types';
 
 export interface EditorBootstrapState {
   projectState: PersistedTimelineState;
+  projectMetadata: ProjectMetadata;
   sourceRestoreError?: string;
   sources: readonly MediaLibrarySource[];
   storageAvailable: boolean;
@@ -20,17 +24,31 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
   if (!storageAvailable) {
     return {
       projectState: seedProjectState,
+      projectMetadata: getDefaultProjectMetadata(),
       sources: [],
       storageAvailable,
     };
   }
 
   let projectState = seedProjectState;
+  let projectMetadata = getDefaultProjectMetadata();
   let sources: readonly MediaLibrarySource[] = [];
   let sourceRestoreError: string | undefined;
 
   try {
-    projectState = (await loadProjectSnapshot())?.timelineState ?? seedProjectState;
+    const snapshot = await loadProjectSnapshot();
+    projectState = snapshot?.timelineState ?? seedProjectState;
+    projectMetadata =
+      snapshot === null
+        ? projectMetadata
+        : {
+            description: snapshot.description,
+            frameRate: snapshot.frameRate,
+            height: snapshot.height,
+            projectId: snapshot.projectId,
+            title: snapshot.title,
+            width: snapshot.width,
+          };
   } catch {
     projectState = seedProjectState;
   }
@@ -43,6 +61,7 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
 
   return {
     projectState,
+    projectMetadata,
     sourceRestoreError,
     sources,
     storageAvailable,

@@ -17,12 +17,23 @@ export interface PersistedTimelineState {
   zoomScale: number;
 }
 
+export interface ProjectMetadata {
+  description: string;
+  frameRate: number;
+  height: number;
+  projectId: string;
+  title: string;
+  width: number;
+}
+
 export interface ProjectStorageSnapshot {
   description: string;
   frameRate: number;
+  height: number;
   projectId: string;
   savedAt: string;
   timelineState: PersistedTimelineState;
   title: string;
-  version: 2;
+  version: 3;
+  width: number;
 }

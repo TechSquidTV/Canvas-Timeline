@@ -18,11 +18,13 @@ function isProjectSnapshot(value: unknown): value is ProjectStorageSnapshot {
   }
 
   return (
-    value.version === 2 &&
+    value.version === 3 &&
     typeof value.projectId === 'string' &&
     typeof value.title === 'string' &&
     typeof value.description === 'string' &&
     typeof value.frameRate === 'number' &&
+    isPositiveFiniteNumber(value.height) &&
+    isPositiveFiniteNumber(value.width) &&
     typeof value.savedAt === 'string' &&
     isPersistedTimelineState(value.timelineState)
   );
@@ -114,6 +116,10 @@ function isRationalTime(value: unknown): value is RationalTime {
     Number.isFinite(value.r) &&
     value.r > 0
   );
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

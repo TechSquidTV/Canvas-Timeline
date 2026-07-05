@@ -75,6 +75,14 @@ export async function removeStoredSource(sourceId: string) {
   });
 }
 
+export async function clearStoredMediaLibrary() {
+  await mediaLibraryQueue.run(async () => {
+    const root = await getMediaLibraryRoot();
+    await removeEntryIfExists(root, ASSETS_DIRECTORY, { recursive: true });
+    await removeEntryIfExists(root, MANIFEST_FILE);
+  });
+}
+
 export async function updateMediaLibraryManifestWithoutQueue(
   root: FileSystemDirectoryHandle,
   updater: (sources: readonly MediaLibraryManifestSource[]) => readonly MediaLibraryManifestSource[]

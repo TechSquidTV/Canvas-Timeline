@@ -1,39 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
 import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
-import { Download, FileDown, Square } from 'lucide-react';
+import { Download, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import { demoProject } from '@/data/demo-project';
+import { useEditorProject } from '@/editor/project/project-context';
 import { formatSeconds } from '@/lib/timeline-format';
 import {
   createTimelineExportProfile,
   defaultTimelineExportResolutionId,
   getDefaultExportFilename,
-  timelineExportResolutions,
+  getTimelineExportResolutionOptions,
 } from '@/export/timeline-export-profile';
 import { createTimelineExportPlan } from '@/export/timeline-export-plan';
+import { formatVideoResolution } from '@/project/video-settings';
 import type {
   TimelineExportResolutionId,
   TimelineExportStatus,
 } from '@/export/timeline-export-types';
-import { ToolPanel } from './ToolPanel';
 
-export function ExportToolPanel() {
-  const [status, setStatus] = useState<TimelineExportStatus>({ phase: 'idle' });
-
-  return (
-    <ToolPanel
-      badge={getExportStatusBadge(status)}
-      defaultOpen={false}
-      icon={<FileDown aria-hidden="true" />}
-      title="Export"
-    >
-      <ExportPanel status={status} onStatusChange={setStatus} />
-    </ToolPanel>
-  );
-}
-
-function ExportPanel({
+export function ExportPanel({
   onStatusChange,
   status,
 }: {
@@ -43,13 +28,15 @@ function ExportPanel({
   const abortControllerRef = useRef<AbortController | null>(null);
   const state = useTimelineState();
   const { sources } = useSourceBin();
-  const [filename, setFilename] = useState(getDefaultExportFilename);
+  const { metadata } = useEditorProject();
+  const [filename, setFilename] = useState(() => getDefaultExportFilename(metadata.title));
   const [resolutionId, setResolutionId] = useState<TimelineExportResolutionId>(
     defaultTimelineExportResolutionId
   );
+  const resolutionOptions = useMemo(() => getTimelineExportResolutionOptions(metadata), [metadata]);
   const profile = useMemo(
-    () => createTimelineExportProfile({ filename, resolutionId }),
-    [filename, resolutionId]
+    () => createTimelineExportProfile({ filename, projectMetadata: metadata, resolutionId }),
+    [filename, metadata, resolutionId]
   );
   const planResult = useMemo(
     () => createTimelineExportPlan({ profile, sources, state }),
@@ -124,7 +111,7 @@ function ExportPanel({
           }
           value={resolutionId}
         >
-          {timelineExportResolutions.map((resolution) => (
+          {resolutionOptions.map((resolution) => (
             <option key={resolution.id} value={resolution.id}>
               {resolution.label}
             </option>
@@ -147,7 +134,11 @@ function ExportPanel({
         </div>
         <div>
           <dt>Frame rate</dt>
-          <dd>{demoProject.frameRate} fps</dd>
+          <dd>{metadata.frameRate} fps</dd>
+        </div>
+        <div>
+          <dt>Output</dt>
+          <dd>{formatVideoResolution(profile.resolution)}</dd>
         </div>
         <div>
           <dt>Scope</dt>
@@ -196,17 +187,4 @@ function getCombinedProgress(phase: 'audio' | 'finalizing' | 'video', progress: 
   }
 
   return 0.98;
-}
-
-function getExportStatusBadge(status: TimelineExportStatus) {
-  switch (status.phase) {
-    case 'complete':
-      return 'Done';
-    case 'error':
-      return 'Error';
-    case 'running':
-      return `${Math.round(status.progress * 100)}%`;
-    default:
-      return undefined;
-  }
 }

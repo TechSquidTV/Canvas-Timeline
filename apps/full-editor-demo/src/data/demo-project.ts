@@ -7,6 +7,8 @@ export const demoProject = {
   title: 'Launch Cut Lab',
   description: 'Private integration project for Canvas Timeline feature QA.',
   frameRate: 30,
+  height: 1080,
+  width: 1920,
   durationSeconds: 36,
 } as const;
 

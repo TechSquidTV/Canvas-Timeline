@@ -1,52 +1,64 @@
 import { demoProject } from '@/data/demo-project';
+import type { ProjectMetadata } from '@/persistence/project/types';
+import {
+  formatVideoResolution,
+  getRecommendedVideoBitrate,
+  videoResolutionPresets,
+} from '@/project/video-settings';
 import type {
   TimelineExportProfile,
   TimelineExportResolution,
   TimelineExportResolutionId,
 } from './timeline-export-types';
 
-export const timelineExportResolutions = [
-  {
-    height: 1080,
-    id: '1080p',
-    label: '1080p',
-    videoBitrate: 8_000_000,
-    width: 1920,
-  },
-  {
-    height: 720,
-    id: '720p',
-    label: '720p',
-    videoBitrate: 4_000_000,
-    width: 1280,
-  },
-] as const satisfies readonly TimelineExportResolution[];
+export const timelineExportResolutions = videoResolutionPresets.map((preset) => ({
+  ...preset,
+  videoBitrate: getRecommendedVideoBitrate(preset),
+})) satisfies readonly TimelineExportResolution[];
 
-export const defaultTimelineExportResolutionId: TimelineExportResolutionId = '1080p';
+export const defaultTimelineExportResolutionId: TimelineExportResolutionId = 'project';
 
 export function createTimelineExportProfile(options: {
   filename: string;
+  projectMetadata: ProjectMetadata;
   resolutionId: TimelineExportResolutionId;
 }): TimelineExportProfile {
   return {
     audioBitrate: 192_000,
     filename: normalizeExportFilename(options.filename),
-    frameRate: demoProject.frameRate,
-    resolution: getTimelineExportResolution(options.resolutionId),
+    frameRate: options.projectMetadata.frameRate,
+    resolution: getTimelineExportResolution(options.resolutionId, options.projectMetadata),
   };
 }
 
-export function getDefaultExportFilename() {
-  return normalizeExportFilename(demoProject.title);
+export function getDefaultExportFilename(projectTitle: string = demoProject.title) {
+  return normalizeExportFilename(projectTitle);
 }
 
 export function getTimelineExportResolution(
-  resolutionId: TimelineExportResolutionId
+  resolutionId: TimelineExportResolutionId,
+  projectMetadata: ProjectMetadata
 ): TimelineExportResolution {
+  if (resolutionId === 'project') {
+    return {
+      height: projectMetadata.height,
+      id: 'project',
+      label: `Project (${formatVideoResolution(projectMetadata)})`,
+      videoBitrate: getRecommendedVideoBitrate(projectMetadata),
+      width: projectMetadata.width,
+    };
+  }
+
   return (
     timelineExportResolutions.find((resolution) => resolution.id === resolutionId) ??
     timelineExportResolutions[0]
   );
+}
+
+export function getTimelineExportResolutionOptions(
+  projectMetadata: ProjectMetadata
+): readonly TimelineExportResolution[] {
+  return [getTimelineExportResolution('project', projectMetadata), ...timelineExportResolutions];
 }
 
 export function normalizeExportFilename(value: string) {

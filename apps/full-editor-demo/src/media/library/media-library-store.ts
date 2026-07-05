@@ -1,7 +1,7 @@
 import { importSourceFile } from './media-library-import';
 import { loadMediaLibrarySources } from './media-library-repair';
 import { createPlayableSources } from './media-library-runtime';
-import { removeStoredSource } from './media-library-files';
+import { clearStoredMediaLibrary, removeStoredSource } from './media-library-files';
 import type {
   MediaLibraryImportResult,
   MediaLibrarySource,
@@ -17,6 +17,11 @@ function createMediaLibraryStore(): MediaLibraryStore {
   };
 
   return {
+    clear: async () => {
+      await clearStoredMediaLibrary();
+      sources = [];
+      return sources;
+    },
     getPlayableSources: () => createPlayableSources(sources),
     importFiles: async (files) => {
       const importedSources: MediaLibraryImportResult[] = [];

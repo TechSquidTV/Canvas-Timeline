@@ -43,6 +43,7 @@ export interface MediaLibraryProbeResult {
 }
 
 export interface MediaLibraryStore {
+  clear: () => Promise<readonly MediaLibrarySource[]>;
   getPlayableSources: () => readonly MediabunnySource[];
   importFiles: (files: FileList | readonly File[]) => Promise<readonly MediaLibraryImportResult[]>;
   load: () => Promise<readonly MediaLibrarySource[]>;

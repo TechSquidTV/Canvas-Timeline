@@ -1,11 +1,13 @@
 import { PreviewMonitor } from './PreviewMonitor';
 import { TimelineDock } from './TimelineDock';
 import { ToolPanelStack } from './ToolPanelStack';
+import { TopMenuBar } from './TopMenuBar';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 export function EditorShell() {
   return (
     <main className="full-editor-app">
+      <TopMenuBar />
       <ResizablePanelGroup
         className="full-editor-layout"
         orientation="vertical"

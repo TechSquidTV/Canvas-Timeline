@@ -12,7 +12,8 @@ import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 
 import { useEditorMediaSync } from '@/editor/shell/media-sync-context';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { demoProject, type EditorTrackKind } from '@/data/demo-project';
+import { useEditorProject } from '@/editor/project/project-context';
+import type { EditorTrackKind } from '@/data/demo-project';
 
 function PlayheadTimecodeControl() {
   const playheadControl = useTimelinePlayheadControl();
@@ -62,12 +63,13 @@ function CutSelectedClipButton() {
 
 export function TransportBar() {
   const media = useEditorMediaSync();
+  const { metadata } = useEditorProject();
   const markers = useTimelineMarkers();
   const playback = useTimelinePlayback();
   const playheadControl = useTimelinePlayheadControl();
   const snapping = useTimelineSnapping();
   const hasInOutRange = playback.inPoint !== undefined || playback.outPoint !== undefined;
-  const frameStepSeconds = 1 / demoProject.frameRate;
+  const frameStepSeconds = 1 / metadata.frameRate;
 
   return (
     <div className="timeline-control-bar full-editor-transport">

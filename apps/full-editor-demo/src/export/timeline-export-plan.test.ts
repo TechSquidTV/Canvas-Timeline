@@ -3,12 +3,18 @@ import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
 import type { SourceBinSource } from '@/components/source-bin/types';
 import type { EditorTrackKind } from '@/data/demo-project';
-import { createTimelineExportProfile, normalizeExportFilename } from './timeline-export-profile';
+import { getDefaultProjectMetadata } from '@/persistence/project/project-store';
+import {
+  createTimelineExportProfile,
+  getTimelineExportResolutionOptions,
+  normalizeExportFilename,
+} from './timeline-export-profile';
 import { createTimelineExportPlan } from './timeline-export-plan';
 
 const file = new File(['media'], 'source.mp4', { type: 'video/mp4' });
 const profile = createTimelineExportProfile({
   filename: 'Launch Cut Lab.mp4',
+  projectMetadata: getDefaultProjectMetadata(),
   resolutionId: '1080p',
 });
 
@@ -86,6 +92,30 @@ describe('timeline export planning', () => {
   it('normalizes export filenames', () => {
     expect(normalizeExportFilename('  Launch/Cut Lab!!.mp4  ')).toBe('Launch-Cut Lab.mp4');
     expect(normalizeExportFilename('  ')).toBe('timeline-export.mp4');
+  });
+
+  it('uses project video settings for the default export profile', () => {
+    const projectMetadata = {
+      ...getDefaultProjectMetadata(),
+      frameRate: 24,
+      height: 2160,
+      width: 3840,
+    };
+    const projectProfile = createTimelineExportProfile({
+      filename: 'Project Resolution.mp4',
+      projectMetadata,
+      resolutionId: 'project',
+    });
+
+    expect(projectProfile.frameRate).toBe(24);
+    expect(projectProfile.resolution).toMatchObject({
+      height: 2160,
+      id: 'project',
+      width: 3840,
+    });
+    expect(
+      getTimelineExportResolutionOptions(projectMetadata).map((resolution) => resolution.id)
+    ).toEqual(['project', '720p', '1080p', '4k']);
   });
 });
 
