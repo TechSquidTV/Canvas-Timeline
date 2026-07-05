@@ -1,0 +1,27 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/data/site';
+---
+
+<BaseLayout
+  title="Page Not Found"
+  description="The requested Canvas Timeline page could not be found."
+  canonicalUrl={`${site.url}/404`}
+  noindex
+>
+  <section class="page-band">
+    <div class="container-page page-heading">
+      <p class="eyebrow">404</p>
+      <h1>Page not found</h1>
+      <p>
+        This URL does not match a Canvas Timeline page. Try the documentation, packages, or demos
+        instead.
+      </p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/docs">Read the docs</a>
+        <a class="button button-secondary" href="/packages">Browse packages</a>
+        <a class="button button-secondary" href="/demos">View demos</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

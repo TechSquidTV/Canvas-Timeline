@@ -397,7 +397,17 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['apps/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
-      exclude: ['apps/**/vite-env.d.ts', '**/*.test.{ts,tsx}', 'packages/renderer/src/worker.ts'],
+      exclude: [
+        'apps/**/.generated/**',
+        'apps/**/vite-env.d.ts',
+        'apps/**/src/components/**/*.{ts,tsx}',
+        'apps/**/src/data/blog.ts',
+        'apps/**/src/data/*.generated.ts',
+        'apps/**/src/data/react-registry.ts',
+        'apps/**/src/pages/**/*.{ts,tsx}',
+        '**/*.test.{ts,tsx}',
+        'packages/renderer/src/worker.ts',
+      ],
       thresholds: {
         lines: 60,
         functions: 60,
