@@ -62,7 +62,7 @@ If none of these apply, still skim sections 0 and 3 before opening the PR.
 Start with focused checks near the change, then scale up:
 
 ```bash
-vp check
+vp run repo:check
 vp test
 vp run custom:rules
 vp run knip

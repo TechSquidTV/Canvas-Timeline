@@ -142,7 +142,7 @@ Run focused tests for the changed hook/component, then run the repo checks:
 ```bash
 vp test packages/react/src/hooks.test.ts packages/react/src/hooks/accessibilityControls.test.tsx
 vp test packages/react/src/components/playhead/tapBehavior.test.tsx
-vp check
+vp run repo:check
 ```
 
 When docs demos or registry snippets change, also run:

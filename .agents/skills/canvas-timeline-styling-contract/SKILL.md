@@ -144,5 +144,5 @@ canvas output or renderer theme resolution changes.
 Finish with:
 
 ```bash
-vp check
+vp run repo:check
 ```

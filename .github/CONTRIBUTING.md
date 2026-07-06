@@ -19,7 +19,7 @@ Common development commands:
 ```bash
 vp run dev
 vp run dev:www
-vp check
+vp run repo:check
 vp test
 ```
 
@@ -66,7 +66,7 @@ Run focused tests near your change, then use the broader gates when the change
 touches shared behavior or package surfaces:
 
 ```bash
-vp check
+vp run repo:check
 vp test
 vp run ci
 vp run build

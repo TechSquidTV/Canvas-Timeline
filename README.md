@@ -77,7 +77,7 @@ published at [canvastimeline.com](https://canvastimeline.com).
 vp install
 vp run dev
 vp run dev:www
-vp check
+vp run repo:check
 vp test
 ```
 
