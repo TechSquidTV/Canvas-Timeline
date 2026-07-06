@@ -313,7 +313,7 @@ function checkReactApiDeclaration(context, options, node) {
     reportTsdoc(context, node, 'missingRemarks', { name });
   }
 
-  if (options.remarksLinkNames.includes(name) && !/\{@link\s+[^}]+\}/.test(remarks)) {
+  if (options.remarksLinkNames.includes(name) && remarks && !/\{@link\s+[^}]+\}/.test(remarks)) {
     reportTsdoc(context, node, 'missingRemarksLink', { name });
   }
 

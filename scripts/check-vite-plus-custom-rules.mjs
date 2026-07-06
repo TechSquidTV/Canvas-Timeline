@@ -231,11 +231,13 @@ function checkCuratedApiTsdoc(sourceFile, spec, outputFailures) {
       outputFailures.push(`${spec.file}: ${name} must have a TSDoc summary`);
     }
 
-    if (!tagText(tsdoc, 'remarks')) {
+    const remarks = tagText(tsdoc, 'remarks');
+
+    if (!remarks) {
       outputFailures.push(`${spec.file}: ${name} must include @remarks`);
     }
 
-    if (spec.remarksLinks.includes(name) && !/\{@link\s+[^}]+\}/.test(tagText(tsdoc, 'remarks'))) {
+    if (spec.remarksLinks.includes(name) && remarks && !/\{@link\s+[^}]+\}/.test(remarks)) {
       outputFailures.push(`${spec.file}: ${name} @remarks must include a {@link ...} reference`);
     }
 
@@ -338,16 +340,19 @@ function checkParameters(sourceFile, file, name, declaration, tsdoc, outputFailu
     }
 
     const parameterName = parameter.name.text;
-    const tag = tagText(tsdoc, 'param');
-    const hasParam = new RegExp(
-      `@param\\s+${escapeRegExp(parameterName)}\\b[\\s\\S]*?-\\s+\\S`
-    ).test(tsdoc);
+    const paramBlock = tsdoc.match(
+      new RegExp(
+        `@param\\s+${escapeRegExp(parameterName)}\\b([\\s\\S]*?)(?=\\n\\s*\\*\\s*@|\\n\\s*@|\\*\\/)`
+      )
+    );
+    const paramText = paramBlock?.[1]?.trim() ?? '';
+    const hasDescription = /-\s+\S/.test(paramText);
 
-    if (!hasParam) {
+    if (!paramBlock) {
       outputFailures.push(`${file}: ${name} must document @param ${parameterName}`);
     }
 
-    if (tag.length === 0) {
+    if (paramBlock && !hasDescription) {
       const position = sourceFile.getLineAndCharacterOfPosition(parameter.getStart(sourceFile));
       outputFailures.push(
         `${file}:${position.line + 1}:${position.character + 1}: ${name} @param ${parameterName} is empty`
