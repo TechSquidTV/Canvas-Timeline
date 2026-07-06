@@ -115,6 +115,10 @@ function getTrackLabel<TrackKind = string>(track?: Track<TrackKind>) {
  *
  * @param clip - Timeline clip to describe.
  * @param track - Optional track containing the clip.
+ * @template TrackKind - App-defined track kind values carried by the containing
+ * track.
+ * @returns Short label suitable for `aria-label`, active-descendant text, or
+ * inspector headings.
  */
 export function getClipAccessibleName<TrackKind = string>(clip: Clip, track?: Track<TrackKind>) {
   const clipLabel = clip.label?.trim() || clip.id;
@@ -127,6 +131,10 @@ export function getClipAccessibleName<TrackKind = string>(clip: Clip, track?: Tr
  *
  * @param clip - Timeline clip whose timing and edit state should be described.
  * @param track - Optional track containing the clip.
+ * @template TrackKind - App-defined track kind values carried by the containing
+ * track.
+ * @returns Spoken description with timing, duration, and relevant edit-state
+ * flags.
  */
 export function getClipAccessibleDescription<TrackKind = string>(
   clip: Clip,

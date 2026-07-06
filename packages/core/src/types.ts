@@ -6,6 +6,9 @@ import type {
 
 /**
  * A value that may be available immediately or after asynchronous media lookup.
+ *
+ * @template T - Resolved value type returned either directly or through a
+ * promise.
  */
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -49,6 +52,18 @@ export interface ClipSourceRange {
 
 /**
  * Filters for selecting active clips at a timeline time.
+ *
+ * @remarks
+ *
+ * Use `ActiveClipQuery` when an integration needs one matching clip, such as a
+ * focused preview thumbnail, inspector, subtitle renderer, or source-specific
+ * media control. For named multi-layer playback surfaces, prefer
+ * {@link ActiveLayerOptions} and {@link TimelineEngine.getActiveLayers}.
+ *
+ * @template TrackKind - App-defined track kind values used by your timeline,
+ * such as `"visual"`, `"audio"`, or `"subtitle"`.
+ *
+ * @see {@link https://canvastimeline.com/docs/events-and-lifecycle | Events and lifecycle}
  */
 export interface ActiveClipQuery<TrackKind = string> {
   /** Timeline time to inspect. Defaults to the current playhead. */
@@ -68,6 +83,22 @@ export interface ActiveClipQuery<TrackKind = string> {
  * such as visual previews, audio playback, subtitles, effects, or a particular source
  * asset. Selectors are matched against the active clips returned for a single
  * timeline time.
+ *
+ * @template TrackKind - App-defined track kind values accepted by this layer,
+ * such as `"visual"`, `"audio"`, or `"subtitle"`.
+ *
+ * @example
+ * ```ts
+ * import type { ActiveLayerSelector } from '@techsquidtv/canvas-timeline-core';
+ *
+ * const visuals: ActiveLayerSelector<'visual' | 'audio'> = {
+ *   trackKind: 'visual',
+ *   sourceId: 'camera-a',
+ * };
+ * ```
+ *
+ * @see {@link ActiveClipQuery}
+ * @see {@link https://canvastimeline.com/demos/html-media-sync | HTML media sync demo}
  */
 export type ActiveLayerSelector<TrackKind = string> = Omit<ActiveClipQuery<TrackKind>, 'time'>;
 
@@ -77,6 +108,29 @@ export type ActiveLayerSelector<TrackKind = string> = Omit<ActiveClipQuery<Track
  * Use this when integrations need named layers such as `visuals`, `audio`,
  * `subtitles`, or `effects` instead of one flat active-clip list. The same
  * active clip can match more than one layer.
+ *
+ * @template LayerName - String literal names for the layers your integration
+ * exposes, for example `"visuals" | "audio"`.
+ * @template TrackKind - App-defined track kind values matched by each layer
+ * selector.
+ *
+ * @example
+ * ```ts
+ * import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+ * import type { ActiveLayerOptions } from '@techsquidtv/canvas-timeline-core';
+ *
+ * const options = {
+ *   time: fromSeconds(4),
+ *   layers: {
+ *     visuals: { trackKind: 'visual', sourceId: 'source-1' },
+ *     audio: { trackKind: 'audio', sourceId: 'source-1' },
+ *   },
+ * } satisfies ActiveLayerOptions<'visuals' | 'audio', 'visual' | 'audio'>;
+ * ```
+ *
+ * @see {@link ActiveLayerSelector}
+ * @see {@link ActiveLayerResult}
+ * @see {@link TimelineEngine.getActiveLayers}
  */
 export interface ActiveLayerOptions<LayerName extends string = string, TrackKind = string> {
   /** Timeline time to inspect. Defaults to the current playhead. */
@@ -92,6 +146,27 @@ export interface ActiveLayerOptions<LayerName extends string = string, TrackKind
  * convenience `primary` entries for apps that only need the first match in each
  * layer. Each `ActiveClip` includes mapped source time and source range data for
  * preview and playback synchronization.
+ *
+ * @template LayerName - String literal names from the `layers` option, such as
+ * `"visuals" | "audio"`.
+ * @template TrackKind - App-defined track kind values carried by returned
+ * tracks.
+ *
+ * @example
+ * ```ts
+ * const activeLayers = engine.getActiveLayers({
+ *   layers: {
+ *     visuals: { trackKind: 'visual' },
+ *     audio: { trackKind: 'audio' },
+ *   },
+ * });
+ *
+ * const visualClip = activeLayers.primary.visuals?.clip;
+ * const audioClips = activeLayers.layers.audio;
+ * ```
+ *
+ * @see {@link ActiveClip}
+ * @see {@link https://canvastimeline.com/packages/react/api/use-active-layers | useActiveLayers}
  */
 export interface ActiveLayerResult<LayerName extends string = string, TrackKind = string> {
   /** Timeline time used for the lookup. */
@@ -152,13 +227,21 @@ export interface ClipHitTestInput extends TimelineInteractionGeometry {
 
 /** Viewport-space rectangle for a clip and its containing track. */
 export interface ClipViewportRect {
+  /** Clip represented by the rectangle. */
   clipId: string;
+  /** Track containing the clip. */
   trackId: string;
+  /** Zero-based track index in timeline order. */
   trackIndex: number;
+  /** Zero-based clip index inside the containing track. */
   clipIndex: number;
+  /** Left edge in viewport CSS pixels after horizontal scroll is applied. */
   x: number;
+  /** Top edge in viewport CSS pixels, including the ruler offset. */
   y: number;
+  /** Clip width in viewport CSS pixels. */
   width: number;
+  /** Clip height in viewport CSS pixels. */
   height: number;
 }
 
@@ -192,7 +275,11 @@ export interface TrackHitTestInput extends TimelineTrackGeometryOptions {
   y: number;
 }
 
-/** Hit-test result for a timeline track row. */
+/**
+ * Hit-test result for a timeline track row.
+ *
+ * @template TrackKind - App-defined track kind carried by the matched track.
+ */
 export interface TimelineTrackHitTestResult<TrackKind = string> {
   /** Track under the queried point. */
   track: Track<TrackKind>;
@@ -204,13 +291,21 @@ export interface TimelineTrackHitTestResult<TrackKind = string> {
 
 /** Hit-test result for a clip pointer target. */
 export interface ClipHitTestResult {
+  /** Track containing the matched clip. */
   track: Track;
+  /** Clip matched by the pointer query. */
   clip: Clip;
+  /** Zero-based track index in timeline order. */
   trackIndex: number;
+  /** Zero-based clip index inside the containing track. */
   clipIndex: number;
+  /** Clip body or edge region matched by the pointer query. */
   region: ClipHitRegion;
+  /** Viewport-space bounds used for the match. */
   rect: ClipViewportRect;
+  /** Whether current policy and lock state allow moving the clip body. */
   canMove: boolean;
+  /** Whether current policy and lock state allow trimming the clip edges. */
   canTrim: boolean;
 }
 
@@ -299,12 +394,19 @@ export interface TimelineKeyframe {
 
 /** Viewport-space rectangle for one keyframe affordance. */
 export interface TimelineKeyframeViewportRect {
+  /** Clip that owns the keyframe. */
   clipId: string;
+  /** Track containing the owning clip. */
   trackId: string;
+  /** Keyframe represented by this rectangle. */
   keyframeId: string;
+  /** Left edge in viewport CSS pixels after horizontal scroll is applied. */
   x: number;
+  /** Top edge in viewport CSS pixels within the clip row. */
   y: number;
+  /** Keyframe affordance width in viewport CSS pixels. */
   width: number;
+  /** Keyframe affordance height in viewport CSS pixels. */
   height: number;
 }
 
@@ -318,15 +420,25 @@ export interface TimelineKeyframePoint {
 
 /** Viewport-space rectangle for one keyframe tangent affordance. */
 export interface TimelineKeyframeTangentHandleViewportRect {
+  /** Clip that owns the edited curve segment. */
   clipId: string;
+  /** Track containing the owning clip. */
   trackId: string;
+  /** Stable segment id for the adjacent keyframe pair. */
   segmentId: string;
+  /** Keyframe whose Bezier easing is edited by this handle. */
   keyframeId: string;
+  /** Endpoint keyframe where the handle line is anchored. */
   anchorKeyframeId: string;
+  /** Keyframe side edited by this tangent handle. */
   side: TimelineKeyframeSide;
+  /** Left edge in viewport CSS pixels after horizontal scroll is applied. */
   x: number;
+  /** Top edge in viewport CSS pixels within the clip row. */
   y: number;
+  /** Handle affordance width in viewport CSS pixels. */
   width: number;
+  /** Handle affordance height in viewport CSS pixels. */
   height: number;
 }
 
@@ -372,7 +484,11 @@ export interface TimelineKeyframeHitTestInput extends TimelineKeyframeGeometryOp
   pointerType?: string;
 }
 
-/** Keyframe entry with viewport geometry and edit/display state. */
+/**
+ * Keyframe entry with viewport geometry and edit/display state.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export interface TimelineKeyframeRect<TrackKind = string> extends TimelineClipEntry<TrackKind> {
   /** Raw keyframe represented by this entry. */
   keyframe: TimelineKeyframe;
@@ -384,7 +500,11 @@ export interface TimelineKeyframeRect<TrackKind = string> extends TimelineClipEn
   canEdit: boolean;
 }
 
-/** Bezier tangent handle entry with viewport geometry and edit state. */
+/**
+ * Bezier tangent handle entry with viewport geometry and edit state.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export interface TimelineKeyframeTangentHandle<
   TrackKind = string,
 > extends TimelineClipEntry<TrackKind> {
@@ -414,7 +534,11 @@ export interface TimelineKeyframeTangentHandle<
   canEdit: boolean;
 }
 
-/** Keyframe segment entry with viewport geometry and optional Bezier tangents. */
+/**
+ * Keyframe segment entry with viewport geometry and optional Bezier tangents.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export interface TimelineKeyframeSegment<TrackKind = string> extends TimelineClipEntry<TrackKind> {
   /** Stable segment id for the adjacent keyframe pair. */
   segmentId: string;
@@ -506,13 +630,25 @@ export interface TimelineKeyframeRenderGeometry {
   clips: TimelineKeyframeRenderClip[];
 }
 
-/** Viewport-intersecting keyframe entry. */
+/**
+ * Viewport-intersecting keyframe entry.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export type VisibleTimelineKeyframe<TrackKind = string> = TimelineKeyframeRect<TrackKind>;
 
-/** Hit-test result for a timeline keyframe pointer target. */
+/**
+ * Hit-test result for a timeline keyframe pointer target.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export type TimelineKeyframeHitTestResult<TrackKind = string> = TimelineKeyframeRect<TrackKind>;
 
-/** Viewport-intersecting keyframe segment. */
+/**
+ * Viewport-intersecting keyframe segment.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export type VisibleTimelineKeyframeSegment<TrackKind = string> = TimelineKeyframeSegment<TrackKind>;
 
 /** Viewport-space pointer query for keyframe tangent handle hit testing. */
@@ -525,7 +661,11 @@ export interface TimelineKeyframeTangentHitTestInput extends TimelineKeyframeSeg
   pointerType?: string;
 }
 
-/** Hit-test result for a keyframe tangent handle pointer target. */
+/**
+ * Hit-test result for a keyframe tangent handle pointer target.
+ *
+ * @template TrackKind - App-defined track kind carried by the containing track.
+ */
 export type TimelineKeyframeTangentHandleHitTestResult<TrackKind = string> =
   TimelineKeyframeTangentHandle<TrackKind>;
 
@@ -970,51 +1110,73 @@ export interface TimelineInsertClipGroupOptions {
 
 /** Command that moves an existing clip. */
 export interface TimelineMoveEditCommand extends TimelineClipMoveOptions {
+  /** Command discriminator for clip body movement. */
   type: 'move';
 }
 
 /** Command that trims one existing clip boundary. */
 export interface TimelineTrimEditCommand {
+  /** Command discriminator for single-edge trimming. */
   type: 'trim';
+  /** Clip whose boundary should move. */
   clipId: string;
+  /** Boundary to trim. */
   edge: 'start' | 'end';
+  /** Desired new timeline time for the selected boundary. */
   newTime: RationalTime;
+  /** Whether to resolve magnetic snapping while trimming. Defaults to true. */
   snap?: boolean;
 }
 
 /** Command that trims one boundary and ripples later clips on the same track. */
 export interface TimelineRippleTrimEditCommand extends Omit<TimelineTrimEditCommand, 'type'> {
+  /** Command discriminator for ripple trimming. */
   type: 'ripple-trim';
 }
 
 /** Command that rolls the shared boundary between two adjacent clips. */
 export interface TimelineRollTrimEditCommand {
+  /** Command discriminator for rolling an adjacent edit point. */
   type: 'roll-trim';
+  /** Clip ending at the shared boundary. */
   leftClipId: string;
+  /** Clip starting at the shared boundary. */
   rightClipId: string;
+  /** Desired shared boundary time after the roll. */
   boundaryTime: RationalTime;
+  /** Whether to resolve magnetic snapping while rolling. Defaults to true. */
   snap?: boolean;
 }
 
 /** Command that shifts an existing clip's source start without moving timeline bounds. */
 export interface TimelineSlipEditCommand {
+  /** Command discriminator for source slipping. */
   type: 'slip';
+  /** Clip whose source start should shift. */
   clipId: string;
+  /** Relative source-time delta applied while timeline bounds stay fixed. */
   deltaTime: RationalTime;
 }
 
 /** Command that moves an existing clip by a relative timeline offset. */
 export interface TimelineSlideEditCommand {
+  /** Command discriminator for timeline sliding. */
   type: 'slide';
+  /** Clip whose timeline position should shift. */
   clipId: string;
+  /** Relative timeline delta applied to the clip position. */
   deltaTime: RationalTime;
+  /** Whether to resolve magnetic snapping while sliding. Defaults to true. */
   snap?: boolean;
 }
 
 /** Command that splits selected clips at one timeline time. */
 export interface TimelineSplitEditCommand {
+  /** Command discriminator for splitting clips. */
   type: 'split';
+  /** Timeline time at which each selected clip should split. */
   time: RationalTime;
+  /** Clips to split when they contain `time`. */
   clipIds: readonly string[];
 }
 
@@ -1026,11 +1188,13 @@ export interface TimelineDeleteClipsEditCommand {
 
 /** Command that inserts a new clip and pushes later clips forward. */
 export interface TimelineInsertEditCommand extends TimelinePlaceClipCommand {
+  /** Command discriminator for ripple insert placement. */
   type: 'insert';
 }
 
 /** Command that inserts grouped clips and pushes later clips forward per target track. */
 export interface TimelineInsertClipGroupEditCommand extends TimelineInsertClipGroupOptions {
+  /** Command discriminator for grouped ripple insert placement. */
   type: 'insert-clip-group';
   /** Whether to snap the first placement and apply that shared delta to the group. Defaults to true. */
   snap?: boolean;
@@ -1038,11 +1202,13 @@ export interface TimelineInsertClipGroupEditCommand extends TimelineInsertClipGr
 
 /** Command that places a new clip and removes or trims overlaps on the target track. */
 export interface TimelineOverwriteEditCommand extends TimelinePlaceClipCommand {
+  /** Command discriminator for overwrite placement. */
   type: 'overwrite';
 }
 
 /** Command that places grouped clips and overwrites overlaps per target track. */
 export interface TimelineOverwriteClipGroupEditCommand extends TimelineInsertClipGroupOptions {
+  /** Command discriminator for grouped overwrite placement. */
   type: 'overwrite-clip-group';
   /** Whether to snap the first placement and apply that shared delta to the group. Defaults to true. */
   snap?: boolean;
@@ -1050,18 +1216,27 @@ export interface TimelineOverwriteClipGroupEditCommand extends TimelineInsertCli
 
 /** Command that removes a timeline range and ripples later clips closed by default. */
 export interface TimelineDeleteRangeEditCommand {
+  /** Command discriminator for range deletion. */
   type: 'delete-range';
+  /** Inclusive start of the timeline range to remove. */
   startTime: RationalTime;
+  /** Exclusive end of the timeline range to remove. */
   endTime: RationalTime;
+  /** Optional track ids to affect. Omit to affect every editable track. */
   trackIds?: readonly string[];
+  /** Whether later clips close the removed gap. Defaults to true. */
   ripple?: boolean;
 }
 
 /** Command that removes a timeline range while leaving the gap in place. */
 export interface TimelineLiftRangeEditCommand {
+  /** Command discriminator for range lifting. */
   type: 'lift-range';
+  /** Inclusive start of the timeline range to lift. */
   startTime: RationalTime;
+  /** Exclusive end of the timeline range to lift. */
   endTime: RationalTime;
+  /** Optional track ids to affect. Omit to affect every editable track. */
   trackIds?: readonly string[];
 }
 
@@ -1082,7 +1257,11 @@ export type TimelineEditCommand =
   | TimelineDeleteRangeEditCommand
   | TimelineLiftRangeEditCommand;
 
-/** Context passed to product-defined edit policy callbacks. */
+/**
+ * Context passed to product-defined edit policy callbacks.
+ *
+ * @template Command - Specific edit command being validated by a policy hook.
+ */
 export interface TimelineEditPolicyContext<
   Command extends TimelineEditCommand = TimelineEditCommand,
 > {
@@ -1366,6 +1545,20 @@ export interface TimelineRulerTickOptions {
 
 /**
  * Clip that is active at a timeline time, including its mapped source time.
+ *
+ * @remarks
+ *
+ * `ActiveClip` is the bridge between timeline structure and source media. It
+ * keeps the original {@link Clip}, containing {@link Track}, inspected timeline
+ * time, source-media timestamp, source interval, and a `syncKey` that changes
+ * when timing-affecting clip data changes. Media adapters use this shape to
+ * seek a source file without duplicating timeline math.
+ *
+ * @template TrackKind - App-defined track kind value carried by the containing
+ * track.
+ *
+ * @see {@link ActiveLayerResult}
+ * @see {@link ClipSourceRange}
  */
 export interface ActiveClip<TrackKind = string> {
   /** Track containing the active clip. */

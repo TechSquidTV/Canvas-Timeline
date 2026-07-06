@@ -24,6 +24,17 @@ export type TimelineContentPlaybackStatus = 'idle' | 'playing' | 'paused' | 'con
 
 /**
  * Details passed to external media sync callbacks.
+ *
+ * @remarks
+ *
+ * `TimelineLayerSyncDetails` is emitted when playback starts, ticks, pauses,
+ * crosses a content gap, or changes rate. Adapter code should use `reason` to
+ * decide whether work can be skipped. For example, an audio adapter usually
+ * reschedules on `"play"` and `"rate"`, but can ignore ordinary `"tick"` calls
+ * while the same clip remains active.
+ *
+ * @template LayerName - Named media layer keys from
+ * {@link UseTimelineMediaPlaybackOptions.layers}.
  */
 export interface TimelineLayerSyncDetails<LayerName extends string = string> {
   /** Timeline time being synchronized. */
@@ -36,6 +47,24 @@ export interface TimelineLayerSyncDetails<LayerName extends string = string> {
 
 /**
  * Options for coordinating timeline playback with an external media clock.
+ *
+ * @remarks
+ *
+ * Use this hook when your preview surface owns the media clock. The hook tells
+ * {@link https://canvastimeline.com/packages/core/api/timeline-engine | TimelineEngine}
+ * to play with an external clock, reads timeline seconds from `getClockTime`,
+ * and calls `syncLayers` with an {@link ActiveLayerResult} whenever active
+ * clips need to be rendered, sought, or paused.
+ *
+ * Higher-level adapters such as `useHTMLTimelineMedia` and
+ * `useMediabunnyTimelineMedia` wrap this contract for common media stacks.
+ *
+ * @template LayerName - Named media layer keys inferred from `layers`, such as
+ * `"visuals" | "audio"`.
+ *
+ * @see {@link TimelineLayerSyncDetails}
+ * @see {@link useTimelineMediaSync}
+ * @see {@link https://canvastimeline.com/demos/media-preview-sync | Mediabunny media sync demo}
  */
 export interface UseTimelineMediaPlaybackOptions<LayerName extends string = string> {
   /** Returns current timeline seconds from the external media clock. */
@@ -50,7 +79,16 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   onStatus?: (status: TimelineContentPlaybackStatus) => void;
 }
 
-/** Result returned by `useTimelineMediaPlayback`. */
+/**
+ * Result returned by `useTimelineMediaPlayback`.
+ *
+ * @remarks
+ *
+ * These commands operate on the timeline engine and return
+ * {@link TimelineCommandResult} values so toolbar code can show disabled,
+ * content-gap, or unsupported-clock feedback without reading private engine
+ * state.
+ */
 export interface UseTimelineMediaPlaybackResult {
   /** Whether the timeline engine is currently playing against the external clock. */
   playing: boolean;
@@ -87,11 +125,54 @@ function isPromiseLike(value: MaybePromise<void> | undefined): boolean {
 /**
  * Coordinates timeline playback with an external media clock.
  *
+ * @remarks
+ *
  * The hook is media-library agnostic. Apps provide a clock and a single layer
  * sync callback while the hook advances the TimelineEngine playhead and decides
  * when active layer clips need to be resynchronized.
  *
  * @param options - External media clock, active layer selectors, sync callback, and status callback.
+ * @template LayerName - Named media layer keys inferred from `options.layers`,
+ * such as `"visuals" | "audio"`.
+ * @returns Timeline playback state and commands backed by the external media clock.
+ *
+ * @example
+ * ```tsx
+ * import { useMemo, useRef } from 'react';
+ * import { useTimelineMediaPlayback } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * const previewLayers = {
+ *   visuals: { trackKind: 'visual' },
+ *   audio: { trackKind: 'audio' },
+ * } as const;
+ *
+ * export function CustomClockTransport() {
+ *   const clockSecondsRef = useRef(0);
+ *   const layers = useMemo(() => previewLayers, []);
+ *   const playback = useTimelineMediaPlayback({
+ *     layers,
+ *     getClockTime: () => clockSecondsRef.current,
+ *     stopClock: () => {
+ *       clockSecondsRef.current = 0;
+ *     },
+ *     syncLayers: ({ activeLayers, reason }) => {
+ *       const visualClip = activeLayers.primary.visuals?.clip;
+ *       console.info(reason, visualClip?.id ?? 'blank frame');
+ *     },
+ *   });
+ *
+ *   return (
+ *     <button type="button" onClick={() => playback.playing ? playback.pause() : playback.play()}>
+ *       {playback.playing ? 'Pause' : 'Play'}
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link ActiveLayerSelector}
+ * @see {@link ActiveLayerResult}
+ * @see {@link useTimelineMediaSync}
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
 export function useTimelineMediaPlayback<LayerName extends string = string>(
   options: UseTimelineMediaPlaybackOptions<LayerName>

@@ -5,9 +5,11 @@ import ApiTypeText from '@/components/ApiTypeText.astro';
 import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
 import {
   apiPackageHref,
+  apiDocPartHref,
   apiReference,
   apiSymbolHref,
   getApiSymbol,
+  type ApiDocTextPart,
   type ApiPackage,
   type ApiSymbol,
 } from '@/lib/api-reference';
@@ -70,6 +72,42 @@ const returnMembersHeading =
 const examplesHeading = resolvedSymbol.examples.length > 0 ? 'Examples' : 'Aliased examples';
 const hexColorPattern = /^#[0-9a-f]{3,8}$/i;
 const structuredData = createApiSymbolArticleStructuredData(packageDoc, resolvedSymbol);
+const timelineStateBreakdown =
+  resolvedSymbol.name === 'useTimelineState'
+    ? [
+        {
+          area: 'Content',
+          fields: 'tracks, clipGroups, contentRevision',
+          useFor: 'Track lists, clip counts, inspectors, and content-change badges.',
+        },
+        {
+          area: 'Playback and time',
+          fields: 'playheadTime, playing, playbackRate, duration',
+          useFor:
+            'Toolbar state and coarse playback status. Use useTimelinePlayheadTime() for live readouts.',
+        },
+        {
+          area: 'Viewport',
+          fields: 'zoomScale, scrollLeft, scrollTop, viewportWidth, viewportHeight',
+          useFor: 'Viewport-aware chrome. Use viewport hooks for focused scroll and zoom controls.',
+        },
+        {
+          area: 'Selection and ranges',
+          fields: 'inPoint, outPoint',
+          useFor: 'Range labels, loop region state, and edit selection chrome.',
+        },
+        {
+          area: 'Markers',
+          fields: 'markers',
+          useFor: 'Marker lists and annotation panels.',
+        },
+        {
+          area: 'Interaction feedback',
+          fields: 'snapEnabled, snapThresholdPixels, snapFeedback, clipDropFeedback',
+          useFor: 'Snapping toggles, drag/drop hints, and lightweight editor status.',
+        },
+      ]
+    : [];
 
 function parseExample(example: string) {
   const trimmedExample = example.trim();
@@ -83,6 +121,46 @@ function parseExample(example: string) {
     lang: match[1] || 'ts',
     code: match[2].trim(),
   };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function docPartsHtml(parts: ApiDocTextPart[], packageSlug: string, sourcePackage: string) {
+  return parts
+    .map((part) => {
+      if (part.kind === 'code') {
+        return `<code>${escapeHtml(part.text)}</code>`;
+      }
+
+      if (part.kind !== 'link') {
+        return escapeHtml(part.text);
+      }
+
+      const href = apiDocPartHref(part, packageSlug, sourcePackage);
+      const label = escapeHtml(part.text || part.target || 'link');
+
+      return href
+        ? `<a href="${escapeHtml(href)}" class="text-primary font-semibold hover:underline">${label}</a>`
+        : label;
+    })
+    .join('');
+}
+
+function descriptionHtml(
+  parts: ApiDocTextPart[],
+  text: string | undefined,
+  fallback: string,
+  packageSlug: string,
+  sourcePackage: string
+) {
+  return parts.length > 0 ? docPartsHtml(parts, packageSlug, sourcePackage) : escapeHtml(text ?? fallback);
 }
 ---
 
@@ -128,6 +206,50 @@ function parseExample(example: string) {
       
       <!-- Main Content Column -->
       <article class="lg:col-span-8 space-y-12">
+
+        {
+          resolvedSymbol.remarksParts.length > 0 ? (
+            <section aria-labelledby="remarks-heading" class="space-y-4">
+              <h2 id="remarks-heading" class="text-xl md:text-2xl font-bold text-foreground">Usage notes</h2>
+              <p
+                class="text-sm text-muted-foreground leading-relaxed"
+                set:html={docPartsHtml(
+                  resolvedSymbol.remarksParts,
+                  packageDoc.slug,
+                  resolvedSymbol.sourcePackage
+                )}
+              />
+            </section>
+          ) : null
+        }
+
+        {
+          timelineStateBreakdown.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="state-breakdown-heading">
+              <h2 id="state-breakdown-heading" class="text-xl md:text-2xl font-bold text-foreground">State available</h2>
+              <div class="overflow-x-auto rounded-xl border border-border bg-card">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="border-b border-border bg-muted/30">
+                      <th class="p-4 font-semibold text-foreground">Area</th>
+                      <th class="p-4 font-semibold text-foreground">Fields</th>
+                      <th class="p-4 font-semibold text-foreground">Use for</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/60">
+                    {timelineStateBreakdown.map((row) => (
+                      <tr class="hover:bg-muted/10 transition-colors">
+                        <td class="p-4 text-foreground font-semibold">{row.area}</td>
+                        <td class="p-4 font-mono text-xs text-muted-foreground">{row.fields}</td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">{row.useFor}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null
+        }
         
         <!-- Signature Section -->
         <section aria-labelledby="sig-heading" class="space-y-4">
@@ -178,7 +300,15 @@ function parseExample(example: string) {
                           ) : 'None'}
                         </td>
                         <td class="p-4 text-muted-foreground leading-relaxed">
-                          {typeParameter.summary || 'No type parameter summary yet.'}
+                          <span
+                            set:html={descriptionHtml(
+                              typeParameter.summaryParts,
+                              typeParameter.summary,
+                              'No type parameter summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -239,7 +369,15 @@ function parseExample(example: string) {
                           />
                         </td>
                         <td class="p-4 text-muted-foreground leading-relaxed">
-                          {param.summary || (param.defaultValue ? `Default: ${param.defaultValue}` : 'No parameter summary yet.')}
+                          <span
+                            set:html={descriptionHtml(
+                              param.summaryParts,
+                              param.summary,
+                              param.defaultValue ? `Default: ${param.defaultValue}` : 'No parameter summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -278,7 +416,17 @@ function parseExample(example: string) {
                             />
                           </code>
                         </td>
-                        <td class="p-4 text-muted-foreground leading-relaxed">{property.summary || 'No property summary yet.'}</td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          <span
+                            set:html={descriptionHtml(
+                              property.summaryParts,
+                              property.summary,
+                              'No property summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -314,7 +462,17 @@ function parseExample(example: string) {
                             />
                           </code>
                         </td>
-                        <td class="p-4 text-muted-foreground leading-relaxed">{constructor.summary || 'No constructor summary yet.'}</td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          <span
+                            set:html={descriptionHtml(
+                              constructor.summaryParts,
+                              constructor.summary,
+                              'No constructor summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -395,7 +553,17 @@ function parseExample(example: string) {
                             />
                           </code>
                         </td>
-                        <td class="p-4 text-muted-foreground leading-relaxed">{method.summary || 'No method summary yet.'}</td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          <span
+                            set:html={descriptionHtml(
+                              method.summaryParts,
+                              method.summary,
+                              'No method summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -416,7 +584,18 @@ function parseExample(example: string) {
                   sourcePackage={resolvedSymbol.sourcePackage}
                 />
               </div>
-              {resolvedSymbol.returnsSummary ? <p class="text-sm text-muted-foreground leading-relaxed pl-1">{resolvedSymbol.returnsSummary}</p> : null}
+              {resolvedSymbol.returnsSummaryParts.length > 0 || resolvedSymbol.returnsSummary ? (
+                <p
+                  class="text-sm text-muted-foreground leading-relaxed pl-1"
+                  set:html={descriptionHtml(
+                    resolvedSymbol.returnsSummaryParts,
+                    resolvedSymbol.returnsSummary,
+                    '',
+                    packageDoc.slug,
+                    resolvedSymbol.sourcePackage
+                  )}
+                />
+              ) : null}
             </section>
           ) : null
         }
@@ -449,7 +628,17 @@ function parseExample(example: string) {
                             />
                           </code>
                         </td>
-                        <td class="p-4 text-muted-foreground leading-relaxed">{member.summary || 'No return member summary yet.'}</td>
+                        <td class="p-4 text-muted-foreground leading-relaxed">
+                          <span
+                            set:html={descriptionHtml(
+                              member.summaryParts,
+                              member.summary,
+                              'No return member summary yet.',
+                              packageDoc.slug,
+                              resolvedSymbol.sourcePackage
+                            )}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -479,12 +668,32 @@ function parseExample(example: string) {
             </section>
           ) : null
         }
+
+        {
+          resolvedSymbol.see.length > 0 ? (
+            <section class="space-y-4" aria-labelledby="related-heading">
+              <h2 id="related-heading" class="text-xl md:text-2xl font-bold text-foreground">Related links</h2>
+              <ul class="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
+                {resolvedSymbol.see.map((parts) => (
+                  <li
+                    set:html={docPartsHtml(
+                      parts,
+                      packageDoc.slug,
+                      resolvedSymbol.sourcePackage
+                    )}
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null
+        }
       </article>
 
       <!-- Sidebar Column -->
       <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
         <MarkdownCopyButton
           href={`/packages/${packageDoc.slug}/api/${symbol.slug}.md`}
+          tooltip="Copies this API page as Markdown with examples, related links, and declaration details for LLM-assisted lookup."
           class="api-symbol-markdown-copy"
         />
         

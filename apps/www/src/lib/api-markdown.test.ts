@@ -41,6 +41,62 @@ describe('API Markdown builder', () => {
     expect(markdown).not.toContain('class=');
   });
 
+  test('renders structured TSDoc links in copied API Markdown', () => {
+    const packageDoc = requiredPackage('react');
+    const markdown = buildApiSymbolMarkdown(packageDoc, {
+      slug: 'linked-example',
+      name: 'linkedExample',
+      kind: 'Function',
+      summary: 'Reads linked docs.',
+      summaryParts: [{ kind: 'text', text: 'Reads linked docs.' }],
+      remarks: 'Use the state model.',
+      remarksParts: [
+        { kind: 'text', text: 'Use the ' },
+        { kind: 'link', text: 'state model', target: 'TimelineState' },
+        { kind: 'text', text: ' before rendering.' },
+      ],
+      signature: 'linkedExample(): TimelineState',
+      params: [],
+      typeParameters: [
+        {
+          name: 'LayerName',
+          constraint: 'string',
+          default: 'string',
+          summary: 'Layer key.',
+          summaryParts: [
+            { kind: 'text', text: 'Layer key for ' },
+            { kind: 'link', text: 'active layers', target: 'ActiveLayerResult' },
+            { kind: 'text', text: '.' },
+          ],
+        },
+      ],
+      properties: [],
+      methods: [],
+      constructors: [],
+      returnMembers: [],
+      returns: 'TimelineState',
+      returnsSummary: 'Current state.',
+      returnsSummaryParts: [{ kind: 'text', text: 'Current state.' }],
+      examples: [],
+      see: [
+        [
+          {
+            kind: 'link',
+            text: 'React editor hooks',
+            target: 'https://canvastimeline.com/docs/react-hooks',
+          },
+        ],
+      ],
+      sourcePackage: 'react',
+    });
+
+    expect(markdown).toContain('## Usage notes');
+    expect(markdown).toContain('[state model](/packages/core/api/timeline-state)');
+    expect(markdown).toContain('[active layers](/packages/core/api/active-layer-result)');
+    expect(markdown).toContain('[React editor hooks](https://canvastimeline.com/docs/react-hooks)');
+    expect(markdown).not.toContain('{@link');
+  });
+
   test('escapes Markdown table cells and inline code delimiters', () => {
     expect(markdownTable(['Name|Type', 'Path\\Segment'], [['line\nbreak', 'a|b\\c']])).toBe(
       '| Name\\|Type | Path\\\\Segment |\n| :--- | :--- |\n| line<br>break | a\\|b\\\\c |'

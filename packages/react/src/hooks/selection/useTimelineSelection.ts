@@ -5,7 +5,22 @@ import { deriveTimelineSelection, type TimelineSelectionState } from '../clips/t
 
 export type { TimelineSelectionState } from '../clips/timelineClipModel';
 
-/** Result returned by `useTimelineSelection`. */
+/**
+ * Result returned by `useTimelineSelection`.
+ *
+ * @remarks
+ *
+ * The result is the shared selection model used by clip inspectors, track
+ * headers, grouping controls, clipboard commands, and edit toolbars. It
+ * includes both primary selection fields and multi-selection arrays so product
+ * chrome can avoid re-deriving selection from raw tracks.
+ *
+ * @template TrackKind - App-defined track kind values carried by selected
+ * tracks.
+ *
+ * @see {@link useTimelineClips}
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
+ */
 export interface UseTimelineSelectionResult<
   TrackKind = string,
 > extends TimelineSelectionState<TrackKind> {
@@ -24,7 +39,38 @@ export interface UseTimelineSelectionResult<
 /**
  * Provides the canonical selected clip/track model for timeline editor chrome.
  *
+ * @remarks
+ *
+ * Use this hook when UI needs selection state without the broader clip command
+ * surface from {@link useTimelineClips}. It is a good fit for inspectors,
+ * selection badges, grouped-clip panels, and toolbar enablement.
+ *
  * @returns Selected clip and track state plus selection commands.
+ * @template TrackKind - App-defined track kind values carried by selected
+ * tracks.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function SelectionSummary() {
+ *   const selection = useTimelineSelection();
+ *
+ *   if (!selection.hasSelection) {
+ *     return <p>No selection</p>;
+ *   }
+ *
+ *   return (
+ *     <p>
+ *       {selection.selectedClipIds.length} clips selected
+ *       {selection.selectedTrack ? ` on ${selection.selectedTrack.name}` : ''}
+ *     </p>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineClips}
+ * @see {@link https://canvastimeline.com/demos/clip-grouping-import | Clip grouping import demo}
  */
 export function useTimelineSelection<TrackKind = string>(): UseTimelineSelectionResult<TrackKind> {
   const { engine, state } = useTimeline();

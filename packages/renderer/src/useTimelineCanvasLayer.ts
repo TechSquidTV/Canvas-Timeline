@@ -50,7 +50,19 @@ export interface TimelineCanvasLayerViewport {
   visibleDurationSeconds: number;
 }
 
-/** Context passed to a custom canvas layer draw callback. */
+/**
+ * Context passed to a custom canvas layer draw callback.
+ *
+ * @remarks
+ *
+ * The context contains the current timeline snapshot plus precomputed geometry
+ * so custom layers do not need to call engine hit-test APIs during every draw.
+ * Prefer `visibleClips` and `visibleKeyframes` for dense rendering; use the
+ * full rect arrays only for overlays that truly need offscreen state.
+ *
+ * @template TrackKind - App-defined track kind values carried by clip and
+ * keyframe geometry entries.
+ */
 export interface TimelineCanvasLayerDrawContext<TrackKind = string> {
   /** Canvas 2D context scaled to CSS pixels. */
   ctx: CanvasRenderingContext2D;
@@ -80,12 +92,30 @@ export interface TimelineCanvasLayerDrawContext<TrackKind = string> {
   requestDraw: () => void;
 }
 
-/** Draw callback used by custom canvas layers. */
+/**
+ * Draw callback used by custom canvas layers.
+ *
+ * @template TrackKind - App-defined track kind values carried by draw geometry.
+ */
 export type TimelineCanvasLayerDraw<TrackKind = string> = (
   context: TimelineCanvasLayerDrawContext<TrackKind>
 ) => void;
 
-/** Options for `useTimelineCanvasLayer`. */
+/**
+ * Options for `useTimelineCanvasLayer`.
+ *
+ * @remarks
+ *
+ * Use these options for dense app-owned visuals such as waveforms, subtitles,
+ * annotations, audio peaks, thumbnail strips, or analysis overlays. Geometry
+ * options should match the primary renderer so custom drawings line up with
+ * clip and keyframe positions.
+ *
+ * @template TrackKind - App-defined track kind values carried by draw geometry.
+ *
+ * @see {@link TimelineCanvasLayerDraw}
+ * @see {@link https://canvastimeline.com/docs/renderer-customization | Canvas renderer customization}
+ */
 export interface UseTimelineCanvasLayerOptions<
   TrackKind = string,
 > extends TimelineClipGeometryOptions {
@@ -142,7 +172,35 @@ function createViewport(state: TimelineState, maxContentTime: RationalTime, widt
  *
  * @param canvasRef - Ref for the app-owned canvas element to size and draw.
  * @param options - Drawing callback, geometry overrides, and redraw behavior.
+ * @template TrackKind - App-defined track kind values carried by draw geometry.
  * @returns Imperative handle for manually scheduling redraws.
+ *
+ * @example
+ * ```tsx
+ * import { useRef } from 'react';
+ * import { useTimelineCanvasLayer } from '@techsquidtv/canvas-timeline-renderer';
+ *
+ * export function WaveformLayer() {
+ *   const canvasRef = useRef<HTMLCanvasElement>(null);
+ *
+ *   useTimelineCanvasLayer(canvasRef, {
+ *     overscanPixels: 240,
+ *     draw: ({ ctx, visibleClips }) => {
+ *       ctx.fillStyle = 'rgba(20, 184, 166, 0.35)';
+ *
+ *       for (const entry of visibleClips) {
+ *         ctx.fillRect(entry.x, entry.y + entry.height / 2, entry.width, 2);
+ *       }
+ *     },
+ *   });
+ *
+ *   return <canvas ref={canvasRef} className="timeline-custom-canvas-layer" />;
+ * }
+ * ```
+ *
+ * @see {@link TimelineCanvasLayerDrawContext}
+ * @see {@link TimelineCanvasLayer}
+ * @see {@link https://canvastimeline.com/docs/renderer-customization | Canvas renderer customization}
  */
 export function useTimelineCanvasLayer<TrackKind = string>(
   canvasRef: RefObject<HTMLCanvasElement | null>,

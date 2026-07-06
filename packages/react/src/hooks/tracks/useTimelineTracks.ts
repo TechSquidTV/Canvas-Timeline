@@ -7,7 +7,22 @@ import {
   type TimelineCommandResult,
 } from '../core/timelineCommandResult';
 
-/** Result returned by `useTimelineTracks`. */
+/**
+ * Result returned by `useTimelineTracks`.
+ *
+ * @remarks
+ *
+ * Use this result for track lists, timeline sidebars, source-bin filters, and
+ * command bars that need to inspect or mutate the ordered track collection. For
+ * one row's DOM-ready state, use {@link useTimelineTrack} or
+ * {@link useTimelineTrackHeader} instead.
+ *
+ * @template TrackKind - App-defined track kind values carried by returned
+ * tracks, such as `"visual" | "audio"`.
+ *
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
+ */
 export interface UseTimelineTracksResult<TrackKind = string> {
   /** Current ordered track list. */
   tracks: Track<TrackKind>[];
@@ -44,7 +59,58 @@ export interface UseTimelineTracksResult<TrackKind = string> {
 /**
  * Accesses and manages the list of timeline tracks.
  *
+ * @remarks
+ *
+ * `useTimelineTracks` is the broad track-domain hook. It is useful for
+ * rendering track rows, building track header columns, grouping tracks, and
+ * wiring mute/visibility/lock controls. It returns command helpers that fail
+ * with {@link TimelineCommandResult} objects instead of throwing when a track is
+ * missing.
+ *
  * @returns Track collection state and commands for selecting and updating tracks.
+ * @template TrackKind - App-defined track kind values carried by returned
+ * tracks, such as `"visual" | "audio"`.
+ *
+ * @example
+ * ```tsx
+ * import { Timeline, useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
+ *
+ * export function TrackRows() {
+ *   const { tracks } = useTimelineTracks();
+ *
+ *   return (
+ *     <Timeline.TrackList>
+ *       {tracks.map((track) => (
+ *         <Timeline.Track key={track.id} trackId={track.id} />
+ *       ))}
+ *     </Timeline.TrackList>
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function TrackVisibilityMenu() {
+ *   const { tracks, toggleVisibility } = useTimelineTracks();
+ *
+ *   return tracks.map((track) => (
+ *     <label key={track.id}>
+ *       <input
+ *         type="checkbox"
+ *         checked={track.visible}
+ *         onChange={(event) => toggleVisibility(track.id, event.currentTarget.checked)}
+ *       />
+ *       {track.name ?? track.id}
+ *     </label>
+ *   ));
+ * }
+ * ```
+ *
+ * @see {@link useTimelineTrack}
+ * @see {@link useTimelineTrackHeader}
+ * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
 export function useTimelineTracks<TrackKind = string>(): UseTimelineTracksResult<TrackKind> {
   const { engine, state } = useTimeline();

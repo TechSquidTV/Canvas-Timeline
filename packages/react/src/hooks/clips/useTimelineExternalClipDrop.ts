@@ -34,7 +34,21 @@ export interface TimelineExternalClipDropGroupOptions {
   label?: string;
 }
 
-/** Context passed to external clip drop callbacks. */
+/**
+ * Context passed to external clip drop callbacks.
+ *
+ * @remarks
+ *
+ * The context combines app-owned drag data with the resolved timeline target.
+ * Use it to build clip placements from a media bin, asset browser, file picker,
+ * or generated content panel. Times are already converted from pointer position
+ * into {@link RationalTime} so placement factories do not need to duplicate
+ * timeline geometry math.
+ *
+ * @template DragData - App-owned payload resolved from the native drag event.
+ * @template TrackKind - App-defined track kind values accepted by the drop
+ * surface.
+ */
 export interface TimelineExternalClipDropContext<DragData, TrackKind = string> {
   /** App-owned drag payload resolved from the native drag event. */
   data: DragData;
@@ -68,20 +82,52 @@ export interface TimelineExternalClipDropGuardResult {
   message?: string;
 }
 
-/** Custom policy for accepting or rejecting an external drop target. */
+/**
+ * Custom policy for accepting or rejecting an external drop target.
+ *
+ * @template DragData - App-owned payload resolved from the native drag event.
+ * @template TrackKind - App-defined track kind values used by candidate tracks.
+ */
 export type TimelineExternalClipDropGuard<DragData, TrackKind = string> = (
   context: TimelineExternalClipDropContext<DragData, TrackKind>
 ) => boolean | TimelineExternalClipDropGuardResult;
 
-/** Props spread onto the timeline element that receives native external drops. */
+/**
+ * Props spread onto the timeline element that receives native external drops.
+ *
+ * @remarks
+ *
+ * Spread these onto the same viewport element whose bounds should define
+ * pointer-to-time and pointer-to-track hit testing. The hook handles native drag
+ * events; applications provide payload parsing and placement creation.
+ */
 export interface TimelineExternalClipDropRootProps {
+  /** Registers a native drag entering the timeline drop surface. */
   onDragEnter: DragEventHandler<HTMLElement>;
+  /** Updates target track, drop time, validity, and browser drop feedback. */
   onDragOver: DragEventHandler<HTMLElement>;
+  /** Clears transient hover feedback when the drag leaves the drop surface. */
   onDragLeave: DragEventHandler<HTMLElement>;
+  /** Commits the resolved insert or overwrite edit for the app-owned payload. */
   onDrop: DragEventHandler<HTMLElement>;
 }
 
-/** Options accepted by `useTimelineExternalClipDrop`. */
+/**
+ * Options accepted by `useTimelineExternalClipDrop`.
+ *
+ * @remarks
+ *
+ * `resolveDragData` converts a browser drag event into app data. `createPlacements`
+ * turns that data into one or more timeline clip placements. The hook resolves
+ * target track, drop time, snapping, edit mode, grouped drops, and command
+ * results around those app callbacks.
+ *
+ * @template DragData - App-owned payload resolved from the native drag event.
+ * @template TrackKind - App-defined track kind values used by target tracks.
+ *
+ * @see {@link TimelineExternalClipDropContext}
+ * @see {@link https://canvastimeline.com/demos/external-clip-drop | External clip drop demo}
+ */
 export interface UseTimelineExternalClipDropOptions<
   DragData,
   TrackKind = string,
@@ -112,7 +158,19 @@ export interface UseTimelineExternalClipDropOptions<
   snap?: boolean;
 }
 
-/** Result returned by `useTimelineExternalClipDrop`. */
+/**
+ * Result returned by `useTimelineExternalClipDrop`.
+ *
+ * @remarks
+ *
+ * Use `rootProps` on the drop surface, then render the feedback fields in
+ * timeline chrome such as target-row highlighting, invalid-drop messages, or a
+ * preview badge. `lastResult` keeps the last command outcome available after
+ * hover feedback clears.
+ *
+ * @template TrackKind - App-defined track kind values carried by the current
+ * target track.
+ */
 export interface UseTimelineExternalClipDropResult<TrackKind = string> {
   /** Props for the element that should accept native external drops. */
   rootProps: TimelineExternalClipDropRootProps;
@@ -195,12 +253,59 @@ function isLeavingCurrentTarget(event: DragEvent<HTMLElement>) {
 /**
  * Adds native browser drag-and-drop support for app-owned clip data.
  *
+ * @remarks
+ *
  * The hook owns browser event handling, track/time resolution, and local
  * feedback state. Apps own payload parsing and clip placement factories; the
  * engine owns validation, policy, history, grouped edits, and undo/redo.
  *
  * @param options - Drop geometry, app payload callbacks, edit mode, and optional policy.
  * @returns Root props, feedback state, and the last drop command result.
+ * @template DragData - App-owned payload resolved from the native drag event.
+ * @template TrackKind - App-defined track kind values used by target tracks.
+ *
+ * @example
+ * ```tsx
+ * import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+ * import { useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * interface MediaAsset {
+ *   id: string;
+ *   durationSeconds: number;
+ * }
+ *
+ * export function AssetDropSurface() {
+ *   const drop = useTimelineExternalClipDrop<MediaAsset>({
+ *     resolveDragData: (event) => {
+ *       const id = event.dataTransfer.getData('text/plain');
+ *       return id ? { id, durationSeconds: 5 } : null;
+ *     },
+ *     createPlacements: ({ data, dropTime, targetTrack }) => {
+ *       const duration = fromSeconds(data.durationSeconds, dropTime.r);
+ *
+ *       return [
+ *         {
+ *           trackId: targetTrack.id,
+ *           clip: {
+ *             id: `clip-${data.id}`,
+ *             sourceId: data.id,
+ *             timelineStart: dropTime,
+ *             timelineEnd: addRational(dropTime, duration),
+ *             sourceStart: fromSeconds(0, dropTime.r),
+ *             sourceEnd: duration,
+ *           },
+ *         },
+ *       ];
+ *     },
+ *   });
+ *
+ *   return <div {...drop.rootProps}>{drop.valid ? 'Drop media' : 'Drag media here'}</div>;
+ * }
+ * ```
+ *
+ * @see {@link TimelineExternalClipDropContext}
+ * @see {@link useTimelineClipDropFeedback}
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
 export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
   options: UseTimelineExternalClipDropOptions<DragData, TrackKind>

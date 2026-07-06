@@ -1,21 +1,49 @@
+import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
 import { useTimeline } from './useTimeline';
 
 /**
- * Reads the current synchronized timeline state.
+ * Reads the current synchronized {@link TimelineState} snapshot.
  *
- * This is a render-focused shortcut for components that need track, playhead,
- * zoom, scroll, marker, or playback state without calling engine methods. The
- * returned value updates when `TimelineProvider` receives engine state events.
+ * @remarks
+ *
+ * Use `useTimelineState` for low-frequency product chrome that needs a broad
+ * view of timeline content, viewport, playback, markers, or edit feedback
+ * without calling engine methods. The returned snapshot updates when
+ * {@link TimelineProvider} receives engine state events.
+ *
+ * Prefer narrower hooks when a component only needs one live value. For example,
+ * use {@link useTimelinePlayheadTime} for playback readouts and
+ * {@link useTimelineViewport} for viewport controls. See
+ * {@link https://canvastimeline.com/docs/react-hooks | React editor hooks} for
+ * the hook selection guide.
  *
  * @returns The latest `TimelineState` snapshot published by `TimelineProvider`.
  *
  * @example
  * ```tsx
- * const state = useTimelineState();
+ * import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
  *
- * return <span>{state.tracks.length} tracks</span>;
+ * export function TimelineStatus() {
+ *   const state = useTimelineState();
+ *
+ *   return (
+ *     <dl>
+ *       <dt>Tracks</dt>
+ *       <dd>{state.tracks.length}</dd>
+ *       <dt>Playback</dt>
+ *       <dd>{state.playing ? 'Playing' : 'Paused'}</dd>
+ *       <dt>Zoom</dt>
+ *       <dd>{state.zoomScale}px/s</dd>
+ *     </dl>
+ *   );
+ * }
  * ```
+ *
+ * @see {@link TimelineState}
+ * @see {@link TimelineProvider}
+ * @see {@link useTimelinePlayheadTime}
+ * @see {@link useTimelineViewport}
  */
-export function useTimelineState() {
+export function useTimelineState(): TimelineState {
   return useTimeline().state;
 }

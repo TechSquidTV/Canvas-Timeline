@@ -233,10 +233,15 @@ export interface TimelineZoomConstraints {
 
 /** Geometry defaults shared by canvas-aligned interaction layers. */
 export const defaultTimelineInteractionGeometry = {
+  /** Height of the ruler/header band above track rows in CSS pixels. */
   rulerHeight: 32,
+  /** Default expanded track row height in CSS pixels. */
   trackHeight: 48,
+  /** Default collapsed track row height in CSS pixels. */
   collapsedTrackHeight: 24,
+  /** Mouse and pen edge hit-test threshold in CSS pixels. */
   edgeThreshold: 10,
+  /** Wider touch edge hit-test threshold in CSS pixels. */
   touchEdgeThreshold: 24,
 } as const;
 
@@ -2895,6 +2900,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.emit('state:settled');
   }
 
+  /**
+   * Marks timeline content as changed and notifies subscribers.
+   *
+   * Use this after external metadata that affects rendering changes without a
+   * structural timeline edit, such as waveform availability, thumbnails, or
+   * cached analysis keyed by clip id.
+   */
   invalidateContent() {
     this.state.contentRevision = this.contentRevision + 1;
     this.emit('content:change', this.state.contentRevision);

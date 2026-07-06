@@ -13,6 +13,13 @@ import {
 
 /**
  * Options for creating a Mediabunny adapter from React.
+ *
+ * @remarks
+ *
+ * This lower-level options shape is useful when an app wants the underlying
+ * {@link MediabunnyAdapter} for custom preview controls. The higher-level
+ * {@link useMediabunnyTimelineMedia} hook adds timeline transport commands on
+ * top of this adapter.
  */
 export interface UseMediabunnyAdapterOptions extends Omit<
   CreateMediabunnyAdapterOptions,
@@ -24,6 +31,18 @@ export interface UseMediabunnyAdapterOptions extends Omit<
 
 /**
  * Options for wiring Mediabunny decoded preview directly to timeline playback.
+ *
+ * @remarks
+ *
+ * Provide timeline sources, a canvas ref for visual frames, and named active
+ * layer selectors. The hook creates a {@link MediabunnyAdapter}, uses
+ * {@link useTimelineMediaSync} for external-clock playback, and keeps decoded
+ * frames and audio scheduling aligned with the timeline playhead.
+ *
+ * @template LayerName - Named media layer keys inferred from `layers`, such as
+ * `"visuals" | "audio"`.
+ *
+ * @see {@link https://canvastimeline.com/demos/media-preview-sync | Mediabunny media sync demo}
  */
 export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = string>
   extends
@@ -35,6 +54,9 @@ export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = st
 
 /**
  * Timeline transport state plus Mediabunny preview status and adapter details.
+ *
+ * @template LayerName - Named media layer keys from
+ * {@link UseMediabunnyTimelineMediaOptions.layers}.
  */
 export interface UseMediabunnyTimelineMediaResult<
   LayerName extends string = string,
@@ -83,7 +105,37 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
 /**
  * Create and dispose a Mediabunny timeline adapter from React state.
  *
+ * @remarks
+ *
+ * Use this hook when your app wants to manage transport with
+ * {@link useTimelineMediaSync} manually, inspect decoded frame state, or share
+ * one adapter across custom preview controls. For a ready-made transport hook,
+ * use {@link useMediabunnyTimelineMedia}.
+ *
  * @param options - Mediabunny sources, optional canvas ref, audio options, and module loader.
+ * @returns The current Mediabunny adapter, including readiness, status, decoded frame state, and sync callbacks.
+ *
+ * @example
+ * ```tsx
+ * import { useMemo, useRef } from 'react';
+ * import { useMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ *
+ * export function DecoderStatus() {
+ *   const canvasRef = useRef<HTMLCanvasElement>(null);
+ *   const sources = useMemo(() => [{ id: 'source-1', url: '/media/sample.mp4' }], []);
+ *   const adapter = useMediabunnyAdapter({ canvasRef, sources });
+ *
+ *   return (
+ *     <>
+ *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <p>{adapter.status}</p>
+ *     </>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link MediabunnyAdapter}
+ * @see {@link useMediabunnyTimelineMedia}
  */
 export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): MediabunnyAdapter {
   const { audio, audioTrackKinds, canvasRef, mediabunny, sources, visualTrackKinds } = options;
@@ -120,7 +172,56 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
 /**
  * Create a Mediabunny adapter and bind it to timeline-synchronized playback.
  *
+ * @remarks
+ *
+ * This is the high-level React hook for decoded media previews. It is the same
+ * shape used by the media sync demo and the full editor demo: define stable
+ * `visuals` and `audio` layers, pass sources keyed by timeline clip `sourceId`,
+ * and drive toolbar buttons from the returned `play`, `pause`, and
+ * `setPlaybackRate` commands.
+ *
  * @param options - Mediabunny sources, active layers, optional canvas ref, and sync options.
+ * @template LayerName - Named media layer keys inferred from `options.layers`,
+ * such as `"visuals" | "audio"`.
+ * @returns Timeline transport state, active layer data, decoded frame status, source durations, and the low-level adapter.
+ *
+ * @example
+ * ```tsx
+ * import { useMemo, useRef } from 'react';
+ * import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ *
+ * type PreviewLayerName = 'visuals' | 'audio';
+ *
+ * const previewLayers = {
+ *   visuals: { trackKind: 'visual' },
+ *   audio: { trackKind: 'audio' },
+ * } as const;
+ *
+ * export function DecodedPreview() {
+ *   const canvasRef = useRef<HTMLCanvasElement>(null);
+ *   const sources = useMemo(() => [{ id: 'source-1', url: '/media/interview.mp4' }], []);
+ *   const media = useMediabunnyTimelineMedia<PreviewLayerName>({
+ *     canvasRef,
+ *     sources,
+ *     layers: previewLayers,
+ *     onError: console.error,
+ *   });
+ *
+ *   return (
+ *     <>
+ *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <button type="button" disabled={!media.ready} onClick={() => void media.play()}>
+ *         {media.playing ? 'Playing' : 'Play'}
+ *       </button>
+ *       <span>{media.status}</span>
+ *     </>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineMediaSync}
+ * @see {@link https://canvastimeline.com/demos/media-preview-sync | Mediabunny media sync demo}
+ * @see {@link https://canvastimeline.com/demos/full-editor-demo | Full editor demo}
  */
 export function useMediabunnyTimelineMedia<LayerName extends string = string>(
   options: UseMediabunnyTimelineMediaOptions<LayerName>

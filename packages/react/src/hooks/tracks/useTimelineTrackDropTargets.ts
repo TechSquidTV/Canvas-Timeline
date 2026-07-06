@@ -11,7 +11,19 @@ import type {
 import { useTimeline } from '../core/useTimeline';
 import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
 
-/** Context passed to custom clip track-drop guards. */
+/**
+ * Context passed to custom clip track-drop guards.
+ *
+ * @remarks
+ *
+ * The context contains the clip being moved, the source row captured at drag
+ * start, and the candidate target row currently under the pointer. Use it to
+ * express app policy such as visual-only tracks, audio-only tracks, locked
+ * groups, or modifier-key cross-kind moves.
+ *
+ * @template TrackKind - App-defined track kind values carried by source and
+ * target tracks.
+ */
 export interface TimelineTrackDropContext<TrackKind = string> {
   /** Clip being moved. */
   clip: Clip;
@@ -35,12 +47,29 @@ export interface TimelineTrackDropResult {
   allowCrossKindTrackMove: boolean;
 }
 
-/** Custom policy for accepting or rejecting track drop targets. */
+/**
+ * Custom policy for accepting or rejecting track drop targets.
+ *
+ * @template TrackKind - App-defined track kind values carried by source and
+ * target tracks.
+ */
 export type TimelineTrackDropGuard<TrackKind = string> = (
   context: TimelineTrackDropContext<TrackKind>
 ) => boolean | TimelineTrackDropResult;
 
-/** Options accepted by `useTimelineTrackDropTargets`. */
+/**
+ * Options accepted by `useTimelineTrackDropTargets`.
+ *
+ * @remarks
+ *
+ * Geometry options should match the renderer and interaction layer. The optional
+ * guard runs after built-in checks for missing, locked, and same-kind tracks.
+ *
+ * @template TrackKind - App-defined track kind values carried by track targets.
+ *
+ * @see {@link TimelineTrackDropGuard}
+ * @see {@link useTimelineClipDrag}
+ */
 export interface UseTimelineTrackDropTargetsOptions<
   TrackKind = string,
 > extends TimelineTrackGeometryOptions {
@@ -48,7 +77,17 @@ export interface UseTimelineTrackDropTargetsOptions<
   canDropClipOnTrack?: TimelineTrackDropGuard<TrackKind>;
 }
 
-/** Result returned by `useTimelineTrackDropTargets`. */
+/**
+ * Result returned by `useTimelineTrackDropTargets`.
+ *
+ * @remarks
+ *
+ * Use this result to build custom track-row drop previews, or indirectly through
+ * {@link useTimelineClipDrag}. `trackTargets` are viewport-space rows in
+ * timeline order and `canDropClipOnTrack` applies both engine and app policy.
+ *
+ * @template TrackKind - App-defined track kind values carried by track targets.
+ */
 export interface UseTimelineTrackDropTargetsResult<TrackKind = string> {
   /** Viewport-space track rows in timeline order. */
   trackTargets: TimelineTrackHitTestResult<TrackKind>[];
@@ -100,7 +139,41 @@ function normalizeGuardResult(
 /**
  * Builds headless track drop targets for cross-track clip movement.
  *
+ * @remarks
+ *
+ * This hook is a geometry and policy helper for custom clip drag layers. It
+ * does not start pointer capture or mutate clips on its own; combine it with
+ * {@link useTimelineClipDrag} or your own pointer lifecycle when building custom
+ * interaction chrome.
+ *
  * @param options - Track geometry and optional drop policy used to resolve compatible tracks.
+ * @template TrackKind - App-defined track kind values carried by track targets.
+ * @returns Track hit targets, viewport hit testing, and drop-policy resolution helpers.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineTrackDropTargets } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function TrackDropOverlay({ clipId }: { clipId: string }) {
+ *   const targets = useTimelineTrackDropTargets({
+ *     canDropClipOnTrack: ({ sourceTrack, targetTrack }) => sourceTrack.kind === targetTrack.kind,
+ *   });
+ *
+ *   return targets.trackTargets.map((target) => {
+ *     const result = targets.canDropClipOnTrack(clipId, target.track.id);
+ *
+ *     return (
+ *       <div key={target.track.id} data-valid-drop-target={result.canDrop}>
+ *         {target.track.name ?? target.track.id}
+ *       </div>
+ *     );
+ *   });
+ * }
+ * ```
+ *
+ * @see {@link TimelineTrackDropContext}
+ * @see {@link useTimelineClipDrag}
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
 export function useTimelineTrackDropTargets<TrackKind = string>(
   options: UseTimelineTrackDropTargetsOptions<TrackKind> = {}

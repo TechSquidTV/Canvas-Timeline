@@ -6,6 +6,7 @@ export interface ApiParameter {
   optional: boolean;
   defaultValue?: string;
   summary?: string;
+  summaryParts: ApiDocTextPart[];
 }
 
 export interface ApiTypeParameter {
@@ -13,6 +14,7 @@ export interface ApiTypeParameter {
   default?: string;
   constraint?: string;
   summary?: string;
+  summaryParts: ApiDocTextPart[];
 }
 
 export interface ApiMember {
@@ -24,6 +26,13 @@ export interface ApiMember {
   params: ApiParameter[];
   returns?: string;
   summary?: string;
+  summaryParts: ApiDocTextPart[];
+}
+
+export interface ApiDocTextPart {
+  kind: 'text' | 'code' | 'link';
+  text: string;
+  target?: string;
 }
 
 interface ApiLiteralTable {
@@ -43,6 +52,9 @@ export interface ApiSymbol {
   name: string;
   kind: string;
   summary: string;
+  summaryParts: ApiDocTextPart[];
+  remarks: string;
+  remarksParts: ApiDocTextPart[];
   signature: string;
   params: ApiParameter[];
   typeParameters: ApiTypeParameter[];
@@ -54,7 +66,9 @@ export interface ApiSymbol {
   aliasOf?: ApiAlias;
   returns?: string;
   returnsSummary?: string;
+  returnsSummaryParts: ApiDocTextPart[];
   examples: string[];
+  see: ApiDocTextPart[][];
   sourcePackage: string;
   packageName?: string;
   source?: {
@@ -139,6 +153,14 @@ function readStringArray(value: JsonValue | undefined, fieldName: string): strin
   );
 }
 
+function readOptionalArray(value: JsonValue | undefined, _fieldName: string): readonly JsonValue[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  return readArray(value, _fieldName);
+}
+
 function readRecordArray(
   value: JsonValue | undefined,
   fieldName: string
@@ -160,6 +182,7 @@ function parseApiParameter(value: JsonValue, fieldName: string): ApiParameter {
     optional: readBoolean(object.optional, `${fieldName}.optional`),
     defaultValue: readOptionalString(object.defaultValue, `${fieldName}.defaultValue`),
     summary: readOptionalString(object.summary, `${fieldName}.summary`),
+    summaryParts: parseApiDocTextParts(object.summaryParts, `${fieldName}.summaryParts`),
   };
 }
 
@@ -171,6 +194,7 @@ function parseApiTypeParameter(value: JsonValue, fieldName: string): ApiTypePara
     default: readOptionalString(object.default, `${fieldName}.default`),
     constraint: readOptionalString(object.constraint, `${fieldName}.constraint`),
     summary: readOptionalString(object.summary, `${fieldName}.summary`),
+    summaryParts: parseApiDocTextParts(object.summaryParts, `${fieldName}.summaryParts`),
   };
 }
 
@@ -188,7 +212,38 @@ function parseApiMember(value: JsonValue, fieldName: string): ApiMember {
     ),
     returns: readOptionalString(object.returns, `${fieldName}.returns`),
     summary: readOptionalString(object.summary, `${fieldName}.summary`),
+    summaryParts: parseApiDocTextParts(object.summaryParts, `${fieldName}.summaryParts`),
   };
+}
+
+function parseApiDocTextPart(value: JsonValue, fieldName: string): ApiDocTextPart {
+  const object = readObject(value, fieldName);
+  const kind = readString(object.kind, `${fieldName}.kind`);
+
+  if (kind !== 'text' && kind !== 'code' && kind !== 'link') {
+    throw new TypeError(`API reference field "${fieldName}.kind" must be text, code, or link.`);
+  }
+
+  return {
+    kind,
+    text: readString(object.text, `${fieldName}.text`),
+    target: readOptionalString(object.target, `${fieldName}.target`),
+  };
+}
+
+function parseApiDocTextParts(value: JsonValue | undefined, fieldName: string): ApiDocTextPart[] {
+  return readOptionalArray(value, fieldName).map((item, index) =>
+    parseApiDocTextPart(item, `${fieldName}[${index}]`)
+  );
+}
+
+function parseApiDocTextPartBlocks(
+  value: JsonValue | undefined,
+  fieldName: string
+): ApiDocTextPart[][] {
+  return readOptionalArray(value, fieldName).map((item, index) =>
+    parseApiDocTextParts(item, `${fieldName}[${index}]`)
+  );
 }
 
 function parseLiteralTable(value: JsonValue | undefined, fieldName: string) {
@@ -241,6 +296,9 @@ function parseApiSymbol(value: JsonValue, fieldName: string): ApiSymbol {
     name: readString(object.name, `${fieldName}.name`),
     kind: readString(object.kind, `${fieldName}.kind`),
     summary: readString(object.summary, `${fieldName}.summary`),
+    summaryParts: parseApiDocTextParts(object.summaryParts, `${fieldName}.summaryParts`),
+    remarks: readOptionalString(object.remarks, `${fieldName}.remarks`) ?? '',
+    remarksParts: parseApiDocTextParts(object.remarksParts, `${fieldName}.remarksParts`),
     signature: readString(object.signature, `${fieldName}.signature`),
     params: readArray(object.params, `${fieldName}.params`).map((item, index) =>
       parseApiParameter(item, `${fieldName}.params[${index}]`)
@@ -264,7 +322,12 @@ function parseApiSymbol(value: JsonValue, fieldName: string): ApiSymbol {
     aliasOf: parseApiAlias(object.aliasOf, `${fieldName}.aliasOf`),
     returns: readOptionalString(object.returns, `${fieldName}.returns`),
     returnsSummary: readOptionalString(object.returnsSummary, `${fieldName}.returnsSummary`),
+    returnsSummaryParts: parseApiDocTextParts(
+      object.returnsSummaryParts,
+      `${fieldName}.returnsSummaryParts`
+    ),
     examples: readStringArray(object.examples, `${fieldName}.examples`),
+    see: parseApiDocTextPartBlocks(object.see, `${fieldName}.see`),
     sourcePackage: readString(object.sourcePackage, `${fieldName}.sourcePackage`),
     packageName: readOptionalString(object.packageName, `${fieldName}.packageName`),
     source: parseApiSource(object.source, `${fieldName}.source`),
@@ -318,4 +381,44 @@ export function apiPackageHref(packageSlug: string) {
 
 export function apiSymbolHref(packageSlug: string, symbolSlug: string) {
   return `${apiPackageHref(packageSlug)}/${symbolSlug}`;
+}
+
+export function apiDocPartHref(
+  part: ApiDocTextPart,
+  packageSlug: string,
+  sourcePackage = packageSlug
+) {
+  if (part.kind !== 'link' || !part.target) {
+    return undefined;
+  }
+
+  if (/^https?:\/\//.test(part.target)) {
+    return part.target;
+  }
+
+  const normalizedTarget = part.target
+    .replace(/^@[^#]+#/, '')
+    .replace(/^\w+#/, '')
+    .split(/[.(]/)[0];
+  const linkedSymbol =
+    apiReference.symbols.find(
+      (symbol) => symbol.name === normalizedTarget && symbol.sourcePackage === sourcePackage
+    ) ??
+    apiReference.symbols.find(
+      (symbol) => symbol.name === normalizedTarget && symbol.sourcePackage === packageSlug
+    ) ??
+    apiReference.symbols.find(
+      (symbol) => symbol.name === normalizedTarget && symbol.sourcePackage !== 'timeline'
+    ) ??
+    apiReference.symbols.find((symbol) => symbol.name === normalizedTarget);
+
+  return linkedSymbol ? apiSymbolHref(linkedSymbol.sourcePackage, linkedSymbol.slug) : undefined;
+}
+
+export function apiDocPlainText(parts: ApiDocTextPart[]) {
+  return parts
+    .map((part) => part.text)
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

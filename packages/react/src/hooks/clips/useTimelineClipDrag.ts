@@ -38,7 +38,22 @@ export interface TimelineClipDragMoveInput {
   viewportY: number;
 }
 
-/** Options accepted by `useTimelineClipDrag`. */
+/**
+ * Options accepted by `useTimelineClipDrag`.
+ *
+ * @remarks
+ *
+ * Pass renderer-aligned geometry so pointer Y coordinates resolve to the same
+ * track rows users see on screen. `canDropClipOnTrack` lets applications enforce
+ * domain rules such as preventing audio clips from moving to visual tracks
+ * unless a modifier key or tool mode allows it.
+ *
+ * @template TrackKind - App-defined track kind values carried by target tracks,
+ * such as `"visual" | "audio"`.
+ *
+ * @see {@link useTimelineTrackDropTargets}
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
+ */
 export interface UseTimelineClipDragOptions<
   TrackKind = string,
 > extends TimelineInteractionGeometry {
@@ -122,7 +137,46 @@ function getTrackPenetration<TrackKind>(
 /**
  * Headless clip body drag behavior shared by canvas and custom timeline UIs.
  *
+ * @remarks
+ *
+ * Use this when building a custom interaction layer around canvas-painted clips.
+ * The hook handles drag lifecycle, snapping preparation, cross-track drop
+ * policy, transient drop feedback, and commit/settle behavior. Package
+ * consumers using the standard DOM chrome can render `Timeline.ClipInteractionLayer`
+ * instead.
+ *
  * @param options - Drag geometry, vertical snap sensitivity, and optional drop policy.
+ * @template TrackKind - App-defined track kind values carried by target tracks.
+ * @returns Clip drag state and commands for pointer-driven body moves.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineClipDrag } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function CustomClipDragHandle({ clipId }: { clipId: string }) {
+ *   const drag = useTimelineClipDrag();
+ *
+ *   return (
+ *     <button
+ *       type="button"
+ *       aria-pressed={drag.dragging}
+ *       onPointerDown={(event) => {
+ *         drag.startClipDrag({
+ *           clipId,
+ *           clientX: event.clientX,
+ *           viewportY: event.nativeEvent.offsetY,
+ *         });
+ *       }}
+ *     >
+ *       Move clip
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineClipDropFeedback}
+ * @see {@link useTimelineTrackDropTargets}
+ * @see {@link https://canvastimeline.com/demos/basic-editor-surface | Basic editor surface demo}
  */
 export function useTimelineClipDrag<TrackKind = string>(
   options: UseTimelineClipDragOptions<TrackKind> = {}
