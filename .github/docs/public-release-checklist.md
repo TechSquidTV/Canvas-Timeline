@@ -63,7 +63,7 @@ Use this as the final pre-public-release checklist for Canvas Timeline. The goal
 
 - [ ] Run the full local gate:
   - [ ] `vp install`
-  - [ ] `vp check`
+  - [ ] `vp run repo:check`
   - [ ] `vp test`
   - [ ] `vp run ci`
   - [ ] `vp run build`

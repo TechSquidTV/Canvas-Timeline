@@ -10,7 +10,7 @@
     "changeset": "changeset",
     "changeset:status": "changeset status --since=origin/main",
     "changeset:version": "changeset version",
-    "check": "vp check",
+    "check": "vp run repo:check",
     "clean": "vp run repo:clean",
     "commitlint": "commitlint --verbose",
     "dev": "vp run repo:dev",

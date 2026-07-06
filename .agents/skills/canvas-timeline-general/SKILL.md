@@ -99,7 +99,7 @@ into `packages/core` or `packages/renderer`.
 
 ## Validation & Testing
 
-Run unit tests relative to your change, then verify overall status with `vp check`.
+Run unit tests relative to your change, then verify overall status with `vp run repo:check`.
 
 - **Core Engine**: [engine.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/core/src/engine.test.ts)
 - **Hooks**: [hooks.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks.test.ts)
