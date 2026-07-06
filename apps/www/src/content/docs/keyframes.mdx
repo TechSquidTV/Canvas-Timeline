@@ -1,29 +1,45 @@
 ---
 title: Keyframes
-description: Animate clip properties with engine-level keyframes, headless React hooks, and canvas-rendered curves.
+description: Animate registered clip properties with engine-level keyframes, headless React hooks, and canvas-rendered segments.
 section: concepts
 order: 23
 ---
 
 import Callout from '../../components/Callout.astro';
 
-Keyframes are stored on clips and evaluated by the core engine, not by a demo or renderer-specific layer. That keeps animated clip properties available to playback adapters, custom DOM renderers, canvas layers, inspectors, undo/redo, and app-owned serialization.
+Keyframes are generic scalar animation data stored on clips and evaluated by the core engine. The engine does not reserve `opacity`, `volume`, `scale`, or any other property id. Apps register the properties they want to keyframe, then the same engine, React hooks, and renderer geometry work for every registered property.
 
-Canvas Timeline currently ships first-party keyframes for clip `opacity`. The model is intentionally small and extendable: each keyframe belongs to one clip, targets one supported property, stores an absolute `RationalTime`, and defines the interpolation for the outgoing segment to the next keyframe.
+<Callout kind="warning" title="Breaking keyframe API">
+  Keyframes use side-aware `incoming` and `outgoing` interpolation data. The old keyframe-level
+  `interpolation` and `easing` fields are intentionally removed.
+</Callout>
 
 ```ts
-import { fromSeconds, type Track } from '@techsquidtv/canvas-timeline';
+import {
+  TimelineEngine,
+  createTimelineScalarKeyframeProperty,
+  fromSeconds,
+  type Track,
+} from '@techsquidtv/canvas-timeline';
+
+const opacityProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  label: 'Opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+  formatValue: (value) => `${Math.round(value * 100)}%`,
+  getBaseValue: (clip) => clip.opacity ?? 1,
+});
 
 const tracks: Track<'visual'>[] = [
   {
     id: 'visual-1',
     kind: 'visual',
-    name: 'Visual',
     selected: true,
     locked: false,
     muted: false,
     visible: true,
-    targeted: true,
     clips: [
       {
         id: 'intro',
@@ -40,129 +56,112 @@ const tracks: Track<'visual'>[] = [
             property: 'opacity',
             time: fromSeconds(6),
             value: 1,
-            interpolation: 'bezier',
-            easing: { x1: 0.42, y1: 0, x2: 0.58, y2: 1 },
+            outgoing: { interpolation: 'bezier', handle: { x: 0.42, y: 0 } },
           },
-          { id: 'fade-out-end', property: 'opacity', time: fromSeconds(8), value: 0 },
+          {
+            id: 'fade-out-end',
+            property: 'opacity',
+            time: fromSeconds(8),
+            value: 0,
+            incoming: { interpolation: 'bezier', handle: { x: 0.58, y: 1 } },
+          },
         ],
       },
     ],
   },
 ];
+
+const engine = new TimelineEngine({
+  tracks,
+  keyframeProperties: [opacityProperty],
+});
 ```
+
+## Ownership
+
+The engine owns clip-scoped keyframe storage, property registration, sorting, evaluation, geometry, hit testing, selection, undo/redo, copy/paste, split/trim/move behavior, and mutation events. It rejects creation or evaluation for unregistered properties.
+
+React owns headless hooks, DOM interaction layers, pointer capture, padded hit targets, focus behavior, keyboard affordances, ARIA labels, and package CSS. It does not decide which properties exist or what presets mean.
+
+The renderer owns dense canvas drawing for a configured property. Pass a registered property id to `CanvasRenderer`; the main thread prepares keyframe geometry through the engine, then the worker draws that geometry without reinterpreting keyframe values.
+
+Apps own property definitions, inspector UI, presets, shortcuts, graph-editor layout, media/effect application, and editing policy. Opacity is an example property, not a privileged keyframe type.
 
 ## Engine API
 
-Use the core engine for persistence-safe keyframe edits and evaluation. Keyframe times are clamped to their owning clip range, opacity values are clamped to `0..1`, and locked tracks reject keyframe mutations.
+Use the core engine for persistence-safe edits and evaluation:
 
 ```ts
-import { TimelineEngine, fromSeconds } from '@techsquidtv/canvas-timeline';
-
-const engine = new TimelineEngine({ tracks });
-
 engine.setClipKeyframe({
   clipId: 'intro',
   property: 'opacity',
   time: fromSeconds(3),
   value: 0.6,
-  interpolation: 'linear',
+});
+
+engine.updateClipKeyframeSide({
+  clipId: 'intro',
+  keyframeId: 'fade-out-start',
+  side: 'outgoing',
+  patch: {
+    interpolation: 'bezier',
+    handle: { x: 0.16, y: 1 },
+  },
+});
+
+engine.updateClipKeyframeSides({
+  clipId: 'intro',
+  keyframeId: 'fade-out-end',
+  incoming: {
+    interpolation: 'bezier',
+    handle: { x: 0.58, y: 1 },
+  },
 });
 
 const opacity = engine.getClipPropertyValueAtTime('intro', 'opacity', fromSeconds(3.5));
 ```
 
-`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. When you omit `interpolation` for a brand-new keyframe, it inherits the interpolation mode (and Bezier easing) of the previous keyframe in the same property lane, so placing a keyframe mid-segment keeps the segment's easing character instead of resetting it to linear. Use `updateClipKeyframe()` when you already have a keyframe id, and `removeClipKeyframe()` when your application decides a keyframe should be deleted.
+`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. New keyframes do not inherit side data from neighbors; missing side data normalizes to linear during evaluation. Use `updateClipKeyframe()`, `updateClipKeyframeSide()`, `updateClipKeyframeSides()`, and `removeClipKeyframe()` for existing keyframes. Pass `handle: null` in a side patch to reset a Bezier tangent to its deterministic default instead of preserving the current handle.
 
-`updateClipKeyframe()` merges keyframes that land on the same property/time only for committed edits. Preview updates (`{ commit: false }`, used by drag hooks) never delete a colliding neighbor; the dragged keyframe holds its last non-colliding time instead, so scrubbing a keyframe across another one is non-destructive.
+## Segment Semantics
 
-<Callout kind="tip" title="App-owned editing policy">
-  Canvas Timeline exposes the primitives for adding, updating, dragging, and removing keyframes, but
-  your app decides when those commands run. For example, the opacity demo maps double-click, Delete,
-  and a track-header button to keyframe deletion; the library does not globally install those
-  policies.
-</Callout>
+A segment is formed by a left `startKeyframe` and a right `endKeyframe`.
 
-## Interpolation
+| Mode     | Source                                 | Behavior                                                         |
+| :------- | :------------------------------------- | :--------------------------------------------------------------- |
+| `linear` | Missing side data or explicit `linear` | Interpolates evenly from start value to end value.               |
+| `hold`   | `startKeyframe.outgoing`               | Holds the start value until the next keyframe.                   |
+| `bezier` | Either side is `bezier`                | Uses start `outgoing.handle` and end `incoming.handle` tangents. |
 
-Interpolation belongs to the keyframe on the left side of a segment:
-
-| Mode     | Behavior                                                          |
-| :------- | :---------------------------------------------------------------- |
-| `linear` | Interpolates evenly from this keyframe to the next keyframe.      |
-| `hold`   | Keeps this keyframe's value until the next keyframe is reached.   |
-| `bezier` | Uses cubic Bezier easing control points for the outgoing segment. |
-
-Bezier easing uses `TimelineCubicBezier` control points:
-
-```ts
-engine.updateClipKeyframe({
-  clipId: 'intro',
-  keyframeId: 'fade-out-start',
-  interpolation: 'bezier',
-  easing: { x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
-});
-```
-
-The evaluator, canvas renderer, and curve-handle geometry share the same interpolation helpers, so playback values, drawn curves, and draggable Bezier handles agree for `linear`, `hold`, and `bezier`.
+Dragging an outgoing tangent mutates the anchor keyframe's `outgoing` side. Dragging an incoming tangent mutates the anchor keyframe's `incoming` side. Missing Bezier handles use deterministic defaults.
 
 ## React Hooks
 
-Use `useTimelineKeyframes()` for headless keyframe state, geometry, evaluation, and commands:
+Use `useTimelineKeyframes()` for keyframe state, geometry, evaluation, and commands. Compose `useTimelineKeyframeDrag()` when you want custom point dragging.
 
-```tsx
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react/hooks';
-
-function OpacityButton() {
-  const keyframes = useTimelineKeyframes({ clipId: 'intro', property: 'opacity' });
-
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        keyframes.setKeyframe({
-          clipId: 'intro',
-          property: 'opacity',
-          time: fromSeconds(4),
-          value: 0.5,
-        })
-      }
-    >
-      Add opacity keyframe
-    </button>
-  );
-}
-```
-
-For custom keyframe handles, compose `useTimelineKeyframeDrag()` with your own DOM or canvas hit targets. The hook handles preview-time updates and settles history when the drag ends, while your UI owns pointer wiring, styling, and policy.
-
-For Bezier curve editing, use `useTimelineKeyframeCurves()` to read segment geometry and `useTimelineKeyframeCurveDrag()` to update easing handles during pointer drags:
+For segment and tangent editing, use `useTimelineKeyframeSegments()` and `useTimelineKeyframeTangentDrag()`:
 
 ```tsx
 import {
-  useTimelineKeyframeCurveDrag,
-  useTimelineKeyframeCurves,
+  useTimelineKeyframeSegments,
+  useTimelineKeyframeTangentDrag,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
-function CurveHandles() {
-  const curves = useTimelineKeyframeCurves({
+function TangentHandles() {
+  const segments = useTimelineKeyframeSegments({
     property: 'opacity',
     selectedClipOnly: true,
     selectedKeyframeOnly: true,
   });
-  const drag = useTimelineKeyframeCurveDrag({ property: 'opacity' });
+  const drag = useTimelineKeyframeTangentDrag({ property: 'opacity' });
 
-  return curves.visibleCurveHandles.map((handle) => (
+  return segments.visibleTangentHandles.map((handle) => (
     <button
-      key={`${handle.segmentId}:${handle.handle}`}
+      key={`${handle.segmentId}:${handle.side}`}
       type="button"
       onPointerDown={() =>
-        drag.startKeyframeCurveDrag({
-          clipId: handle.clip.id,
-          segmentId: handle.segmentId,
-          keyframeId: handle.keyframe.id,
-          handle: handle.handle,
-          curveHandle: handle,
+        drag.startKeyframeTangentDrag({
+          tangentHandle: handle,
         })
       }
     />
@@ -172,46 +171,33 @@ function CurveHandles() {
 
 ## Interaction Layers
 
-The default canvas timeline draws keyframe curves and diamonds inside clips through `CanvasRenderer`. Add `Timeline.KeyframeInteractionLayer` when you want draggable DOM handles over those canvas visuals:
+The default canvas renderer draws keyframe segments and diamonds for the configured property. Add DOM interaction layers over the canvas when you want editable handles:
 
 ```tsx
 import { CanvasRenderer, Timeline } from '@techsquidtv/canvas-timeline';
 
 <Timeline.Root>
-  <CanvasRenderer />
+  <CanvasRenderer keyframeProperty="opacity" />
   <Timeline.ClipInteractionLayer />
-  <Timeline.KeyframeInteractionLayer
+  <Timeline.KeyframeInteractionLayer property="opacity" selectedClipOnly />
+  <Timeline.KeyframeTangentInteractionLayer
     property="opacity"
     selectedClipOnly
-    onKeyframeDoubleClick={(entry, { engine }) => {
-      engine.removeClipKeyframe(entry.clip.id, entry.keyframe.id);
+    selectedKeyframeOnly
+    onTangentHandleDoubleClick={(handle) => {
+      console.log(handle.segmentId, handle.side);
     }}
   />
   <Timeline.PlayheadGrabber />
 </Timeline.Root>;
 ```
 
-The interaction layer keeps its root `pointer-events: none` and only enables pointer events on visible keyframe handles, so clips remain interactive between handles. Each handle wraps its visual shape in an invisible padded hit target (`hitPadding`, 8px by default) so near-miss presses grab the keyframe instead of starting a clip move or trim on the clip layer underneath. Use `keyframeSize`, `hitPadding`, `keyframeValuePadding`, `getKeyframeAriaLabel`, `onKeyframeDoubleClick`, `onKeyframeDelete`, and `onKeyDown` to adapt the layer for your editor.
-
-Add `Timeline.KeyframeCurveInteractionLayer` when you want optional inline Bezier handles for selected curve segments:
-
-```tsx
-<Timeline.KeyframeCurveInteractionLayer
-  property="opacity"
-  selectedClipOnly
-  selectedKeyframeOnly
-  onCurveHandleDoubleClick={(handle) => {
-    console.log(handle.segmentId, handle.handle);
-  }}
-/>
-```
-
-The curve layer edits only existing Bezier easing data. Its handles use the same padded hit targets (`hitPadding`), pointer capture with document-level fallback listeners, and select their anchor keyframe when a drag starts. Apps still decide when to convert a segment to Bezier, when to reset handles, and whether to expose presets, inspector fields, or a separate graph editor.
+The tangent layer uses padded hit targets, pointer capture with document-level fallback listeners, focus handling, and ARIA labels. Apps still decide when to convert sides to Bezier, reset handles, link tangents, or apply presets.
 
 ## Custom Renderers
 
-Keyframe behavior is not tied to the built-in canvas renderer. DOM renderers can read `keyframeRects` or `visibleKeyframes` from `useTimelineKeyframes()`, and `curveSegments` or `visibleCurveHandles` from `useTimelineKeyframeCurves()`. Custom canvas layers can read keyframe geometry from `TimelineCanvasLayer` draw input or call the engine geometry APIs.
+Keyframe behavior is not tied to the built-in canvas renderer. DOM renderers can read `keyframeRects` or `visibleKeyframes` from `useTimelineKeyframes()`, and `segments` or `visibleTangentHandles` from `useTimelineKeyframeSegments()`. Custom canvas layers can call the engine geometry APIs directly.
 
-Set `showKeyframes={false}` on `CanvasRenderer` when you want to draw keyframe curves yourself while keeping the same engine and hook APIs.
+Set `showKeyframes={false}` on `CanvasRenderer` when you want to draw keyframe visuals yourself while keeping the same engine and hook APIs.
 
-The [Opacity Keyframes demo](/demos/keyframe-opacity) shows these pieces together: engine-level opacity evaluation, canvas-rendered curves, DOM drag handles, clip double-click creation, handle deletion, Bezier preset editing, inline Bezier handle dragging, and an HTML video preview whose opacity follows the current playhead.
+The [Opacity Keyframes demo](/demos/keyframe-opacity) shows opacity registered explicitly as an example property, canvas-rendered segments, DOM drag handles, Bezier preset editing, tangent dragging, and an HTML video preview whose opacity follows the current playhead.

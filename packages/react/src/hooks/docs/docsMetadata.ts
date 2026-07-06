@@ -101,11 +101,11 @@ export const timelineHookMetadata = [
       'Reads clip keyframes, viewport geometry, evaluation helpers, and keyframe commands.',
   },
   {
-    name: 'useTimelineKeyframeCurves',
+    name: 'useTimelineKeyframeSegments',
     group: 'timeline-state',
     category: 'keyframe-editing',
     reactivity: 'snapshot',
-    description: 'Reads keyframe curve segment geometry, Bezier handles, and easing commands.',
+    description: 'Reads keyframe segment geometry, Bezier tangent handles, and side commands.',
   },
   {
     name: 'useTimelineVisibleClips',
@@ -285,11 +285,11 @@ export const timelineHookMetadata = [
     description: 'Provides headless keyframe handle dragging with live property preview updates.',
   },
   {
-    name: 'useTimelineKeyframeCurveDrag',
+    name: 'useTimelineKeyframeTangentDrag',
     group: 'editing-hooks',
     category: 'keyframe-editing',
     reactivity: 'imperative',
-    description: 'Provides headless Bezier curve handle dragging with live easing preview updates.',
+    description: 'Provides headless Bezier tangent dragging with live side-handle preview updates.',
   },
   {
     name: 'useTimelineTrackDropTargets',

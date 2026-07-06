@@ -1,6 +1,11 @@
 import { fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+  type Clip,
+  type Track,
+} from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '../../Provider';
 import { KeyframeInteractionLayer } from './KeyframeInteractionLayer';
@@ -26,6 +31,12 @@ function restoreElementPrototypeMethod<
 const originalGetBoundingClientRect = getElementPrototypeMethod('getBoundingClientRect');
 const originalSetPointerCapture = getElementPrototypeMethod('setPointerCapture');
 const originalReleasePointerCapture = getElementPrototypeMethod('releasePointerCapture');
+const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+});
 
 beforeEach(() => {
   resetTimelineTapState();
@@ -94,6 +105,7 @@ function createEngine() {
     tracks: [track],
     playheadTime: fromSeconds(0),
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 }
 

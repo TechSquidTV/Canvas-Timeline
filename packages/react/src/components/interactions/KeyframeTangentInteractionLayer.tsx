@@ -2,30 +2,35 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   TimelineEngine,
   TimelineInteractionGeometry,
-  TimelineKeyframeCurveHandle,
-  TimelineKeyframeCurveHandleHitTestResult,
-  TimelineKeyframeProperty,
+  TimelineKeyframePropertyId,
+  TimelineKeyframeSide,
+  TimelineKeyframeTangentHandle,
+  TimelineKeyframeTangentHandleHitTestResult,
 } from '@techsquidtv/canvas-timeline-core';
 import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline, useTimelineKeyframeCurveDrag, useTimelineKeyframeCurves } from '../../hooks';
+import {
+  useTimeline,
+  useTimelineKeyframeSegments,
+  useTimelineKeyframeTangentDrag,
+} from '../../hooks';
 import { consumeTimelineDoubleTap } from './tapState';
 
-interface HoveredCurveHandle {
+interface HoveredTangentHandle {
   clipId: string;
   segmentId: string;
   keyframeId: string;
-  handle: TimelineKeyframeCurveHandle['handle'];
+  side: TimelineKeyframeSide;
 }
 
-interface ActiveCurveHandle extends HoveredCurveHandle {
+interface ActiveTangentHandle extends HoveredTangentHandle {
   target: HTMLElement;
 }
 
 /**
- * Details passed to a Bezier curve handle double-click or double-tap callback.
+ * Details passed to a Bezier tangent handle double-click or double-tap callback.
  */
-export interface KeyframeCurveHandleDoubleClickDetails {
+export interface KeyframeTangentHandleDoubleClickDetails {
   /** Timeline engine owning the keyframe. */
   engine: TimelineEngine;
   /** Original pointer event. */
@@ -33,69 +38,72 @@ export interface KeyframeCurveHandleDoubleClickDetails {
 }
 
 /**
- * Props for the delegated Bezier curve interaction layer.
+ * Props for the delegated Bezier tangent interaction layer.
  */
-export interface KeyframeCurveInteractionLayerProps
+export interface KeyframeTangentInteractionLayerProps
   extends
     Omit<React.HTMLAttributes<HTMLDivElement>, keyof TimelineInteractionGeometry>,
     TimelineInteractionGeometry {
-  /** Keyframe property to render and hit-test. Defaults to opacity. */
-  property?: TimelineKeyframeProperty;
-  /** Only render curve handles owned by selected clips. Defaults to true. */
+  /** Keyframe property to render and hit-test. */
+  property: TimelineKeyframePropertyId;
+  /** Only render tangent handles owned by selected clips. Defaults to true. */
   selectedClipOnly?: boolean;
-  /** Only render curve handles touching selected keyframes. Defaults to true. */
+  /** Only render tangent handles touching selected keyframes. Defaults to true. */
   selectedKeyframeOnly?: boolean;
-  /** Extra pixels around the viewport included in visible curve queries. */
+  /** Extra pixels around the viewport included in visible segment queries. */
   overscanPixels?: number;
   /** Keyframe affordance square size in CSS pixels. */
   keyframeSize?: number;
   /** Bezier control handle square size in CSS pixels. */
-  curveHandleSize?: number;
+  tangentHandleSize?: number;
   /**
    * Invisible pointer padding in CSS pixels added around each Bezier handle.
    *
-   * Presses inside the padded area target the curve handle instead of falling
+   * Presses inside the padded area target the tangent handle instead of falling
    * through to lower interaction layers such as the clip layer. Defaults to 8.
    */
   hitPadding?: number;
   /** Vertical padding used when mapping keyframe values into a clip row. */
   keyframeValuePadding?: number;
-  /** Optional handler for double-click or double-tap gestures on curve handles. */
-  onCurveHandleDoubleClick?: (
-    handle: TimelineKeyframeCurveHandle,
-    details: KeyframeCurveHandleDoubleClickDetails
+  /** Optional handler for double-click or double-tap gestures on tangent handles. */
+  onTangentHandleDoubleClick?: (
+    handle: TimelineKeyframeTangentHandle,
+    details: KeyframeTangentHandleDoubleClickDetails
   ) => void;
-  /** Optional accessible label formatter for a canvas-rendered curve handle. */
-  getCurveHandleAriaLabel?: (handle: TimelineKeyframeCurveHandleHitTestResult) => string;
+  /** Optional accessible label formatter for a canvas-rendered tangent handle. */
+  getTangentHandleAriaLabel?: (handle: TimelineKeyframeTangentHandleHitTestResult) => string;
 }
 
-function curveHandleIdentity(handle: TimelineKeyframeCurveHandle) {
-  return `${handle.clip.id}:${handle.segmentId}:${handle.handle}`;
+function tangentHandleIdentity(handle: TimelineKeyframeTangentHandle) {
+  return `${handle.clip.id}:${handle.segmentId}:${handle.side}`;
 }
 
-function isSameCurveHandle(left: HoveredCurveHandle | null, right: TimelineKeyframeCurveHandle) {
+function isSameTangentHandle(
+  left: HoveredTangentHandle | null,
+  right: TimelineKeyframeTangentHandle
+) {
   return (
     left?.clipId === right.clip.id &&
     left.segmentId === right.segmentId &&
     left.keyframeId === right.keyframe.id &&
-    left.handle === right.handle
+    left.side === right.side
   );
 }
 
-function defaultCurveHandleAriaLabel(handle: TimelineKeyframeCurveHandleHitTestResult) {
+function defaultTangentHandleAriaLabel(handle: TimelineKeyframeTangentHandleHitTestResult) {
   const endpoint =
-    handle.handle === 'outgoing'
+    handle.side === 'outgoing'
       ? `outgoing from ${toSeconds(handle.anchorKeyframe.time).toFixed(2)} seconds`
       : `incoming to ${toSeconds(handle.anchorKeyframe.time).toFixed(2)} seconds`;
   return `${handle.keyframe.property} Bezier ${endpoint}`;
 }
 
 /**
- * Delegated Bezier curve handle interaction surface for canvas-rendered timeline clips.
+ * Delegated Bezier tangent handle interaction surface for canvas-rendered timeline clips.
  */
-export const KeyframeCurveInteractionLayer = React.forwardRef<
+export const KeyframeTangentInteractionLayer = React.forwardRef<
   HTMLDivElement,
-  KeyframeCurveInteractionLayerProps
+  KeyframeTangentInteractionLayerProps
 >(
   (
     {
@@ -106,16 +114,16 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
       collapsedTrackHeight = defaultTimelineInteractionGeometry.collapsedTrackHeight,
       edgeThreshold = defaultTimelineInteractionGeometry.edgeThreshold,
       touchEdgeThreshold = defaultTimelineInteractionGeometry.touchEdgeThreshold,
-      property = 'opacity',
+      property,
       selectedClipOnly = true,
       selectedKeyframeOnly = true,
       overscanPixels,
       keyframeSize,
-      curveHandleSize,
+      tangentHandleSize,
       hitPadding = 8,
       keyframeValuePadding,
-      onCurveHandleDoubleClick,
-      getCurveHandleAriaLabel,
+      onTangentHandleDoubleClick,
+      getTangentHandleAriaLabel,
       onPointerDown,
       onPointerMove,
       onPointerLeave,
@@ -128,13 +136,13 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
   ) => {
     const { engine } = useTimeline();
     const internalRef = useRef<HTMLDivElement>(null);
-    const activeHandleRef = useRef<ActiveCurveHandle | null>(null);
+    const activeHandleRef = useRef<ActiveTangentHandle | null>(null);
     const fallbackListenersRef = useRef<(() => void) | null>(null);
-    const [hoveredHandle, setHoveredHandle] = useState<HoveredCurveHandle | null>(null);
+    const [hoveredHandle, setHoveredHandle] = useState<HoveredTangentHandle | null>(null);
     const geometry = useMemo(
       () => ({
         collapsedTrackHeight,
-        curveHandleSize,
+        tangentHandleSize,
         edgeThreshold,
         keyframeSize,
         keyframeValuePadding,
@@ -148,7 +156,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
       }),
       [
         collapsedTrackHeight,
-        curveHandleSize,
+        tangentHandleSize,
         edgeThreshold,
         keyframeSize,
         keyframeValuePadding,
@@ -161,13 +169,13 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         trackHeight,
       ]
     );
-    const curves = useTimelineKeyframeCurves(geometry);
+    const segments = useTimelineKeyframeSegments(geometry);
     const {
-      cancelKeyframeCurveDrag,
-      endKeyframeCurveDrag,
-      moveKeyframeCurveDrag,
-      startKeyframeCurveDrag,
-    } = useTimelineKeyframeCurveDrag(geometry);
+      cancelKeyframeTangentDrag,
+      endKeyframeTangentDrag,
+      moveKeyframeTangentDrag,
+      startKeyframeTangentDrag,
+    } = useTimelineKeyframeTangentDrag(geometry);
 
     const ref = useCallback(
       (node: HTMLDivElement | null) => {
@@ -206,10 +214,10 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         removeFallbackListeners();
         if (activeHandleRef.current) {
           activeHandleRef.current = null;
-          cancelKeyframeCurveDrag();
+          cancelKeyframeTangentDrag();
         }
       };
-    }, [cancelKeyframeCurveDrag, removeFallbackListeners]);
+    }, [cancelKeyframeTangentDrag, removeFallbackListeners]);
 
     const stopActiveDrag = useCallback(
       (event: PointerEvent | React.PointerEvent, target: HTMLElement) => {
@@ -224,10 +232,10 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         }
 
         if (active) {
-          endKeyframeCurveDrag();
+          endKeyframeTangentDrag();
         }
       },
-      [endKeyframeCurveDrag, removeFallbackListeners]
+      [endKeyframeTangentDrag, removeFallbackListeners]
     );
 
     const moveActiveDrag = useCallback(
@@ -237,16 +245,16 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
           return;
         }
 
-        moveKeyframeCurveDrag({
+        moveKeyframeTangentDrag({
           viewportX: point.x,
           viewportY: point.y,
         });
       },
-      [getViewportPoint, moveKeyframeCurveDrag]
+      [getViewportPoint, moveKeyframeTangentDrag]
     );
 
     const handlePointerDown = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>, handle: TimelineKeyframeCurveHandle) => {
+      (event: React.PointerEvent<HTMLDivElement>, handle: TimelineKeyframeTangentHandle) => {
         onPointerDown?.(event);
         if (
           event.defaultPrevented ||
@@ -257,16 +265,14 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         }
 
         if (consumeTimelineDoubleTap(event)) {
-          onCurveHandleDoubleClick?.(handle, { engine, event });
+          event.preventDefault();
+          event.stopPropagation();
+          onTangentHandleDoubleClick?.(handle, { engine, event });
           return;
         }
 
-        const result = startKeyframeCurveDrag({
-          clipId: handle.clip.id,
-          segmentId: handle.segmentId,
-          keyframeId: handle.keyframe.id,
-          handle: handle.handle,
-          curveHandle: handle,
+        const result = startKeyframeTangentDrag({
+          tangentHandle: handle,
         });
         if (!result.ok) {
           return;
@@ -281,7 +287,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
           clipId: handle.clip.id,
           segmentId: handle.segmentId,
           keyframeId: handle.keyframe.id,
-          handle: handle.handle,
+          side: handle.side,
           target,
         };
         try {
@@ -316,10 +322,10 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
       [
         engine,
         moveActiveDrag,
-        onCurveHandleDoubleClick,
+        onTangentHandleDoubleClick,
         onPointerDown,
         removeFallbackListeners,
-        startKeyframeCurveDrag,
+        startKeyframeTangentDrag,
         stopActiveDrag,
       ]
     );
@@ -352,10 +358,10 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         if (activeHandleRef.current) {
           activeHandleRef.current = null;
           removeFallbackListeners();
-          cancelKeyframeCurveDrag();
+          cancelKeyframeTangentDrag();
         }
       },
-      [cancelKeyframeCurveDrag, onPointerCancel, removeFallbackListeners]
+      [cancelKeyframeTangentDrag, onPointerCancel, removeFallbackListeners]
     );
 
     const handleLostPointerCapture = useCallback(
@@ -369,12 +375,12 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
     );
 
     const cursor = activeHandleRef.current ? 'grabbing' : hoveredHandle ? 'grab' : undefined;
-    const visibleHandles = curves.visibleCurveHandles;
+    const visibleHandles = segments.visibleTangentHandles;
 
     return (
       <div
         ref={ref}
-        className={`timeline-keyframe-curve-interaction-layer ${className}`.trim()}
+        className={`timeline-keyframe-tangent-interaction-layer ${className}`.trim()}
         data-has-target={hoveredHandle ? 'true' : undefined}
         style={{
           top: `${rulerHeight}px`,
@@ -383,11 +389,11 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
         }}
         {...props}
       >
-        <svg className="timeline-keyframe-curve-lines" aria-hidden="true">
+        <svg className="timeline-keyframe-tangent-lines" aria-hidden="true">
           {visibleHandles.map((handle) => (
             <line
-              key={`${curveHandleIdentity(handle)}:line`}
-              className="timeline-keyframe-curve-line"
+              key={`${tangentHandleIdentity(handle)}:line`}
+              className="timeline-keyframe-tangent-line"
               x1={handle.anchorPoint.x}
               y1={handle.anchorPoint.y - rulerHeight}
               x2={handle.point.x}
@@ -396,22 +402,22 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
           ))}
         </svg>
         {visibleHandles.map((handle) => {
-          const active = isSameCurveHandle(activeHandleRef.current, handle);
-          const hovered = isSameCurveHandle(hoveredHandle, handle);
+          const active = isSameTangentHandle(activeHandleRef.current, handle);
+          const hovered = isSameTangentHandle(hoveredHandle, handle);
           const pad = Math.max(0, hitPadding);
 
           return (
             <div
-              key={curveHandleIdentity(handle)}
+              key={tangentHandleIdentity(handle)}
               role="button"
-              aria-label={(getCurveHandleAriaLabel ?? defaultCurveHandleAriaLabel)(handle)}
+              aria-label={(getTangentHandleAriaLabel ?? defaultTangentHandleAriaLabel)(handle)}
               tabIndex={handle.canEdit ? 0 : -1}
-              className="timeline-keyframe-curve-handle"
+              className="timeline-keyframe-tangent-handle"
               data-clip-id={handle.clip.id}
               data-segment-id={handle.segmentId}
               data-keyframe-id={handle.keyframe.id}
               data-anchor-keyframe-id={handle.anchorKeyframe.id}
-              data-handle={handle.handle}
+              data-side={handle.side}
               data-active={active ? 'true' : undefined}
               data-hovered={hovered ? 'true' : undefined}
               data-editable={handle.canEdit ? 'true' : undefined}
@@ -431,7 +437,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
                   clipId: handle.clip.id,
                   segmentId: handle.segmentId,
                   keyframeId: handle.keyframe.id,
-                  handle: handle.handle,
+                  side: handle.side,
                 });
               }}
               onPointerMove={handlePointerMove}
@@ -444,7 +450,7 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
               onLostPointerCapture={handleLostPointerCapture}
             >
               <div
-                className="timeline-keyframe-curve-handle-shape"
+                className="timeline-keyframe-tangent-handle-shape"
                 aria-hidden="true"
                 style={{
                   width: `${handle.rect.width}px`,
@@ -459,4 +465,4 @@ export const KeyframeCurveInteractionLayer = React.forwardRef<
   }
 );
 
-KeyframeCurveInteractionLayer.displayName = 'Timeline.KeyframeCurveInteractionLayer';
+KeyframeTangentInteractionLayer.displayName = 'Timeline.KeyframeTangentInteractionLayer';

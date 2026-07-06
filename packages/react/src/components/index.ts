@@ -4,7 +4,7 @@ import { TrackItem as Track } from './surface/TrackItem';
 import { TrackHeaderList, TrackHeader, TrackHeaderResizeHandle } from './tracks/TrackHeader';
 import { ClipInteractionLayer } from './interactions/ClipInteractionLayer';
 import { KeyframeInteractionLayer } from './interactions/KeyframeInteractionLayer';
-import { KeyframeCurveInteractionLayer } from './interactions/KeyframeCurveInteractionLayer';
+import { KeyframeTangentInteractionLayer } from './interactions/KeyframeTangentInteractionLayer';
 import { PlayheadArea } from './playhead/PlayheadArea';
 import { PlayheadGrabber } from './playhead/PlayheadGrabber';
 import { KeyboardScope } from './controls/KeyboardScope';
@@ -40,8 +40,8 @@ export const Timeline = {
   ClipInteractionLayer,
   /** Delegated keyframe hit-test and edit interaction layer. */
   KeyframeInteractionLayer,
-  /** Delegated Bezier keyframe curve handle interaction layer. */
-  KeyframeCurveInteractionLayer,
+  /** Delegated Bezier keyframe tangent handle interaction layer. */
+  KeyframeTangentInteractionLayer,
   /** Transparent scrub area for moving the playhead and adding markers. */
   PlayheadArea,
   /** Draggable playhead handle. */
@@ -73,7 +73,7 @@ export {
   TrackHeaderResizeHandle,
   ClipInteractionLayer,
   KeyframeInteractionLayer,
-  KeyframeCurveInteractionLayer,
+  KeyframeTangentInteractionLayer,
   PlayheadArea,
   PlayheadGrabber,
   KeyboardScope,
@@ -96,9 +96,9 @@ export type {
   KeyframeInteractionLayerProps,
 } from './interactions/KeyframeInteractionLayer';
 export type {
-  KeyframeCurveHandleDoubleClickDetails,
-  KeyframeCurveInteractionLayerProps,
-} from './interactions/KeyframeCurveInteractionLayer';
+  KeyframeTangentHandleDoubleClickDetails,
+  KeyframeTangentInteractionLayerProps,
+} from './interactions/KeyframeTangentInteractionLayer';
 export type { KeyboardScopeProps } from './controls/KeyboardScope';
 export type { PlayheadAreaProps } from './playhead/PlayheadArea';
 export type { PlayheadGrabberProps } from './playhead/PlayheadGrabber';

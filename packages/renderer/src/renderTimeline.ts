@@ -16,7 +16,7 @@ const defaultRenderOptions: Omit<ResolvedTimelineRenderOptions, 'theme'> = {
   showClipDropFeedback: true,
   showInOutBoundaryLines: false,
   showInOutPoints: true,
-  showKeyframes: true,
+  showKeyframes: false,
   showRulerLabels: true,
   showSnapLines: true,
 };
@@ -34,12 +34,25 @@ export function renderTimeline(
     ...options,
     theme: renderTheme,
   };
+  if (resolvedOptions.showKeyframes && resolvedOptions.keyframeGeometry === undefined) {
+    throw new RangeError('Timeline keyframe rendering requires prepared keyframeGeometry.');
+  }
+  const keyframeGeometryByClip =
+    resolvedOptions.keyframeGeometry === undefined
+      ? undefined
+      : new Map(
+          resolvedOptions.keyframeGeometry.clips.map((clipGeometry) => [
+            clipGeometry.clipId,
+            clipGeometry,
+          ])
+        );
   const renderContext: RenderContext = {
     ctx,
     state,
     width: canvas.width / dpr,
     height: canvas.height / dpr,
     options: resolvedOptions,
+    keyframeGeometryByClip,
     theme: renderTheme,
   };
 

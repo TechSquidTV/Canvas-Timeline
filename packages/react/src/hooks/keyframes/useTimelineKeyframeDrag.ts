@@ -72,6 +72,7 @@ export interface TimelineKeyframeDragUpdate {
 interface ActiveKeyframeDrag {
   clipId: string;
   keyframeId: string;
+  property: TimelineKeyframeRect['keyframe']['property'];
   startClientX: number;
   startCenterX: number;
 }
@@ -123,16 +124,20 @@ export function useTimelineKeyframeDrag(
   );
 
   const getValueAtViewportY = useCallback(
-    (clipId: string, viewportY: number) => {
+    (clipId: string, property: TimelineKeyframeRect['keyframe']['property'], viewportY: number) => {
       const clipRect = engine.getClipRect(clipId, clipGeometry);
+      const definition = engine.getKeyframePropertyDefinition(property);
       if (!clipRect) {
+        return null;
+      }
+      if (!definition) {
         return null;
       }
 
       const valuePadding = Math.max(0, options.keyframeValuePadding ?? 7);
       const usableHeight = Math.max(1, clipRect.height - valuePadding * 2);
       const ratio = clampRatio((viewportY - clipRect.y - valuePadding) / usableHeight);
-      return 1 - ratio;
+      return definition.denormalizeValue(1 - ratio);
     },
     [clipGeometry, engine, options.keyframeValuePadding]
   );
@@ -163,6 +168,7 @@ export function useTimelineKeyframeDrag(
       activeDragRef.current = {
         clipId: input.clipId,
         keyframeId: input.keyframeId,
+        property: rect.keyframe.property,
         startClientX: input.clientX,
         startCenterX: engine.timeToPixel(rect.keyframe.time),
       };
@@ -180,7 +186,7 @@ export function useTimelineKeyframeDrag(
         return timelineCommandFail<TimelineKeyframeDragUpdate>('unsupported');
       }
 
-      const value = getValueAtViewportY(activeDrag.clipId, input.viewportY);
+      const value = getValueAtViewportY(activeDrag.clipId, activeDrag.property, input.viewportY);
       if (value === null) {
         return timelineCommandFail<TimelineKeyframeDragUpdate>('not-found');
       }

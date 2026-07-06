@@ -214,22 +214,67 @@ export interface ClipHitTestResult {
   canTrim: boolean;
 }
 
-/** First-party clip property that can be animated with timeline keyframes. */
-export type TimelineKeyframeProperty = 'opacity';
+/** App-defined scalar property id that can be animated with timeline keyframes. */
+export type TimelineKeyframePropertyId = string;
+
+/**
+ * Definition for one scalar keyframe property registered with the engine.
+ */
+export interface TimelineKeyframePropertyDefinition<PropertyId extends string = string> {
+  /** Stable property id stored on keyframes. */
+  id: PropertyId;
+  /** Optional label for app/editor chrome. */
+  label?: string;
+  /** Minimum scalar value represented by the property. */
+  min: number;
+  /** Maximum scalar value represented by the property. */
+  max: number;
+  /** Default value used when a clip has no keyframes for the property. */
+  defaultValue: number;
+  /** Clamps one raw value into the valid property range. */
+  clampValue: (value: number) => number;
+  /** Maps one property value into a normalized 0..1 lane coordinate. */
+  normalizeValue: (value: number) => number;
+  /** Maps one normalized 0..1 lane coordinate into a property value. */
+  denormalizeValue: (normalized: number) => number;
+  /** Optional app-facing formatter for inspectors and labels. */
+  formatValue?: (value: number) => string;
+  /** Optional source of a clip-specific base value when no keyframes exist. */
+  getBaseValue?: (clip: Clip) => number;
+}
+
+/** Immutable scalar keyframe property definition stored by the engine registry. */
+export type TimelineRegisteredKeyframePropertyDefinition<PropertyId extends string = string> =
+  Readonly<TimelineKeyframePropertyDefinition<PropertyId>>;
+
+/** Side of a keyframe that controls an adjacent segment. */
+export type TimelineKeyframeSide = 'incoming' | 'outgoing';
 
 /** Segment interpolation mode used from one keyframe to the next. */
 export type TimelineKeyframeInterpolation = 'linear' | 'hold' | 'bezier';
 
-/** Cubic Bezier easing control points used by Bezier keyframe interpolation. */
-export interface TimelineCubicBezier {
-  /** First control point time coordinate, clamped to 0..1. */
-  x1: number;
-  /** First control point value coordinate, clamped to 0..1. */
-  y1: number;
-  /** Second control point time coordinate, clamped to 0..1. */
-  x2: number;
-  /** Second control point value coordinate, clamped to 0..1. */
-  y2: number;
+/** Cubic Bezier tangent handle stored on one keyframe side. */
+export interface TimelineKeyframeBezierHandle {
+  /** Normalized segment time coordinate, clamped to 0..1. */
+  x: number;
+  /** Normalized segment value coordinate, clamped to 0..1. */
+  y: number;
+}
+
+/** Interpolation data owned by one side of a keyframe. */
+export interface TimelineKeyframeSideInterpolation {
+  /** Interpolation mode for this side. Defaults to linear when omitted. */
+  interpolation: TimelineKeyframeInterpolation;
+  /** Cubic Bezier tangent for this side when `interpolation` is `bezier`. */
+  handle?: TimelineKeyframeBezierHandle;
+}
+
+/** Patch applied to one keyframe side. */
+export interface TimelineKeyframeSidePatch {
+  /** New interpolation mode. */
+  interpolation?: TimelineKeyframeInterpolation;
+  /** New Bezier tangent handle for this side, or null to reset to the deterministic default. */
+  handle?: TimelineKeyframeBezierHandle | null;
 }
 
 /**
@@ -239,15 +284,15 @@ export interface TimelineKeyframe {
   /** Stable keyframe id. */
   id: string;
   /** Clip property animated by this keyframe. */
-  property: TimelineKeyframeProperty;
+  property: TimelineKeyframePropertyId;
   /** Absolute timeline time for this keyframe. */
   time: RationalTime;
-  /** Numeric property value. Opacity keyframes are clamped to 0..1. */
+  /** Numeric scalar property value. */
   value: number;
-  /** Interpolation from this keyframe to the next. Defaults to linear. */
-  interpolation?: TimelineKeyframeInterpolation;
-  /** Cubic Bezier easing for the outgoing segment when `interpolation` is `bezier`. */
-  easing?: TimelineCubicBezier;
+  /** Interpolation entering this keyframe from the previous keyframe. */
+  incoming?: TimelineKeyframeSideInterpolation;
+  /** Interpolation leaving this keyframe toward the next keyframe. */
+  outgoing?: TimelineKeyframeSideInterpolation;
   /** Whether this keyframe is currently selected in editor UI. */
   selected?: boolean;
 }
@@ -264,24 +309,21 @@ export interface TimelineKeyframeViewportRect {
 }
 
 /** Viewport-space point used by keyframe curve segments and handles. */
-export interface TimelineKeyframeCurvePoint {
+export interface TimelineKeyframePoint {
   /** X coordinate in viewport CSS pixels. */
   x: number;
   /** Y coordinate in viewport CSS pixels. */
   y: number;
 }
 
-/** Bezier control handle edited by a curve interaction. */
-export type TimelineKeyframeCurveHandleKind = 'outgoing' | 'incoming';
-
-/** Viewport-space rectangle for one keyframe curve handle affordance. */
-export interface TimelineKeyframeCurveHandleViewportRect {
+/** Viewport-space rectangle for one keyframe tangent affordance. */
+export interface TimelineKeyframeTangentHandleViewportRect {
   clipId: string;
   trackId: string;
   segmentId: string;
   keyframeId: string;
   anchorKeyframeId: string;
-  handle: TimelineKeyframeCurveHandleKind;
+  side: TimelineKeyframeSide;
   x: number;
   y: number;
   width: number;
@@ -291,7 +333,7 @@ export interface TimelineKeyframeCurveHandleViewportRect {
 /** Options for keyframe geometry and hit-testing. */
 export interface TimelineKeyframeGeometryOptions extends TimelineInteractionGeometry {
   /** Only include keyframes for this property. Defaults to all supported properties. */
-  property?: TimelineKeyframeProperty;
+  property?: TimelineKeyframePropertyId;
   /** Only include keyframes belonging to selected clips. */
   selectedClipOnly?: boolean;
   /** Viewport width in CSS pixels. Defaults to the engine viewport width. */
@@ -306,12 +348,18 @@ export interface TimelineKeyframeGeometryOptions extends TimelineInteractionGeom
   keyframeValuePadding?: number;
 }
 
-/** Options for keyframe curve segment and handle geometry. */
-export interface TimelineKeyframeCurveGeometryOptions extends TimelineKeyframeGeometryOptions {
-  /** Only include curve segments touching a selected keyframe. Defaults to false. */
+/** Options for keyframe segment and tangent geometry. */
+export interface TimelineKeyframeSegmentGeometryOptions extends TimelineKeyframeGeometryOptions {
+  /** Only include segments touching a selected keyframe. Defaults to false. */
   selectedKeyframeOnly?: boolean;
-  /** Bezier control handle affordance square size in CSS pixels. */
-  curveHandleSize?: number;
+  /** Bezier tangent affordance square size in CSS pixels. */
+  tangentHandleSize?: number;
+}
+
+/** Options for preparing canvas-serializable keyframe render geometry. */
+export interface TimelineKeyframeRenderGeometryOptions extends TimelineKeyframeSegmentGeometryOptions {
+  /** Property drawn by the renderer. */
+  property: TimelineKeyframePropertyId;
 }
 
 /** Viewport-space pointer query for timeline keyframe hit testing. */
@@ -336,15 +384,15 @@ export interface TimelineKeyframeRect<TrackKind = string> extends TimelineClipEn
   canEdit: boolean;
 }
 
-/** Bezier curve handle entry with viewport geometry and edit state. */
-export interface TimelineKeyframeCurveHandle<
+/** Bezier tangent handle entry with viewport geometry and edit state. */
+export interface TimelineKeyframeTangentHandle<
   TrackKind = string,
 > extends TimelineClipEntry<TrackKind> {
   /** Stable segment id for the adjacent keyframe pair. */
   segmentId: string;
-  /** Which Bezier easing coordinate this handle edits. */
-  handle: TimelineKeyframeCurveHandleKind;
-  /** Outgoing keyframe whose easing data is edited by this handle. */
+  /** Keyframe side mutated by this tangent. */
+  side: TimelineKeyframeSide;
+  /** Anchor keyframe whose side data is edited by this tangent. */
   keyframe: TimelineKeyframe;
   /** Zero-based index of `keyframe` inside the containing clip. */
   keyframeIndex: number;
@@ -354,26 +402,24 @@ export interface TimelineKeyframeCurveHandle<
   anchorKeyframeIndex: number;
   /** Opposite segment endpoint. */
   pairedKeyframe: TimelineKeyframe;
-  /** Bezier easing values represented by the segment. */
-  easing: TimelineCubicBezier;
+  /** Bezier tangent represented by this handle. */
+  tangent: TimelineKeyframeBezierHandle;
   /** Anchor point in viewport CSS pixels. */
-  anchorPoint: TimelineKeyframeCurvePoint;
+  anchorPoint: TimelineKeyframePoint;
   /** Handle center point in viewport CSS pixels. */
-  point: TimelineKeyframeCurvePoint;
+  point: TimelineKeyframePoint;
   /** Handle bounds in viewport CSS pixels. */
-  rect: TimelineKeyframeCurveHandleViewportRect;
+  rect: TimelineKeyframeTangentHandleViewportRect;
   /** Whether the handle can be edited by headless controls. */
   canEdit: boolean;
 }
 
-/** Keyframe curve segment entry with viewport geometry and optional Bezier handles. */
-export interface TimelineKeyframeCurveSegment<
-  TrackKind = string,
-> extends TimelineClipEntry<TrackKind> {
+/** Keyframe segment entry with viewport geometry and optional Bezier tangents. */
+export interface TimelineKeyframeSegment<TrackKind = string> extends TimelineClipEntry<TrackKind> {
   /** Stable segment id for the adjacent keyframe pair. */
   segmentId: string;
   /** Property animated by the segment. */
-  property: TimelineKeyframeProperty;
+  property: TimelineKeyframePropertyId;
   /** Left keyframe in the segment. */
   startKeyframe: TimelineKeyframe;
   /** Right keyframe in the segment. */
@@ -382,22 +428,82 @@ export interface TimelineKeyframeCurveSegment<
   startKeyframeIndex: number;
   /** Zero-based end keyframe index inside the containing clip. */
   endKeyframeIndex: number;
-  /** Interpolation mode used from `startKeyframe` to `endKeyframe`. */
+  /** Effective interpolation mode used from `startKeyframe` to `endKeyframe`. */
   interpolation: TimelineKeyframeInterpolation;
-  /** Bezier easing used by Bezier segments. */
-  easing?: TimelineCubicBezier;
+  /** Normalized outgoing side data for the start keyframe. */
+  outgoing: TimelineKeyframeSideInterpolation;
+  /** Normalized incoming side data for the end keyframe. */
+  incoming: TimelineKeyframeSideInterpolation;
   /** Start keyframe point in viewport CSS pixels. */
-  startPoint: TimelineKeyframeCurvePoint;
+  startPoint: TimelineKeyframePoint;
   /** End keyframe point in viewport CSS pixels. */
-  endPoint: TimelineKeyframeCurvePoint;
+  endPoint: TimelineKeyframePoint;
   /** First Bezier control point, present only for Bezier segments. */
-  controlPoint1?: TimelineKeyframeCurvePoint;
+  controlPoint1?: TimelineKeyframePoint;
   /** Second Bezier control point, present only for Bezier segments. */
-  controlPoint2?: TimelineKeyframeCurvePoint;
-  /** Bezier handles for editable Bezier segments. */
-  handles: TimelineKeyframeCurveHandle<TrackKind>[];
+  controlPoint2?: TimelineKeyframePoint;
+  /** Bezier tangent handles for editable Bezier segments. */
+  handles: TimelineKeyframeTangentHandle<TrackKind>[];
   /** Whether the segment can be edited by headless controls. */
   canEdit: boolean;
+}
+
+/** Serializable keyframe point used by canvas drawing. */
+export interface TimelineKeyframeRenderPoint {
+  /** Track owning the clip. */
+  trackId: string;
+  /** Clip owning the keyframe. */
+  clipId: string;
+  /** Keyframe represented by this point. */
+  keyframeId: string;
+  /** Center point in viewport CSS pixels. */
+  point: TimelineKeyframePoint;
+  /** Keyframe bounds in viewport CSS pixels. */
+  rect: TimelineKeyframeViewportRect;
+  /** Whether the keyframe is selected. */
+  selected: boolean;
+}
+
+/** Serializable keyframe segment used by canvas drawing. */
+export interface TimelineKeyframeRenderSegment {
+  /** Track owning the clip. */
+  trackId: string;
+  /** Clip owning the segment. */
+  clipId: string;
+  /** Stable segment id for the adjacent keyframe pair. */
+  segmentId: string;
+  /** Property animated by this segment. */
+  property: TimelineKeyframePropertyId;
+  /** Effective interpolation used by the segment. */
+  interpolation: TimelineKeyframeInterpolation;
+  /** Start keyframe center in viewport CSS pixels. */
+  startPoint: TimelineKeyframePoint;
+  /** End keyframe center in viewport CSS pixels. */
+  endPoint: TimelineKeyframePoint;
+  /** First Bezier control point, present only for Bezier segments. */
+  controlPoint1?: TimelineKeyframePoint;
+  /** Second Bezier control point, present only for Bezier segments. */
+  controlPoint2?: TimelineKeyframePoint;
+}
+
+/** Serializable keyframe geometry grouped by clip for canvas drawing. */
+export interface TimelineKeyframeRenderClip {
+  /** Track owning the clip. */
+  trackId: string;
+  /** Clip that owns the prepared geometry. */
+  clipId: string;
+  /** Keyframe points inside this clip. */
+  points: TimelineKeyframeRenderPoint[];
+  /** Keyframe segments inside this clip. */
+  segments: TimelineKeyframeRenderSegment[];
+}
+
+/** Serializable keyframe geometry prepared by core for one property. */
+export interface TimelineKeyframeRenderGeometry {
+  /** Property represented by this render geometry. */
+  property: TimelineKeyframePropertyId;
+  /** Clip-grouped keyframe render data. */
+  clips: TimelineKeyframeRenderClip[];
 }
 
 /** Viewport-intersecting keyframe entry. */
@@ -406,12 +512,11 @@ export type VisibleTimelineKeyframe<TrackKind = string> = TimelineKeyframeRect<T
 /** Hit-test result for a timeline keyframe pointer target. */
 export type TimelineKeyframeHitTestResult<TrackKind = string> = TimelineKeyframeRect<TrackKind>;
 
-/** Viewport-intersecting keyframe curve segment. */
-export type VisibleTimelineKeyframeCurveSegment<TrackKind = string> =
-  TimelineKeyframeCurveSegment<TrackKind>;
+/** Viewport-intersecting keyframe segment. */
+export type VisibleTimelineKeyframeSegment<TrackKind = string> = TimelineKeyframeSegment<TrackKind>;
 
-/** Viewport-space pointer query for keyframe curve handle hit testing. */
-export interface TimelineKeyframeCurveHitTestInput extends TimelineKeyframeCurveGeometryOptions {
+/** Viewport-space pointer query for keyframe tangent handle hit testing. */
+export interface TimelineKeyframeTangentHitTestInput extends TimelineKeyframeSegmentGeometryOptions {
   /** X coordinate relative to the timeline viewport. */
   x: number;
   /** Y coordinate relative to the timeline viewport, including the ruler area. */
@@ -420,24 +525,24 @@ export interface TimelineKeyframeCurveHitTestInput extends TimelineKeyframeCurve
   pointerType?: string;
 }
 
-/** Hit-test result for a keyframe curve handle pointer target. */
-export type TimelineKeyframeCurveHandleHitTestResult<TrackKind = string> =
-  TimelineKeyframeCurveHandle<TrackKind>;
+/** Hit-test result for a keyframe tangent handle pointer target. */
+export type TimelineKeyframeTangentHandleHitTestResult<TrackKind = string> =
+  TimelineKeyframeTangentHandle<TrackKind>;
 
 /** Input for creating or upserting a clip keyframe. */
 export interface TimelineSetClipKeyframeOptions {
   /** Clip that owns the keyframe. */
   clipId: string;
   /** Property animated by the keyframe. */
-  property: TimelineKeyframeProperty;
+  property: TimelineKeyframePropertyId;
   /** Absolute timeline time for the keyframe. */
   time: RationalTime;
   /** Numeric keyframe value. */
   value: number;
-  /** Optional interpolation mode from this keyframe to the next. */
-  interpolation?: TimelineKeyframeInterpolation;
-  /** Optional Cubic Bezier easing for Bezier interpolation. */
-  easing?: TimelineCubicBezier;
+  /** Optional interpolation entering this keyframe from the previous keyframe. */
+  incoming?: TimelineKeyframeSideInterpolation;
+  /** Optional interpolation leaving this keyframe toward the next keyframe. */
+  outgoing?: TimelineKeyframeSideInterpolation;
 }
 
 /** Input for updating one existing clip keyframe. */
@@ -450,10 +555,34 @@ export interface TimelineUpdateClipKeyframeOptions {
   time?: RationalTime;
   /** New numeric keyframe value. */
   value?: number;
-  /** New interpolation mode. */
-  interpolation?: TimelineKeyframeInterpolation;
-  /** New Cubic Bezier easing for Bezier interpolation. */
-  easing?: TimelineCubicBezier;
+  /** New interpolation entering this keyframe from the previous keyframe. */
+  incoming?: TimelineKeyframeSideInterpolation;
+  /** New interpolation leaving this keyframe toward the next keyframe. */
+  outgoing?: TimelineKeyframeSideInterpolation;
+}
+
+/** Input for updating one side of an existing clip keyframe. */
+export interface TimelineUpdateClipKeyframeSideOptions {
+  /** Clip that owns the keyframe. */
+  clipId: string;
+  /** Keyframe to update. */
+  keyframeId: string;
+  /** Side to update. */
+  side: TimelineKeyframeSide;
+  /** Side patch to apply. */
+  patch: TimelineKeyframeSidePatch;
+}
+
+/** Input for updating one or both sides of an existing clip keyframe with explicit patches. */
+export interface TimelineUpdateClipKeyframeSidesOptions {
+  /** Clip that owns the keyframe. */
+  clipId: string;
+  /** Keyframe to update. */
+  keyframeId: string;
+  /** Patch applied to the incoming side. */
+  incoming?: TimelineKeyframeSidePatch;
+  /** Patch applied to the outgoing side. */
+  outgoing?: TimelineKeyframeSidePatch;
 }
 
 /** Options for committing or previewing keyframe mutations. */

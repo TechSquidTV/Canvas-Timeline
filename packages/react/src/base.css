@@ -362,7 +362,7 @@
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.timeline-keyframe-curve-interaction-layer {
+.timeline-keyframe-tangent-interaction-layer {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -373,7 +373,7 @@
   touch-action: none;
 }
 
-.timeline-keyframe-curve-lines {
+.timeline-keyframe-tangent-lines {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -382,11 +382,11 @@
   pointer-events: none;
 }
 
-.timeline-keyframe-curve-line {
+.timeline-keyframe-tangent-line {
   pointer-events: none;
 }
 
-.timeline-keyframe-curve-handle {
+.timeline-keyframe-tangent-handle {
   position: absolute;
   top: 0;
   left: 0;
@@ -395,7 +395,7 @@
   will-change: transform;
 }
 
-.timeline-keyframe-curve-handle-shape {
+.timeline-keyframe-tangent-handle-shape {
   position: absolute;
   top: 50%;
   left: 50%;

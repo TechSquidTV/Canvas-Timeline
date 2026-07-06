@@ -2,7 +2,12 @@ import { renderHook, act, fireEvent, render, createEvent } from '@testing-librar
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
 import { TimelineContext } from './context';
-import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+  type Clip,
+  type Track,
+} from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from './Provider';
 import { expectDefined } from '../../../test-utils/assertions';
@@ -29,8 +34,8 @@ import {
   useTimelineClipboard,
   useTimelineEvent,
   useTimelineHistory,
-  useTimelineKeyframeCurveDrag,
-  useTimelineKeyframeCurves,
+  useTimelineKeyframeSegments,
+  useTimelineKeyframeTangentDrag,
   useTimelineKeyframeDrag,
   useTimelineKeyframes,
   useTimelineMarkers,
@@ -46,6 +51,23 @@ import {
   useTimelineVisibleClips,
   type TimelineTrackDropResult,
 } from './hooks';
+
+const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  label: 'Opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+  getBaseValue: (clip) => clip.opacity ?? 1,
+});
+
+const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'level',
+  label: 'Level',
+  min: -60,
+  max: 6,
+  defaultValue: 0,
+});
 
 const wrapper = ({ children, engine }: { children: React.ReactNode; engine: TimelineEngine }) => {
   return React.createElement(
@@ -1118,6 +1140,7 @@ test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands',
       ]),
     ],
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 
   const { result } = renderHook(
@@ -1160,19 +1183,51 @@ test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands',
     result.current.updateKeyframe({
       clipId: 'intro',
       keyframeId: 'opacity-start',
-      interpolation: 'bezier',
-      easing: { x1: 0.2, y1: 1, x2: 0.8, y2: 1 },
+      outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 1 } },
     });
   });
 
-  expect(result.current.keyframes[0].interpolation).toBe('bezier');
-  expect(result.current.keyframes[0].easing).toEqual({ x1: 0.2, y1: 1, x2: 0.8, y2: 1 });
+  expect(result.current.keyframes[0].outgoing).toEqual({
+    interpolation: 'bezier',
+    handle: { x: 0.2, y: 1 },
+  });
 
   act(() => {
     result.current.selectKeyframe('intro', 'opacity-start');
   });
 
   expect(result.current.keyframes[0].selected).toBe(true);
+});
+
+test('useTimelineKeyframes reports invalid keyframe command input', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video-1', [
+        createClip('intro', 0, 4, {
+          selected: true,
+        }),
+      ]),
+    ],
+    keyframeProperties: [opacityKeyframeProperty],
+  });
+
+  const { result } = renderHook(() => useTimelineKeyframes({ clipId: 'intro' }), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+
+  expect(
+    result.current.setKeyframe({
+      clipId: 'intro',
+      property: 'opacity',
+      time: fromSeconds(1),
+      value: Number.NaN,
+    })
+  ).toEqual({
+    ok: false,
+    reason: 'invalid-input',
+    message: 'Timeline keyframe could not be created from the provided input.',
+    cause: expect.any(RangeError),
+  });
 });
 
 test('useTimelineKeyframeDrag previews keyframe time and value changes', () => {
@@ -1193,6 +1248,7 @@ test('useTimelineKeyframeDrag previews keyframe time and value changes', () => {
       ]),
     ],
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 
   const { result } = renderHook(
@@ -1234,7 +1290,76 @@ test('useTimelineKeyframeDrag previews keyframe time and value changes', () => {
   });
 });
 
-test('useTimelineKeyframeCurves exposes Bezier segments, handles, and easing commands', () => {
+test('useTimelineKeyframeSegments exposes tangent geometry for non-opacity properties', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video-1', [
+        createClip('intro', 0, 4, {
+          selected: true,
+          keyframes: [
+            {
+              id: 'level-start',
+              property: 'level',
+              time: fromSeconds(0),
+              value: -24,
+              outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
+              selected: true,
+            },
+            {
+              id: 'level-end',
+              property: 'level',
+              time: fromSeconds(4),
+              value: 0,
+              incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
+            },
+          ],
+        }),
+      ]),
+    ],
+    zoomScale: 100,
+    keyframeProperties: [levelKeyframeProperty],
+  });
+
+  const { result } = renderHook(
+    () =>
+      useTimelineKeyframeSegments({
+        property: 'level',
+        selectedClipOnly: true,
+        selectedKeyframeOnly: true,
+        rulerHeight: 32,
+        trackHeight: 48,
+        tangentHandleSize: 8,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  expect(result.current.visibleSegments[0].property).toBe('level');
+  expect(result.current.visibleTangentHandles).toHaveLength(2);
+  expect(result.current.visibleTangentHandles[0].keyframe.property).toBe('level');
+
+  act(() => {
+    expect(
+      result.current.updateKeyframeSide({
+        clipId: 'intro',
+        keyframeId: 'level-start',
+        side: 'outgoing',
+        patch: {
+          interpolation: 'bezier',
+          handle: null,
+        },
+      }).ok
+    ).toBe(true);
+  });
+
+  expect(engine.getClipKeyframes('intro', 'level')[0].outgoing).toEqual({
+    interpolation: 'bezier',
+    handle: { x: 0.42, y: 0 },
+  });
+});
+
+test('useTimelineKeyframeSegments reports invalid side command input', () => {
   const engine = new TimelineEngine({
     tracks: [
       createTrack('video-1', [
@@ -1246,8 +1371,52 @@ test('useTimelineKeyframeCurves exposes Bezier segments, handles, and easing com
               property: 'opacity',
               time: fromSeconds(0),
               value: 0.25,
-              interpolation: 'bezier',
-              easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+            },
+          ],
+        }),
+      ]),
+    ],
+    keyframeProperties: [opacityKeyframeProperty],
+  });
+
+  const { result } = renderHook(
+    () => useTimelineKeyframeSegments({ property: 'opacity', rulerHeight: 32, trackHeight: 48 }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  expect(
+    result.current.updateKeyframeSide({
+      clipId: 'intro',
+      keyframeId: 'opacity-start',
+      side: 'outgoing',
+      patch: {
+        interpolation: 'bezier',
+        handle: { x: Number.NaN, y: 0.5 },
+      },
+    })
+  ).toEqual({
+    ok: false,
+    reason: 'invalid-input',
+    message: 'Timeline keyframe side could not be updated from the provided input.',
+    cause: expect.any(RangeError),
+  });
+});
+
+test('useTimelineKeyframeSegments exposes Bezier segments, tangent handles, and side commands', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video-1', [
+        createClip('intro', 0, 4, {
+          selected: true,
+          keyframes: [
+            {
+              id: 'opacity-start',
+              property: 'opacity',
+              time: fromSeconds(0),
+              value: 0.25,
+              outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
               selected: true,
             },
             {
@@ -1255,68 +1424,76 @@ test('useTimelineKeyframeCurves exposes Bezier segments, handles, and easing com
               property: 'opacity',
               time: fromSeconds(4),
               value: 0.75,
+              incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
             },
           ],
         }),
       ]),
     ],
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 
   const { result } = renderHook(
     () =>
-      useTimelineKeyframeCurves({
+      useTimelineKeyframeSegments({
         property: 'opacity',
         selectedClipOnly: true,
         selectedKeyframeOnly: true,
         rulerHeight: 32,
         trackHeight: 48,
-        curveHandleSize: 8,
+        tangentHandleSize: 8,
       }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
     }
   );
 
-  expect(result.current.visibleCurveSegments).toHaveLength(1);
-  expect(result.current.visibleCurveHandles).toHaveLength(2);
+  expect(result.current.visibleSegments).toHaveLength(1);
+  expect(result.current.visibleTangentHandles).toHaveLength(2);
   expect(
-    result.current.getCurveHandleAtPoint({
+    result.current.getTangentHandleAtPoint({
       property: 'opacity',
-      x: result.current.visibleCurveHandles[0].point.x,
-      y: result.current.visibleCurveHandles[0].point.y,
+      x: result.current.visibleTangentHandles[0].point.x,
+      y: result.current.visibleTangentHandles[0].point.y,
       rulerHeight: 32,
       trackHeight: 48,
-      curveHandleSize: 8,
-    })?.handle
+      tangentHandleSize: 8,
+    })?.side
   ).toBe('outgoing');
 
   act(() => {
     expect(
-      result.current.updateCurveEasing({
+      result.current.updateKeyframeSide({
         clipId: 'intro',
         keyframeId: 'opacity-start',
-        easing: { x1: 0.1, y1: 0.9, x2: 0.9, y2: 0.1 },
+        side: 'outgoing',
+        patch: {
+          interpolation: 'bezier',
+          handle: { x: 0.1, y: 0.9 },
+        },
       }).ok
     ).toBe(true);
   });
 
-  expect(engine.getClipKeyframes('intro')[0].easing).toEqual({
-    x1: 0.1,
-    y1: 0.9,
-    x2: 0.9,
-    y2: 0.1,
+  expect(engine.getClipKeyframes('intro')[0].outgoing).toEqual({
+    interpolation: 'bezier',
+    handle: { x: 0.1, y: 0.9 },
   });
   expect(
-    result.current.updateCurveEasing({
+    result.current.updateKeyframeSide({
       clipId: 'missing',
       keyframeId: 'opacity-start',
-      easing: { x1: 0.1, y1: 0.9, x2: 0.9, y2: 0.1 },
+      side: 'outgoing',
+      patch: {
+        interpolation: 'bezier',
+        handle: { x: 0.1, y: 0.9 },
+      },
     }).reason
   ).toBe('not-found');
 });
 
-test('useTimelineKeyframeCurveDrag previews Bezier easing handle changes', () => {
+test('useTimelineKeyframeTangentDrag previews Bezier tangent handle changes', () => {
   const engine = new TimelineEngine({
     tracks: [
       createTrack('video-1', [
@@ -1328,8 +1505,7 @@ test('useTimelineKeyframeCurveDrag previews Bezier easing handle changes', () =>
               property: 'opacity',
               time: fromSeconds(0),
               value: 0.25,
-              interpolation: 'bezier',
-              easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+              outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
               selected: true,
             },
             {
@@ -1337,68 +1513,134 @@ test('useTimelineKeyframeCurveDrag previews Bezier easing handle changes', () =>
               property: 'opacity',
               time: fromSeconds(4),
               value: 0.75,
+              incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
             },
           ],
         }),
       ]),
     ],
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 
   const { result } = renderHook(
     () =>
-      useTimelineKeyframeCurveDrag({
+      useTimelineKeyframeTangentDrag({
         property: 'opacity',
         rulerHeight: 32,
         trackHeight: 48,
-        curveHandleSize: 8,
+        tangentHandleSize: 8,
       }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
     }
   );
   const segment = expectDefined(
-    engine.getKeyframeCurveSegments({
+    engine.getKeyframeSegments({
       property: 'opacity',
       rulerHeight: 32,
       trackHeight: 48,
-      curveHandleSize: 8,
+      tangentHandleSize: 8,
     })[0],
-    'curve segment'
+    'keyframe segment'
   );
   const incoming = expectDefined(segment.handles[1], 'incoming handle');
 
   act(() => {
     expect(
-      result.current.startKeyframeCurveDrag({
-        clipId: 'intro',
-        segmentId: segment.segmentId,
-        keyframeId: segment.startKeyframe.id,
-        handle: 'incoming',
-        curveHandle: incoming,
+      result.current.startKeyframeTangentDrag({
+        tangentHandle: incoming,
       }).ok
     ).toBe(true);
   });
 
   act(() => {
-    result.current.moveKeyframeCurveDrag({
+    result.current.moveKeyframeTangentDrag({
       viewportX: segment.startPoint.x + (segment.endPoint.x - segment.startPoint.x) * 0.6,
       viewportY: segment.startPoint.y + (segment.endPoint.y - segment.startPoint.y) * 0.4,
     });
   });
 
-  const updatedEasing = engine.getClipKeyframes('intro')[0].easing;
-  expect(updatedEasing?.x1).toBe(0.2);
-  expect(updatedEasing?.y1).toBe(0.8);
-  expect(updatedEasing?.x2).toBeCloseTo(0.6);
-  expect(updatedEasing?.y2).toBeCloseTo(0.4);
+  const updatedIncoming = engine.getClipKeyframes('intro')[1].incoming?.handle;
+  expect(engine.getClipKeyframes('intro')[0].outgoing?.handle).toEqual({ x: 0.2, y: 0.8 });
+  expect(updatedIncoming?.x).toBeCloseTo(0.6);
+  expect(updatedIncoming?.y).toBeCloseTo(0.4);
 
   act(() => {
-    result.current.endKeyframeCurveDrag();
+    result.current.endKeyframeTangentDrag();
   });
 });
 
-test('useTimelineKeyframeCurveDrag preserves vertical easing for flat value segments', () => {
+test('useTimelineKeyframeTangentDrag reports invalid pointer coordinates', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video-1', [
+        createClip('intro', 0, 4, {
+          selected: true,
+          keyframes: [
+            {
+              id: 'opacity-start',
+              property: 'opacity',
+              time: fromSeconds(0),
+              value: 0.25,
+              outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
+            },
+            {
+              id: 'opacity-end',
+              property: 'opacity',
+              time: fromSeconds(4),
+              value: 0.75,
+              incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
+            },
+          ],
+        }),
+      ]),
+    ],
+    zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
+  });
+
+  const { result } = renderHook(
+    () =>
+      useTimelineKeyframeTangentDrag({
+        property: 'opacity',
+        rulerHeight: 32,
+        trackHeight: 48,
+        tangentHandleSize: 8,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+  const segment = expectDefined(
+    engine.getKeyframeSegments({
+      property: 'opacity',
+      rulerHeight: 32,
+      trackHeight: 48,
+      tangentHandleSize: 8,
+    })[0],
+    'keyframe segment'
+  );
+
+  act(() => {
+    result.current.startKeyframeTangentDrag({
+      tangentHandle: segment.handles[0],
+    });
+  });
+
+  expect(
+    result.current.moveKeyframeTangentDrag({
+      viewportX: Number.NaN,
+      viewportY: segment.startPoint.y,
+    })
+  ).toEqual({
+    ok: false,
+    reason: 'invalid-input',
+    message: 'Timeline keyframe tangent drag requires finite viewport coordinates.',
+  });
+});
+
+test('useTimelineKeyframeTangentDrag preserves vertical handle value for flat segments', () => {
   const engine = new TimelineEngine({
     tracks: [
       createTrack('video-1', [
@@ -1410,8 +1652,7 @@ test('useTimelineKeyframeCurveDrag preserves vertical easing for flat value segm
               property: 'opacity',
               time: fromSeconds(0),
               value: 0.5,
-              interpolation: 'bezier',
-              easing: { x1: 0.2, y1: 0.75, x2: 0.8, y2: 0.25 },
+              outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.75 } },
               selected: true,
             },
             {
@@ -1419,46 +1660,42 @@ test('useTimelineKeyframeCurveDrag preserves vertical easing for flat value segm
               property: 'opacity',
               time: fromSeconds(4),
               value: 0.5,
+              incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.25 } },
             },
           ],
         }),
       ]),
     ],
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 
   const { result } = renderHook(
-    () => useTimelineKeyframeCurveDrag({ property: 'opacity', rulerHeight: 32, trackHeight: 48 }),
+    () => useTimelineKeyframeTangentDrag({ property: 'opacity', rulerHeight: 32, trackHeight: 48 }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
     }
   );
   const segment = expectDefined(
-    engine.getKeyframeCurveSegments({ property: 'opacity', rulerHeight: 32, trackHeight: 48 })[0],
-    'flat curve segment'
+    engine.getKeyframeSegments({ property: 'opacity', rulerHeight: 32, trackHeight: 48 })[0],
+    'flat keyframe segment'
   );
 
   act(() => {
-    result.current.startKeyframeCurveDrag({
-      clipId: 'intro',
-      segmentId: segment.segmentId,
-      keyframeId: segment.startKeyframe.id,
-      handle: 'outgoing',
-      curveHandle: segment.handles[0],
+    result.current.startKeyframeTangentDrag({
+      tangentHandle: segment.handles[0],
     });
   });
   act(() => {
-    result.current.moveKeyframeCurveDrag({
+    result.current.moveKeyframeTangentDrag({
       viewportX: segment.startPoint.x + (segment.endPoint.x - segment.startPoint.x) * 0.4,
       viewportY: segment.startPoint.y + 100,
     });
   });
 
-  expect(engine.getClipKeyframes('intro')[0].easing).toEqual({
-    x1: 0.4,
-    y1: 0.75,
-    x2: 0.8,
-    y2: 0.25,
+  expect(engine.getClipKeyframes('intro')[0].outgoing).toEqual({
+    interpolation: 'bezier',
+    handle: { x: 0.4, y: 0.75 },
   });
 });
 
