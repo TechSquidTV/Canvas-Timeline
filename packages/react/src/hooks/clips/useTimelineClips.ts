@@ -3,10 +3,7 @@ import type {
   Clip,
   ClipHitTestInput,
   TimelineEngine,
-  TimelineClipMoveOptions,
-  TimelineClipMoveResult,
   TimelineClipGroup,
-  TimelineEditValidationResult,
   TimelineInteractionGeometry,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
@@ -17,17 +14,10 @@ import { flattenTimelineClips, type TimelineClipEntry } from './timelineClipMode
 import {
   timelineCommandFail,
   timelineCommandOk,
-  type TimelineCommandFailureReason,
   type TimelineCommandResult,
 } from '../core/timelineCommandResult';
 
 export type { TimelineClipEntry } from './timelineClipModel';
-
-function toTimelineCommandFailureReason(
-  reason: TimelineEditValidationResult['reason']
-): TimelineCommandFailureReason {
-  return reason ?? 'unsupported';
-}
 
 /** Editable presentation fields accepted by `useTimelineClips().updateClip`. */
 export type TimelineClipUpdate = Partial<Pick<Clip, 'label' | 'opacity' | 'color'>>;
@@ -74,26 +64,14 @@ export interface UseTimelineClipsResult<TrackKind = string> {
   canSlideClip: (clipId: string) => boolean;
   /** Selects a clip by id, or clears clip selection when passed null. */
   selectClip: (clipId: string | null) => TimelineCommandResult;
-  /** Moves a clip to an absolute timeline start time and optional destination track. */
-  moveClip: (options: TimelineClipMoveOptions) => TimelineCommandResult<TimelineClipMoveResult>;
-  /** Trims one clip edge to an absolute timeline time. */
-  trimClip: (clipId: string, edge: 'start' | 'end', newTime: RationalTime) => TimelineCommandResult;
-  /** Splits a clip at a timeline time, defaulting to the current playhead. */
-  splitClip: (clipId: string, time?: RationalTime) => TimelineCommandResult;
-  /** Deletes a clip from its containing track. */
-  deleteClip: (clipId: string) => TimelineCommandResult;
   /** Updates editable clip presentation fields. */
   updateClip: (clipId: string, properties: TimelineClipUpdate) => TimelineCommandResult;
-  /** Moves the visible source range without changing the timeline range. */
-  slipClip: (clipId: string, deltaTime: RationalTime) => TimelineCommandResult;
-  /** Moves the clip on the timeline by a relative delta. */
-  slideClip: (clipId: string, deltaTime: RationalTime) => TimelineCommandResult;
 }
 
 /**
- * Provides the canonical clip collection and editing actions for React editor UI.
+ * Provides the canonical clip collection and clip metadata for React editor UI.
  *
- * @returns Flattened clips, selected clip metadata, and clip editing commands.
+ * @returns Flattened clips, selected clip metadata, clip lookups, and presentation commands.
  */
 export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<TrackKind> {
   const { engine, state } = useTimeline();
@@ -184,150 +162,11 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
     [engine, selectClip]
   );
 
-  const moveClip = useCallback(
-    (options: TimelineClipMoveOptions) => {
-      const found = engine.getClip(options.clipId);
-      if (!found) {
-        return timelineCommandFail<TimelineClipMoveResult>('not-found');
-      }
-      if (found.track.locked || found.clip.movable === false) {
-        return timelineCommandFail<TimelineClipMoveResult>('locked');
-      }
-
-      const targetTrackId = options.targetTrackId ?? found.track.id;
-      const targetTrack = state.tracks.find((track) => track.id === targetTrackId);
-      if (!targetTrack) {
-        return timelineCommandFail<TimelineClipMoveResult>('invalid-track');
-      }
-      if (targetTrack.locked) {
-        return timelineCommandFail<TimelineClipMoveResult>('locked');
-      }
-      if (targetTrack.kind !== found.track.kind && options.allowCrossKindTrackMove !== true) {
-        return timelineCommandFail<TimelineClipMoveResult>('incompatible-track-kind');
-      }
-
-      const previousStartTime = { ...found.clip.timelineStart };
-      const previousEndTime = { ...found.clip.timelineEnd };
-      const sourceTrackId = found.track.id;
-      const sourceTrackIndex = found.trackIndex;
-      const sourceClipIndex = found.clipIndex;
-
-      const commit = engine.commitEdit({ type: 'move', ...options });
-      if (!commit.committed) {
-        return timelineCommandFail<TimelineClipMoveResult>(
-          toTimelineCommandFailureReason(commit.preview.reason),
-          commit.preview.message
-        );
-      }
-
-      const moved = engine.getClip(options.clipId);
-      if (!moved) {
-        return timelineCommandFail<TimelineClipMoveResult>('not-found');
-      }
-
-      return timelineCommandOk<TimelineClipMoveResult>({
-        clipId: options.clipId,
-        clip: moved.clip,
-        sourceTrackId,
-        destinationTrackId: moved.track.id,
-        sourceTrackIndex,
-        destinationTrackIndex: moved.trackIndex,
-        sourceClipIndex,
-        destinationClipIndex: moved.clipIndex,
-        previousStartTime,
-        previousEndTime,
-        startTime: { ...moved.clip.timelineStart },
-        endTime: { ...moved.clip.timelineEnd },
-        changedClips: commit.preview.changedClips,
-      });
-    },
-    [engine, state.tracks]
-  );
-
-  const trimClip = useCallback(
-    (clipId: string, edge: 'start' | 'end', newTime: RationalTime) => {
-      const found = engine.getClip(clipId);
-      if (!found) {
-        return timelineCommandFail('not-found');
-      }
-      if (found.track.locked || found.clip.resizable === false) {
-        return timelineCommandFail('locked');
-      }
-      const commit = engine.commitEdit({ type: 'trim', clipId, edge, newTime });
-      return commit.committed
-        ? timelineCommandOk()
-        : timelineCommandFail(
-            toTimelineCommandFailureReason(commit.preview.reason),
-            commit.preview.message
-          );
-    },
-    [engine]
-  );
-
-  const splitClip = useCallback(
-    (clipId: string, time: RationalTime = engine.playheadTime) => {
-      const found = engine.getClip(clipId);
-      if (!found) {
-        return timelineCommandFail('not-found');
-      }
-      return engine.splitClip(clipId, time)
-        ? timelineCommandOk()
-        : timelineCommandFail('invalid-range');
-    },
-    [engine]
-  );
-
-  const deleteClip = useCallback(
-    (clipId: string) =>
-      engine.deleteClip(clipId) ? timelineCommandOk() : timelineCommandFail('not-found'),
-    [engine]
-  );
-
   const updateClip = useCallback(
     (clipId: string, properties: TimelineClipUpdate) => {
       return engine.updateClipProperties(clipId, properties)
         ? timelineCommandOk()
         : timelineCommandFail('not-found');
-    },
-    [engine]
-  );
-
-  const slipClip = useCallback(
-    (clipId: string, deltaTime: RationalTime) => {
-      const found = engine.getClip(clipId);
-      if (!found) {
-        return timelineCommandFail('not-found');
-      }
-      if (found.track.locked || found.clip.resizable === false) {
-        return timelineCommandFail('locked');
-      }
-      const commit = engine.commitEdit({ type: 'slip', clipId, deltaTime });
-      return commit.committed
-        ? timelineCommandOk()
-        : timelineCommandFail(
-            toTimelineCommandFailureReason(commit.preview.reason),
-            commit.preview.message
-          );
-    },
-    [engine]
-  );
-
-  const slideClip = useCallback(
-    (clipId: string, deltaTime: RationalTime) => {
-      const found = engine.getClip(clipId);
-      if (!found) {
-        return timelineCommandFail('not-found');
-      }
-      if (found.track.locked || found.clip.movable === false) {
-        return timelineCommandFail('locked');
-      }
-      const commit = engine.commitEdit({ type: 'slide', clipId, deltaTime });
-      return commit.committed
-        ? timelineCommandOk()
-        : timelineCommandFail(
-            toTimelineCommandFailureReason(commit.preview.reason),
-            commit.preview.message
-          );
     },
     [engine]
   );
@@ -353,12 +192,6 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
     canSlipClip,
     canSlideClip,
     selectClip: selectTimelineClip,
-    moveClip,
-    trimClip,
-    splitClip,
-    deleteClip,
     updateClip,
-    slipClip,
-    slideClip,
   };
 }

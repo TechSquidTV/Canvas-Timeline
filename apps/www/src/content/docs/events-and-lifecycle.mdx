@@ -132,7 +132,7 @@ unsubscribe();
 | **`state:settled`**    | Structural        | Fired when a state-modifying action (split, paste, resize) is finalized and snapshot history is updated. | `void`                                           |
 | **`state:preview`**    | Structural        | Fired during live updates before final state is settled (e.g. during an active drag).                    | `void`                                           |
 | **`render`**           | Rendering         | Signals the renderer to redraw the canvas timeline. Fired on state changes and playback tick updates.    | `void`                                           |
-| **`edit:impacts`**     | Live Interaction  | Emitted when active edit consequences change for renderer and custom guide affordances.                  | `TimelineEditImpacts \| null`                    |
+| **`edit:impacts`**     | Edit Preview      | Emitted when preview or live edit consequences change for renderer and custom guide affordances.         | `TimelineEditImpacts \| null`                    |
 | **`edit:preview`**     | Live Interaction  | Emitted when a shared command-layer edit preview is published or cleared.                                | `TimelineEditPreview \| null`                    |
 | **`edit:commit`**      | Structural        | Emitted after a command-layer edit successfully commits through the history-aware path.                  | `TimelineEditCommitResult`                       |
 | **`clip:created`**     | Clip Lifecycle    | Fired when a new clip is added (e.g. via paste or split operations).                                     | `ClipCreatedEvent`                               |

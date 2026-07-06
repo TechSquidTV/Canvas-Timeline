@@ -15,6 +15,7 @@ import {
   useTimelineClips,
   useTimelineClipNavigation,
   useTimelineClipboard,
+  useTimelineEditCommands,
   useTimelineHistory,
   useTimelinePlayback,
   useTimelinePlayheadControl,
@@ -407,8 +408,9 @@ function TimelineStateHookDemo() {
 }
 
 function EditingHooksDemo() {
-  const { selectedClip, deleteClip, selectClip } = useTimelineClips();
+  const { selectedClip, selectClip } = useTimelineClips();
   const { copySelection } = useTimelineClipboard();
+  const { deleteClip } = useTimelineEditCommands();
   const { canUndo, undo } = useTimelineHistory();
   const [status, setStatus] = useState('main selected');
 

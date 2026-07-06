@@ -154,7 +154,8 @@ export const timelineHookMetadata = [
     group: 'editing-hooks',
     category: 'clip-editing',
     reactivity: 'snapshot',
-    description: 'Reads timeline clips and exposes canonical clip editing commands.',
+    description:
+      'Reads timeline clips, selection metadata, lookup helpers, and presentation updates.',
   },
   {
     name: 'useTimelineClipGroups',
@@ -248,25 +249,18 @@ export const timelineHookMetadata = [
     description: 'Exposes undo and redo availability with history commands.',
   },
   {
-    name: 'useClipEditPreview',
-    group: 'editing-hooks',
-    category: 'edit-preview',
-    reactivity: 'live',
-    description: 'Reads transient clip edit preview state during trims and cuts.',
-  },
-  {
     name: 'useTimelineEditImpacts',
     group: 'editing-hooks',
     category: 'edit-preview',
     reactivity: 'live',
-    description: 'Subscribes to live edit impacts produced by active timeline interactions.',
+    description: 'Subscribes to affected-clip consequences from previews and live interactions.',
   },
   {
     name: 'useTimelineEditPreview',
     group: 'editing-hooks',
     category: 'edit-preview',
     reactivity: 'live',
-    description: 'Subscribes to the shared command-layer edit preview.',
+    description: 'Subscribes to shared command-layer edit preview validity and command state.',
   },
   {
     name: 'useTimelineClipDrag',

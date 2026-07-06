@@ -695,6 +695,7 @@ export type TimelineEditOperation =
   | 'slip'
   | 'slide'
   | 'split'
+  | 'delete-clips'
   | 'insert'
   | 'insert-clip-group'
   | 'overwrite'
@@ -744,10 +745,10 @@ export interface TimelineEditImpact {
 export interface TimelineEditImpacts {
   /** Editing operation producing the impacts. */
   operation: TimelineEditOperation;
-  /** Clip currently driving the edit. */
-  sourceClipId: string;
-  /** Track containing the source clip. */
-  sourceTrackId: string;
+  /** Clip currently driving the edit, or null for source-less range edits. */
+  sourceClipId: string | null;
+  /** Track containing the source clip, or null for source-less range edits. */
+  sourceTrackId: string | null;
   /** Consequences for clips affected by the active edit. */
   impacts: TimelineEditImpact[];
 }
@@ -888,6 +889,12 @@ export interface TimelineSplitEditCommand {
   clipIds: readonly string[];
 }
 
+/** Command that deletes existing clips and any linked group members. */
+export interface TimelineDeleteClipsEditCommand {
+  type: 'delete-clips';
+  clipIds: readonly string[];
+}
+
 /** Command that inserts a new clip and pushes later clips forward. */
 export interface TimelineInsertEditCommand extends TimelinePlaceClipCommand {
   type: 'insert';
@@ -938,6 +945,7 @@ export type TimelineEditCommand =
   | TimelineSlipEditCommand
   | TimelineSlideEditCommand
   | TimelineSplitEditCommand
+  | TimelineDeleteClipsEditCommand
   | TimelineInsertEditCommand
   | TimelineInsertClipGroupEditCommand
   | TimelineOverwriteEditCommand

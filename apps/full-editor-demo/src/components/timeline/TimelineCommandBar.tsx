@@ -2,6 +2,7 @@ import {
   useTimelineClipboard,
   useTimelineClipGroups,
   useTimelineClips,
+  useTimelineEditCommands,
   useTimelineHistory,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
@@ -85,8 +86,9 @@ function ClipboardCommandGroup() {
 }
 
 function DeleteSelectedClipButton() {
-  const clips = useTimelineClips<EditorTrackKind>();
-  const canDeleteSelectedClip = clips.selectedClip !== null;
+  const { selectedClip } = useTimelineClips<EditorTrackKind>();
+  const { deleteClip } = useTimelineEditCommands();
+  const canDeleteSelectedClip = selectedClip !== null;
 
   return (
     <Button
@@ -94,8 +96,8 @@ function DeleteSelectedClipButton() {
       disabled={!canDeleteSelectedClip}
       iconOnly
       onClick={() => {
-        if (clips.selectedClip !== null) {
-          clips.deleteClip(clips.selectedClip.id);
+        if (selectedClip !== null) {
+          deleteClip(selectedClip.id);
         }
       }}
       title="Delete selected clip"
