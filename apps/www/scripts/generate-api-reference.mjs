@@ -12,6 +12,21 @@ const generatedDir = resolve(appDir, '.generated');
 const outputPath = resolve(generatedDir, 'api-reference.json');
 const warningsPath = resolve(generatedDir, 'api-reference-warnings.txt');
 const typedocBin = resolve(appDir, 'node_modules/.bin/typedoc');
+const externalSymbolLinkMappings = {
+  '@techsquidtv/canvas-timeline-core': {
+    ActiveLayerOptions: '/packages/core/api/active-layer-options',
+    ActiveLayerResult: '/packages/core/api/active-layer-result',
+    ActiveLayerSelector: '/packages/core/api/active-layer-selector',
+    TimelineEngine: '/packages/core/api/timeline-engine',
+    TimelineState: '/packages/core/api/timeline-state',
+  },
+  '@techsquidtv/canvas-timeline-react': {
+    useTimelineMediaSync: '/packages/react/api/use-timeline-media-sync',
+  },
+  '@techsquidtv/canvas-timeline-utils': {
+    RationalTime: '/packages/utils/api/rational-time',
+  },
+};
 
 const packageEntries = [
   {
@@ -69,8 +84,84 @@ const kindNames = new Map([
   [4194304, 'Reference'],
 ]);
 
-function textFromCommentParts(parts = [], { collapseWhitespace = true } = {}) {
-  const text = parts.map((part) => part.text ?? part.name ?? '').join('');
+const linkTags = new Set(['@link', '@linkcode', '@linkplain']);
+
+function commentPartText(part) {
+  if (typeof part.text === 'string') {
+    return part.text;
+  }
+
+  if (typeof part.name === 'string') {
+    return part.name;
+  }
+
+  return '';
+}
+
+function commentPartTarget(part) {
+  const target = part.target;
+
+  if (typeof target === 'string') {
+    return target;
+  }
+
+  if (typeof target?.name === 'string') {
+    return target.name;
+  }
+
+  if (typeof target?.qualifiedName === 'string') {
+    return target.qualifiedName;
+  }
+
+  return undefined;
+}
+
+function trimTSDocLinkText(value) {
+  return value
+    .replace(/^\{@link(?:code|plain)?\s+/, '')
+    .replace(/\}$/, '')
+    .trim();
+}
+
+function docPartsFromCommentParts(parts = []) {
+  const docParts = [];
+
+  for (const part of parts) {
+    const kind = part.kind ?? 'text';
+    const text = commentPartText(part);
+
+    if (kind === 'inline-tag' && linkTags.has(part.tag)) {
+      const rawTarget = commentPartTarget(part);
+      const cleanedText = trimTSDocLinkText(text);
+      const [targetText, labelText] = cleanedText.split('|').map((segment) => segment.trim());
+      const target = rawTarget ?? targetText;
+      const label = labelText || targetText || rawTarget;
+
+      if (target) {
+        docParts.push({
+          kind: 'link',
+          text: label || target,
+          target,
+        });
+      }
+      continue;
+    }
+
+    if (!text) {
+      continue;
+    }
+
+    docParts.push({
+      kind: kind === 'code' ? 'code' : 'text',
+      text,
+    });
+  }
+
+  return docParts;
+}
+
+function textFromDocParts(parts, { collapseWhitespace = true } = {}) {
+  const text = parts.map((part) => part.text).join('');
 
   if (!collapseWhitespace) {
     return text.trim();
@@ -79,8 +170,16 @@ function textFromCommentParts(parts = [], { collapseWhitespace = true } = {}) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function textFromCommentParts(parts = [], options = {}) {
+  return textFromDocParts(docPartsFromCommentParts(parts), options);
+}
+
 function commentSummary(comment) {
   return textFromCommentParts(comment?.summary);
+}
+
+function commentSummaryParts(comment) {
+  return docPartsFromCommentParts(comment?.summary);
 }
 
 function commentExamples(comment) {
@@ -94,6 +193,19 @@ function commentBlockTag(comment, tagName) {
   const tag = comment?.blockTags?.find((blockTag) => blockTag.tag === tagName);
 
   return textFromCommentParts(tag?.content);
+}
+
+function commentBlockTagParts(comment, tagName) {
+  const tag = comment?.blockTags?.find((blockTag) => blockTag.tag === tagName);
+
+  return docPartsFromCommentParts(tag?.content);
+}
+
+function commentBlockTagsParts(comment, tagName) {
+  return (comment?.blockTags ?? [])
+    .filter((tag) => tag.tag === tagName)
+    .map((tag) => docPartsFromCommentParts(tag.content))
+    .filter((parts) => parts.length > 0);
 }
 
 function parametersText(parameters = []) {
@@ -198,6 +310,7 @@ function paramsFor(reflection) {
     optional: Boolean(parameter.flags?.isOptional),
     defaultValue: parameter.defaultValue,
     summary: commentSummary(parameter.comment),
+    summaryParts: commentSummaryParts(parameter.comment),
   }));
 }
 
@@ -265,6 +378,16 @@ function normalizeMember(member) {
     member.setSignature ??
     member.type?.declaration?.signatures?.[0];
 
+  const summaryParts =
+    commentSummaryParts(member.comment).length > 0
+      ? commentSummaryParts(member.comment)
+      : commentSummaryParts(member.getSignature?.comment).length > 0
+        ? commentSummaryParts(member.getSignature?.comment)
+        : commentSummaryParts(member.setSignature?.comment).length > 0
+          ? commentSummaryParts(member.setSignature?.comment)
+          : commentSummaryParts(signature?.comment);
+  const summary = textFromDocParts(summaryParts);
+
   return {
     name: member.name,
     kind: kindNames.get(member.kind) ?? `Kind ${member.kind}`,
@@ -277,11 +400,8 @@ function normalizeMember(member) {
     optional: Boolean(member.flags?.isOptional),
     params: paramsFor(signature ? { signatures: [signature] } : member),
     returns: memberReturn(member),
-    summary:
-      commentSummary(member.comment) ||
-      commentSummary(member.getSignature?.comment) ||
-      commentSummary(member.setSignature?.comment) ||
-      commentSummary(signature?.comment),
+    summary,
+    summaryParts,
   };
 }
 
@@ -309,13 +429,54 @@ function constructorsFor(reflection) {
 function typeParametersFor(reflection) {
   const signature = reflection.signatures?.[0];
   const typeParameters = reflection.typeParameters ?? signature?.typeParameters ?? [];
+  const comments = [reflection.comment, signature?.comment].filter(Boolean);
 
-  return typeParameters.map((typeParameter) => ({
-    name: typeParameter.name,
-    default: typeParameter.default ? typeName(typeParameter.default) : undefined,
-    constraint: typeParameter.type ? typeName(typeParameter.type) : undefined,
-    summary: commentSummary(typeParameter.comment),
-  }));
+  return typeParameters.map((typeParameter) => {
+    const summaryParts = typeParameterSummaryParts(typeParameter, comments);
+
+    return {
+      name: typeParameter.name,
+      default: typeParameter.default ? typeName(typeParameter.default) : undefined,
+      constraint: typeParameter.type ? typeName(typeParameter.type) : undefined,
+      summary: textFromDocParts(summaryParts),
+      summaryParts,
+    };
+  });
+}
+
+function typeParameterSummaryParts(typeParameter, comments) {
+  const directParts = commentSummaryParts(typeParameter.comment);
+
+  if (directParts.length > 0) {
+    return directParts;
+  }
+
+  for (const comment of comments) {
+    for (const blockTag of comment?.blockTags ?? []) {
+      if (blockTag.tag !== '@template' && blockTag.tag !== '@typeParam') {
+        continue;
+      }
+
+      const tagName = blockTag.name;
+      const parts = docPartsFromCommentParts(blockTag.content);
+
+      if (tagName === typeParameter.name) {
+        return parts;
+      }
+
+      const text = textFromDocParts(parts);
+      if (text.startsWith(`${typeParameter.name} - `)) {
+        return docPartsFromCommentParts([
+          {
+            kind: 'text',
+            text: text.slice(typeParameter.name.length + 3),
+          },
+        ]);
+      }
+    }
+  }
+
+  return [];
 }
 
 function returnMembersFor(reflection) {
@@ -521,7 +682,19 @@ function aliasOfFor(reflection) {
 
 function normalizeSymbol(reflection, packageEntry, warnings) {
   const signature = reflection.signatures?.[0];
-  let summary = commentSummary(reflection.comment) || commentSummary(signature?.comment);
+  let summaryParts =
+    commentSummaryParts(reflection.comment).length > 0
+      ? commentSummaryParts(reflection.comment)
+      : commentSummaryParts(signature?.comment);
+  let summary = textFromDocParts(summaryParts);
+  const remarksParts =
+    commentBlockTagParts(reflection.comment, '@remarks').length > 0
+      ? commentBlockTagParts(reflection.comment, '@remarks')
+      : commentBlockTagParts(signature?.comment, '@remarks');
+  const see = [
+    ...commentBlockTagsParts(reflection.comment, '@see'),
+    ...commentBlockTagsParts(signature?.comment, '@see'),
+  ];
   const examples = [...commentExamples(reflection.comment), ...commentExamples(signature?.comment)];
   const source = reflection.sources?.[0] ?? signature?.sources?.[0];
   const symbolSlug = slugifySymbolName(reflection.name);
@@ -534,8 +707,10 @@ function normalizeSymbol(reflection, packageEntry, warnings) {
 
   if (summary === reflection.name) {
     summary = '';
+    summaryParts = [];
   } else if (summary.startsWith(`${reflection.name} `)) {
     summary = summary.slice(reflection.name.length).trim();
+    summaryParts = docPartsFromCommentParts([{ kind: 'text', text: summary }]);
   }
 
   if (!summary) {
@@ -549,6 +724,9 @@ function normalizeSymbol(reflection, packageEntry, warnings) {
     name: reflection.name,
     kind: kindNames.get(reflection.kind) ?? `Kind ${reflection.kind}`,
     summary,
+    summaryParts,
+    remarks: textFromDocParts(remarksParts),
+    remarksParts,
     signature: signatureFor(reflection),
     params,
     typeParameters,
@@ -562,7 +740,12 @@ function normalizeSymbol(reflection, packageEntry, warnings) {
     returnsSummary:
       commentBlockTag(reflection.comment, '@returns') ||
       commentBlockTag(signature?.comment, '@returns'),
+    returnsSummaryParts:
+      commentBlockTagParts(reflection.comment, '@returns').length > 0
+        ? commentBlockTagParts(reflection.comment, '@returns')
+        : commentBlockTagParts(signature?.comment, '@returns'),
     examples,
+    see,
     sourcePackage: packageEntry.slug,
     source: source
       ? {
@@ -586,26 +769,24 @@ function topLevelApiReflections(rawProject) {
 
 async function runTypedoc(packageEntry) {
   const rawPath = resolve(generatedDir, `typedoc-${packageEntry.slug}.json`);
+  const optionsPath = resolve(generatedDir, `typedoc-${packageEntry.slug}.jsonc`);
   const entryPoints = packageEntry.entryPoints ?? [packageEntry.entryPoint];
-  const args = [
-    '--json',
-    rawPath,
-    '--tsconfig',
-    'tsconfig.base.json',
-    '--entryPoints',
-    ...entryPoints,
-    '--entryPointStrategy',
-    'resolve',
-    '--excludePrivate',
-    '--excludeInternal',
-    '--readme',
-    'none',
-    '--name',
-    packageEntry.name,
-    '--logLevel',
-    'Warn',
-    '--skipErrorChecking',
-  ];
+  const options = {
+    json: rawPath,
+    tsconfig: resolve(rootDir, 'tsconfig.base.json'),
+    entryPoints: entryPoints.map((entryPoint) => resolve(rootDir, entryPoint)),
+    entryPointStrategy: 'resolve',
+    excludePrivate: true,
+    excludeInternal: true,
+    readme: 'none',
+    name: packageEntry.name,
+    logLevel: 'Warn',
+    skipErrorChecking: true,
+    externalSymbolLinkMappings,
+  };
+  const args = ['--options', optionsPath];
+
+  await writeFile(optionsPath, `${JSON.stringify(options, null, 2)}\n`);
   const result = spawnSync(typedocBin, args, {
     cwd: rootDir,
     encoding: 'utf8',
@@ -678,6 +859,8 @@ if (missingRequiredSymbols.length > 0) {
   );
 }
 
+validateCuratedReactDocs(packages);
+
 const reference = {
   generatedAt: new Date().toISOString(),
   packages,
@@ -696,3 +879,91 @@ globalThis.console.info(
   `Wrote ${outputPath} with ${packages.length} packages and ${symbols.length} symbols.`
 );
 globalThis.console.info(`Wrote ${warningsPath} with ${warnings.length} warnings.`);
+
+function validateCuratedReactDocs(packages) {
+  const reactPackage = packages.find((packageDoc) => packageDoc.slug === 'react');
+
+  if (!reactPackage) {
+    throw new Error('Generated API reference is missing the React package.');
+  }
+
+  const curatedNames = new Set([
+    'TimelineProvider',
+    'TimelineProviderProps',
+    'TimelineMediaSyncAdapter',
+    'UseTimelineMediaSyncOptions',
+    'UseTimelineMediaSyncResult',
+    'useTimelineMediaSync',
+    'useTimelineState',
+  ]);
+  const exampleRequiredNames = new Set([
+    'TimelineProvider',
+    'useTimelineMediaSync',
+    'useTimelineState',
+  ]);
+  const remarksLinkRequiredNames = new Set([
+    'TimelineProvider',
+    'TimelineProviderProps',
+    'TimelineMediaSyncAdapter',
+    'UseTimelineMediaSyncOptions',
+    'useTimelineMediaSync',
+    'useTimelineState',
+  ]);
+  const failures = [];
+
+  for (const name of curatedNames) {
+    const symbol = reactPackage.symbols.find((candidate) => candidate.name === name);
+
+    if (!symbol) {
+      failures.push(`Missing curated React API symbol ${name}.`);
+      continue;
+    }
+
+    requireDocParts(symbol.summaryParts, `${name} summary`, failures);
+    requireDocParts(symbol.remarksParts, `${name} @remarks`, failures);
+
+    if (remarksLinkRequiredNames.has(name) && !hasDocLink(symbol.remarksParts)) {
+      failures.push(`${name} @remarks must include at least one {@link ...} reference.`);
+    }
+
+    if (exampleRequiredNames.has(name) && symbol.examples.length === 0) {
+      failures.push(`${name} must include at least one @example block.`);
+    }
+
+    for (const param of symbol.params) {
+      requireDocParts(param.summaryParts, `${name}.${param.name} @param`, failures);
+    }
+
+    for (const typeParameter of symbol.typeParameters) {
+      requireDocParts(
+        typeParameter.summaryParts,
+        `${name}.${typeParameter.name} @template`,
+        failures
+      );
+    }
+
+    if (symbol.kind === 'Interface') {
+      for (const property of symbol.properties) {
+        requireDocParts(property.summaryParts, `${name}.${property.name} property`, failures);
+      }
+    }
+
+    if (symbol.name.startsWith('use')) {
+      requireDocParts(symbol.returnsSummaryParts, `${name} @returns`, failures);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Curated React API documentation is incomplete.\n${failures.join('\n')}`);
+  }
+}
+
+function requireDocParts(parts, label, failures) {
+  if (textFromDocParts(parts).length === 0) {
+    failures.push(`${label} is missing.`);
+  }
+}
+
+function hasDocLink(parts) {
+  return parts.some((part) => part.kind === 'link');
+}

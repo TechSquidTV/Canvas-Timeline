@@ -9,7 +9,21 @@ import { useTimeline } from '../core/useTimeline';
 import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
 import { useTimelineTracks } from './useTimelineTracks';
 
-/** Result returned by `useTimelineTrack`. */
+/**
+ * Result returned by `useTimelineTrack`.
+ *
+ * @remarks
+ *
+ * The result is scoped to one track row and includes both state flags and
+ * row-level commands. It also includes `rect`, which is aligned with canvas
+ * track geometry for DOM overlays, resize handles, and track header layouts.
+ *
+ * @template TrackKind - App-defined track kind value carried by the requested
+ * track.
+ *
+ * @see {@link useTimelineTrackHeader}
+ * @see {@link useTimelineTracks}
+ */
 export interface UseTimelineTrackResult<TrackKind extends string = string> {
   /** Requested track id. */
   trackId: string;
@@ -68,8 +82,37 @@ export interface UseTimelineTrackResult<TrackKind extends string = string> {
 /**
  * Accesses one timeline track with canvas-aligned row geometry and commands.
  *
+ * @remarks
+ *
+ * Use this hook when a component owns controls for one specific row: mute,
+ * visibility, lock, targeted state, grouping, or row height. It returns safe
+ * no-op failure commands when the track id is missing, so header components can
+ * remain mounted while project data changes.
+ *
  * @param trackId - Track id to read and update.
  * @param options - Optional track geometry overrides matching the renderer.
+ * @template TrackKind - App-defined track kind value carried by the requested
+ * track.
+ * @returns Track row state, canvas-aligned geometry, and row-scoped commands.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineTrack } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function TrackMuteButton({ trackId }: { trackId: string }) {
+ *   const track = useTimelineTrack(trackId);
+ *
+ *   return (
+ *     <button type="button" aria-pressed={track.muted} onClick={() => track.toggleMute()}>
+ *       {track.muted ? 'Unmute' : 'Mute'} {track.name ?? track.trackId}
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineTracks}
+ * @see {@link useTimelineTrackHeader}
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
 export function useTimelineTrack<TrackKind extends string = string>(
   trackId: string,

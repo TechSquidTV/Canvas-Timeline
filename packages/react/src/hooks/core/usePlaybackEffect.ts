@@ -6,11 +6,40 @@ import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
  * Subscribes to real-time playback events (enter, update, leave) for a specific clip
  * as the global playhead crosses the clip's boundary timestamps.
  *
+ * @remarks
+ *
+ * Use this hook for clip-local effects such as highlighting subtitles, toggling
+ * preview overlays, triggering analytics, or coordinating lightweight external
+ * state when a known clip becomes active. `onUpdate` can fire every playback
+ * tick while the playhead is inside the clip, so keep that callback cheap and
+ * avoid broad React state updates for dense timelines.
+ *
  * @param clipId - The unique string ID of the target clip to track.
  * @param callbacks - Callback handlers triggered on transition crossings.
  * @param callbacks.onEnter - Called when the playhead enters the clip range.
  * @param callbacks.onUpdate - Called on every frame tick inside the clip range.
  * @param callbacks.onLeave - Called when the playhead moves outside of the clip range.
+ * @returns Nothing; the hook manages playback event subscriptions for the component lifetime.
+ *
+ * @example
+ * ```tsx
+ * import { useState } from 'react';
+ * import { usePlaybackEffect } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function ClipActiveBadge({ clipId }: { clipId: string }) {
+ *   const [active, setActive] = useState(false);
+ *
+ *   usePlaybackEffect(clipId, {
+ *     onEnter: () => setActive(true),
+ *     onLeave: () => setActive(false),
+ *   });
+ *
+ *   return active ? <span>Active now</span> : null;
+ * }
+ * ```
+ *
+ * @see {@link useTimelineEvent}
+ * @see {@link https://canvastimeline.com/docs/events-and-lifecycle | Events and lifecycle}
  */
 export function usePlaybackEffect(
   clipId: string,

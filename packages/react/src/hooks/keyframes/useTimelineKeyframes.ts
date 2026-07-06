@@ -19,13 +19,41 @@ import {
   type TimelineCommandResult,
 } from '../core/timelineCommandResult';
 
-/** Options accepted by `useTimelineKeyframes`. */
+/**
+ * Options accepted by `useTimelineKeyframes`.
+ *
+ * @remarks
+ *
+ * Use these options to scope keyframe reads to one clip, one property, selected
+ * clips, or visible viewport geometry. Geometry options should match the
+ * renderer and interaction layer so DOM overlays line up with canvas keyframe
+ * diamonds.
+ *
+ * @see {@link useTimelineKeyframeDrag}
+ * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
+ */
 export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOptions {
   /** Optional clip id used to scope keyframe lists and commands. */
   clipId?: string;
 }
 
-/** Result returned by `useTimelineKeyframes`. */
+/**
+ * Result returned by `useTimelineKeyframes`.
+ *
+ * @remarks
+ *
+ * The result combines keyframe lists, viewport geometry, visible geometry, and
+ * mutation commands. Use it for keyframe inspectors, custom DOM overlays,
+ * property editors, and toolbar actions. For pointer-driven dragging, combine
+ * it with {@link useTimelineKeyframeDrag}; for Bezier easing handles, use
+ * {@link useTimelineKeyframeCurves}.
+ *
+ * @template TrackKind - App-defined track kind values carried by returned track
+ * entries.
+ *
+ * @see {@link useTimelineKeyframeCurves}
+ * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
+ */
 export interface UseTimelineKeyframesResult<TrackKind = string> {
   /** Clip-scoped keyframes for `clipId`, or all keyframes from visible rects when no clip is scoped. */
   keyframes: TimelineKeyframe[];
@@ -64,7 +92,63 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
 /**
  * Reads timeline keyframe geometry and exposes canonical keyframe commands.
  *
+ * @remarks
+ *
+ * `useTimelineKeyframes` is the main keyframe-domain hook. It reads geometry
+ * from the engine so custom overlays share the same clip, track, scroll, and
+ * zoom math as the canvas renderer. Mutation commands return
+ * {@link TimelineCommandResult} values and respect locked tracks.
+ *
  * @param options - Optional clip/property filters and renderer-aligned geometry settings.
+ * @template TrackKind - App-defined track kind values carried by returned track
+ * entries.
+ * @returns Keyframe lists, viewport geometry, visible geometry, property evaluation, and mutation commands.
+ *
+ * @example
+ * ```tsx
+ * import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+ * import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function OpacityKeyframeButton({ clipId }: { clipId: string }) {
+ *   const keyframes = useTimelineKeyframes({ clipId, property: 'opacity' });
+ *
+ *   return (
+ *     <button
+ *       type="button"
+ *       onClick={() =>
+ *         keyframes.setKeyframe({
+ *           clipId,
+ *           property: 'opacity',
+ *           time: fromSeconds(1),
+ *           value: 0.5,
+ *         })
+ *       }
+ *     >
+ *       Add opacity keyframe
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function SelectedKeyframeOverlay() {
+ *   const { keyframeRects } = useTimelineKeyframes({ selectedClipOnly: true });
+ *
+ *   return keyframeRects.map((entry) => (
+ *     <span
+ *       key={entry.keyframe.id}
+ *       style={{ left: entry.x, top: entry.y, width: entry.width, height: entry.height }}
+ *     />
+ *   ));
+ * }
+ * ```
+ *
+ * @see {@link useTimelineKeyframeDrag}
+ * @see {@link useTimelineKeyframeCurves}
+ * @see {@link https://canvastimeline.com/demos/keyframe-opacity | Keyframe opacity demo}
  */
 export function useTimelineKeyframes<TrackKind = string>(
   options: UseTimelineKeyframesOptions = {}

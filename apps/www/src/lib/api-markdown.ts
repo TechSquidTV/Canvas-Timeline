@@ -1,11 +1,13 @@
 import { groupApiSymbols } from './api-symbol-groups';
 import {
   apiReference,
+  apiDocPartHref,
   apiSymbolHref,
   getApiSymbol,
   type ApiMember,
   type ApiPackage,
   type ApiParameter,
+  type ApiDocTextPart,
   type ApiSymbol,
   type ApiTypeParameter,
 } from './api-reference';
@@ -83,6 +85,8 @@ export function buildApiSymbolMarkdown(
     `Kind: \`${resolvedSymbol.kind}\``,
     `Entry point: \`${packageDoc.entryPoint}\``,
     '',
+    ...remarksSection(resolvedSymbol),
+    ...timelineStateBreakdownSection(resolvedSymbol),
     '## Signature',
     '',
     codeBlock(resolvedSymbol.signature, 'ts'),
@@ -96,15 +100,16 @@ export function buildApiSymbolMarkdown(
           ...(aliasedSymbol ? [codeBlock(aliasedSymbol.signature, 'ts'), ''] : []),
         ]
       : []),
-    ...typeParameterSection(typeParameters),
-    ...parameterSection(resolvedSymbol.params),
-    ...memberSection('Properties', properties),
-    ...memberSection('Constructors', constructors),
+    ...typeParameterSection(packageDoc, resolvedSymbol, typeParameters),
+    ...parameterSection(packageDoc, resolvedSymbol, resolvedSymbol.params),
+    ...memberSection(packageDoc, resolvedSymbol, 'Properties', properties),
+    ...memberSection(packageDoc, resolvedSymbol, 'Constructors', constructors),
     ...literalValueSection(resolvedSymbol),
-    ...memberSection('Methods', methods),
-    ...returnsSection(resolvedSymbol),
-    ...memberSection('Return members', returnMembers),
+    ...memberSection(packageDoc, resolvedSymbol, 'Methods', methods),
+    ...returnsSection(packageDoc, resolvedSymbol),
+    ...memberSection(packageDoc, resolvedSymbol, 'Return members', returnMembers),
     ...exampleSection(examples),
+    ...seeSection(packageDoc, resolvedSymbol),
     ...sourceSection(packageDoc, resolvedSymbol),
   ].join('\n');
 
@@ -124,7 +129,67 @@ export function getApiPackage(packageSlug: string) {
   return apiReference.packages.find((packageDoc) => packageDoc.slug === packageSlug);
 }
 
-function typeParameterSection(typeParameters: ApiTypeParameter[]) {
+function remarksSection(symbol: ApiSymbol) {
+  if (symbol.remarksParts.length === 0) {
+    return [];
+  }
+
+  return [
+    '## Usage notes',
+    '',
+    formatDocParts(symbol.remarksParts, symbol.sourcePackage, symbol.sourcePackage),
+    '',
+  ];
+}
+
+function timelineStateBreakdownSection(symbol: ApiSymbol) {
+  if (symbol.name !== 'useTimelineState') {
+    return [];
+  }
+
+  return [
+    '## State available',
+    '',
+    markdownTable(
+      ['Area', 'Fields', 'Use for'],
+      [
+        [
+          'Content',
+          '`tracks`, `clipGroups`, `contentRevision`',
+          'Track lists, clip counts, inspectors, and content-change badges.',
+        ],
+        [
+          'Playback and time',
+          '`playheadTime`, `playing`, `playbackRate`, `duration`',
+          'Toolbar state and coarse playback status. Use `useTimelinePlayheadTime()` for live readouts.',
+        ],
+        [
+          'Viewport',
+          '`zoomScale`, `scrollLeft`, `scrollTop`, `viewportWidth`, `viewportHeight`',
+          'Viewport-aware chrome. Use viewport hooks for focused scroll and zoom controls.',
+        ],
+        [
+          'Selection and ranges',
+          '`inPoint`, `outPoint`',
+          'Range labels, loop region state, and edit selection chrome.',
+        ],
+        ['Markers', '`markers`', 'Marker lists and annotation panels.'],
+        [
+          'Interaction feedback',
+          '`snapEnabled`, `snapThresholdPixels`, `snapFeedback`, `clipDropFeedback`',
+          'Snapping toggles, drag/drop hints, and lightweight editor status.',
+        ],
+      ]
+    ),
+    '',
+  ];
+}
+
+function typeParameterSection(
+  packageDoc: ApiPackage,
+  symbol: ApiSymbol,
+  typeParameters: ApiTypeParameter[]
+) {
   if (typeParameters.length === 0) {
     return [];
   }
@@ -138,14 +203,20 @@ function typeParameterSection(typeParameters: ApiTypeParameter[]) {
         code(typeParameter.name),
         code(typeParameter.constraint ?? 'None'),
         code(typeParameter.default ?? 'None'),
-        typeParameter.summary || 'No type parameter summary yet.',
+        formatDescription(
+          typeParameter.summaryParts,
+          typeParameter.summary,
+          'No type parameter summary yet.',
+          packageDoc.slug,
+          symbol.sourcePackage
+        ),
       ])
     ),
     '',
   ];
 }
 
-function parameterSection(params: ApiParameter[]) {
+function parameterSection(packageDoc: ApiPackage, symbol: ApiSymbol, params: ApiParameter[]) {
   if (params.length === 0) {
     return [];
   }
@@ -158,15 +229,25 @@ function parameterSection(params: ApiParameter[]) {
       params.map((param) => [
         code(`${param.name}${param.optional ? '?' : ''}`),
         code(param.type),
-        param.summary ||
-          (param.defaultValue ? `Default: ${param.defaultValue}` : 'No parameter summary yet.'),
+        formatDescription(
+          param.summaryParts,
+          param.summary,
+          param.defaultValue ? `Default: ${param.defaultValue}` : 'No parameter summary yet.',
+          packageDoc.slug,
+          symbol.sourcePackage
+        ),
       ])
     ),
     '',
   ];
 }
 
-function memberSection(title: string, members: ApiMember[]) {
+function memberSection(
+  packageDoc: ApiPackage,
+  symbol: ApiSymbol,
+  title: string,
+  members: ApiMember[]
+) {
   if (members.length === 0) {
     return [];
   }
@@ -179,7 +260,13 @@ function memberSection(title: string, members: ApiMember[]) {
       members.map((member) => [
         code(`${member.name}${member.optional ? '?' : ''}`),
         code(member.signature),
-        member.summary || `No ${member.kind.toLowerCase()} summary yet.`,
+        formatDescription(
+          member.summaryParts,
+          member.summary,
+          `No ${member.kind.toLowerCase()} summary yet.`,
+          packageDoc.slug,
+          symbol.sourcePackage
+        ),
       ])
     ),
     '',
@@ -204,7 +291,7 @@ function literalValueSection(symbol: ApiSymbol) {
   ];
 }
 
-function returnsSection(symbol: ApiSymbol) {
+function returnsSection(packageDoc: ApiPackage, symbol: ApiSymbol) {
   if (!symbol.returns) {
     return [];
   }
@@ -214,7 +301,33 @@ function returnsSection(symbol: ApiSymbol) {
     '',
     code(symbol.returns),
     '',
-    ...(symbol.returnsSummary ? [symbol.returnsSummary, ''] : []),
+    ...(symbol.returnsSummaryParts.length > 0 || symbol.returnsSummary
+      ? [
+          formatDescription(
+            symbol.returnsSummaryParts,
+            symbol.returnsSummary,
+            '',
+            packageDoc.slug,
+            symbol.sourcePackage
+          ),
+          '',
+        ]
+      : []),
+  ];
+}
+
+function seeSection(packageDoc: ApiPackage, symbol: ApiSymbol) {
+  if (symbol.see.length === 0) {
+    return [];
+  }
+
+  return [
+    '## Related links',
+    '',
+    ...symbol.see.map(
+      (parts) => `- ${formatDocParts(parts, packageDoc.slug, symbol.sourcePackage)}`
+    ),
+    '',
   ];
 }
 
@@ -263,6 +376,41 @@ function formatExample(example: string) {
   const trimmedExample = example.trim();
 
   return trimmedExample.startsWith('```') ? trimmedExample : codeBlock(trimmedExample, 'ts');
+}
+
+function formatDescription(
+  parts: ApiDocTextPart[],
+  text: string | undefined,
+  fallback: string,
+  packageSlug: string,
+  sourcePackage: string
+) {
+  if (parts.length > 0) {
+    return formatDocParts(parts, packageSlug, sourcePackage);
+  }
+
+  return text || fallback;
+}
+
+function formatDocParts(parts: ApiDocTextPart[], packageSlug: string, sourcePackage: string) {
+  return parts
+    .map((part) => {
+      if (part.kind === 'code') {
+        return code(part.text);
+      }
+
+      if (part.kind !== 'link') {
+        return part.text;
+      }
+
+      const href = apiDocPartHref(part, packageSlug, sourcePackage);
+      const label = part.text || part.target || 'link';
+
+      return href ? `[${label}](${href})` : label;
+    })
+    .join('')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
 }
 
 function titleCase(value: string) {

@@ -39,6 +39,8 @@ export interface TimelineSelectionState<TrackKind = string> {
  * Flattens timeline tracks into stable clip entries.
  *
  * @param tracks - Timeline tracks to flatten.
+ * @template TrackKind - App-defined track kind values carried by returned
+ * entries.
  * @returns Flattened clip entries in track order.
  */
 export function flattenTimelineClips<TrackKind>(
@@ -59,6 +61,8 @@ export function flattenTimelineClips<TrackKind>(
  *
  * @param tracks - Timeline tracks to inspect.
  * @param clipGroups - Clip group state used to derive selected group metadata.
+ * @template TrackKind - App-defined track kind values carried by selected track
+ * state.
  * @returns Current selection metadata.
  */
 export function deriveTimelineSelection<TrackKind>(

@@ -1,6 +1,9 @@
 /**
  * A general, generic type-safe event emitter class.
  * Extended by components needing typed event publishing and subscription contracts.
+ *
+ * @template M - Event map whose keys are event names and values are payload
+ * types.
  */
 export class TypedEventEmitter<M extends object> {
   private listeners: Partial<{ [K in keyof M]: Set<(payload: M[K]) => void> }> =

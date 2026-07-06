@@ -1,5 +1,7 @@
 /**
  * Makes every nested property in a type optional.
+ *
+ * @template T - Object type whose nested properties should become optional.
  */
 export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];

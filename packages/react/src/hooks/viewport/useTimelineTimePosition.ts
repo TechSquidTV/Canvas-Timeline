@@ -10,7 +10,18 @@ export type TimelineTimePositionEvent =
   | 'state:settled'
   | 'history:change';
 
-/** Options for `useTimelineTimePosition`. */
+/**
+ * Options for `useTimelineTimePosition`.
+ *
+ * @remarks
+ *
+ * Use this primitive for a small number of DOM affordances that should move
+ * with timeline time without causing React renders on every scroll, scrub, or
+ * playback tick. The engine converts time to viewport X coordinates; the hook
+ * writes the transform directly to the referenced element.
+ *
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
+ */
 export interface UseTimelineTimePositionOptions {
   /** Timeline engine that converts time to viewport-space pixels. */
   engine: TimelineEngine;
@@ -22,7 +33,11 @@ export interface UseTimelineTimePositionOptions {
   positionEvents?: TimelineTimePositionEvent[];
 }
 
-/** Result returned by `useTimelineTimePosition`. */
+/**
+ * Result returned by `useTimelineTimePosition`.
+ *
+ * @template T - HTMLElement type that receives the viewport-space transform.
+ */
 export interface UseTimelineTimePositionResult<T extends HTMLElement> {
   /** Ref for the element that should be translated in viewport coordinates. */
   ref: React.RefObject<T | null>;
@@ -52,6 +67,26 @@ function parsePositionEventsKey(positionEventsKey: string): TimelineTimePosition
  *
  * @param options - Timeline engine, time value, and events that should refresh the transform.
  * @returns Ref and imperative updater for the positioned element.
+ * @template T - HTMLElement type that receives the viewport-space transform.
+ *
+ * @example
+ * ```tsx
+ * import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+ * import { useTimeline, useTimelineTimePosition } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function MarkerHead({ markerTime }: { markerTime: RationalTime }) {
+ *   const { engine } = useTimeline();
+ *   const position = useTimelineTimePosition<HTMLDivElement>({
+ *     engine,
+ *     time: markerTime,
+ *     positionEvents: ['render', 'state:settled'],
+ *   });
+ *
+ *   return <div ref={position.ref} className="marker-head" />;
+ * }
+ * ```
+ *
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
 export function useTimelineTimePosition<T extends HTMLElement>({
   engine,

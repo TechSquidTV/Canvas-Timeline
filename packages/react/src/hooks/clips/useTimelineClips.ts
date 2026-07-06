@@ -19,10 +19,36 @@ import {
 
 export type { TimelineClipEntry } from './timelineClipModel';
 
-/** Editable presentation fields accepted by `useTimelineClips().updateClip`. */
+/**
+ * Editable presentation fields accepted by `useTimelineClips().updateClip`.
+ *
+ * @remarks
+ *
+ * These fields are intentionally presentation-only. Timeline structure, timing,
+ * track placement, and source offsets should go through the command-layer hook
+ * so the engine can validate edits and preserve history.
+ *
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
+ */
 export type TimelineClipUpdate = Partial<Pick<Clip, 'label' | 'opacity' | 'color'>>;
 
-/** Result returned by `useTimelineClips`. */
+/**
+ * Result returned by `useTimelineClips`.
+ *
+ * @remarks
+ *
+ * The result combines a flattened clip list, selected-clip metadata, geometry
+ * helpers, source-time mapping helpers, and safe edit commands. Use it for
+ * command bars, inspectors, context menus, and custom clip panels. For live
+ * drag affordances, combine it with {@link useTimelineClipDrag} and
+ * {@link useTimelineClipDropFeedback}.
+ *
+ * @template TrackKind - App-defined track kind values carried by returned track
+ * entries, such as `"visual" | "audio"`.
+ *
+ * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
+ */
 export interface UseTimelineClipsResult<TrackKind = string> {
   /** Flattened timeline clips in track order. */
   clips: TimelineClipEntry<TrackKind>[];
@@ -71,7 +97,71 @@ export interface UseTimelineClipsResult<TrackKind = string> {
 /**
  * Provides the canonical clip collection and clip metadata for React editor UI.
  *
+ * @remarks
+ *
+ * `useTimelineClips` is the broad clip-domain hook. It is appropriate for
+ * product chrome that needs clip read state, selection metadata, geometry
+ * helpers, and presentation updates, such as a clip inspector, project panel,
+ * or timeline command palette. It does not subscribe to per-frame playback
+ * ticks; geometry helpers read from the engine when a command or render path
+ * asks for them.
+ *
+ * Use {@link useTimelineEditCommands} for structural timeline edits such as
+ * move, trim, split, insert, overwrite, and delete.
+ *
  * @returns Flattened clips, selected clip metadata, clip lookups, and presentation commands.
+ * @template TrackKind - App-defined track kind values carried by returned track
+ * entries, such as `"visual" | "audio"`.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function ClipLabelEditor() {
+ *   const { selectedClip, updateClip } = useTimelineClips();
+ *
+ *   if (!selectedClip) {
+ *     return null;
+ *   }
+ *
+ *   return (
+ *     <input
+ *       value={selectedClip.label ?? ''}
+ *       onChange={(event) => updateClip(selectedClip.id, { label: event.target.value })}
+ *     />
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+ * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function ClipInspector() {
+ *   const { selectedClip, selectedClipTrackId, timelineTimeToSourceTime } = useTimelineClips();
+ *
+ *   if (!selectedClip) {
+ *     return <p>No clip selected</p>;
+ *   }
+ *
+ *   const sourceTime = timelineTimeToSourceTime(selectedClip, selectedClip.timelineStart);
+ *
+ *   return (
+ *     <dl>
+ *       <dt>Track</dt>
+ *       <dd>{selectedClipTrackId}</dd>
+ *       <dt>Source start</dt>
+ *       <dd>{toSeconds(sourceTime).toFixed(2)}s</dd>
+ *     </dl>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineSelection}
+ * @see {@link useTimelineClipDrag}
+ * @see {@link useTimelineEditCommands}
+ * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
 export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<TrackKind> {
   const { engine, state } = useTimeline();

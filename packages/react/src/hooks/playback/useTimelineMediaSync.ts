@@ -16,6 +16,16 @@ import type { TimelineCommandResult } from '../core/timelineCommandResult';
 
 /**
  * Adapter callbacks used to connect timeline playback to an external media clock.
+ *
+ * @remarks
+ *
+ * Implement this adapter when your media surface owns decoding, rendering, or
+ * audio scheduling. {@link useTimelineMediaSync} calls these callbacks after it
+ * resolves active clips with {@link ActiveLayerSelector} records and
+ * {@link ActiveLayerResult} snapshots.
+ *
+ * @template LayerName - Named media layer keys from your `layers` object, such
+ * as `"visuals"` or `"audio"`.
  */
 export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
   /** Returns current timeline seconds from the external media clock. */
@@ -41,6 +51,16 @@ export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
 
 /**
  * Options for high-level timeline media synchronization.
+ *
+ * @remarks
+ *
+ * The `layers` record names the media outputs your adapter can synchronize.
+ * Those names flow through `LayerName`, allowing `activeLayers.primary.visuals`
+ * or `activeLayers.layers.audio` to stay typed from the same object.
+ * Each value is an {@link ActiveLayerSelector} passed through active layer
+ * lookup before adapter callbacks receive an {@link ActiveLayerResult}.
+ *
+ * @template LayerName - Named media layer keys inferred from `layers`.
  */
 export interface UseTimelineMediaSyncOptions<LayerName extends string = string> {
   /** Whether the external media adapter is loaded and ready to play. */
@@ -108,6 +128,15 @@ function withCauseMessage(message: string, cause: Error | undefined) {
 
 /**
  * Result returned by `useTimelineMediaSync`.
+ *
+ * @remarks
+ *
+ * Use the commands in this result for media-aware transport controls. The
+ * `activeLayers` snapshot is useful for custom status panels, preview badges,
+ * and adapter diagnostics.
+ *
+ * @template LayerName - Named media layer keys from
+ * {@link UseTimelineMediaSyncOptions.layers}.
  */
 export interface UseTimelineMediaSyncResult<LayerName extends string = string> {
   /** Active layers at the current playhead time. */
@@ -143,11 +172,66 @@ function createPlayFailure(
 /**
  * High-level synchronization for external media surfaces.
  *
+ * @remarks
+ *
  * The hook remains media-library agnostic: apps provide an adapter for decoding,
  * rendering, and audio scheduling, while the hook handles active layer lookup,
  * first-content seeking, external-clock playback, rate changes, and pause state.
+ * It builds on {@link useTimelineMediaPlayback} for external-clock playback.
+ * For packaged adapters, prefer the higher-level HTML and Mediabunny hooks first;
+ * use this hook when you are building a custom clock or preview surface.
  *
  * @param options - External media adapter, readiness state, active layers, and callbacks.
+ * @template LayerName - Named media layer keys inferred from `options.layers`,
+ * such as `"visuals" | "audio"`.
+ * @returns Media transport state, active layer data, and synchronized playback commands.
+ *
+ * @example
+ * ```tsx
+ * import { useMemo, useRef } from 'react';
+ * import { useTimelineMediaSync } from '@techsquidtv/canvas-timeline-react';
+ *
+ * const previewLayerSelectors = {
+ *   visuals: { trackKind: 'visual', sourceId: 'source-1' },
+ *   audio: { trackKind: 'audio', sourceId: 'source-1' },
+ * } as const;
+ *
+ * export function CustomMediaPreview() {
+ *   const mediaTimeRef = useRef(0);
+ *   const layers = useMemo(() => previewLayerSelectors, []);
+ *   const mediaSync = useTimelineMediaSync({
+ *     ready: true,
+ *     layers,
+ *     adapter: {
+ *       getClockTime: () => mediaTimeRef.current,
+ *       startClock: (timelineTime, playbackRate) => {
+ *         mediaTimeRef.current = timelineTime.v / timelineTime.r;
+ *         console.info(`Start media at ${playbackRate}x`);
+ *         return true;
+ *       },
+ *       stopClock: () => {
+ *         console.info('Pause external media');
+ *       },
+ *       syncLayers: ({ activeLayers }) => {
+ *         const visualClip = activeLayers.primary.visuals?.clip;
+ *         console.info(visualClip ? `Render ${visualClip.id}` : 'No visual clip');
+ *       },
+ *     },
+ *   });
+ *
+ *   return (
+ *     <button type="button" onClick={() => void mediaSync.play()}>
+ *       {mediaSync.playing ? 'Playing' : 'Play'}
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link ActiveLayerSelector}
+ * @see {@link ActiveLayerResult}
+ * @see {@link useTimelineMediaPlayback}
+ * @see {@link https://canvastimeline.com/demos/media-preview-sync | Mediabunny media sync demo}
+ * @see {@link https://canvastimeline.com/demos/html-media-sync | HTML media sync demo}
  */
 export function useTimelineMediaSync<LayerName extends string = string>(
   options: UseTimelineMediaSyncOptions<LayerName>

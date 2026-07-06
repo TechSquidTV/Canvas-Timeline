@@ -33,7 +33,19 @@ export interface TimelineKeyframeDragMoveInput {
   viewportY: number;
 }
 
-/** Options accepted by `useTimelineKeyframeDrag`. */
+/**
+ * Options accepted by `useTimelineKeyframeDrag`.
+ *
+ * @remarks
+ *
+ * Geometry must match the renderer or keyframe interaction layer so horizontal
+ * pointer movement maps to timeline time and vertical movement maps to property
+ * value consistently. The hook edits values in preview mode while dragging and
+ * settles history when the drag ends.
+ *
+ * @see {@link useTimelineKeyframes}
+ * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
+ */
 export interface UseTimelineKeyframeDragOptions extends TimelineInteractionGeometry {
   /** Keyframe affordance size in CSS pixels. Defaults to engine geometry. */
   keyframeSize?: number;
@@ -84,7 +96,44 @@ function clampRatio(value: number) {
 /**
  * Headless keyframe drag behavior shared by canvas and custom timeline UIs.
  *
+ * @remarks
+ *
+ * Use this hook when building custom DOM or canvas hit targets for keyframe
+ * points. The hook owns drag lifecycle, preview updates, value mapping, and
+ * settle behavior. It intentionally does not render handles; pair it with
+ * {@link useTimelineKeyframes} for keyframe geometry.
+ *
  * @param options - Drag geometry aligned with the renderer and hit-test layer.
+ * @returns Keyframe drag state and pointer command helpers.
+ *
+ * @example
+ * ```tsx
+ * import { useTimelineKeyframeDrag } from '@techsquidtv/canvas-timeline-react/hooks';
+ *
+ * export function KeyframeHandle({ clipId, keyframeId }: { clipId: string; keyframeId: string }) {
+ *   const drag = useTimelineKeyframeDrag();
+ *
+ *   return (
+ *     <button
+ *       type="button"
+ *       aria-pressed={drag.dragging}
+ *       onPointerDown={(event) =>
+ *         drag.startKeyframeDrag({
+ *           clipId,
+ *           keyframeId,
+ *           clientX: event.clientX,
+ *           viewportY: event.nativeEvent.offsetY,
+ *         })
+ *       }
+ *     >
+ *       Move keyframe
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * @see {@link useTimelineKeyframes}
+ * @see {@link https://canvastimeline.com/demos/keyframe-opacity | Keyframe opacity demo}
  */
 export function useTimelineKeyframeDrag(
   options: UseTimelineKeyframeDragOptions = {}

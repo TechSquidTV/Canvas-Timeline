@@ -52,10 +52,15 @@ export type TimelineKeyboardBindings = Partial<
 
 /** Keyboard-event fields used by the pure shortcut matcher. */
 export interface TimelineKeyboardEventLike {
+  /** `KeyboardEvent.key` value from a browser event or test double. */
   key: string;
+  /** Whether Alt/Option was held. */
   altKey?: boolean;
+  /** Whether Ctrl was held. */
   ctrlKey?: boolean;
+  /** Whether Meta/Command was held. */
   metaKey?: boolean;
+  /** Whether Shift was held. */
   shiftKey?: boolean;
 }
 
@@ -120,18 +125,27 @@ const timelineKeyboardCommandOrder = [
 
 /** Minimal keyboard preset: playback only. */
 export const minimalTimelineKeyboardBindings = {
+  /** Toggle timeline playback with the spacebar. */
   togglePlayback: [{ key: 'Space' }],
 } as const satisfies TimelineKeyboardBindings;
 
 /** Professional editor preset bindings that do not depend on frame rate or platform. */
 export const professionalEditorTimelineKeyboardBindings = {
+  /** Toggle timeline playback with the spacebar. */
   togglePlayback: [{ key: 'Space' }],
+  /** Mark the current playhead time as the In point. */
   setInPoint: [{ key: 'I' }],
+  /** Mark the current playhead time as the Out point. */
   setOutPoint: [{ key: 'O' }],
+  /** Add a marker at the current playhead time. */
   addMarker: [{ key: 'M' }],
+  /** Jump to the next marker. */
   seekToNextMarker: [{ key: 'M', shiftKey: true }],
+  /** Toggle magnetic snapping. */
   toggleSnapping: [{ key: 'S' }],
+  /** Zoom the timeline viewport in. */
   zoomIn: [{ key: '=' }],
+  /** Zoom the timeline viewport out. */
   zoomOut: [{ key: '-' }],
 } as const satisfies TimelineKeyboardBindings;
 

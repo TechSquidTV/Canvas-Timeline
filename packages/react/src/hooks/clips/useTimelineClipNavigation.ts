@@ -12,6 +12,17 @@ import { timelineCommandFail } from '../core/timelineCommandResult';
 
 /**
  * Metadata for one canvas-rendered clip exposed through clip navigation.
+ *
+ * @remarks
+ *
+ * Canvas Timeline keeps clip visuals on canvas for performance. This model
+ * gives a single DOM focus target enough metadata to announce and manipulate
+ * whichever canvas clip is currently active.
+ *
+ * @template TrackKind - App-defined track kind values carried by the containing
+ * track.
+ *
+ * @see {@link useTimelineClipNavigation}
  */
 export interface TimelineNavigableClip<TrackKind = string> {
   /** Raw timeline clip represented by this navigation item. */
@@ -36,6 +47,16 @@ export interface TimelineNavigableClip<TrackKind = string> {
 
 /**
  * Options for constant-DOM canvas clip navigation.
+ *
+ * @remarks
+ *
+ * Use these options when a canvas timeline needs keyboard navigation without
+ * rendering one DOM button per clip. `selectOnNavigate` is useful for inspector
+ * workflows; leave it disabled when navigation should move a virtual cursor
+ * without mutating timeline selection.
+ *
+ * @template TrackKind - App-defined track kind values passed to custom label
+ * and description formatters.
  */
 export interface TimelineClipNavigationOptions<TrackKind = string> {
   /** Initial active clip id. Defaults to selected clip, then the first clip. */
@@ -91,17 +112,32 @@ function getActiveClipStatus<TrackKind>(
  *
  * @param options - Initial active clip and navigation behavior options.
  * @returns Active clip metadata, flattened clip list, navigation commands, edit commands, and optional focus-target props.
+ * @template TrackKind - App-defined track kind values carried by navigable
+ * clips.
  *
  * @example
  * ```tsx
- * const clipNavigation = useTimelineClipNavigation();
+ * import { useTimelineClipNavigation } from '@techsquidtv/canvas-timeline-react/hooks';
  *
- * return (
- *   <div {...clipNavigation.focusTargetProps}>
- *     {clipNavigation.activeClip?.name}
- *   </div>
- * );
+ * export function CanvasClipNavigator() {
+ *   const clipNavigation = useTimelineClipNavigation({ selectOnNavigate: true });
+ *
+ *   return (
+ *     <div {...clipNavigation.focusTargetProps}>
+ *       <p>{clipNavigation.activeClipStatus}</p>
+ *       <button type="button" onClick={() => clipNavigation.navigatePrevious()}>
+ *         Previous clip
+ *       </button>
+ *       <button type="button" onClick={() => clipNavigation.navigateNext()}>
+ *         Next clip
+ *       </button>
+ *     </div>
+ *   );
+ * }
  * ```
+ *
+ * @see {@link TimelineNavigableClip}
+ * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
 export function useTimelineClipNavigation<TrackKind = string>(
   options: TimelineClipNavigationOptions<TrackKind> = {}

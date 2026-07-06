@@ -41,6 +41,7 @@ export interface TimelineCommandResult<Value = void> {
  * Creates a successful timeline command result.
  *
  * @param value - Optional command payload.
+ * @template Value - Successful command payload type.
  * @returns Successful command result.
  */
 export function timelineCommandOk<Value = void>(value?: Value): TimelineCommandResult<Value> {
@@ -53,6 +54,8 @@ export function timelineCommandOk<Value = void>(value?: Value): TimelineCommandR
  * @param reason - Machine-readable failure reason.
  * @param message - Optional human-readable failure detail.
  * @param cause - Optional original error that caused the failure.
+ * @template Value - Payload type expected by the matching successful command
+ * result.
  * @returns Failed command result.
  */
 export function timelineCommandFail<Value = void>(

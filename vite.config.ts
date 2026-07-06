@@ -344,6 +344,7 @@ export default defineConfig({
               ],
             },
           ],
+          'canvas-timeline/react-api-tsdoc': 'error',
           'typescript/ban-ts-comment': [
             'error',
             {
