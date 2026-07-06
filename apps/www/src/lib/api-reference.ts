@@ -414,11 +414,3 @@ export function apiDocPartHref(
 
   return linkedSymbol ? apiSymbolHref(linkedSymbol.sourcePackage, linkedSymbol.slug) : undefined;
 }
-
-export function apiDocPlainText(parts: ApiDocTextPart[]) {
-  return parts
-    .map((part) => part.text)
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
