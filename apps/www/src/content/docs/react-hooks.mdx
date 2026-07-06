@@ -34,10 +34,12 @@ Use the timeline hook registry groups as the source of truth:
 - **Accessible Controls**: Base UI-compatible sliders, viewport scrollbar
   adapters, pan/zoom controls, and constant-DOM clip navigation.
 
-Start with the narrowest hook that matches the component. Toolbar buttons usually
-need command/state hooks such as `useTimelinePlayback()` or `useTimelineClips()`.
-Readouts that must follow scrubbing or playback should use focused live hooks
-such as `useTimelinePlayheadTime()`, `useActiveMarkers()`, or
+Start with the narrowest hook that matches the component. Toolbar buttons that
+mutate timeline structure should use command hooks such as
+`useTimelineEditCommands()`; toolbar state can compose snapshot hooks such as
+`useTimelinePlayback()` or `useTimelineClips()`. Readouts that must follow
+scrubbing or playback should use focused live hooks such as
+`useTimelinePlayheadTime()`, `useActiveMarkers()`, or
 `useTimelineClipDropFeedback()`. Use `useTimeline()` directly only when a
 component needs both the shared engine and the synchronized state snapshot.
 
@@ -56,8 +58,10 @@ Compose the focused hooks around it:
 
 - `useTimelineEditMode()` stores the selected tool or edit intent for toolbar
   chrome without mutating engine state.
-- `useTimelineEditPreview()` subscribes to the shared command preview for live
-  guides and affected-clip affordances.
+- `useTimelineEditPreview()` subscribes to command preview validity and command
+  state.
+- `useTimelineEditImpacts()` subscribes to affected-clip consequences for live
+  guides, renderer overlays, and drag-time affordances.
 - `useTimelineRangeSelection()` adapts In/Out points to `delete-range` and
   `lift-range` commands.
 - `useTimelineClipGroups()` reads timeline clip groups and exposes group,
@@ -68,6 +72,7 @@ import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import {
   useTimelineClips,
   useTimelineEditCommands,
+  useTimelineEditImpacts,
   useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineRangeSelection,
@@ -78,6 +83,7 @@ function EditToolbar() {
   const { mode, setMode } = useTimelineEditMode();
   const editCommands = useTimelineEditCommands();
   const editPreview = useTimelineEditPreview();
+  const editImpacts = useTimelineEditImpacts();
   const rangeSelection = useTimelineRangeSelection();
 
   return (
@@ -100,7 +106,7 @@ function EditToolbar() {
       <button disabled={!rangeSelection.hasRange} onClick={() => rangeSelection.liftRange()}>
         Lift
       </button>
-      {editPreview.previewing && <span>{editPreview.impacts.length} affected</span>}
+      {editPreview.previewing && <span>{editImpacts.impacts.length} affected</span>}
     </>
   );
 }

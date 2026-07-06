@@ -18,6 +18,7 @@ import type {
   TimelineClipGeometryOptions,
   TimelineClipGroupPlacement,
   TimelineClipRect,
+  TimelineDeleteClipsEditCommand,
   TimelineDeleteRangeEditCommand,
   TimelineEditAffectedRange,
   TimelineEditCommand,
@@ -2900,15 +2901,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     const sourceClipId = this.getEditCommandSourceClipId(preview.command);
-    const sourceTrackId =
-      sourceClipId !== undefined ? (this.getClip(sourceClipId)?.track.id ?? null) : null;
-    if (sourceClipId === undefined || sourceTrackId === null) {
-      return null;
-    }
-
+    const sourceTrackId = this.getEditCommandSourceTrackId(preview.command, sourceClipId);
     return createTimelineEditImpactsSnapshot({
       operation: preview.command.type,
-      sourceClipId,
+      sourceClipId: sourceClipId ?? null,
       sourceTrackId,
       impacts: preview.impacts,
     });
@@ -2924,6 +2920,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return command.clipId;
       case 'split':
         return command.clipIds[0];
+      case 'delete-clips':
+        return command.clipIds[0];
       case 'roll-trim':
         return command.leftClipId;
       case 'insert':
@@ -2935,6 +2933,32 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       case 'delete-range':
       case 'lift-range':
         return undefined;
+    }
+  }
+
+  private getEditCommandSourceTrackId(
+    command: TimelineEditCommand,
+    sourceClipId: string | undefined
+  ): string | null {
+    switch (command.type) {
+      case 'insert':
+      case 'overwrite':
+        return command.targetTrackId;
+      case 'insert-clip-group':
+      case 'overwrite-clip-group':
+        return command.placements[0]?.targetTrackId ?? null;
+      case 'delete-range':
+      case 'lift-range':
+        return null;
+      case 'move':
+      case 'trim':
+      case 'ripple-trim':
+      case 'slip':
+      case 'slide':
+      case 'split':
+      case 'delete-clips':
+      case 'roll-trim':
+        return sourceClipId !== undefined ? (this.getClip(sourceClipId)?.track.id ?? null) : null;
     }
   }
 
@@ -3018,6 +3042,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.resolveSlideEdit(command);
       case 'split':
         return this.resolveSplitEdit(command);
+      case 'delete-clips':
+        return this.resolveDeleteClipsEdit(command);
       case 'insert':
         return this.resolveInsertEdit(command);
       case 'insert-clip-group':
@@ -3126,6 +3152,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return JSON.stringify({
           type: command.type,
           time: timeKey(command.time),
+          clipIds: [...command.clipIds],
+        });
+      case 'delete-clips':
+        return JSON.stringify({
+          type: command.type,
           clipIds: [...command.clipIds],
         });
       case 'insert':
@@ -3315,6 +3346,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.validateClipEditCommand(command.clipId, 'movable');
       case 'split':
         return this.validateSplitEditCommand(command);
+      case 'delete-clips':
+        return this.validateDeleteClipsEditCommand(command);
       case 'insert':
       case 'overwrite':
         return this.validatePlaceClipCommand(command);
@@ -3346,6 +3379,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           break;
         case 'split':
           assertValidRationalTime(command.time, 'command.time');
+          break;
+        case 'delete-clips':
           break;
         case 'insert':
         case 'overwrite':
@@ -3521,6 +3556,25 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     return hasOverlappingClip
       ? defaultTimelineEditValidationResult
       : this.rejectEdit('invalid-range');
+  }
+
+  private validateDeleteClipsEditCommand(
+    command: TimelineDeleteClipsEditCommand
+  ): TimelineEditValidationResult {
+    if (command.clipIds.length === 0) {
+      return this.rejectEdit('not-found');
+    }
+    const requestedClipIds = this.getLinkedCommandClipIds(command.clipIds);
+    for (const clipId of requestedClipIds) {
+      const found = this.getClip(clipId);
+      if (!found) {
+        return this.rejectEdit('not-found');
+      }
+      if (found.track.locked) {
+        return this.rejectEdit('locked');
+      }
+    }
+    return defaultTimelineEditValidationResult;
   }
 
   private validatePlaceClipCommand(
@@ -4099,6 +4153,67 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     );
   }
 
+  private resolveDeleteClipsEdit(command: TimelineDeleteClipsEditCommand): TimelineResolvedEdit {
+    const tracks = createLeanTracks(this.state.tracks);
+    const requestedClipIds = new Set(this.getLinkedCommandClipIds(command.clipIds));
+    const removedClips: Clip[] = [];
+    const removedClipEvents: TimelineRemovedClipEvent[] = [];
+    const affectedRanges: TimelineEditAffectedRange[] = [];
+    const impacts: TimelineEditImpact[] = [];
+
+    for (const track of tracks) {
+      const nextClips: Clip[] = [];
+      for (const clip of track.clips) {
+        if (!requestedClipIds.has(clip.id)) {
+          nextClips.push(clip);
+          continue;
+        }
+
+        const originalClip = createLeanClip(clip);
+        removedClips.push(originalClip);
+        removedClipEvents.push({ clip: originalClip, reason: 'delete' });
+        affectedRanges.push({
+          trackId: track.id,
+          startTime: clip.timelineStart,
+          endTime: clip.timelineEnd,
+        });
+        impacts.push({
+          clipId: clip.id,
+          trackId: track.id,
+          originalClip,
+          resultClips: [],
+          effect: 'remove',
+          affectedStartTime: clip.timelineStart,
+          affectedEndTime: clip.timelineEnd,
+          cutStart: true,
+          cutEnd: true,
+        });
+      }
+      track.clips = nextClips;
+    }
+
+    if (removedClips.length === 0) {
+      return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
+    }
+
+    return this.createResolvedEdit(
+      command,
+      tracks,
+      this.createResolvedEditPreview(command, {
+        snap: null,
+        changedClips: [],
+        createdClips: [],
+        removedClips,
+        affectedRanges,
+        impacts,
+      }),
+      {
+        clipGroups: this.normalizeClipGroupsForTracks(this.state.clipGroups, tracks),
+        removedClipEvents,
+      }
+    );
+  }
+
   private resolveInsertEdit(command: TimelineInsertEditCommand): TimelineResolvedEdit {
     const tracks = createLeanTracks(this.state.tracks);
     const targetTrack = tracks.find((track) => track.id === command.targetTrackId);
@@ -4538,9 +4653,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     ])[0];
   }
 
-  private normalizeClipGroups() {
+  private normalizeClipGroupsForTracks(
+    clipGroups: readonly TimelineClipGroup[],
+    tracks: readonly Track[]
+  ): TimelineClipGroup[] {
     const existingClipIds = new Set<string>();
-    for (const track of this.state.tracks) {
+    for (const track of tracks) {
       for (const clip of track.clips) {
         existingClipIds.add(clip.id);
       }
@@ -4548,7 +4666,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     const claimedClipIds = new Set<string>();
     const nextGroups: TimelineClipGroup[] = [];
-    for (const group of this.state.clipGroups) {
+    for (const group of clipGroups) {
       const clipIds = group.clipIds.filter((clipId) => {
         if (!existingClipIds.has(clipId) || claimedClipIds.has(clipId)) {
           return false;
@@ -4564,7 +4682,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         });
       }
     }
-    this.state.clipGroups = nextGroups;
+    return nextGroups;
+  }
+
+  private normalizeClipGroups() {
+    this.state.clipGroups = this.normalizeClipGroupsForTracks(
+      this.state.clipGroups,
+      this.state.tracks
+    );
   }
 
   private getLinkedClipIds(clipId: string): string[] {

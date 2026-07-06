@@ -321,6 +321,7 @@ import {
   useTimelineClips,
   useTimelineClipboard,
   useTimelineEditCommands,
+  useTimelineEditImpacts,
   useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineHistory,
@@ -333,12 +334,13 @@ export function EditActions() {
   const editMode = useTimelineEditMode();
   const editCommands = useTimelineEditCommands();
   const editPreview = useTimelineEditPreview();
+  const editImpacts = useTimelineEditImpacts();
   const rangeSelection = useTimelineRangeSelection();
   const { canUndo, undo } = useTimelineHistory();
 
   return (
     <>
-      {editPreview.previewing && <span>{editPreview.impacts.length} clips affected</span>}
+      {editPreview.previewing && <span>{editImpacts.impacts.length} clips affected</span>}
       <button onClick={() => editMode.setMode('trim')}>Trim</button>
       <button disabled={!selectedClip} onClick={copySelection}>Copy</button>
       <button
@@ -363,8 +365,8 @@ export function EditActions() {
     notes: [
       '`useActiveMarkers` is a live playhead hook; compose it only in marker readouts or navigation that should update while scrubbing.',
       '`useTimelineEditCommands` calls TimelineEngine command APIs for validation, preview, commit, and cancel flows.',
-      '`useTimelineEditPreview` is the shared command preview hook for custom guide affordances and renderer-facing impact state.',
-      '`useTimelineEditImpacts` is a live interaction hook; compose it in UI that needs drag-time edit consequences, not broad toolbar state.',
+      '`useTimelineEditPreview` is the shared command preview hook for validity and command state.',
+      '`useTimelineEditImpacts` is the affected-clip consequence hook; compose it in UI that needs preview or drag-time edit consequences, not broad toolbar state.',
       '`useTimelineClipDropFeedback` is a live interaction hook; compose it in focused drag affordances instead of broad editor chrome.',
     ],
   },

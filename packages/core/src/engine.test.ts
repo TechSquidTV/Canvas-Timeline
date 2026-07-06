@@ -306,6 +306,24 @@ describe('TimelineEngine', () => {
       expect(overwriteResult.preview.removedClips.map((clip) => clip.id)).toContain('b');
       expect(commandEngine.getClip('winner')).toBeDefined();
 
+      const overwritePreviewEngine = new TimelineEngine({
+        tracks: [createEditTrack('track1', [createEditClip('victim', 0, 10)])],
+      });
+
+      overwritePreviewEngine.previewEdit({
+        type: 'overwrite',
+        clip: createEditClip('preview-winner', 0, 2),
+        targetTrackId: 'track1',
+        startTime: fromSeconds(3),
+        snap: false,
+      });
+
+      expect(overwritePreviewEngine.getEditImpacts()).toMatchObject({
+        operation: 'overwrite',
+        sourceClipId: 'preview-winner',
+        sourceTrackId: 'track1',
+      });
+
       commandEngine.commitEdit({
         type: 'delete-range',
         startTime: fromSeconds(4),
@@ -319,6 +337,66 @@ describe('TimelineEngine', () => {
       expect(
         commandEngine.tracks[0].clips.every((clip) => toSeconds(clip.timelineStart) <= 7)
       ).toBe(true);
+    });
+
+    it('previews and commits delete-clips through the command layer', () => {
+      const deleteEngine = new TimelineEngine({
+        clipGroups: [{ id: 'linked-group', clipIds: ['b', 'linked'] }],
+        tracks: [
+          createEditTrack('track1', [createEditClip('a', 0, 2), createEditClip('b', 4, 6)]),
+          createEditTrack('track2', [createEditClip('linked', 4, 6)]),
+        ],
+      });
+      const removed: ClipRemovedEvent[] = [];
+      deleteEngine.on('clip:removed', (event) => removed.push(event));
+
+      const preview = deleteEngine.previewEdit({ type: 'delete-clips', clipIds: ['b'] });
+
+      expect(preview.valid).toBe(true);
+      expect(preview.removedClips.map((clip) => clip.id).sort()).toEqual(['b', 'linked']);
+      expect(deleteEngine.getClip('b')).toBeDefined();
+      expect(deleteEngine.getEditImpacts()).toMatchObject({
+        operation: 'delete-clips',
+        sourceClipId: 'b',
+        sourceTrackId: 'track1',
+      });
+      expect(deleteEngine.getEditImpacts()?.impacts).toHaveLength(2);
+
+      const result = deleteEngine.commitEdit({ type: 'delete-clips', clipIds: ['b'] });
+
+      expect(result.committed).toBe(true);
+      expect(deleteEngine.getClip('b')).toBeUndefined();
+      expect(deleteEngine.getClip('linked')).toBeUndefined();
+      expect(deleteEngine.clipGroups).toEqual([]);
+      expect(removed.map((event) => event.clip.id).sort()).toEqual(['b', 'linked']);
+      expect(removed.every((event) => event.reason === 'delete')).toBe(true);
+
+      deleteEngine.undo();
+
+      expect(deleteEngine.getClip('b')).toBeDefined();
+      expect(deleteEngine.getClip('linked')).toBeDefined();
+      expect(deleteEngine.clipGroups[0]?.clipIds).toEqual(['b', 'linked']);
+    });
+
+    it('rejects delete-clips for locked tracks and policy rejections', () => {
+      const lockedEngine = new TimelineEngine({
+        tracks: [createEditTrack('locked-track', [createEditClip('locked-clip', 0, 2)], true)],
+      });
+
+      expect(
+        lockedEngine.validateEdit({ type: 'delete-clips', clipIds: ['locked-clip'] }).reason
+      ).toBe('locked');
+
+      engine.setEditPolicy({
+        validateCommand: ({ command }) =>
+          command.type === 'delete-clips' ? { valid: false, reason: 'policy-rejected' } : undefined,
+      });
+
+      const result = engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] });
+
+      expect(result.committed).toBe(false);
+      expect(result.preview.reason).toBe('policy-rejected');
+      expect(engine.getClip('clip1')).toBeDefined();
     });
 
     it('supports ripple trim and roll trim command resolution', () => {

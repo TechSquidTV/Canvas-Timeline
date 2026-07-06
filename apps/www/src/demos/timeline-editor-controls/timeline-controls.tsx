@@ -2,6 +2,7 @@ import {
   useTimeline,
   useTimelinePlayback,
   useTimelineClips,
+  useTimelineEditCommands,
   useTimelinePlayheadTime,
   TimecodeField,
 } from '@techsquidtv/canvas-timeline-react';
@@ -40,7 +41,8 @@ function PlayheadTimecodeControl() {
 
 function CutSelectedClipButton() {
   const playheadTime = useTimelinePlayheadTime();
-  const { selectedClip, splitClip } = useTimelineClips();
+  const { selectedClip } = useTimelineClips();
+  const { splitClip } = useTimelineEditCommands();
   const canCutSelectedClip =
     selectedClip !== null &&
     compareRational(playheadTime, selectedClip.timelineStart) > 0 &&

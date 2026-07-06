@@ -73,6 +73,8 @@ export interface UseTimelineEditCommandsResult {
   ) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Splits the current selected clips at a timeline time. */
   splitSelectedClipsAtTime: (time: RationalTime) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Commits a delete command for one clip and any linked group members. */
+  deleteClip: (clipId: string) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits an insert command. */
   insertClip: (
     command: Omit<TimelineInsertEditCommand, 'type'>
@@ -164,6 +166,7 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       splitClips: (command) => commitEdit({ type: 'split', ...command }),
       splitSelectedClipsAtTime: (time: RationalTime) =>
         commitEdit({ type: 'split', clipIds: selectedClipIds, time }),
+      deleteClip: (clipId: string) => commitEdit({ type: 'delete-clips', clipIds: [clipId] }),
       insertClip: (command: {
         clip: Clip;
         targetTrackId: string;

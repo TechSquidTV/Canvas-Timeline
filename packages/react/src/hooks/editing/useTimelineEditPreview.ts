@@ -1,12 +1,7 @@
 import { useMemo } from 'react';
-import type {
-  TimelineEditImpact,
-  TimelineEditPreview,
-  TimelineEngine,
-} from '@techsquidtv/canvas-timeline-core';
+import type { TimelineEditPreview, TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
 
-const emptyTimelineEditPreviewImpacts: readonly TimelineEditImpact[] = Object.freeze([]);
 const editPreviewEvents = ['edit:preview', 'state:settled'] as const;
 const getTimelineEditPreview = (engine: TimelineEngine) => engine.getEditPreview();
 
@@ -18,15 +13,13 @@ export interface UseTimelineEditPreviewResult {
   valid: boolean;
   /** Whether an edit preview is currently active. */
   previewing: boolean;
-  /** Clip-level consequences for renderer and custom UI affordances. */
-  impacts: readonly TimelineEditImpact[];
 }
 
 /**
- * Subscribes to live command-layer edit previews.
+ * Subscribes to live command-layer edit preview state.
  *
- * This is a focused live hook. It updates when command previews change and does
- * not broaden provider state with drag-time edit consequences.
+ * This is a focused live hook for preview validity and command state. Compose
+ * with `useTimelineEditImpacts` when UI also needs affected-clip consequences.
  *
  * @returns Active edit preview state.
  */
@@ -38,7 +31,6 @@ export function useTimelineEditPreview(): UseTimelineEditPreviewResult {
       preview,
       valid: preview?.valid ?? false,
       previewing: preview !== null,
-      impacts: preview?.impacts ?? emptyTimelineEditPreviewImpacts,
     }),
     [preview]
   );

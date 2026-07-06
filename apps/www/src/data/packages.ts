@@ -237,7 +237,6 @@ if (preview.valid) {
       {
         label: 'Hook-only entrypoint',
         code: `import {
-  useClipEditPreview,
   useTimelineClips,
   useTimelineEditCommands,
   useTimelineEditImpacts,

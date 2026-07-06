@@ -5,6 +5,7 @@ import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { getClipAccessibleDescription, getClipAccessibleName } from '../../accessibility';
 import { useTimeline } from '../core/useTimeline';
 import { useTimelineClips } from './useTimelineClips';
+import { useTimelineEditCommands } from '../editing/useTimelineEditCommands';
 import { useTimelineSnapping } from '../editing/useTimelineSnapping';
 import type { TimelineClipEntry } from './timelineClipModel';
 import { timelineCommandFail } from '../core/timelineCommandResult';
@@ -113,7 +114,8 @@ export function useTimelineClipNavigation<TrackKind = string>(
     wrap = true,
   } = options;
   const { engine, state } = useTimeline();
-  const { clips: clipEntries, moveClip, selectedClipId, trimClip } = useTimelineClips<TrackKind>();
+  const { clips: clipEntries, selectedClipId } = useTimelineClips<TrackKind>();
+  const { moveClip, trimClip } = useTimelineEditCommands();
   const { prepareSnapping, settle } = useTimelineSnapping();
   const clips = useMemo(
     () => buildNavigableClips(clipEntries, getClipAriaLabel, getClipAriaDescription),
@@ -275,11 +277,11 @@ export function useTimelineClipNavigation<TrackKind = string>(
       }
       const currentTime = edge === 'start' ? found.clip.timelineStart : found.clip.timelineEnd;
       prepareSnapping(found.clip.id);
-      const result = trimClip(
-        found.clip.id,
+      const result = trimClip({
+        clipId: found.clip.id,
         edge,
-        addRational(currentTime, fromSeconds(deltaSeconds, currentTime.r))
-      );
+        newTime: addRational(currentTime, fromSeconds(deltaSeconds, currentTime.r)),
+      });
       if (result.ok) {
         settle();
       }

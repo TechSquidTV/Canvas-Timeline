@@ -13,28 +13,29 @@ const getTimelineEditImpacts = (engine: TimelineEngine) => engine.getEditImpacts
 
 /** Result returned by `useTimelineEditImpacts`. */
 export interface UseTimelineEditImpactsResult {
-  /** Active edit impacts for the current live edit interaction, or null when none are active. */
+  /** Active edit impacts for the current preview or live edit interaction, or null when none are active. */
   activeEdit: TimelineEditImpacts | null;
-  /** Clip-level consequences for the current live edit interaction. */
+  /** Clip-level consequences for the current preview or live edit interaction. */
   impacts: readonly TimelineEditImpact[];
-  /** Current live edit operation, or null when no edit impacts are active. */
+  /** Current preview or live edit operation, or null when no edit impacts are active. */
   operation: TimelineEditOperation | null;
-  /** Clip currently driving the active edit, or null when no edit impacts are active. */
+  /** Clip currently driving the active edit, or null when no clip-driven impacts are active. */
   sourceClipId: string | null;
-  /** Track containing the source clip, or null when no edit impacts are active. */
+  /** Track containing the source clip, or null when no clip-driven impacts are active. */
   sourceTrackId: string | null;
-  /** Whether the active edit currently affects any other clips. */
+  /** Whether the active preview or live edit currently affects any clips. */
   hasImpacts: boolean;
   /** Returns the active edit impact for one affected clip. */
   getImpactForClip: (clipId: string) => TimelineEditImpact | null;
 }
 
 /**
- * Subscribes to live edit impacts produced by active timeline interactions.
+ * Subscribes to affected-clip consequences produced by command previews and
+ * active timeline interactions.
  *
- * This is a live interaction hook: it can update during drag and trim gestures.
- * Use it for custom headless UI affordances that show which clips are trimmed,
- * split, or removed by the active edit.
+ * This is a focused live hook: it can update when command previews change and
+ * during drag or trim gestures. Use it for custom headless UI affordances that
+ * show which clips are trimmed, split, or removed by the active edit.
  *
  * @returns Current edit impacts and helpers for custom editor UI.
  */

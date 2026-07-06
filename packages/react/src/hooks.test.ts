@@ -11,7 +11,6 @@ import {
   useActiveLayers,
   useActiveMarkers,
   usePlaybackEffect,
-  useClipEditPreview,
   useTimelineMediaSync,
   useTimelineMediaPlayback,
   useTimelineEditImpacts,
@@ -301,7 +300,7 @@ test('useTimelineHistory', () => {
   expect(redoSpy).not.toHaveBeenCalled();
 });
 
-test('useTimelineClips exposes flattened clips and canonical clip commands', () => {
+test('useTimelineClips exposes flattened clips, lookups, and presentation updates', () => {
   const engine = new TimelineEngine({
     playheadTime: fromSeconds(1.5),
     tracks: [
@@ -331,30 +330,22 @@ test('useTimelineClips exposes flattened clips and canonical clip commands', () 
 
   act(() => {
     result.current.updateClip('intro', { label: 'Cold open', opacity: 0.5 });
-    result.current.moveClip({ clipId: 'intro', startTime: fromSeconds(2) });
-    result.current.trimClip('intro', 'end', fromSeconds(6));
-    result.current.slipClip('intro', fromSeconds(0.5));
-    result.current.slideClip('intro', fromSeconds(1));
   });
 
-  const moved = expectDefined(engine.getClip('intro'), 'intro clip').clip;
-  expect(moved.label).toBe('Cold open');
-  expect(moved.opacity).toBe(0.5);
-  expect(toSeconds(moved.timelineStart)).toBe(3);
-  expect(toSeconds(moved.timelineEnd)).toBe(7);
-  expect(toSeconds(moved.sourceStart)).toBe(0.5);
+  const updated = expectDefined(engine.getClip('intro'), 'intro clip').clip;
+  expect(updated.label).toBe('Cold open');
+  expect(updated.opacity).toBe(0.5);
+  expect(result.current.getClip('intro')?.track.id).toBe('video-1');
+  expect(result.current.canMoveClip('intro')).toBe(true);
+  expect(result.current.canTrimClip('intro')).toBe(true);
+  expect(result.current.canSlipClip('intro')).toBe(true);
+  expect(result.current.canSlideClip('intro')).toBe(true);
 
   act(() => {
-    result.current.splitClip('intro', fromSeconds(4));
+    expect(result.current.selectClip('overlay')).toEqual({ ok: true });
   });
 
-  expect(engine.tracks[0].clips.map((clip) => clip.id)).toHaveLength(3);
-
-  act(() => {
-    result.current.deleteClip('main');
-  });
-
-  expect(engine.getClip('main')).toBeUndefined();
+  expect(engine.getClip('overlay')?.clip.selected).toBe(true);
 });
 
 test('useTimelineEditCommands commits typed commands and reports validation failures', () => {
@@ -379,6 +370,42 @@ test('useTimelineEditCommands commits typed commands and reports validation fail
   });
 
   expect(toSeconds(engine.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(2);
+
+  act(() => {
+    expect(
+      result.current.trimClip({
+        clipId: 'intro',
+        edge: 'end',
+        newTime: fromSeconds(2.5),
+        snap: false,
+      }).ok
+    ).toBe(true);
+  });
+
+  act(() => {
+    expect(result.current.slipClip('intro', fromSeconds(0.25)).ok).toBe(true);
+    expect(result.current.slideClip({ clipId: 'intro', deltaTime: fromSeconds(0.5) }).ok).toBe(
+      true
+    );
+  });
+
+  expect(toSeconds(engine.getClip('intro')?.clip.sourceStart ?? fromSeconds(0))).toBe(0.25);
+  expect(toSeconds(engine.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(2.5);
+
+  act(() => {
+    expect(result.current.splitClip('intro', fromSeconds(2.75)).ok).toBe(true);
+  });
+
+  const splitClipId = engine.tracks[0]?.clips.find((clip) => clip.id !== 'intro')?.id;
+  expect(splitClipId).toBeDefined();
+
+  act(() => {
+    const deleteResult = result.current.deleteClip(expectDefined(splitClipId, 'split clip id'));
+
+    expect(deleteResult.ok).toBe(true);
+    expect(deleteResult.value?.committed).toBe(true);
+    expect(deleteResult.value?.command.type).toBe('delete-clips');
+  });
 
   act(() => {
     expect(
@@ -416,7 +443,6 @@ test('useTimelineEditPreview subscribes to command preview changes', () => {
 
   expect(result.current.previewing).toBe(true);
   expect(result.current.valid).toBe(true);
-  expect(result.current.impacts[0]?.clipId).toBe('intro');
 
   act(() => {
     engine.cancelEdit();
@@ -2407,59 +2433,6 @@ test('useActiveLayers updates when tracks are muted under the current playhead',
   expect(result.current.primary.audio?.clip.id).toBe('audio-clip');
 });
 
-test('useClipEditPreview updates from provider preview events', () => {
-  const engine = new TimelineEngine({
-    playheadTime: fromSeconds(0),
-    tracks: [
-      {
-        id: 'video-1',
-        kind: 'visual',
-        selected: false,
-        locked: false,
-        muted: false,
-        visible: true,
-        clips: [
-          {
-            id: 'clip-1',
-            sourceId: 'source-1',
-            timelineStart: fromSeconds(1),
-            timelineEnd: fromSeconds(5.5),
-            sourceStart: fromSeconds(0),
-            selected: false,
-          },
-          {
-            id: 'clip-2',
-            sourceId: 'source-2',
-            timelineStart: fromSeconds(6.5),
-            timelineEnd: fromSeconds(12.5),
-            sourceStart: fromSeconds(0),
-            selected: true,
-          },
-        ],
-      },
-    ],
-  });
-
-  const { result } = renderHook(() => useClipEditPreview('clip-1'), {
-    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
-  });
-
-  expect(result.current).toBeUndefined();
-
-  act(() => {
-    engine.startDrag();
-    engine.moveClip({ clipId: 'clip-2', startTime: fromSeconds(3) });
-  });
-
-  expect(result.current).toEqual({ operation: 'overwrite', cutEnd: true });
-
-  act(() => {
-    engine.endDrag();
-  });
-
-  expect(result.current).toBeUndefined();
-});
-
 test('useTimelineEditImpacts subscribes to live edit impact changes', () => {
   const engine = new TimelineEngine({
     playheadTime: fromSeconds(0),
@@ -2526,6 +2499,47 @@ test('useTimelineEditImpacts subscribes to live edit impact changes', () => {
   expect(result.current.impacts).toEqual([]);
   expect(result.current.operation).toBeNull();
   expect(result.current.hasImpacts).toBe(false);
+});
+
+test('useTimelineEditImpacts subscribes to source-less command preview impacts', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video-1', [createClip('intro', 0, 5), createClip('outro', 6, 8)]),
+      createTrack('video-2', [createClip('overlay', 2, 4)]),
+    ],
+  });
+
+  const { result } = renderHook(() => useTimelineEditImpacts(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+
+  act(() => {
+    engine.previewEdit({
+      type: 'delete-range',
+      startTime: fromSeconds(1),
+      endTime: fromSeconds(3),
+      trackIds: ['video-1'],
+      ripple: false,
+    });
+  });
+
+  expect(result.current.operation).toBe('delete-range');
+  expect(result.current.sourceClipId).toBeNull();
+  expect(result.current.sourceTrackId).toBeNull();
+  expect(result.current.hasImpacts).toBe(true);
+  expect(result.current.getImpactForClip('intro')).toMatchObject({
+    clipId: 'intro',
+    trackId: 'video-1',
+    effect: 'split',
+  });
+  expect(result.current.getImpactForClip('overlay')).toBeNull();
+
+  act(() => {
+    engine.cancelEdit();
+  });
+
+  expect(result.current.activeEdit).toBeNull();
+  expect(result.current.impacts).toEqual([]);
 });
 
 function createMediaSyncEngine() {
