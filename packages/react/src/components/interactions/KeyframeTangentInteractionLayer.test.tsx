@@ -1,9 +1,14 @@
 import { fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+  type Clip,
+  type Track,
+} from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '../../Provider';
-import { KeyframeCurveInteractionLayer } from './KeyframeCurveInteractionLayer';
+import { KeyframeTangentInteractionLayer } from './KeyframeTangentInteractionLayer';
 import { resetTimelineTapState } from './tapState';
 
 function getElementPrototypeMethod<
@@ -26,6 +31,12 @@ function restoreElementPrototypeMethod<
 const originalGetBoundingClientRect = getElementPrototypeMethod('getBoundingClientRect');
 const originalSetPointerCapture = getElementPrototypeMethod('setPointerCapture');
 const originalReleasePointerCapture = getElementPrototypeMethod('releasePointerCapture');
+const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+});
 let setPointerCaptureSpy: (pointerId: number) => void;
 
 beforeEach(() => {
@@ -69,8 +80,7 @@ function createEngine() {
         property: 'opacity',
         time: fromSeconds(1),
         value: 0.25,
-        interpolation: 'bezier',
-        easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+        outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
         selected: true,
       },
       {
@@ -78,6 +88,7 @@ function createEngine() {
         property: 'opacity',
         time: fromSeconds(5),
         value: 0.75,
+        incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
       },
     ],
   };
@@ -95,21 +106,24 @@ function createEngine() {
     tracks: [track],
     playheadTime: fromSeconds(0),
     zoomScale: 100,
+    keyframeProperties: [opacityKeyframeProperty],
   });
 }
 
-describe('KeyframeCurveInteractionLayer', () => {
+describe('KeyframeTangentInteractionLayer', () => {
   it('does not handle blank overlay pointer presses', () => {
     const engine = createEngine();
     const startDrag = vi.spyOn(engine, 'startDrag');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer />
+        <KeyframeTangentInteractionLayer property="opacity" />
       </TimelineProvider>
     );
 
-    const layer = container.querySelector('.timeline-keyframe-curve-interaction-layer') as Element;
+    const layer = container.querySelector(
+      '.timeline-keyframe-tangent-interaction-layer'
+    ) as Element;
     const allowed = fireEvent.pointerDown(layer, {
       clientX: 50,
       clientY: 40,
@@ -122,17 +136,17 @@ describe('KeyframeCurveInteractionLayer', () => {
     expect(startDrag).not.toHaveBeenCalled();
   });
 
-  it('drags Bezier handles with pointer capture and updates easing', () => {
+  it('drags Bezier handles with pointer capture and updates the incoming side', () => {
     const engine = createEngine();
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer curveHandleSize={8} />
+        <KeyframeTangentInteractionLayer property="opacity" tangentHandleSize={8} />
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeCurveSegments({ curveHandleSize: 8 })[0];
-    const handle = container.querySelector('[data-handle="incoming"]') as HTMLElement;
+    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const handle = container.querySelector('[data-side="incoming"]') as HTMLElement;
 
     fireEvent.pointerDown(handle, {
       clientX: segment.handles[1].point.x,
@@ -155,11 +169,10 @@ describe('KeyframeCurveInteractionLayer', () => {
     });
 
     expect(setPointerCaptureSpy).toHaveBeenCalledWith(1);
-    const updatedEasing = engine.getClipKeyframes('clip-1')[0].easing;
-    expect(updatedEasing?.x1).toBe(0.2);
-    expect(updatedEasing?.y1).toBe(0.8);
-    expect(updatedEasing?.x2).toBeCloseTo(0.6);
-    expect(updatedEasing?.y2).toBeCloseTo(0.4);
+    const updatedIncoming = engine.getClipKeyframes('clip-1')[1].incoming?.handle;
+    expect(engine.getClipKeyframes('clip-1')[0].outgoing?.handle).toEqual({ x: 0.2, y: 0.8 });
+    expect(updatedIncoming?.x).toBeCloseTo(0.6);
+    expect(updatedIncoming?.y).toBeCloseTo(0.4);
   });
 
   it('renders padded hit targets around exact-size handle shapes', () => {
@@ -167,13 +180,13 @@ describe('KeyframeCurveInteractionLayer', () => {
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer curveHandleSize={8} hitPadding={10} />
+        <KeyframeTangentInteractionLayer property="opacity" tangentHandleSize={8} hitPadding={10} />
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeCurveSegments({ curveHandleSize: 8 })[0];
-    const handle = container.querySelector('[data-handle="outgoing"]') as HTMLElement;
-    const shape = handle.querySelector('.timeline-keyframe-curve-handle-shape') as HTMLElement;
+    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const handle = container.querySelector('[data-side="outgoing"]') as HTMLElement;
+    const shape = handle.querySelector('.timeline-keyframe-tangent-handle-shape') as HTMLElement;
     const rect = segment.handles[0].rect;
 
     expect(handle.style.width).toBe(`${rect.width + 20}px`);
@@ -188,11 +201,11 @@ describe('KeyframeCurveInteractionLayer', () => {
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer />
+        <KeyframeTangentInteractionLayer property="opacity" />
       </TimelineProvider>
     );
 
-    const handle = container.querySelector('[data-handle="incoming"]') as HTMLElement;
+    const handle = container.querySelector('[data-side="incoming"]') as HTMLElement;
     fireEvent.pointerDown(handle, {
       clientX: 200,
       clientY: 60,
@@ -216,12 +229,12 @@ describe('KeyframeCurveInteractionLayer', () => {
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer curveHandleSize={8} />
+        <KeyframeTangentInteractionLayer property="opacity" tangentHandleSize={8} />
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeCurveSegments({ curveHandleSize: 8 })[0];
-    const handle = container.querySelector('[data-handle="incoming"]') as HTMLElement;
+    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const handle = container.querySelector('[data-side="incoming"]') as HTMLElement;
 
     fireEvent.pointerDown(handle, {
       clientX: segment.handles[1].point.x,
@@ -241,22 +254,25 @@ describe('KeyframeCurveInteractionLayer', () => {
       pointerId: 1,
     });
 
-    const updatedEasing = engine.getClipKeyframes('clip-1')[0].easing;
-    expect(updatedEasing?.x2).toBeCloseTo(0.5);
-    expect(updatedEasing?.y2).toBeCloseTo(0.5);
+    const updatedIncoming = engine.getClipKeyframes('clip-1')[1].incoming?.handle;
+    expect(updatedIncoming?.x).toBeCloseTo(0.5);
+    expect(updatedIncoming?.y).toBeCloseTo(0.5);
   });
 
-  it('reports curve handle double-click gestures without built-in policy', () => {
+  it('reports tangent handle double-click gestures without built-in policy', () => {
     const engine = createEngine();
-    const onCurveHandleDoubleClick = vi.fn();
+    const onTangentHandleDoubleClick = vi.fn();
 
     const { container } = render(
       <TimelineProvider engine={engine}>
-        <KeyframeCurveInteractionLayer onCurveHandleDoubleClick={onCurveHandleDoubleClick} />
+        <KeyframeTangentInteractionLayer
+          property="opacity"
+          onTangentHandleDoubleClick={onTangentHandleDoubleClick}
+        />
       </TimelineProvider>
     );
 
-    const handle = container.querySelector('[data-handle="outgoing"]') as HTMLElement;
+    const handle = container.querySelector('[data-side="outgoing"]') as HTMLElement;
     fireEvent.pointerDown(handle, {
       clientX: 180,
       clientY: 44,
@@ -280,12 +296,12 @@ describe('KeyframeCurveInteractionLayer', () => {
       timeStamp: 1100,
     });
 
-    expect(onCurveHandleDoubleClick).toHaveBeenCalledTimes(1);
-    expect(onCurveHandleDoubleClick).toHaveBeenCalledWith(
+    expect(onTangentHandleDoubleClick).toHaveBeenCalledTimes(1);
+    expect(onTangentHandleDoubleClick).toHaveBeenCalledWith(
       expect.objectContaining({
         clip: expect.objectContaining({ id: 'clip-1' }),
         keyframe: expect.objectContaining({ id: 'opacity-start' }),
-        handle: 'outgoing',
+        side: 'outgoing',
       }),
       expect.objectContaining({ engine })
     );

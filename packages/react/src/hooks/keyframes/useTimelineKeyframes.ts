@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type {
   TimelineKeyframe,
   TimelineKeyframeGeometryOptions,
-  TimelineKeyframeProperty,
+  TimelineKeyframePropertyId,
   TimelineKeyframeRect,
   TimelineKeyframeMutationOptions,
   TimelineSetClipKeyframeOptions,
@@ -14,6 +14,7 @@ import { useTimeline } from '../core/useTimeline';
 import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
 import {
   timelineCommandFail,
+  timelineCommandInvalidInput,
   timelineCommandOk,
   type TimelineCommandResult,
 } from '../core/timelineCommandResult';
@@ -35,7 +36,7 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
   /** Evaluates a keyframed property at a timeline time. */
   getPropertyValueAtTime: (
     clipId: string,
-    property: TimelineKeyframeProperty,
+    property: TimelineKeyframePropertyId,
     time?: RationalTime
   ) => number | undefined;
   /** Adds or updates one keyframe by clip, property, and exact timeline time. */
@@ -140,7 +141,7 @@ export function useTimelineKeyframes<TrackKind = string>(
   }, [clipId, engine, keyframeRects, property]);
 
   const getPropertyValueAtTime = useCallback(
-    (targetClipId: string, targetProperty: TimelineKeyframeProperty, time?: RationalTime) =>
+    (targetClipId: string, targetProperty: TimelineKeyframePropertyId, time?: RationalTime) =>
       engine.getClipPropertyValueAtTime(targetClipId, targetProperty, time),
     [engine]
   );
@@ -151,7 +152,15 @@ export function useTimelineKeyframes<TrackKind = string>(
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframe> => {
       const found = engine.getClip(input.clipId);
-      const keyframe = engine.setClipKeyframe(input, mutationOptions);
+      let keyframe: TimelineKeyframe | null;
+      try {
+        keyframe = engine.setClipKeyframe(input, mutationOptions);
+      } catch (setError: unknown) {
+        return timelineCommandInvalidInput(
+          'Timeline keyframe could not be created from the provided input.',
+          setError
+        );
+      }
       if (keyframe) {
         return timelineCommandOk(keyframe);
       }
@@ -169,7 +178,15 @@ export function useTimelineKeyframes<TrackKind = string>(
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframe> => {
       const found = engine.getClip(input.clipId);
-      const keyframe = engine.updateClipKeyframe(input, mutationOptions);
+      let keyframe: TimelineKeyframe | null;
+      try {
+        keyframe = engine.updateClipKeyframe(input, mutationOptions);
+      } catch (updateError: unknown) {
+        return timelineCommandInvalidInput(
+          'Timeline keyframe could not be updated from the provided input.',
+          updateError
+        );
+      }
       if (keyframe) {
         return timelineCommandOk(keyframe);
       }
@@ -196,8 +213,11 @@ export function useTimelineKeyframes<TrackKind = string>(
           ...keyframe,
           time: { ...keyframe.time },
         };
-        if (keyframe.easing) {
-          removedKeyframe.easing = { ...keyframe.easing };
+        if (keyframe.incoming) {
+          removedKeyframe.incoming = { ...keyframe.incoming };
+        }
+        if (keyframe.outgoing) {
+          removedKeyframe.outgoing = { ...keyframe.outgoing };
         }
         return timelineCommandOk(removedKeyframe);
       }

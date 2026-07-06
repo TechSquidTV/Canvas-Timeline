@@ -1,7 +1,8 @@
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import type {
-  TimelineCubicBezier,
+  TimelineKeyframeBezierHandle,
   TimelineKeyframeInterpolation,
+  TimelineKeyframeSidePatch,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
 import {
@@ -27,6 +28,7 @@ import {
   findClipContainingTime,
   findOpacityKeyframeNearTime,
   getOpacityValueFromClipViewportY,
+  opacityKeyframeProperty,
   opacityKeyframeValuePadding,
   toggleOpacityKeyframeAtTime,
 } from './keyframe-opacity-utils';
@@ -52,7 +54,8 @@ interface InterpolationPreset {
   id: string;
   label: string;
   interpolation: TimelineKeyframeInterpolation;
-  easing?: TimelineCubicBezier;
+  outgoingHandle?: TimelineKeyframeBezierHandle;
+  incomingHandle?: TimelineKeyframeBezierHandle;
 }
 
 const interpolationPresets: InterpolationPreset[] = [
@@ -62,20 +65,19 @@ const interpolationPresets: InterpolationPreset[] = [
     id: 'ease',
     label: 'Ease',
     interpolation: 'bezier',
-    easing: { x1: 0.42, y1: 0, x2: 0.58, y2: 1 },
+    outgoingHandle: { x: 0.42, y: 0 },
+    incomingHandle: { x: 0.58, y: 1 },
   },
   {
     id: 'ease-out',
     label: 'Out',
     interpolation: 'bezier',
-    easing: { x1: 0.16, y1: 1, x2: 0.3, y2: 1 },
+    outgoingHandle: { x: 0.16, y: 1 },
+    incomingHandle: { x: 0.3, y: 1 },
   },
 ];
 
-function getInterpolationPresetId(
-  interpolation: TimelineKeyframeInterpolation | undefined,
-  easing: TimelineCubicBezier | undefined
-) {
+function getInterpolationPresetId(interpolation: TimelineKeyframeInterpolation | undefined) {
   if (interpolation === 'hold') {
     return 'hold';
   }
@@ -83,15 +85,7 @@ function getInterpolationPresetId(
     return 'linear';
   }
 
-  const matchedPreset = interpolationPresets.find(
-    (preset) =>
-      preset.interpolation === 'bezier' &&
-      preset.easing?.x1 === easing?.x1 &&
-      preset.easing?.y1 === easing?.y1 &&
-      preset.easing?.x2 === easing?.x2 &&
-      preset.easing?.y2 === easing?.y2
-  );
-  return matchedPreset?.id ?? 'ease';
+  return 'ease';
 }
 
 function TrackKeyframeButton({
@@ -203,13 +197,13 @@ function TimelineLayers({
         onKeyframeDelete={onKeyframeDelete}
         onKeyframeDoubleClick={onKeyframeDoubleClick}
       />
-      <Timeline.KeyframeCurveInteractionLayer
+      <Timeline.KeyframeTangentInteractionLayer
         property="opacity"
         selectedClipOnly
         selectedKeyframeOnly
         trackHeight={trackHeight}
         keyframeSize={keyframeSize}
-        curveHandleSize={7}
+        tangentHandleSize={7}
         keyframeValuePadding={keyframeValuePadding}
       />
       <Timeline.RangeSelector />
@@ -222,6 +216,7 @@ function formatSeconds(seconds: number) {
 }
 
 function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
+  const { engine } = useTimeline();
   const playheadTime = useTimelinePlayheadTime();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -245,7 +240,9 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const sliderValue = selectedKeyframe?.value ?? evaluatedOpacity;
   const activeTime = selectedKeyframe?.time ?? playheadTime;
   const interpolationPresetId = selectedKeyframe
-    ? getInterpolationPresetId(selectedKeyframe.interpolation, selectedKeyframe.easing)
+    ? getInterpolationPresetId(
+        selectedKeyframe.outgoing?.interpolation ?? selectedKeyframe.incoming?.interpolation
+      )
     : null;
   const { playing, play, pause, ready } = useHTMLTimelineMedia({
     ref: videoRef,
@@ -295,14 +292,39 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         return;
       }
 
-      keyframes.updateKeyframe({
+      const propertyKeyframes = engine
+        .getClipKeyframes(opacityClipId, opacityKeyframeProperty.id)
+        .sort((left, right) => toSeconds(left.time) - toSeconds(right.time));
+      const selectedIndex = propertyKeyframes.findIndex(
+        (keyframe) => keyframe.id === selectedKeyframe.id
+      );
+      const hasIncomingSegment = selectedIndex > 0;
+      const hasOutgoingSegment = selectedIndex >= 0 && selectedIndex < propertyKeyframes.length - 1;
+      const incomingPatch: TimelineKeyframeSidePatch | undefined = hasIncomingSegment
+        ? {
+            interpolation: preset.interpolation,
+            ...(preset.incomingHandle === undefined ? {} : { handle: preset.incomingHandle }),
+          }
+        : undefined;
+      const outgoingPatch: TimelineKeyframeSidePatch | undefined = hasOutgoingSegment
+        ? {
+            interpolation: preset.interpolation,
+            ...(preset.outgoingHandle === undefined ? {} : { handle: preset.outgoingHandle }),
+          }
+        : undefined;
+
+      if (incomingPatch === undefined && outgoingPatch === undefined) {
+        return;
+      }
+
+      engine.updateClipKeyframeSides({
         clipId: opacityClipId,
         keyframeId: selectedKeyframe.id,
-        interpolation: preset.interpolation,
-        easing: preset.easing,
+        incoming: incomingPatch,
+        outgoing: outgoingPatch,
       });
     },
-    [keyframes, selectedKeyframe]
+    [engine, selectedKeyframe]
   );
 
   const handleClipDoubleClick = useCallback<
@@ -479,7 +501,10 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
               <div className="timeline-editor-stage-row">
                 <div className="timeline-stage timeline-editor-timeline-stage">
                   <Timeline.Root className="timeline-fill timeline-editor-root-with-headers">
-                    <CanvasRenderer showClipLabels={false} />
+                    <CanvasRenderer
+                      showClipLabels={false}
+                      keyframeProperty={opacityKeyframeProperty.id}
+                    />
                     <TimelineLayers
                       onClipDoubleClick={handleClipDoubleClick}
                       onKeyframeDelete={handleKeyframeDelete}
@@ -521,6 +546,7 @@ export function KeyframeOpacityTimeline({ metrics }: { metrics?: DemoMetrics }) 
         zoomScale: 32,
         tracks: demoTracks,
         markers: demoMarkers,
+        keyframeProperties: [opacityKeyframeProperty],
       }),
     []
   );

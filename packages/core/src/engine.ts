@@ -45,23 +45,32 @@ import type {
   TimelineCreateClipGroupOptions,
   TimelineInsertClipGroupOptions,
   TimelineKeyframe,
-  TimelineKeyframeCurveGeometryOptions,
-  TimelineKeyframeCurveHandle,
-  TimelineKeyframeCurveHandleHitTestResult,
-  TimelineKeyframeCurveHitTestInput,
-  TimelineKeyframeCurvePoint,
-  TimelineKeyframeCurveSegment,
+  TimelineKeyframePoint,
   TimelineKeyframeGeometryOptions,
   TimelineKeyframeHitTestInput,
   TimelineKeyframeHitTestResult,
   TimelineKeyframeMutationOptions,
-  TimelineKeyframeProperty,
+  TimelineKeyframePropertyDefinition,
+  TimelineKeyframePropertyId,
   TimelineKeyframeRect,
+  TimelineKeyframeRenderClip,
+  TimelineKeyframeRenderGeometry,
+  TimelineKeyframeRenderGeometryOptions,
+  TimelineKeyframeRenderPoint,
+  TimelineKeyframeRenderSegment,
+  TimelineKeyframeSidePatch,
+  TimelineKeyframeSegment,
+  TimelineKeyframeSegmentGeometryOptions,
+  TimelineKeyframeSide,
+  TimelineKeyframeTangentHandle,
+  TimelineKeyframeTangentHandleHitTestResult,
+  TimelineKeyframeTangentHitTestInput,
   TimelineLiftRangeEditCommand,
   TimelineMoveEditCommand,
   TimelineOverwriteEditCommand,
   TimelineOverwriteClipGroupEditCommand,
   TimelinePlaceClipCommand,
+  TimelineRegisteredKeyframePropertyDefinition,
   TimelineRippleTrimEditCommand,
   TimelineRollTrimEditCommand,
   TimelineSlideEditCommand,
@@ -71,9 +80,11 @@ import type {
   TimelineSetClipKeyframeOptions,
   TimelineTrimEditCommand,
   TimelineUpdateClipKeyframeOptions,
+  TimelineUpdateClipKeyframeSideOptions,
+  TimelineUpdateClipKeyframeSidesOptions,
   TrackHitTestInput,
   Track,
-  VisibleTimelineKeyframeCurveSegment,
+  VisibleTimelineKeyframeSegment,
   VisibleTimelineKeyframe,
   VisibleTimelineClip,
   VisibleTimelineClipOptions,
@@ -93,11 +104,14 @@ import type {
 } from './events';
 import { SnapIndex, type SnapTargetOptions } from './snapping';
 import {
+  defaultTimelineIncomingBezierHandle,
+  defaultTimelineOutgoingBezierHandle,
   getTimelineKeyframeBezierControlPoints,
   getTimelineKeyframeInterpolationProgress,
   getTimelineKeyframeValuePoint,
-  normalizeTimelineCubicBezier,
+  normalizeTimelineKeyframeBezierHandle,
   normalizeTimelineKeyframeInterpolation,
+  normalizeTimelineKeyframeSideInterpolation,
 } from './keyframes';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import {
@@ -310,32 +324,26 @@ function assertValidKeyframe(keyframe: TimelineKeyframe, label: string) {
   assertValidTimelineNumber(keyframe.value, `${label}.value`);
 }
 
-function clampClipPropertyValue(property: TimelineKeyframeProperty, value: number) {
-  assertValidTimelineNumber(value, 'value');
-  switch (property) {
-    case 'opacity':
-      return Math.max(0, Math.min(1, value));
-  }
-}
-
 function cloneTimelineKeyframe(keyframe: TimelineKeyframe): TimelineKeyframe {
   assertValidKeyframe(keyframe, `keyframe "${keyframe.id}"`);
-  const interpolation =
-    keyframe.interpolation === undefined
-      ? undefined
-      : normalizeTimelineKeyframeInterpolation(keyframe.interpolation);
   const next: TimelineKeyframe = {
     id: keyframe.id,
     property: keyframe.property,
     time: cloneRationalTime(keyframe.time),
-    value: clampClipPropertyValue(keyframe.property, keyframe.value),
+    value: keyframe.value,
   };
 
-  if (interpolation !== undefined) {
-    next.interpolation = interpolation;
+  if (keyframe.incoming !== undefined) {
+    next.incoming = normalizeTimelineKeyframeSideInterpolation(
+      keyframe.incoming,
+      defaultTimelineIncomingBezierHandle
+    );
   }
-  if (interpolation === 'bezier') {
-    next.easing = normalizeTimelineCubicBezier(keyframe.easing);
+  if (keyframe.outgoing !== undefined) {
+    next.outgoing = normalizeTimelineKeyframeSideInterpolation(
+      keyframe.outgoing,
+      defaultTimelineOutgoingBezierHandle
+    );
   }
   if (keyframe.selected !== undefined) {
     next.selected = keyframe.selected;
@@ -696,6 +704,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private activeClips = new Set<string>();
   private snapIndex = new SnapIndex();
   private snapProviders = new Set<TimelineSnapProvider>();
+  private keyframeProperties = new Map<
+    TimelineKeyframePropertyId,
+    TimelineRegisteredKeyframePropertyDefinition
+  >();
 
   private playbackManager: PlaybackManager;
   private historyManager: HistoryManager;
@@ -732,6 +744,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     snapEnabled?: boolean;
     snapThresholdPixels?: number;
     editPolicy?: TimelineEditPolicy;
+    keyframeProperties?: TimelineKeyframePropertyDefinition[];
   }) {
     super();
     assertPositiveTimelineNumber(initialState.zoomScale ?? 100, 'initialState.zoomScale');
@@ -749,6 +762,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
     this.zoomConstraints = this.resolveZoomConstraints(initialState.zoomConstraints);
     this.editPolicy = initialState.editPolicy;
+    this.registerKeyframeProperties(initialState.keyframeProperties ?? []);
     this.state = {
       tracks: createLeanTracks(initialState.tracks),
       clipGroups: createLeanClipGroups(initialState.clipGroups),
@@ -770,6 +784,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.historyManager = new HistoryManager(this);
     this.clipboardManager = new ClipboardManager(this);
     this.normalizeClipGroups();
+    this.validateRegisteredClipKeyframes();
 
     if (this.state.duration !== undefined || this.hasZoomConstraints()) {
       this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
@@ -825,6 +840,49 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   setEditPolicy(policy: TimelineEditPolicy | undefined) {
     this.editPolicy = policy;
+  }
+
+  /**
+   * Registers one scalar keyframe property definition.
+   */
+  registerKeyframeProperty(definition: TimelineKeyframePropertyDefinition) {
+    if (this.keyframeProperties.has(definition.id)) {
+      throw new RangeError(`Keyframe property "${definition.id}" is already registered.`);
+    }
+    this.assertValidKeyframePropertyDefinition(definition);
+    this.keyframeProperties.set(definition.id, this.createRegisteredKeyframeProperty(definition));
+  }
+
+  /**
+   * Registers scalar keyframe property definitions.
+   */
+  registerKeyframeProperties(definitions: TimelineKeyframePropertyDefinition[]) {
+    for (const definition of definitions) {
+      this.registerKeyframeProperty(definition);
+    }
+  }
+
+  /**
+   * Returns one registered scalar keyframe property definition.
+   */
+  getKeyframePropertyDefinition(
+    property: TimelineKeyframePropertyId
+  ): TimelineRegisteredKeyframePropertyDefinition | null {
+    return this.keyframeProperties.get(property) ?? null;
+  }
+
+  /**
+   * Returns whether a scalar keyframe property is registered.
+   */
+  hasKeyframeProperty(property: TimelineKeyframePropertyId) {
+    return this.keyframeProperties.has(property);
+  }
+
+  /**
+   * Returns all registered scalar keyframe property definitions.
+   */
+  listKeyframeProperties(): TimelineRegisteredKeyframePropertyDefinition[] {
+    return Array.from(this.keyframeProperties.values());
   }
 
   /**
@@ -1304,7 +1362,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   /**
    * Returns keyframes owned by one clip, optionally filtered by property.
    */
-  getClipKeyframes(clipId: string, property?: TimelineKeyframeProperty): TimelineKeyframe[] {
+  getClipKeyframes(clipId: string, property?: TimelineKeyframePropertyId): TimelineKeyframe[] {
     const clip = this.getClip(clipId)?.clip;
     if (clip?.keyframes === undefined) {
       return [];
@@ -1320,19 +1378,27 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   getClipPropertyValueAtTime(
     clipIdOrClip: string | Clip,
-    property: TimelineKeyframeProperty,
+    property: TimelineKeyframePropertyId,
     timelineTime: RationalTime = this.state.playheadTime
   ): number | undefined {
     const clip = this.resolveClip(clipIdOrClip);
+    const definition = this.getRequiredKeyframePropertyDefinition(property);
     if (
       clip === undefined ||
+      definition === null ||
       compareRational(timelineTime, clip.timelineStart) < 0 ||
       compareRational(timelineTime, clip.timelineEnd) > 0
     ) {
       return undefined;
     }
 
-    const fallback = property === 'opacity' ? (clip.opacity ?? 1) : undefined;
+    const fallback = definition.getBaseValue
+      ? this.clampKeyframeDefinitionValue(
+          definition,
+          definition.getBaseValue(clip),
+          `keyframe property "${property}" base value`
+        )
+      : definition.defaultValue;
     const keyframes = (clip.keyframes ?? [])
       .filter((keyframe) => keyframe.property === property)
       .filter(
@@ -1349,15 +1415,15 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     const first = keyframes[0];
     const last = keyframes[keyframes.length - 1];
     if (compareRational(timelineTime, first.time) <= 0) {
-      return first.value;
+      return this.clampKeyframeDefinitionValue(definition, first.value, 'keyframe value');
     }
     if (compareRational(timelineTime, last.time) >= 0) {
-      return last.value;
+      return this.clampKeyframeDefinitionValue(definition, last.value, 'keyframe value');
     }
 
     const exact = keyframes.find((keyframe) => isSameRationalTime(keyframe.time, timelineTime));
     if (exact !== undefined) {
-      return exact.value;
+      return this.clampKeyframeDefinitionValue(definition, exact.value, 'keyframe value');
     }
 
     for (let index = 0; index < keyframes.length - 1; index++) {
@@ -1367,20 +1433,50 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         compareRational(timelineTime, left.time) >= 0 &&
         compareRational(timelineTime, right.time) <= 0
       ) {
-        if (normalizeTimelineKeyframeInterpolation(left.interpolation) === 'hold') {
-          return left.value;
+        const outgoing = normalizeTimelineKeyframeSideInterpolation(
+          left.outgoing,
+          defaultTimelineOutgoingBezierHandle
+        );
+        const incoming = normalizeTimelineKeyframeSideInterpolation(
+          right.incoming,
+          defaultTimelineIncomingBezierHandle
+        );
+        const interpolation =
+          outgoing.interpolation === 'hold'
+            ? 'hold'
+            : outgoing.interpolation === 'bezier' || incoming.interpolation === 'bezier'
+              ? 'bezier'
+              : 'linear';
+        if (interpolation === 'hold') {
+          return this.clampKeyframeDefinitionValue(definition, left.value, 'keyframe value');
         }
         const spanSeconds = toSeconds(subRational(right.time, left.time));
         if (spanSeconds <= 0) {
-          return right.value;
+          return this.clampKeyframeDefinitionValue(definition, right.value, 'keyframe value');
         }
         const progress = toSeconds(subRational(timelineTime, left.time)) / spanSeconds;
         const easedProgress = getTimelineKeyframeInterpolationProgress(
-          left.interpolation,
+          interpolation,
           progress,
-          left.easing
+          outgoing.handle,
+          incoming.handle
         );
-        return left.value + (right.value - left.value) * easedProgress;
+        const leftNormalized = this.normalizeKeyframeDefinitionValue(
+          definition,
+          left.value,
+          'left keyframe value'
+        );
+        const rightNormalized = this.normalizeKeyframeDefinitionValue(
+          definition,
+          right.value,
+          'right keyframe value'
+        );
+        const normalizedValue = leftNormalized + (rightNormalized - leftNormalized) * easedProgress;
+        return this.denormalizeKeyframeDefinitionValue(
+          definition,
+          normalizedValue,
+          'interpolated keyframe value'
+        );
       }
     }
 
@@ -1390,10 +1486,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   /**
    * Adds or updates one keyframe by clip, property, and exact timeline time.
    *
-   * New keyframes created without an explicit `interpolation` inherit the
-   * interpolation mode and Bezier easing of the previous keyframe in the same
-   * property lane, so splitting a segment keeps its easing character. Linear
-   * is used when no previous keyframe exists.
+   * New keyframes created without explicit side interpolation use normalized
+   * linear defaults during evaluation.
    */
   setClipKeyframe(
     input: TimelineSetClipKeyframeOptions,
@@ -1404,9 +1498,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (!found || found.track.locked) {
       return null;
     }
+    const value = this.clampKeyframeValue(input.property, input.value);
+    if (value === null) {
+      return null;
+    }
 
     const time = this.clampKeyframeTimeToClip(found.clip, input.time);
-    const value = clampClipPropertyValue(input.property, input.value);
     found.clip.keyframes ??= [];
     const existing = found.clip.keyframes.find(
       (keyframe) => keyframe.property === input.property && isSameRationalTime(keyframe.time, time)
@@ -1424,22 +1521,17 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     keyframe.time = cloneRationalTime(time);
     keyframe.value = value;
-    if (input.interpolation !== undefined) {
-      keyframe.interpolation = normalizeTimelineKeyframeInterpolation(input.interpolation);
-    } else if (existing === undefined) {
-      const previous = this.getPreviousClipKeyframe(found.clip, input.property, time);
-      keyframe.interpolation = normalizeTimelineKeyframeInterpolation(previous?.interpolation);
-      if (keyframe.interpolation === 'bezier' && input.easing === undefined) {
-        keyframe.easing = normalizeTimelineCubicBezier(previous?.easing);
-      }
+    if (input.incoming !== undefined) {
+      keyframe.incoming = normalizeTimelineKeyframeSideInterpolation(
+        input.incoming,
+        defaultTimelineIncomingBezierHandle
+      );
     }
-    if (input.easing !== undefined) {
-      keyframe.easing = normalizeTimelineCubicBezier(input.easing);
-    } else if (keyframe.interpolation === 'bezier') {
-      keyframe.easing = normalizeTimelineCubicBezier(keyframe.easing);
-    }
-    if (keyframe.interpolation !== 'bezier') {
-      delete keyframe.easing;
+    if (input.outgoing !== undefined) {
+      keyframe.outgoing = normalizeTimelineKeyframeSideInterpolation(
+        input.outgoing,
+        defaultTimelineOutgoingBezierHandle
+      );
     }
 
     if (existing === undefined) {
@@ -1501,18 +1593,96 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     keyframe.time = cloneRationalTime(nextTime);
     if (input.value !== undefined) {
-      keyframe.value = clampClipPropertyValue(keyframe.property, input.value);
+      const value = this.clampKeyframeValue(keyframe.property, input.value);
+      if (value === null) {
+        return null;
+      }
+      keyframe.value = value;
     }
-    if (input.interpolation !== undefined) {
-      keyframe.interpolation = normalizeTimelineKeyframeInterpolation(input.interpolation);
+    if (input.incoming !== undefined) {
+      keyframe.incoming = normalizeTimelineKeyframeSideInterpolation(
+        input.incoming,
+        defaultTimelineIncomingBezierHandle
+      );
     }
-    if (input.easing !== undefined) {
-      keyframe.easing = normalizeTimelineCubicBezier(input.easing);
-    } else if (keyframe.interpolation === 'bezier') {
-      keyframe.easing = normalizeTimelineCubicBezier(keyframe.easing);
+    if (input.outgoing !== undefined) {
+      keyframe.outgoing = normalizeTimelineKeyframeSideInterpolation(
+        input.outgoing,
+        defaultTimelineOutgoingBezierHandle
+      );
     }
-    if (keyframe.interpolation !== 'bezier') {
-      delete keyframe.easing;
+
+    this.normalizeClipKeyframes(found.clip);
+    this.emit('keyframe:update', {
+      clipId: input.clipId,
+      keyframe: cloneTimelineKeyframe(keyframe),
+    } satisfies ClipKeyframeChangeEvent);
+    this.commitKeyframeMutation(options);
+    return keyframe;
+  }
+
+  /**
+   * Updates one side of an existing keyframe.
+   */
+  updateClipKeyframeSide(
+    input: TimelineUpdateClipKeyframeSideOptions,
+    options: TimelineKeyframeMutationOptions = {}
+  ): TimelineKeyframe | null {
+    return this.updateClipKeyframeSides(
+      {
+        clipId: input.clipId,
+        keyframeId: input.keyframeId,
+        [input.side]: input.patch,
+      },
+      options
+    );
+  }
+
+  /**
+   * Updates one or both sides of an existing keyframe.
+   */
+  updateClipKeyframeSides(
+    input: TimelineUpdateClipKeyframeSidesOptions,
+    options: TimelineKeyframeMutationOptions = {}
+  ): TimelineKeyframe | null {
+    const found = this.getClip(input.clipId);
+    if (!found || found.track.locked || found.clip.keyframes === undefined) {
+      return null;
+    }
+
+    const keyframe = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
+    if (keyframe === undefined || !this.keyframeProperties.has(keyframe.property)) {
+      return null;
+    }
+
+    const patches: Array<[TimelineKeyframeSide, TimelineKeyframeSidePatch | undefined]> = [
+      ['incoming', input.incoming],
+      ['outgoing', input.outgoing],
+    ];
+    if (patches.every(([, patch]) => patch === undefined)) {
+      return null;
+    }
+
+    for (const [side, patch] of patches) {
+      if (patch === undefined) {
+        continue;
+      }
+      const fallback =
+        side === 'incoming'
+          ? defaultTimelineIncomingBezierHandle
+          : defaultTimelineOutgoingBezierHandle;
+      const current = normalizeTimelineKeyframeSideInterpolation(keyframe[side], fallback);
+      const nextInterpolation = normalizeTimelineKeyframeInterpolation(
+        patch.interpolation ?? current.interpolation
+      );
+      const nextHandle = patch.handle === null ? undefined : (patch.handle ?? current.handle);
+      keyframe[side] = normalizeTimelineKeyframeSideInterpolation(
+        {
+          interpolation: nextInterpolation,
+          handle: nextHandle,
+        },
+        fallback
+      );
     }
 
     this.normalizeClipKeyframes(found.clip);
@@ -1676,12 +1846,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
-   * Returns keyframe curve segments in track order.
+   * Returns keyframe segments in track order.
    */
-  getKeyframeCurveSegments<TrackKind = string>(
-    options: TimelineKeyframeCurveGeometryOptions = {}
-  ): TimelineKeyframeCurveSegment<TrackKind>[] {
-    const segments: TimelineKeyframeCurveSegment<TrackKind>[] = [];
+  getKeyframeSegments<TrackKind = string>(
+    options: TimelineKeyframeSegmentGeometryOptions = {}
+  ): TimelineKeyframeSegment<TrackKind>[] {
+    const segments: TimelineKeyframeSegment<TrackKind>[] = [];
 
     this.forEachTimelineClipGeometry<TrackKind>(
       options,
@@ -1713,7 +1883,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           }
 
           segments.push(
-            this.createTimelineKeyframeCurveSegment(
+            this.createTimelineKeyframeSegment(
               track,
               clip,
               trackIndex,
@@ -1734,11 +1904,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
-   * Returns keyframe curve segments intersecting the current viewport.
+   * Returns keyframe segments intersecting the current viewport.
    */
-  getVisibleKeyframeCurveSegments<TrackKind = string>(
-    options: TimelineKeyframeCurveGeometryOptions = {}
-  ): VisibleTimelineKeyframeCurveSegment<TrackKind>[] {
+  getVisibleKeyframeSegments<TrackKind = string>(
+    options: TimelineKeyframeSegmentGeometryOptions = {}
+  ): VisibleTimelineKeyframeSegment<TrackKind>[] {
     const viewportWidth = Math.max(
       0,
       options.viewportWidth ?? this.state.viewportWidth ?? defaultTimelineViewportWidth
@@ -1751,8 +1921,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     const minY = -overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
 
-    return this.getKeyframeCurveSegments<TrackKind>(options).filter((segment) => {
-      const bounds = this.getTimelineKeyframeCurveSegmentBounds(segment);
+    return this.getKeyframeSegments<TrackKind>(options).filter((segment) => {
+      const bounds = this.getTimelineKeyframeSegmentBounds(segment);
       if (bounds.right < minX || bounds.left > maxX) {
         return false;
       }
@@ -1761,13 +1931,84 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
-   * Hit-tests Bezier curve handles in viewport coordinates.
+   * Returns serializable keyframe geometry for canvas rendering.
    */
-  getKeyframeCurveHandleAtPoint<TrackKind = string>(
-    input: TimelineKeyframeCurveHitTestInput
-  ): TimelineKeyframeCurveHandleHitTestResult<TrackKind> | null {
+  getKeyframeRenderGeometry(
+    options: TimelineKeyframeRenderGeometryOptions
+  ): TimelineKeyframeRenderGeometry {
+    if (!this.keyframeProperties.has(options.property)) {
+      throw new RangeError(`Unregistered keyframe property "${options.property}".`);
+    }
+
+    const clips = new Map<string, TimelineKeyframeRenderClip>();
+    const getRenderClip = (clipId: string, trackId: string) => {
+      const existing = clips.get(clipId);
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const next: TimelineKeyframeRenderClip = {
+        clipId,
+        trackId,
+        points: [],
+        segments: [],
+      };
+      clips.set(clipId, next);
+      return next;
+    };
+
+    for (const keyframeRect of this.getVisibleKeyframes(options)) {
+      const renderClip = getRenderClip(keyframeRect.clip.id, keyframeRect.track.id);
+      const point: TimelineKeyframeRenderPoint = {
+        clipId: keyframeRect.clip.id,
+        trackId: keyframeRect.track.id,
+        keyframeId: keyframeRect.keyframe.id,
+        point: {
+          x: keyframeRect.rect.x + keyframeRect.rect.width / 2,
+          y: keyframeRect.rect.y + keyframeRect.rect.height / 2,
+        },
+        rect: keyframeRect.rect,
+        selected: keyframeRect.keyframe.selected === true,
+      };
+      renderClip.points.push(point);
+    }
+
+    for (const segment of this.getVisibleKeyframeSegments(options)) {
+      const renderClip = getRenderClip(segment.clip.id, segment.track.id);
+      const renderSegment: TimelineKeyframeRenderSegment = {
+        clipId: segment.clip.id,
+        trackId: segment.track.id,
+        segmentId: segment.segmentId,
+        property: segment.property,
+        interpolation: segment.interpolation,
+        startPoint: segment.startPoint,
+        endPoint: segment.endPoint,
+      };
+      if (segment.controlPoint1 !== undefined) {
+        renderSegment.controlPoint1 = segment.controlPoint1;
+      }
+      if (segment.controlPoint2 !== undefined) {
+        renderSegment.controlPoint2 = segment.controlPoint2;
+      }
+      renderClip.segments.push(renderSegment);
+    }
+
+    return {
+      property: options.property,
+      clips: Array.from(clips.values()).filter(
+        (clip) => clip.points.length > 0 || clip.segments.length > 0
+      ),
+    };
+  }
+
+  /**
+   * Hit-tests Bezier tangent handles in viewport coordinates.
+   */
+  getKeyframeTangentHandleAtPoint<TrackKind = string>(
+    input: TimelineKeyframeTangentHitTestInput
+  ): TimelineKeyframeTangentHandleHitTestResult<TrackKind> | null {
     const hitPadding = input.pointerType === 'touch' ? 8 : 3;
-    const segments = this.getVisibleKeyframeCurveSegments<TrackKind>(input);
+    const segments = this.getVisibleKeyframeSegments<TrackKind>(input);
     for (let segmentIndex = segments.length - 1; segmentIndex >= 0; segmentIndex--) {
       const handles = segments[segmentIndex].handles;
       for (let handleIndex = handles.length - 1; handleIndex >= 0; handleIndex--) {
@@ -2243,10 +2484,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     clipRect: ClipViewportRect,
     handleSize: number,
     valuePadding: number
-  ): TimelineKeyframeCurvePoint {
+  ): TimelineKeyframePoint {
     return getTimelineKeyframeValuePoint({
       timeX: this.timeToPixel(keyframe.time),
-      value: clampClipPropertyValue(keyframe.property, keyframe.value),
+      value: this.normalizeKeyframeValue(keyframe.property, keyframe.value) ?? 0,
       clipX: clipRect.x,
       clipWidth: clipRect.width,
       clipY: clipRect.y,
@@ -2256,7 +2497,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     });
   }
 
-  private createTimelineKeyframeCurveSegment<TrackKind>(
+  private createTimelineKeyframeSegment<TrackKind>(
     track: Track<TrackKind>,
     clip: Clip,
     trackIndex: number,
@@ -2266,10 +2507,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     startKeyframeIndex: number,
     endKeyframeIndex: number,
     clipRect: ClipViewportRect,
-    options: TimelineKeyframeCurveGeometryOptions
-  ): TimelineKeyframeCurveSegment<TrackKind> {
+    options: TimelineKeyframeSegmentGeometryOptions
+  ): TimelineKeyframeSegment<TrackKind> {
     const keyframeSize = Math.max(4, options.keyframeSize ?? 8);
-    const curveHandleSize = Math.max(4, options.curveHandleSize ?? 7);
+    const tangentHandleSize = Math.max(4, options.tangentHandleSize ?? 7);
     const valuePadding = Math.max(0, options.keyframeValuePadding ?? 7);
     const startPoint = this.createTimelineKeyframePoint(
       startKeyframe,
@@ -2283,10 +2524,26 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       keyframeSize,
       valuePadding
     );
-    const interpolation = normalizeTimelineKeyframeInterpolation(startKeyframe.interpolation);
+    const outgoing = normalizeTimelineKeyframeSideInterpolation(
+      startKeyframe.outgoing,
+      defaultTimelineOutgoingBezierHandle
+    );
+    const incoming = normalizeTimelineKeyframeSideInterpolation(
+      endKeyframe.incoming,
+      defaultTimelineIncomingBezierHandle
+    );
+    const interpolation =
+      outgoing.interpolation === 'hold'
+        ? 'hold'
+        : outgoing.interpolation === 'bezier' || incoming.interpolation === 'bezier'
+          ? 'bezier'
+          : 'linear';
     const segmentId = `${clip.id}:${startKeyframe.id}:${endKeyframe.id}:${startKeyframe.property}`;
     const canEdit = !track.locked;
-    const base = {
+    const base: Omit<
+      TimelineKeyframeSegment<TrackKind>,
+      'controlPoint1' | 'controlPoint2' | 'handles'
+    > = {
       clip,
       track,
       trackIndex,
@@ -2298,6 +2555,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       startKeyframeIndex,
       endKeyframeIndex,
       interpolation,
+      outgoing,
+      incoming,
       startPoint,
       endPoint,
       canEdit,
@@ -2310,14 +2569,22 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       };
     }
 
-    const easing = normalizeTimelineCubicBezier(startKeyframe.easing);
     const { controlPoint1, controlPoint2 } = getTimelineKeyframeBezierControlPoints(
       startPoint,
       endPoint,
-      easing
+      outgoing.handle,
+      incoming.handle
     );
-    const handles: TimelineKeyframeCurveHandle<TrackKind>[] = [
-      this.createTimelineKeyframeCurveHandle({
+    const outgoingHandle = normalizeTimelineKeyframeBezierHandle(
+      outgoing.handle,
+      defaultTimelineOutgoingBezierHandle
+    );
+    const incomingHandle = normalizeTimelineKeyframeBezierHandle(
+      incoming.handle,
+      defaultTimelineIncomingBezierHandle
+    );
+    const handles: TimelineKeyframeTangentHandle<TrackKind>[] = [
+      this.createTimelineKeyframeTangentHandle({
         track,
         clip,
         trackIndex,
@@ -2328,43 +2595,42 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         anchorKeyframe: startKeyframe,
         anchorKeyframeIndex: startKeyframeIndex,
         pairedKeyframe: endKeyframe,
-        handle: 'outgoing',
+        side: 'outgoing',
         point: controlPoint1,
         anchorPoint: startPoint,
-        easing,
-        size: curveHandleSize,
+        tangent: outgoingHandle,
+        size: tangentHandleSize,
         canEdit,
       }),
-      this.createTimelineKeyframeCurveHandle({
+      this.createTimelineKeyframeTangentHandle({
         track,
         clip,
         trackIndex,
         clipIndex,
         segmentId,
-        keyframe: startKeyframe,
-        keyframeIndex: startKeyframeIndex,
+        keyframe: endKeyframe,
+        keyframeIndex: endKeyframeIndex,
         anchorKeyframe: endKeyframe,
         anchorKeyframeIndex: endKeyframeIndex,
         pairedKeyframe: startKeyframe,
-        handle: 'incoming',
+        side: 'incoming',
         point: controlPoint2,
         anchorPoint: endPoint,
-        easing,
-        size: curveHandleSize,
+        tangent: incomingHandle,
+        size: tangentHandleSize,
         canEdit,
       }),
     ];
 
     return {
       ...base,
-      easing,
       controlPoint1,
       controlPoint2,
       handles,
     };
   }
 
-  private createTimelineKeyframeCurveHandle<TrackKind>(input: {
+  private createTimelineKeyframeTangentHandle<TrackKind>(input: {
     track: Track<TrackKind>;
     clip: Clip;
     trackIndex: number;
@@ -2375,26 +2641,26 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     anchorKeyframe: TimelineKeyframe;
     anchorKeyframeIndex: number;
     pairedKeyframe: TimelineKeyframe;
-    handle: 'outgoing' | 'incoming';
-    point: TimelineKeyframeCurvePoint;
-    anchorPoint: TimelineKeyframeCurvePoint;
-    easing: NonNullable<TimelineKeyframe['easing']>;
+    side: TimelineKeyframeSide;
+    point: TimelineKeyframePoint;
+    anchorPoint: TimelineKeyframePoint;
+    tangent: NonNullable<TimelineKeyframeTangentHandle['tangent']>;
     size: number;
     canEdit: boolean;
-  }): TimelineKeyframeCurveHandle<TrackKind> {
+  }): TimelineKeyframeTangentHandle<TrackKind> {
     return {
       track: input.track,
       clip: input.clip,
       trackIndex: input.trackIndex,
       clipIndex: input.clipIndex,
       segmentId: input.segmentId,
-      handle: input.handle,
+      side: input.side,
       keyframe: input.keyframe,
       keyframeIndex: input.keyframeIndex,
       anchorKeyframe: input.anchorKeyframe,
       anchorKeyframeIndex: input.anchorKeyframeIndex,
       pairedKeyframe: input.pairedKeyframe,
-      easing: input.easing,
+      tangent: input.tangent,
       anchorPoint: input.anchorPoint,
       point: input.point,
       rect: {
@@ -2403,7 +2669,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         segmentId: input.segmentId,
         keyframeId: input.keyframe.id,
         anchorKeyframeId: input.anchorKeyframe.id,
-        handle: input.handle,
+        side: input.side,
         x: clampViewportCoordinate(input.point.x - input.size / 2, -Infinity, Infinity),
         y: clampViewportCoordinate(input.point.y - input.size / 2, -Infinity, Infinity),
         width: input.size,
@@ -2413,8 +2679,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     };
   }
 
-  private getTimelineKeyframeCurveSegmentBounds<TrackKind>(
-    segment: TimelineKeyframeCurveSegment<TrackKind>
+  private getTimelineKeyframeSegmentBounds<TrackKind>(
+    segment: TimelineKeyframeSegment<TrackKind>
   ): {
     left: number;
     right: number;
@@ -2427,7 +2693,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       segment.controlPoint1,
       segment.controlPoint2,
       ...segment.handles.map((handle) => handle.point),
-    ].filter((point): point is TimelineKeyframeCurvePoint => point !== undefined);
+    ].filter((point): point is TimelineKeyframePoint => point !== undefined);
 
     return points.reduce(
       (bounds, point) => ({
@@ -2449,21 +2715,151 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     return minRational(maxRational(time, clip.timelineStart), clip.timelineEnd);
   }
 
-  private getPreviousClipKeyframe(
-    clip: Clip,
-    property: TimelineKeyframeProperty,
-    time: RationalTime
-  ): TimelineKeyframe | undefined {
-    let previous: TimelineKeyframe | undefined;
-    for (const keyframe of clip.keyframes ?? []) {
-      if (keyframe.property !== property || compareRational(keyframe.time, time) >= 0) {
-        continue;
-      }
-      if (previous === undefined || compareRational(keyframe.time, previous.time) > 0) {
-        previous = keyframe;
-      }
+  private createRegisteredKeyframeProperty(
+    definition: TimelineKeyframePropertyDefinition
+  ): TimelineRegisteredKeyframePropertyDefinition {
+    const defaultValue = this.clampKeyframeDefinitionValue(
+      definition,
+      definition.defaultValue,
+      `keyframe property "${definition.id}".defaultValue`
+    );
+    return Object.freeze({
+      id: definition.id,
+      ...(definition.label === undefined ? {} : { label: definition.label }),
+      min: definition.min,
+      max: definition.max,
+      defaultValue,
+      clampValue: definition.clampValue,
+      normalizeValue: definition.normalizeValue,
+      denormalizeValue: definition.denormalizeValue,
+      ...(definition.formatValue === undefined ? {} : { formatValue: definition.formatValue }),
+      ...(definition.getBaseValue === undefined ? {} : { getBaseValue: definition.getBaseValue }),
+    });
+  }
+
+  private assertValidKeyframePropertyDefinition(definition: TimelineKeyframePropertyDefinition) {
+    assertValidTimelineNumber(definition.min, `keyframe property "${definition.id}".min`);
+    assertValidTimelineNumber(definition.max, `keyframe property "${definition.id}".max`);
+    assertValidTimelineNumber(
+      definition.defaultValue,
+      `keyframe property "${definition.id}".defaultValue`
+    );
+    if (definition.max <= definition.min) {
+      throw new RangeError(`keyframe property "${definition.id}".max must be greater than min.`);
     }
-    return previous;
+
+    const clampedDefault = this.clampKeyframeDefinitionValue(
+      definition,
+      definition.defaultValue,
+      `keyframe property "${definition.id}".defaultValue`
+    );
+    this.normalizeKeyframeDefinitionValue(
+      definition,
+      clampedDefault,
+      `keyframe property "${definition.id}".normalizeValue(defaultValue)`
+    );
+    this.normalizeKeyframeDefinitionValue(
+      definition,
+      definition.min,
+      `keyframe property "${definition.id}".normalizeValue(min)`
+    );
+    this.normalizeKeyframeDefinitionValue(
+      definition,
+      definition.max,
+      `keyframe property "${definition.id}".normalizeValue(max)`
+    );
+    this.denormalizeKeyframeDefinitionValue(
+      definition,
+      0,
+      `keyframe property "${definition.id}".denormalizeValue(0)`
+    );
+    this.denormalizeKeyframeDefinitionValue(
+      definition,
+      1,
+      `keyframe property "${definition.id}".denormalizeValue(1)`
+    );
+  }
+
+  private clampKeyframeDefinitionValue(
+    definition: Pick<TimelineKeyframePropertyDefinition, 'id' | 'min' | 'max' | 'clampValue'>,
+    value: number,
+    label: string
+  ): number {
+    assertValidTimelineNumber(value, label);
+    const clamped = definition.clampValue(value);
+    assertValidTimelineNumber(clamped, `${label} clampValue result`);
+    if (clamped < definition.min || clamped > definition.max) {
+      throw new RangeError(
+        `keyframe property "${definition.id}".clampValue must return a value within min/max.`
+      );
+    }
+    return clamped;
+  }
+
+  private normalizeKeyframeDefinitionValue(
+    definition: Pick<
+      TimelineKeyframePropertyDefinition,
+      'id' | 'min' | 'max' | 'clampValue' | 'normalizeValue'
+    >,
+    value: number,
+    label: string
+  ): number {
+    const clamped = this.clampKeyframeDefinitionValue(definition, value, label);
+    const normalized = definition.normalizeValue(clamped);
+    assertValidTimelineNumber(normalized, `${label} normalizeValue result`);
+    if (normalized < 0 || normalized > 1) {
+      throw new RangeError(
+        `keyframe property "${definition.id}".normalizeValue must return a value between 0 and 1.`
+      );
+    }
+    return normalized;
+  }
+
+  private denormalizeKeyframeDefinitionValue(
+    definition: Pick<
+      TimelineKeyframePropertyDefinition,
+      'id' | 'min' | 'max' | 'clampValue' | 'denormalizeValue'
+    >,
+    normalized: number,
+    label: string
+  ): number {
+    assertValidTimelineNumber(normalized, label);
+    if (normalized < 0 || normalized > 1) {
+      throw new RangeError(`${label} must be between 0 and 1.`);
+    }
+    const denormalized = definition.denormalizeValue(normalized);
+    assertValidTimelineNumber(denormalized, `${label} denormalizeValue result`);
+    if (denormalized < definition.min || denormalized > definition.max) {
+      throw new RangeError(
+        `keyframe property "${definition.id}".denormalizeValue must return a value within min/max.`
+      );
+    }
+    return this.clampKeyframeDefinitionValue(definition, denormalized, label);
+  }
+
+  private getRequiredKeyframePropertyDefinition(
+    property: TimelineKeyframePropertyId
+  ): TimelineRegisteredKeyframePropertyDefinition | null {
+    return this.keyframeProperties.get(property) ?? null;
+  }
+
+  private clampKeyframeValue(property: TimelineKeyframePropertyId, value: number): number | null {
+    const definition = this.getRequiredKeyframePropertyDefinition(property);
+    if (!definition) {
+      return null;
+    }
+    return this.clampKeyframeDefinitionValue(definition, value, 'value');
+  }
+
+  private normalizeKeyframeValue(
+    property: TimelineKeyframePropertyId,
+    value: number
+  ): number | null {
+    const definition = this.getRequiredKeyframePropertyDefinition(property);
+    if (!definition) {
+      return null;
+    }
+    return this.normalizeKeyframeDefinitionValue(definition, value, 'value');
   }
 
   private normalizeClipKeyframes(clip: Clip) {
@@ -2471,7 +2867,21 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       return;
     }
 
-    clip.keyframes = cloneTimelineKeyframes(clip.keyframes);
+    clip.keyframes = cloneTimelineKeyframes(clip.keyframes).map((keyframe) => {
+      const value = this.clampKeyframeValue(keyframe.property, keyframe.value);
+      if (value === null) {
+        throw new RangeError(`Unregistered keyframe property "${keyframe.property}".`);
+      }
+      return { ...keyframe, value };
+    });
+  }
+
+  private validateRegisteredClipKeyframes() {
+    for (const track of this.state.tracks) {
+      for (const clip of track.clips) {
+        this.normalizeClipKeyframes(clip);
+      }
+    }
   }
 
   private commitKeyframeMutation(options: TimelineKeyframeMutationOptions) {
@@ -3102,8 +3512,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           property: keyframe.property,
           time: timeKey(keyframe.time),
           value: keyframe.value,
-          interpolation: keyframe.interpolation ?? null,
-          easing: keyframe.easing ?? null,
+          incoming: keyframe.incoming ?? null,
+          outgoing: keyframe.outgoing ?? null,
           selected: keyframe.selected ?? null,
         })) ?? null,
     });

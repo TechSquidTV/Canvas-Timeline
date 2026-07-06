@@ -1,11 +1,4 @@
-import type { Clip } from '@techsquidtv/canvas-timeline-core';
-import {
-  getTimelineKeyframeBezierControlPoints,
-  getTimelineKeyframeValuePoint,
-  normalizeTimelineCubicBezier,
-  normalizeTimelineKeyframeInterpolation,
-} from '@techsquidtv/canvas-timeline-core';
-import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { Clip, TimelineKeyframeRenderClip } from '@techsquidtv/canvas-timeline-core';
 import { timeToX } from './geometry';
 import type { RenderContext } from './types';
 
@@ -55,12 +48,7 @@ export function drawClip(renderContext: ClipRenderContext) {
   ctx.clip();
 
   if (renderContext.options.showKeyframes) {
-    drawClipKeyframes(renderContext, {
-      clipX: startX,
-      clipWidth,
-      clipY,
-      clipHeight,
-    });
+    drawClipKeyframes(renderContext);
   }
 
   if (renderContext.options.showClipLabels && clipWidth > 20) {
@@ -79,85 +67,21 @@ export function drawClip(renderContext: ClipRenderContext) {
   ctx.restore();
 }
 
-function drawClipKeyframes(
-  renderContext: ClipRenderContext,
-  metrics: {
-    clipX: number;
-    clipWidth: number;
-    clipY: number;
-    clipHeight: number;
-  }
-) {
+function drawClipKeyframes(renderContext: ClipRenderContext) {
   const { ctx, clip, theme } = renderContext;
-  const keyframes = (clip.keyframes ?? [])
-    .filter(
-      (keyframe) =>
-        keyframe.property === 'opacity' &&
-        toSeconds(keyframe.time) >= toSeconds(clip.timelineStart) &&
-        toSeconds(keyframe.time) <= toSeconds(clip.timelineEnd)
-    )
-    .sort((a, b) => toSeconds(a.time) - toSeconds(b.time));
-
-  if (keyframes.length === 0) {
+  const clipGeometry = renderContext.keyframeGeometryByClip?.get(clip.id);
+  if (
+    clipGeometry === undefined ||
+    (clipGeometry.points.length === 0 && clipGeometry.segments.length === 0)
+  ) {
     return;
   }
 
   const handleSize = 6;
-  const valuePadding = Math.max(5, Math.min(10, metrics.clipHeight / 4));
-  const getKeyframePoint = (keyframe: (typeof keyframes)[number]) =>
-    getTimelineKeyframeValuePoint({
-      timeX: timeToX(renderContext, keyframe.time),
-      value: keyframe.value,
-      clipX: metrics.clipX,
-      clipWidth: metrics.clipWidth,
-      clipY: metrics.clipY,
-      clipHeight: metrics.clipHeight,
-      valuePadding,
-      handleSize,
-    });
+  drawPreparedKeyframeSegments(renderContext, clipGeometry);
 
-  if (keyframes.length > 1) {
-    ctx.save();
-    ctx.beginPath();
-    const firstPoint = getKeyframePoint(keyframes[0]);
-    ctx.moveTo(firstPoint.x, firstPoint.y);
-
-    for (let index = 1; index < keyframes.length; index++) {
-      const previousKeyframe = keyframes[index - 1];
-      const previousPoint = getKeyframePoint(previousKeyframe);
-      const point = getKeyframePoint(keyframes[index]);
-
-      const interpolation = normalizeTimelineKeyframeInterpolation(previousKeyframe.interpolation);
-      if (interpolation === 'hold') {
-        ctx.lineTo(point.x, previousPoint.y);
-        ctx.lineTo(point.x, point.y);
-      } else if (interpolation === 'bezier') {
-        const easing = normalizeTimelineCubicBezier(previousKeyframe.easing);
-        const { controlPoint1, controlPoint2 } = getTimelineKeyframeBezierControlPoints(
-          previousPoint,
-          point,
-          easing
-        );
-        ctx.bezierCurveTo(
-          controlPoint1.x,
-          controlPoint1.y,
-          controlPoint2.x,
-          controlPoint2.y,
-          point.x,
-          point.y
-        );
-      } else {
-        ctx.lineTo(point.x, point.y);
-      }
-    }
-    ctx.strokeStyle = theme.colors.keyframe.line;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  for (const keyframe of keyframes) {
-    const point = getKeyframePoint(keyframe);
+  for (const keyframe of clipGeometry.points) {
+    const point = keyframe.point;
     ctx.save();
     ctx.translate(point.x, point.y);
     ctx.rotate(Math.PI / 4);
@@ -172,4 +96,43 @@ function drawClipKeyframes(
     ctx.strokeRect(-handleSize / 2, -handleSize / 2, handleSize, handleSize);
     ctx.restore();
   }
+}
+
+function drawPreparedKeyframeSegments(
+  renderContext: ClipRenderContext,
+  clipGeometry: TimelineKeyframeRenderClip
+) {
+  const { ctx, theme } = renderContext;
+  if (clipGeometry.segments.length === 0) {
+    return;
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  for (const segment of clipGeometry.segments) {
+    ctx.moveTo(segment.startPoint.x, segment.startPoint.y);
+    if (segment.interpolation === 'hold') {
+      ctx.lineTo(segment.endPoint.x, segment.startPoint.y);
+      ctx.lineTo(segment.endPoint.x, segment.endPoint.y);
+    } else if (
+      segment.interpolation === 'bezier' &&
+      segment.controlPoint1 !== undefined &&
+      segment.controlPoint2 !== undefined
+    ) {
+      ctx.bezierCurveTo(
+        segment.controlPoint1.x,
+        segment.controlPoint1.y,
+        segment.controlPoint2.x,
+        segment.controlPoint2.y,
+        segment.endPoint.x,
+        segment.endPoint.y
+      );
+    } else {
+      ctx.lineTo(segment.endPoint.x, segment.endPoint.y);
+    }
+  }
+  ctx.strokeStyle = theme.colors.keyframe.line;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
 }

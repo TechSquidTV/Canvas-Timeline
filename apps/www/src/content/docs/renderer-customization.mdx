@@ -53,9 +53,10 @@ only shape the built-in clip body inside that row:
 
 ## Keyframe drawing
 
-`CanvasRenderer` draws clip keyframe curves and diamonds by default. The renderer
-uses the same keyframe interpolation helpers as the engine, so canvas visuals
-match evaluated `linear`, `hold`, and `bezier` property values.
+`CanvasRenderer` draws clip keyframe segments and diamonds when you pass a
+registered `keyframeProperty` id. The main-thread renderer binding asks the
+engine for prepared keyframe geometry, then the worker draws that serializable
+geometry. The worker does not normalize property values or assume opacity.
 
 Disable the built-in keyframe layer when an app wants to draw custom automation
 curves:
@@ -65,10 +66,10 @@ curves:
 ```
 
 Use `Timeline.KeyframeInteractionLayer` for DOM hit targets over canvas-drawn
-keyframes. Use `Timeline.KeyframeCurveInteractionLayer` for optional inline
-Bezier handles on selected curve segments. Fully custom renderers can read
-keyframe geometry through `useTimelineKeyframes()` and curve geometry through
-`useTimelineKeyframeCurves()`.
+keyframes. Use `Timeline.KeyframeTangentInteractionLayer` for optional inline
+Bezier handles on selected segments. Fully custom renderers can read keyframe
+geometry through `useTimelineKeyframes()` and segment/tangent geometry through
+`useTimelineKeyframeSegments()`.
 
 ## Theme changes
 

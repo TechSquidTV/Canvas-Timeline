@@ -5,7 +5,18 @@ import type {
   TimelineKeyframe,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
+import { createTimelineScalarKeyframeProperty } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+
+export const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  label: 'Opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+  formatValue: (value) => `${Math.round(value * 100)}%`,
+  getBaseValue: (clip) => clip.opacity ?? 1,
+});
 
 export const opacityKeyframeValuePadding = 10;
 const opacityKeyframeToggleRadiusPixels = 10;
@@ -63,8 +74,7 @@ export function toggleOpacityKeyframeAtTime(
     return engine.removeClipKeyframe(clipId, existing.id);
   }
 
-  // Omitting interpolation lets new keyframes inherit the previous keyframe's
-  // interpolation mode and easing, keeping the segment's curve character.
+  // New keyframes use linear side defaults until the app assigns side interpolation.
   return Boolean(
     engine.setClipKeyframe({
       clipId,

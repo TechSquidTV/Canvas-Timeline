@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test';
 import { TimelineEngine } from './engine';
 import {
-  getTimelineCubicBezierProgress,
+  createTimelineScalarKeyframeProperty,
+  getTimelineKeyframeBezierProgress,
   getTimelineKeyframeBezierControlPoints,
 } from './keyframes';
 import type { Clip, Track } from './types';
@@ -12,6 +13,27 @@ import {
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
 import { expectDefined } from '../../../test-utils/assertions';
+
+const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'opacity',
+  label: 'Opacity',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+  formatValue: (value) => `${Math.round(value * 100)}%`,
+  getBaseValue: (clip) => clip.opacity ?? 1,
+});
+const nonlinearKeyframeProperty = {
+  id: 'gamma',
+  label: 'Gamma',
+  min: 0,
+  max: 100,
+  defaultValue: 0,
+  clampValue: (value: number) => Math.max(0, Math.min(100, value)),
+  normalizeValue: (value: number) => Math.sqrt(Math.max(0, Math.min(100, value)) / 100),
+  denormalizeValue: (normalized: number) => Math.max(0, Math.min(1, normalized)) ** 2 * 100,
+  formatValue: (value: number) => `${Math.round(value)}`,
+};
 
 type TimelineEngineInternals = {
   historyManager: {
@@ -54,6 +76,7 @@ describe('TimelineEngine', () => {
     engine = new TimelineEngine({
       tracks: [mockTrack],
       playheadTime: fromSeconds(0),
+      keyframeProperties: [opacityKeyframeProperty],
     });
   });
 
@@ -2217,6 +2240,7 @@ describe('TimelineEngine', () => {
     it('inserts clip groups atomically and shifts placed keyframes', () => {
       const groupedEngine = new TimelineEngine({
         tracks: [createConstraintTrack('video', []), createConstraintTrack('audio', [], 'audio')],
+        keyframeProperties: [opacityKeyframeProperty],
       });
       const group = groupedEngine.insertClipGroup({
         groupId: 'import-group',
@@ -2922,7 +2946,183 @@ describe('TimelineEngine', () => {
       return (clip?.keyframes ?? []).map((keyframe) => toSeconds(keyframe.time));
     }
 
-    it('sets, updates, and evaluates opacity keyframes with interpolation modes', () => {
+    it('stores registered keyframe properties as immutable snapshots', () => {
+      const registryEngine = new TimelineEngine({ tracks: [] });
+      const scaleOptions = {
+        id: 'scale',
+        label: 'Scale',
+        min: 0,
+        max: 4,
+        defaultValue: 1,
+      };
+      const scaleProperty = createTimelineScalarKeyframeProperty(scaleOptions);
+
+      registryEngine.registerKeyframeProperty(scaleProperty);
+      scaleOptions.max = 12;
+      scaleProperty.label = 'Changed';
+
+      const registered = expectDefined(
+        registryEngine.getKeyframePropertyDefinition('scale'),
+        'registered keyframe property'
+      );
+      expect(Object.isFrozen(registered)).toBe(true);
+      expect(registered.label).toBe('Scale');
+      expect(registered.clampValue(8)).toBe(4);
+      expect(registered.normalizeValue(2)).toBe(0.5);
+      expect(registryEngine.hasKeyframeProperty('scale')).toBe(true);
+      expect(registryEngine.listKeyframeProperties()).toEqual([registered]);
+    });
+
+    it('rejects keyframe property definitions with invalid mapping outputs', () => {
+      expect(
+        () =>
+          new TimelineEngine({
+            tracks: [],
+            keyframeProperties: [
+              {
+                ...nonlinearKeyframeProperty,
+                id: 'bad-clamp',
+                clampValue: () => Number.NaN,
+              },
+            ],
+          })
+      ).toThrow('clampValue result');
+      expect(
+        () =>
+          new TimelineEngine({
+            tracks: [],
+            keyframeProperties: [
+              {
+                ...nonlinearKeyframeProperty,
+                id: 'bad-normalize',
+                normalizeValue: () => 2,
+              },
+            ],
+          })
+      ).toThrow('normalizeValue must return a value between 0 and 1');
+      expect(
+        () =>
+          new TimelineEngine({
+            tracks: [],
+            keyframeProperties: [
+              {
+                ...nonlinearKeyframeProperty,
+                id: 'bad-denormalize',
+                denormalizeValue: () => 101,
+              },
+            ],
+          })
+      ).toThrow('denormalizeValue must return a value within min/max');
+    });
+
+    it('rejects invalid custom property outputs during evaluation', () => {
+      const unstableKeyframeProperty = {
+        id: 'unstable',
+        label: 'Unstable',
+        min: 0,
+        max: 1,
+        defaultValue: 0,
+        clampValue: (value: number) => Math.max(0, Math.min(1, value)),
+        normalizeValue: (value: number) => Math.max(0, Math.min(1, value)),
+        denormalizeValue: (normalized: number) =>
+          normalized > 0.49 && normalized < 0.51 ? Number.NaN : normalized,
+      };
+      const unstableEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(0),
+                timelineEnd: fromSeconds(10),
+                keyframes: [
+                  {
+                    id: 'unstable-start',
+                    property: 'unstable',
+                    time: fromSeconds(0),
+                    value: 0,
+                  },
+                  {
+                    id: 'unstable-end',
+                    property: 'unstable',
+                    time: fromSeconds(10),
+                    value: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        keyframeProperties: [unstableKeyframeProperty],
+      });
+
+      expect(() =>
+        unstableEngine.getClipPropertyValueAtTime('clip1', 'unstable', fromSeconds(5))
+      ).toThrow('denormalizeValue result');
+    });
+
+    it('evaluates nonlinear properties in normalized space and prepares matching geometry', () => {
+      const nonlinearEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(0),
+                timelineEnd: fromSeconds(10),
+                keyframes: [
+                  {
+                    id: 'gamma-start',
+                    property: 'gamma',
+                    time: fromSeconds(0),
+                    value: 0,
+                  },
+                  {
+                    id: 'gamma-middle',
+                    property: 'gamma',
+                    time: fromSeconds(5),
+                    value: 25,
+                  },
+                  {
+                    id: 'gamma-end',
+                    property: 'gamma',
+                    time: fromSeconds(10),
+                    value: 100,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        keyframeProperties: [nonlinearKeyframeProperty],
+        zoomScale: 100,
+      });
+
+      expect(
+        nonlinearEngine.getClipPropertyValueAtTime('clip1', 'gamma', fromSeconds(2.5))
+      ).toBeCloseTo(6.25);
+
+      const geometry = nonlinearEngine.getKeyframeRenderGeometry({
+        property: 'gamma',
+        rulerHeight: 32,
+        trackHeight: 48,
+        viewportHeight: 100,
+        viewportWidth: 1000,
+      });
+      const renderClip = expectDefined(geometry.clips[0], 'gamma render clip');
+      const middlePoint = expectDefined(
+        renderClip.points.find((point) => point.keyframeId === 'gamma-middle'),
+        'gamma middle point'
+      );
+      const middleCenterY = middlePoint.rect.y + middlePoint.rect.height / 2;
+
+      expect(middleCenterY).toBeCloseTo(56);
+      expect(renderClip.segments).toHaveLength(2);
+    });
+
+    it('sets, updates, and evaluates registered keyframes with side-aware interpolation', () => {
       const addEvent = vi.fn();
       const updateEvent = vi.fn();
       engine.on('keyframe:add', addEvent);
@@ -2941,7 +3141,7 @@ describe('TimelineEngine', () => {
         property: 'opacity',
         time: fromSeconds(3),
         value: 0,
-        interpolation: 'hold',
+        outgoing: { interpolation: 'hold' },
       });
       engine.setClipKeyframe({
         clipId: 'clip1',
@@ -2965,87 +3165,119 @@ describe('TimelineEngine', () => {
         value: 0.25,
       });
 
-      expect(updatedBySet?.interpolation).toBe('hold');
+      expect(updatedBySet?.outgoing?.interpolation).toBe('hold');
       expect(engine.getClipPropertyValueAtTime('clip1', 'opacity', fromSeconds(4))).toBe(0.25);
 
       const updated = engine.updateClipKeyframe({
         clipId: 'clip1',
         keyframeId: middle.id,
         value: 0.25,
-        interpolation: 'linear',
+        outgoing: { interpolation: 'linear' },
       });
 
       expect(updated?.value).toBe(0.25);
       expect(engine.getClipPropertyValueAtTime('clip1', 'opacity', fromSeconds(4))).toBe(0.625);
 
-      const bezier = engine.updateClipKeyframe({
+      const bezier = engine.updateClipKeyframeSides({
         clipId: 'clip1',
         keyframeId: middle.id,
-        interpolation: 'bezier',
-        easing: { x1: 0.2, y1: 1, x2: 0.8, y2: 1 },
+        incoming: {
+          interpolation: 'bezier',
+          handle: { x: 0.8, y: 0 },
+        },
+        outgoing: {
+          interpolation: 'bezier',
+          handle: { x: 0.2, y: 1 },
+        },
       });
       const expectedBezierValue =
-        0.25 + (1 - 0.25) * getTimelineCubicBezierProgress(0.5, { x1: 0.2, y1: 1, x2: 0.8, y2: 1 });
+        0.25 + (1 - 0.25) * getTimelineKeyframeBezierProgress(0.5, { x: 0.2, y: 1 }, undefined);
 
-      expect(bezier?.interpolation).toBe('bezier');
-      expect(bezier?.easing).toEqual({ x1: 0.2, y1: 1, x2: 0.8, y2: 1 });
+      expect(bezier?.incoming).toEqual({ interpolation: 'bezier', handle: { x: 0.8, y: 0 } });
+      expect(bezier?.outgoing).toEqual({ interpolation: 'bezier', handle: { x: 0.2, y: 1 } });
       expect(engine.getClipPropertyValueAtTime('clip1', 'opacity', fromSeconds(4))).toBeCloseTo(
         expectedBezierValue
       );
 
-      const reset = engine.updateClipKeyframe({
+      const defaultedHandle = engine.updateClipKeyframeSide({
         clipId: 'clip1',
         keyframeId: middle.id,
-        interpolation: 'linear',
+        side: 'outgoing',
+        patch: { interpolation: 'bezier', handle: null },
       });
-      expect(reset?.easing).toBeUndefined();
+      expect(defaultedHandle?.outgoing).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.42, y: 0 },
+      });
+
+      const reset = engine.updateClipKeyframeSide({
+        clipId: 'clip1',
+        keyframeId: middle.id,
+        side: 'outgoing',
+        patch: { interpolation: 'linear' },
+      });
+      expect(reset?.outgoing?.interpolation).toBe('linear');
 
       expect(addEvent).toHaveBeenCalledTimes(3);
-      expect(updateEvent).toHaveBeenCalledTimes(4);
+      expect(updateEvent).toHaveBeenCalledTimes(5);
     });
 
-    it('inherits interpolation and easing from the previous keyframe when placing new keyframes', () => {
-      const easing = { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 };
+    it('does not inherit side interpolation from neighboring keyframes', () => {
       const first = engine.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
         time: fromSeconds(4),
         value: 1,
       });
-      expect(first?.interpolation).toBe('linear');
+      expect(first?.incoming).toBeUndefined();
+      expect(first?.outgoing).toBeUndefined();
 
       engine.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
         time: fromSeconds(1),
         value: 0,
-        interpolation: 'bezier',
-        easing,
+        outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
       });
 
-      const inherited = engine.setClipKeyframe({
+      const independent = engine.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
         time: fromSeconds(2),
         value: 0.5,
       });
-      expect(inherited?.interpolation).toBe('bezier');
-      expect(inherited?.easing).toEqual(easing);
+      expect(independent?.incoming).toBeUndefined();
+      expect(independent?.outgoing).toBeUndefined();
 
       const explicit = engine.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
         time: fromSeconds(3),
         value: 0.75,
-        interpolation: 'linear',
+        incoming: { interpolation: 'linear' },
       });
-      expect(explicit?.interpolation).toBe('linear');
-      expect(explicit?.easing).toBeUndefined();
+      expect(explicit?.incoming?.interpolation).toBe('linear');
+      expect(explicit?.outgoing).toBeUndefined();
+    });
+
+    it('rejects unregistered keyframe properties', () => {
+      expect(
+        engine.setClipKeyframe({
+          clipId: 'clip1',
+          property: 'volume',
+          time: fromSeconds(2),
+          value: 0.5,
+        })
+      ).toBeNull();
+      expect(engine.getClipPropertyValueAtTime('clip1', 'volume', fromSeconds(2))).toBeUndefined();
     });
 
     it('keeps neighboring keyframes when preview updates collide', () => {
       const track = createKeyframeTrack([createKeyframeClip('kf-clip', 0, 10, [2, 3])]);
-      const previewEngine = new TimelineEngine({ tracks: [track] });
+      const previewEngine = new TimelineEngine({
+        tracks: [track],
+        keyframeProperties: [opacityKeyframeProperty],
+      });
       const dragged = expectDefined(
         previewEngine.getClipKeyframes('kf-clip')[1],
         'dragged keyframe'
@@ -3069,8 +3301,8 @@ describe('TimelineEngine', () => {
       expect(keyframeSeconds(previewEngine.getClip('kf-clip')?.clip)).toEqual([2]);
     });
 
-    it('keeps bezier easing scoped to bezier keyframes when cloning state', () => {
-      const easingEngine = new TimelineEngine({
+    it('clones side interpolation state without property-specific fallbacks', () => {
+      const sideEngine = new TimelineEngine({
         tracks: [
           {
             ...mockTrack,
@@ -3079,33 +3311,33 @@ describe('TimelineEngine', () => {
                 ...mockClip,
                 keyframes: [
                   {
-                    id: 'linear-with-easing',
+                    id: 'linear-with-handle',
                     property: 'opacity',
                     time: fromSeconds(2),
                     value: 0.5,
-                    interpolation: 'linear',
-                    easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+                    outgoing: { interpolation: 'linear', handle: { x: 0.2, y: 0.8 } },
                   },
                   {
-                    id: 'bezier-without-easing',
+                    id: 'bezier-without-handle',
                     property: 'opacity',
                     time: fromSeconds(3),
                     value: 0.75,
-                    interpolation: 'bezier',
+                    incoming: { interpolation: 'bezier' },
                   },
                 ],
               },
             ],
           },
         ],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
-      expect(easingEngine.getClipKeyframes('clip1')[0].easing).toBeUndefined();
-      expect(easingEngine.getClipKeyframes('clip1')[1].easing).toEqual({
-        x1: 0.42,
-        y1: 0,
-        x2: 0.58,
-        y2: 1,
+      expect(sideEngine.getClipKeyframes('clip1')[0].outgoing).toEqual({
+        interpolation: 'linear',
+      });
+      expect(sideEngine.getClipKeyframes('clip1')[1].incoming).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.58, y: 1 },
       });
     });
 
@@ -3167,6 +3399,7 @@ describe('TimelineEngine', () => {
           },
         ],
         zoomScale: 100,
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       const clipRect = expectDefined(
@@ -3202,8 +3435,8 @@ describe('TimelineEngine', () => {
       expect(endHit?.keyframe.id).toBe('opacity-end');
     });
 
-    it('exposes keyframe curve segments and Bezier handles with shared control point math', () => {
-      const curveEngine = new TimelineEngine({
+    it('exposes keyframe segments and Bezier tangent handles with shared control point math', () => {
+      const segmentEngine = new TimelineEngine({
         tracks: [
           {
             ...mockTrack,
@@ -3216,8 +3449,7 @@ describe('TimelineEngine', () => {
                     property: 'opacity',
                     time: fromSeconds(1),
                     value: 0.2,
-                    interpolation: 'bezier',
-                    easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+                    outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
                     selected: true,
                   },
                   {
@@ -3225,7 +3457,8 @@ describe('TimelineEngine', () => {
                     property: 'opacity',
                     time: fromSeconds(3),
                     value: 0.8,
-                    interpolation: 'hold',
+                    incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
+                    outgoing: { interpolation: 'hold' },
                   },
                   {
                     id: 'opacity-end',
@@ -3239,14 +3472,15 @@ describe('TimelineEngine', () => {
           },
         ],
         zoomScale: 100,
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
-      const segments = curveEngine.getKeyframeCurveSegments({
+      const segments = segmentEngine.getKeyframeSegments({
         property: 'opacity',
         rulerHeight: 32,
         trackHeight: 48,
         keyframeSize: 6,
-        curveHandleSize: 8,
+        tangentHandleSize: 8,
         keyframeValuePadding: 7,
       });
 
@@ -3259,7 +3493,8 @@ describe('TimelineEngine', () => {
       const expectedControlPoints = getTimelineKeyframeBezierControlPoints(
         segments[0].startPoint,
         segments[0].endPoint,
-        { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 }
+        { x: 0.2, y: 0.8 },
+        { x: 0.8, y: 0.2 }
       );
 
       expect(segments[0].controlPoint1).toEqual(expectedControlPoints.controlPoint1);
@@ -3268,8 +3503,8 @@ describe('TimelineEngine', () => {
       expect(segments[0].handles[1].point).toEqual(expectedControlPoints.controlPoint2);
     });
 
-    it('hit-tests Bezier curve handles with pointer padding', () => {
-      const curveEngine = new TimelineEngine({
+    it('hit-tests Bezier tangent handles with pointer padding', () => {
+      const segmentEngine = new TimelineEngine({
         tracks: [
           {
             ...mockTrack,
@@ -3282,14 +3517,14 @@ describe('TimelineEngine', () => {
                     property: 'opacity',
                     time: fromSeconds(1),
                     value: 0.2,
-                    interpolation: 'bezier',
-                    easing: { x1: 0.25, y1: 0.75, x2: 0.75, y2: 0.25 },
+                    outgoing: { interpolation: 'bezier', handle: { x: 0.25, y: 0.75 } },
                   },
                   {
                     id: 'opacity-end',
                     property: 'opacity',
                     time: fromSeconds(5),
                     value: 0.8,
+                    incoming: { interpolation: 'bezier', handle: { x: 0.75, y: 0.25 } },
                   },
                 ],
               },
@@ -3297,42 +3532,43 @@ describe('TimelineEngine', () => {
           },
         ],
         zoomScale: 100,
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       const segment = expectDefined(
-        curveEngine.getKeyframeCurveSegments({
+        segmentEngine.getKeyframeSegments({
           property: 'opacity',
           rulerHeight: 32,
           trackHeight: 48,
-          curveHandleSize: 8,
+          tangentHandleSize: 8,
         })[0],
-        'curve segment'
+        'keyframe segment'
       );
       const outgoing = expectDefined(segment.handles[0], 'outgoing handle');
-      const exactHit = curveEngine.getKeyframeCurveHandleAtPoint({
+      const exactHit = segmentEngine.getKeyframeTangentHandleAtPoint({
         property: 'opacity',
         x: outgoing.point.x,
         y: outgoing.point.y,
         rulerHeight: 32,
         trackHeight: 48,
-        curveHandleSize: 8,
+        tangentHandleSize: 8,
       });
-      const touchHit = curveEngine.getKeyframeCurveHandleAtPoint({
+      const touchHit = segmentEngine.getKeyframeTangentHandleAtPoint({
         property: 'opacity',
         x: outgoing.rect.x - 6,
         y: outgoing.rect.y - 6,
         pointerType: 'touch',
         rulerHeight: 32,
         trackHeight: 48,
-        curveHandleSize: 8,
+        tangentHandleSize: 8,
       });
 
-      expect(exactHit?.handle).toBe('outgoing');
-      expect(touchHit?.handle).toBe('outgoing');
+      expect(exactHit?.side).toBe('outgoing');
+      expect(touchHit?.side).toBe('outgoing');
     });
 
-    it('filters keyframe curve segments by selected keyframes and viewport visibility', () => {
-      const curveEngine = new TimelineEngine({
+    it('filters keyframe segments by selected keyframes and viewport visibility', () => {
+      const segmentEngine = new TimelineEngine({
         tracks: [
           createKeyframeTrack([
             {
@@ -3343,15 +3579,14 @@ describe('TimelineEngine', () => {
                   property: 'opacity',
                   time: fromSeconds(-1),
                   value: 0.1,
-                  interpolation: 'bezier',
+                  outgoing: { interpolation: 'bezier' },
                 },
                 {
                   id: 'visible-start',
                   property: 'opacity',
                   time: fromSeconds(2),
                   value: 0.3,
-                  interpolation: 'bezier',
-                  easing: { x1: 0.2, y1: 1, x2: 0.8, y2: 0 },
+                  outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 1 } },
                   selected: true,
                 },
                 {
@@ -3359,6 +3594,7 @@ describe('TimelineEngine', () => {
                   property: 'opacity',
                   time: fromSeconds(8),
                   value: 0.7,
+                  incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0 } },
                 },
                 {
                   id: 'out-of-range-end',
@@ -3371,15 +3607,16 @@ describe('TimelineEngine', () => {
           ]),
         ],
         zoomScale: 100,
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
-      const selectedSegments = curveEngine.getKeyframeCurveSegments({
+      const selectedSegments = segmentEngine.getKeyframeSegments({
         property: 'opacity',
         selectedKeyframeOnly: true,
         rulerHeight: 32,
         trackHeight: 48,
       });
-      const visibleSegments = curveEngine.getVisibleKeyframeCurveSegments({
+      const visibleSegments = segmentEngine.getVisibleKeyframeSegments({
         property: 'opacity',
         viewportWidth: 150,
         rulerHeight: 32,
@@ -3398,29 +3635,47 @@ describe('TimelineEngine', () => {
         property: 'opacity',
         time: fromSeconds(2),
         value: 0.2,
+        outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
       });
       engine.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
         time: fromSeconds(4),
         value: 0.8,
+        incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
       });
 
       engine.moveClip({ clipId: 'clip1', startTime: fromSeconds(3) });
-      expect(engine.getClipKeyframes('clip1').map((keyframe) => toSeconds(keyframe.time))).toEqual([
-        4, 6,
-      ]);
+      const movedKeyframes = engine.getClipKeyframes('clip1');
+      expect(movedKeyframes.map((keyframe) => toSeconds(keyframe.time))).toEqual([4, 6]);
+      expect(movedKeyframes[0].outgoing).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.2, y: 0.8 },
+      });
+      expect(movedKeyframes[1].incoming).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.8, y: 0.2 },
+      });
 
       expect(engine.splitClip('clip1', fromSeconds(5))).toBe(true);
       const clips = engine.getState().tracks[0].clips;
       expect(clips).toHaveLength(2);
       expect(clips[0].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([4]);
       expect(clips[1].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([6]);
+      expect(clips[0].keyframes?.[0].outgoing).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.2, y: 0.8 },
+      });
+      expect(clips[1].keyframes?.[0].incoming).toEqual({
+        interpolation: 'bezier',
+        handle: { x: 0.8, y: 0.2 },
+      });
     });
 
     it('removes out-of-range keyframes when clips are trimmed directly', () => {
       const trimEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('trimmed', 0, 10, [1, 3, 5, 8])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       trimEngine.trimClip('trimmed', 'start', fromSeconds(2));
@@ -3433,6 +3688,7 @@ describe('TimelineEngine', () => {
     it('preserves selected clip keyframes through cut and shifts them on paste', () => {
       const cutEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('cut-source', 1, 5, [2, 4])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       cutEngine.selectClip('cut-source');
@@ -3450,6 +3706,7 @@ describe('TimelineEngine', () => {
     it('filters keyframes when range removals trim clip edges', () => {
       const deleteRangeEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('delete-victim', 0, 10, [1, 4, 8])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       deleteRangeEngine.commitEdit({
@@ -3469,6 +3726,7 @@ describe('TimelineEngine', () => {
 
       const liftRangeEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('lift-victim', 0, 10, [2, 6, 8])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       liftRangeEngine.commitEdit({
@@ -3490,6 +3748,7 @@ describe('TimelineEngine', () => {
     it('filters keyframes when overwrite edits trim clip edges', () => {
       const overwriteStartEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('start-victim', 0, 10, [1, 4, 8])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       overwriteStartEngine.commitEdit({
@@ -3509,6 +3768,7 @@ describe('TimelineEngine', () => {
 
       const overwriteEndEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('end-victim', 0, 10, [1, 4, 8])])],
+        keyframeProperties: [opacityKeyframeProperty],
       });
 
       overwriteEndEngine.commitEdit({

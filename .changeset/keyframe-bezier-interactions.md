@@ -1,6 +1,8 @@
 ---
-'@techsquidtv/canvas-timeline-core': patch
-'@techsquidtv/canvas-timeline-react': patch
 ---
 
-Improve keyframe and Bezier curve handle interactions. Keyframe and curve handles now render invisible padded hit targets (new `hitPadding` prop) around their visual shapes so near-miss presses grab the handle instead of falling through to the clip interaction layer. The curve layer gained guarded pointer capture with document-level fallback listeners and now selects the anchor keyframe on drag start. Keyframe drag previews are non-destructive: colliding neighbors are no longer deleted during `{ commit: false }` updates, only on committed edits. New keyframes created without an explicit `interpolation` inherit the previous keyframe's interpolation mode and Bezier easing.
+Breaking keyframe API cleanup: replace keyframe-level `interpolation` and `easing` with generic scalar keyframe properties and side-aware `incoming`/`outgoing` interpolation data. Apps now register keyframeable properties explicitly with `createTimelineScalarKeyframeProperty()`, while core owns registered property validation, normalized evaluation, Bezier segment math, tangent geometry, and serializable render geometry.
+
+React keyframe hooks and interaction layers now expose segment/tangent terminology, side update commands, padded hit targets, pointer-captured tangent dragging, keyboard/focus affordances, and structured `invalid-input` command failures for malformed public command input. Renderer keyframe drawing now consumes core-prepared geometry for an app-provided property id instead of normalizing clip keyframes itself.
+
+The opacity docs demo opts into opacity as an ordinary app-registered property. No compatibility aliases, fallback readers, or opacity-specific keyframe branches are included.

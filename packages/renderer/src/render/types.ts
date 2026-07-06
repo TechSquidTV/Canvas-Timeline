@@ -1,4 +1,6 @@
 import type {
+  TimelineKeyframeRenderClip,
+  TimelineKeyframeRenderGeometry,
   TimelineRulerLabelFormat,
   TimelineRulerTickOptions,
   TimelineState,
@@ -34,6 +36,8 @@ export interface TimelineRenderOptions {
   showClipLabels?: boolean;
   /** Draw keyframe curves and handles inside visible clips. */
   showKeyframes?: boolean;
+  /** Core-prepared keyframe geometry drawn when `showKeyframes` is true. */
+  keyframeGeometry?: TimelineKeyframeRenderGeometry;
   /** Draw text labels on ruler ticks. */
   showRulerLabels?: boolean;
   /** Optional ruler tick and label configuration. */
@@ -43,9 +47,10 @@ export interface TimelineRenderOptions {
 }
 
 export type ResolvedTimelineRenderOptions = Required<
-  Omit<TimelineRenderOptions, 'theme' | 'ruler'>
+  Omit<TimelineRenderOptions, 'theme' | 'ruler' | 'keyframeGeometry'>
 > & {
   ruler?: TimelineRulerOptions;
+  keyframeGeometry?: TimelineKeyframeRenderGeometry;
   theme: TimelineRendererTheme;
 };
 
@@ -55,5 +60,6 @@ export type RenderContext = {
   width: number;
   height: number;
   options: ResolvedTimelineRenderOptions;
+  keyframeGeometryByClip?: ReadonlyMap<string, TimelineKeyframeRenderClip>;
   theme: TimelineRendererTheme;
 };

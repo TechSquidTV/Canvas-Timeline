@@ -13,7 +13,8 @@
   .timecode-input,
   .timecode-field,
   .timeline-clip-interaction-layer,
-  .timeline-keyframe-interaction-layer
+  .timeline-keyframe-interaction-layer,
+  .timeline-keyframe-tangent-interaction-layer
 ) {
   --timeline-panel: var(--background);
   --timeline-panel-muted: var(--muted);
@@ -113,7 +114,8 @@
 }
 
 .timeline-clip-interaction-layer:focus-visible,
-.timeline-keyframe-interaction-layer:focus-visible {
+.timeline-keyframe-interaction-layer:focus-visible,
+.timeline-keyframe-tangent-interaction-layer:focus-visible {
   outline: 1.5px solid var(--timeline-clip-focus-ring);
   outline-offset: -1.5px;
 }
@@ -416,14 +418,14 @@
   cursor: grabbing;
 }
 
-.timeline-keyframe-curve-line {
+.timeline-keyframe-tangent-line {
   stroke: var(--timeline-keyframe-stroke-selected);
   stroke-width: 1px;
   stroke-dasharray: 3 3;
   opacity: 0.75;
 }
 
-.timeline-keyframe-curve-handle-shape {
+.timeline-keyframe-tangent-handle-shape {
   border: 1px solid var(--timeline-keyframe-stroke-selected);
   border-radius: var(--timeline-radius-full);
   background: var(--timeline-panel);
@@ -437,23 +439,23 @@
     opacity 150ms ease;
 }
 
-.timeline-keyframe-curve-handle[data-hovered='true'] .timeline-keyframe-curve-handle-shape,
-.timeline-keyframe-curve-handle:focus-visible .timeline-keyframe-curve-handle-shape {
+.timeline-keyframe-tangent-handle[data-hovered='true'] .timeline-keyframe-tangent-handle-shape,
+.timeline-keyframe-tangent-handle:focus-visible .timeline-keyframe-tangent-handle-shape {
   background: var(--timeline-keyframe-fill-selected);
   box-shadow:
     0 0 0 1px var(--timeline-keyframe-stroke-selected),
     0 0 0 4px color-mix(in oklch, var(--timeline-keyframe-stroke-selected) 22%, transparent);
 }
 
-.timeline-keyframe-curve-handle[data-active='true'] .timeline-keyframe-curve-handle-shape {
+.timeline-keyframe-tangent-handle[data-active='true'] .timeline-keyframe-tangent-handle-shape {
   background: var(--timeline-keyframe-fill-selected);
 }
 
-.timeline-keyframe-curve-handle[data-editable='true'] {
+.timeline-keyframe-tangent-handle[data-editable='true'] {
   cursor: grab;
 }
 
-.timeline-keyframe-curve-handle[data-active='true'] {
+.timeline-keyframe-tangent-handle[data-active='true'] {
   cursor: grabbing;
 }
 

@@ -6,6 +6,7 @@ export type TimelineCommandFailureReason =
   | 'locked'
   | 'invalid-range'
   | 'invalid-duration'
+  | 'invalid-input'
   | 'invalid-track'
   | 'incompatible-track-kind'
   | 'duplicate-id'
@@ -65,4 +66,22 @@ export function timelineCommandFail<Value = void>(
     ...(message !== undefined ? { message } : {}),
     ...(cause !== undefined ? { cause } : {}),
   };
+}
+
+function toTimelineCommandError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+/**
+ * Creates a failed command result for malformed public command input.
+ *
+ * @param message - Human-readable failure detail.
+ * @param cause - Original thrown validation error.
+ * @returns Failed command result.
+ */
+export function timelineCommandInvalidInput<Value = void>(
+  message: string,
+  cause: unknown
+): TimelineCommandResult<Value> {
+  return timelineCommandFail('invalid-input', message, toTimelineCommandError(cause));
 }

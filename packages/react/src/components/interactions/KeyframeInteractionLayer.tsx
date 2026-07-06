@@ -3,7 +3,7 @@ import type {
   TimelineEngine,
   TimelineInteractionGeometry,
   TimelineKeyframeHitTestResult,
-  TimelineKeyframeProperty,
+  TimelineKeyframePropertyId,
   TimelineKeyframeRect,
 } from '@techsquidtv/canvas-timeline-core';
 import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
@@ -47,8 +47,8 @@ export interface KeyframeInteractionLayerProps
   extends
     Omit<React.HTMLAttributes<HTMLDivElement>, keyof TimelineInteractionGeometry>,
     TimelineInteractionGeometry {
-  /** Keyframe property to render and hit-test. Defaults to all supported properties. */
-  property?: TimelineKeyframeProperty;
+  /** Keyframe property to render and hit-test. */
+  property: TimelineKeyframePropertyId;
   /** Only render keyframes owned by selected clips. Defaults to false. */
   selectedClipOnly?: boolean;
   /** Extra pixels around the viewport included in visible keyframe queries. */

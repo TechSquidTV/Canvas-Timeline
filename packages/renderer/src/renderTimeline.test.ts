@@ -1,8 +1,36 @@
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+  type TimelineKeyframeRenderGeometry,
+  type TimelineState,
+} from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
 import { renderTimeline } from './renderTimeline';
 import { defaultTimelineRendererTheme } from './theme';
+
+const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'level',
+  label: 'Level',
+  min: -60,
+  max: 6,
+  defaultValue: 0,
+});
+const nonlinearKeyframeProperty = {
+  id: 'curve',
+  label: 'Curve',
+  min: 0,
+  max: 100,
+  defaultValue: 0,
+  clampValue: (value: number) => Math.max(0, Math.min(100, value)),
+  normalizeValue: (value: number) => Math.sqrt(Math.max(0, Math.min(100, value)) / 100),
+  denormalizeValue: (normalized: number) => Math.max(0, Math.min(1, normalized)) ** 2 * 100,
+};
+
+interface TimelineRenderScene {
+  state: TimelineState;
+  keyframeGeometry: TimelineKeyframeRenderGeometry;
+}
 
 type RecordedRect = {
   height: number;
@@ -271,8 +299,8 @@ function createStateWithLockedTrack() {
   }).getState();
 }
 
-function createStateWithHoldKeyframes() {
-  return new TimelineEngine({
+function createStateWithHoldKeyframes(): TimelineRenderScene {
+  const engine = new TimelineEngine({
     duration: fromSeconds(8),
     tracks: [
       {
@@ -293,24 +321,23 @@ function createStateWithHoldKeyframes() {
             keyframes: [
               {
                 id: 'hold-start',
-                property: 'opacity',
+                property: 'level',
                 time: fromSeconds(1),
-                value: 1,
-                interpolation: 'hold',
+                value: 6,
+                outgoing: { interpolation: 'hold' },
               },
               {
                 id: 'hold-middle',
-                property: 'opacity',
+                property: 'level',
                 time: fromSeconds(3),
-                value: 0.35,
-                interpolation: 'linear',
+                value: -24,
+                outgoing: { interpolation: 'linear' },
               },
               {
                 id: 'hold-end',
-                property: 'opacity',
+                property: 'level',
                 time: fromSeconds(5),
-                value: 0.75,
-                interpolation: 'linear',
+                value: -6,
               },
             ],
           },
@@ -318,11 +345,21 @@ function createStateWithHoldKeyframes() {
       },
     ],
     zoomScale: 50,
-  }).getState();
+    keyframeProperties: [levelKeyframeProperty],
+  });
+
+  return {
+    state: engine.getState(),
+    keyframeGeometry: engine.getKeyframeRenderGeometry({
+      property: 'level',
+      viewportHeight: 160,
+      viewportWidth: 400,
+    }),
+  };
 }
 
-function createStateWithBezierKeyframes() {
-  return new TimelineEngine({
+function createStateWithBezierKeyframes(): TimelineRenderScene {
+  const engine = new TimelineEngine({
     duration: fromSeconds(8),
     tracks: [
       {
@@ -343,18 +380,17 @@ function createStateWithBezierKeyframes() {
             keyframes: [
               {
                 id: 'bezier-start',
-                property: 'opacity',
+                property: 'level',
                 time: fromSeconds(1),
-                value: 1,
-                interpolation: 'bezier',
-                easing: { x1: 0.2, y1: 0.8, x2: 0.8, y2: 0.2 },
+                value: 3,
+                outgoing: { interpolation: 'bezier', handle: { x: 0.2, y: 0.8 } },
               },
               {
                 id: 'bezier-end',
-                property: 'opacity',
+                property: 'level',
                 time: fromSeconds(5),
-                value: 0.25,
-                interpolation: 'linear',
+                value: -42,
+                incoming: { interpolation: 'bezier', handle: { x: 0.8, y: 0.2 } },
               },
             ],
           },
@@ -362,7 +398,68 @@ function createStateWithBezierKeyframes() {
       },
     ],
     zoomScale: 50,
-  }).getState();
+    keyframeProperties: [levelKeyframeProperty],
+  });
+
+  return {
+    state: engine.getState(),
+    keyframeGeometry: engine.getKeyframeRenderGeometry({
+      property: 'level',
+      viewportHeight: 160,
+      viewportWidth: 400,
+    }),
+  };
+}
+
+function createStateWithNonlinearKeyframes(): TimelineRenderScene {
+  const engine = new TimelineEngine({
+    duration: fromSeconds(8),
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'curve-clip',
+            sourceId: 'curve-source',
+            timelineStart: fromSeconds(1),
+            timelineEnd: fromSeconds(5),
+            sourceStart: fromSeconds(0),
+            selected: true,
+            keyframes: [
+              {
+                id: 'curve-start',
+                property: 'curve',
+                time: fromSeconds(1),
+                value: 0,
+              },
+              {
+                id: 'curve-end',
+                property: 'curve',
+                time: fromSeconds(5),
+                value: 25,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    zoomScale: 50,
+    keyframeProperties: [nonlinearKeyframeProperty],
+  });
+
+  return {
+    state: engine.getState(),
+    keyframeGeometry: engine.getKeyframeRenderGeometry({
+      property: 'curve',
+      viewportHeight: 160,
+      viewportWidth: 400,
+    }),
+  };
 }
 
 function createStateWithClippedTracks() {
@@ -520,13 +617,18 @@ describe('renderTimeline', () => {
 
   it('draws hold keyframe interpolation as a step', () => {
     const ctx = new FakeCanvasContext();
+    const scene = createStateWithHoldKeyframes();
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,
       { width: 400, height: 160 } as OffscreenCanvas,
-      createStateWithHoldKeyframes(),
+      scene.state,
       1,
-      { showClipLabels: false }
+      {
+        showClipLabels: false,
+        showKeyframes: true,
+        keyframeGeometry: scene.keyframeGeometry,
+      }
     );
 
     const lineCommands = ctx.pathCommands.filter((command) => command.type === 'lineTo');
@@ -537,19 +639,65 @@ describe('renderTimeline', () => {
 
   it('draws bezier keyframe interpolation with cubic control points', () => {
     const ctx = new FakeCanvasContext();
+    const scene = createStateWithBezierKeyframes();
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,
       { width: 400, height: 160 } as OffscreenCanvas,
-      createStateWithBezierKeyframes(),
+      scene.state,
       1,
-      { showClipLabels: false }
+      {
+        showClipLabels: false,
+        showKeyframes: true,
+        keyframeGeometry: scene.keyframeGeometry,
+      }
     );
 
     const bezierCommands = ctx.pathCommands.filter((command) => command.type === 'bezierCurveTo');
     expect(bezierCommands).toHaveLength(1);
     expect(bezierCommands[0].cp1x).toBeLessThan(bezierCommands[0].cp2x ?? 0);
     expect(bezierCommands[0].x).toBeGreaterThan(bezierCommands[0].cp2x ?? 0);
+  });
+
+  it('draws nonlinear properties from prepared core geometry', () => {
+    const ctx = new FakeCanvasContext();
+    const scene = createStateWithNonlinearKeyframes();
+    const expectedSegment = scene.keyframeGeometry.clips[0].segments[0];
+
+    renderTimeline(
+      ctx as unknown as OffscreenCanvasRenderingContext2D,
+      { width: 400, height: 160 } as OffscreenCanvas,
+      scene.state,
+      1,
+      {
+        showClipLabels: false,
+        showKeyframes: true,
+        keyframeGeometry: scene.keyframeGeometry,
+      }
+    );
+
+    const lineCommands = ctx.pathCommands.filter((command) => command.type === 'lineTo');
+
+    expect(lineCommands[0].x).toBe(expectedSegment.endPoint.x);
+    expect(lineCommands[0].y).toBe(expectedSegment.endPoint.y);
+  });
+
+  it('requires prepared keyframe geometry for low-level keyframe drawing', () => {
+    const ctx = new FakeCanvasContext();
+    const scene = createStateWithBezierKeyframes();
+
+    expect(() =>
+      renderTimeline(
+        ctx as unknown as OffscreenCanvasRenderingContext2D,
+        { width: 400, height: 160 } as OffscreenCanvas,
+        scene.state,
+        1,
+        {
+          showClipLabels: false,
+          showKeyframes: true,
+        }
+      )
+    ).toThrow('prepared keyframeGeometry');
   });
 
   it('draws invalid hovered drop targets and can suppress built-in drop feedback', () => {

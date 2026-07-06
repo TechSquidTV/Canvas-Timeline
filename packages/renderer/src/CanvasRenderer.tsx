@@ -1,8 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import { useTimeline } from '@techsquidtv/canvas-timeline-react';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import type {
+  TimelineKeyframePropertyId,
+  TimelineKeyframeRenderGeometry,
+} from '@techsquidtv/canvas-timeline-core';
 import type { TimelineRenderOptions, TimelineRulerOptions } from './render/types';
-import { resolveTimelineRendererThemeFromElement, type TimelineRendererThemeInput } from './theme';
+import {
+  resolveTimelineRendererThemeFromElement,
+  type TimelineRendererTheme,
+  type TimelineRendererThemeInput,
+} from './theme';
 
 /**
  * Reason the worker rendered a new canvas timeline frame.
@@ -26,21 +34,52 @@ export interface CanvasRendererStats {
 /** Renderer setup or worker failure details. */
 export interface CanvasRendererError {
   /** Short machine-readable failure category. */
-  reason: 'worker-unavailable' | 'offscreen-unavailable' | 'worker-failed';
+  reason: 'worker-unavailable' | 'offscreen-unavailable' | 'worker-failed' | 'invalid-options';
   /** Human-readable diagnostic suitable for logs or app UI. */
   message: string;
   /** Original browser error when available. */
   cause?: Error;
 }
 
+interface CanvasRendererWorkerRenderErrorMessage {
+  type: 'RENDER_ERROR';
+  error: {
+    message: string;
+    name?: string;
+    stack?: string;
+  };
+}
+
+interface CanvasRendererWorkerStatsMessage {
+  type: 'RENDER_STATS';
+  stats: CanvasRendererStats;
+}
+
+type CanvasRendererWorkerMessage =
+  | CanvasRendererWorkerRenderErrorMessage
+  | CanvasRendererWorkerStatsMessage;
+
 function getCanvasBitmapSize(cssSize: number, dpr: number) {
   return Math.ceil(cssSize * dpr);
 }
 
-/**
- * Props for the timeline canvas renderer layer.
- */
-export interface CanvasRendererProps extends TimelineRenderOptions {
+function toCanvasRendererError(cause: unknown): Error {
+  return cause instanceof Error ? cause : new Error(String(cause));
+}
+
+function createWorkerRenderErrorCause(
+  error: CanvasRendererWorkerRenderErrorMessage['error']
+): Error {
+  const cause = new Error(error.message);
+  cause.name = error.name ?? 'CanvasRendererWorkerError';
+  cause.stack = error.stack;
+  return cause;
+}
+
+interface CanvasRendererBaseProps extends Omit<
+  TimelineRenderOptions,
+  'keyframeGeometry' | 'showKeyframes'
+> {
   /** Additional class names applied to the generated canvas element. */
   className?: string;
   /** Draw magnetic snapping guide lines on the canvas layer. */
@@ -56,8 +95,6 @@ export interface CanvasRendererProps extends TimelineRenderOptions {
   showClips?: boolean;
   /** Draw text labels inside visible clips. */
   showClipLabels?: boolean;
-  /** Draw keyframe curves and handles inside visible clips. */
-  showKeyframes?: boolean;
   /** Draw text labels on ruler ticks. */
   showRulerLabels?: boolean;
   /** Canvas ruler tick and label configuration. */
@@ -72,6 +109,25 @@ export interface CanvasRendererProps extends TimelineRenderOptions {
   onRenderError?: (error: CanvasRendererError) => void;
 }
 
+type CanvasRendererKeyframeProps =
+  | {
+      /** Draw keyframe segments and handles inside visible clips. Requires `keyframeProperty`. */
+      showKeyframes?: true;
+      /** Keyframe property drawn by the canvas renderer when keyframes are visible. */
+      keyframeProperty: TimelineKeyframePropertyId;
+    }
+  | {
+      /** Disable keyframe segment drawing. */
+      showKeyframes?: false;
+      /** Optional property metadata retained for app-controlled renderer toggles. */
+      keyframeProperty?: TimelineKeyframePropertyId;
+    };
+
+/**
+ * Props for the timeline canvas renderer layer.
+ */
+export type CanvasRendererProps = CanvasRendererBaseProps & CanvasRendererKeyframeProps;
+
 /**
  * Renders the timeline canvas layer using an offscreen worker.
  *
@@ -84,7 +140,8 @@ export function CanvasRenderer({
   showClips = true,
   showInOutBoundaryLines = false,
   showInOutPoints = true,
-  showKeyframes = true,
+  showKeyframes,
+  keyframeProperty,
   showRulerLabels = true,
   showSnapLines = true,
   ruler,
@@ -93,17 +150,21 @@ export function CanvasRenderer({
   onRenderError,
   onRenderStats,
 }: CanvasRendererProps) {
+  const shouldShowKeyframes = showKeyframes ?? keyframeProperty !== undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const workerRef = useRef<Worker | null>(null);
   const onRenderErrorRef = useRef(onRenderError);
   const onRenderStatsRef = useRef(onRenderStats);
+  const resolvedThemeRef = useRef<TimelineRendererTheme | null>(null);
+  const containerSizeRef = useRef({ width: 0, height: 0 });
   const renderOptionsRef = useRef({
     showClipLabels,
     showClipDropFeedback,
     showClips,
     showInOutBoundaryLines,
     showInOutPoints,
-    showKeyframes,
+    showKeyframes: shouldShowKeyframes,
+    keyframeProperty,
     showRulerLabels,
     showSnapLines,
     ruler,
@@ -112,21 +173,77 @@ export function CanvasRenderer({
   });
   const { engine } = useTimeline();
 
-  const createRenderOptions = React.useCallback((container: Element): TimelineRenderOptions => {
-    const latest = renderOptionsRef.current;
-    return {
-      showClipLabels: latest.showClipLabels,
-      showClipDropFeedback: latest.showClipDropFeedback,
-      showClips: latest.showClips,
-      showInOutBoundaryLines: latest.showInOutBoundaryLines,
-      showInOutPoints: latest.showInOutPoints,
-      showKeyframes: latest.showKeyframes,
-      showRulerLabels: latest.showRulerLabels,
-      showSnapLines: latest.showSnapLines,
-      ruler: latest.ruler,
-      theme: resolveTimelineRendererThemeFromElement(container, latest.theme),
-    };
+  const reportRenderError = React.useCallback((error: CanvasRendererError) => {
+    onRenderErrorRef.current?.(error);
   }, []);
+
+  const createKeyframeGeometry = React.useCallback(():
+    | TimelineKeyframeRenderGeometry
+    | undefined => {
+    const latest = renderOptionsRef.current;
+    if (!latest.showKeyframes) {
+      return undefined;
+    }
+    if (latest.keyframeProperty === undefined) {
+      reportRenderError({
+        reason: 'invalid-options',
+        message: 'CanvasRenderer keyframe drawing requires a keyframeProperty.',
+      });
+      return undefined;
+    }
+    if (!engine.hasKeyframeProperty(latest.keyframeProperty)) {
+      reportRenderError({
+        reason: 'invalid-options',
+        message: `CanvasRenderer keyframe property "${latest.keyframeProperty}" is not registered with the engine.`,
+      });
+      return undefined;
+    }
+
+    const resolvedTheme = resolvedThemeRef.current;
+    if (resolvedTheme === null) {
+      return undefined;
+    }
+
+    try {
+      return engine.getKeyframeRenderGeometry({
+        property: latest.keyframeProperty,
+        rulerHeight: resolvedTheme.metrics.rulerHeight,
+        trackHeight: resolvedTheme.metrics.trackHeight,
+        viewportHeight: containerSizeRef.current.height,
+        viewportWidth: containerSizeRef.current.width,
+      });
+    } catch (geometryError: unknown) {
+      reportRenderError({
+        reason: 'invalid-options',
+        message: 'CanvasRenderer could not prepare keyframe geometry.',
+        cause: toCanvasRendererError(geometryError),
+      });
+      return undefined;
+    }
+  }, [engine, reportRenderError]);
+
+  const createRenderOptions = React.useCallback(
+    (container: Element): TimelineRenderOptions => {
+      const latest = renderOptionsRef.current;
+      const resolvedTheme = resolveTimelineRendererThemeFromElement(container, latest.theme);
+      resolvedThemeRef.current = resolvedTheme;
+      const keyframeGeometry = createKeyframeGeometry();
+      return {
+        showClipLabels: latest.showClipLabels,
+        showClipDropFeedback: latest.showClipDropFeedback,
+        showClips: latest.showClips,
+        showInOutBoundaryLines: latest.showInOutBoundaryLines,
+        showInOutPoints: latest.showInOutPoints,
+        showKeyframes: latest.showKeyframes && keyframeGeometry !== undefined,
+        keyframeGeometry,
+        showRulerLabels: latest.showRulerLabels,
+        showSnapLines: latest.showSnapLines,
+        ruler: latest.ruler,
+        theme: resolvedTheme,
+      };
+    },
+    [createKeyframeGeometry]
+  );
 
   useEffect(() => {
     renderOptionsRef.current = {
@@ -135,7 +252,8 @@ export function CanvasRenderer({
       showClips,
       showInOutBoundaryLines,
       showInOutPoints,
-      showKeyframes,
+      showKeyframes: shouldShowKeyframes,
+      keyframeProperty,
       showRulerLabels,
       showSnapLines,
       ruler,
@@ -148,7 +266,8 @@ export function CanvasRenderer({
     showClips,
     showInOutBoundaryLines,
     showInOutPoints,
-    showKeyframes,
+    shouldShowKeyframes,
+    keyframeProperty,
     showRulerLabels,
     showSnapLines,
     ruler,
@@ -188,12 +307,12 @@ export function CanvasRenderer({
 
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    containerSizeRef.current = {
+      width: Math.max(0, rect.width),
+      height: Math.max(0, rect.height),
+    };
     canvas.width = getCanvasBitmapSize(rect.width, dpr);
     canvas.height = getCanvasBitmapSize(rect.height, dpr);
-
-    const reportRenderError = (error: CanvasRendererError) => {
-      onRenderErrorRef.current?.(error);
-    };
 
     if (typeof Worker === 'undefined') {
       reportRenderError({
@@ -220,7 +339,7 @@ export function CanvasRenderer({
       reportRenderError({
         reason: 'worker-failed',
         message: 'CanvasRenderer worker could not be created.',
-        cause: workerError instanceof Error ? workerError : new Error(String(workerError)),
+        cause: toCanvasRendererError(workerError),
       });
       container.removeChild(canvas);
       return;
@@ -234,12 +353,19 @@ export function CanvasRenderer({
         ...(event.error instanceof Error ? { cause: event.error } : {}),
       });
     };
-    workerRef.current.onmessage = (event: MessageEvent) => {
-      if (event.data?.type !== 'RENDER_STATS') {
+    workerRef.current.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
+      if (event.data.type === 'RENDER_STATS') {
+        onRenderStatsRef.current?.(event.data.stats);
         return;
       }
 
-      onRenderStatsRef.current?.(event.data.stats);
+      if (event.data.type === 'RENDER_ERROR') {
+        reportRenderError({
+          reason: 'worker-failed',
+          message: event.data.error.message || 'CanvasRenderer worker render failed.',
+          cause: createWorkerRenderErrorCause(event.data.error),
+        });
+      }
     };
 
     let offscreen: OffscreenCanvas;
@@ -249,7 +375,7 @@ export function CanvasRenderer({
       reportRenderError({
         reason: 'offscreen-unavailable',
         message: 'CanvasRenderer could not transfer its canvas to an OffscreenCanvas.',
-        cause: transferError instanceof Error ? transferError : new Error(String(transferError)),
+        cause: toCanvasRendererError(transferError),
       });
       workerRef.current.terminate();
       workerRef.current = null;
@@ -264,13 +390,19 @@ export function CanvasRenderer({
         state: engine.getState(),
         dpr,
         options: createRenderOptions(container),
+        keyframesRequested: renderOptionsRef.current.showKeyframes,
         diagnosticsEnabled: Boolean(onRenderStatsRef.current),
       },
       [offscreen]
     );
 
     const handleRender = () => {
-      workerRef.current?.postMessage({ type: 'UPDATE_STATE', state: engine.getState() });
+      workerRef.current?.postMessage({
+        type: 'UPDATE_STATE',
+        state: engine.getState(),
+        keyframeGeometry: createKeyframeGeometry(),
+        keyframesRequested: renderOptionsRef.current.showKeyframes,
+      });
     };
     const handlePlayhead = (time: RationalTime) => {
       workerRef.current?.postMessage({ type: 'UPDATE_PLAYHEAD', time });
@@ -282,11 +414,17 @@ export function CanvasRenderer({
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const currentDpr = window.devicePixelRatio || 1;
+        containerSizeRef.current = {
+          width: Math.max(0, entry.contentRect.width),
+          height: Math.max(0, entry.contentRect.height),
+        };
         workerRef.current?.postMessage({
           type: 'RESIZE',
           width: getCanvasBitmapSize(entry.contentRect.width, currentDpr),
           height: getCanvasBitmapSize(entry.contentRect.height, currentDpr),
           dpr: currentDpr,
+          keyframeGeometry: createKeyframeGeometry(),
+          keyframesRequested: renderOptionsRef.current.showKeyframes,
         });
       }
     });
@@ -302,7 +440,7 @@ export function CanvasRenderer({
         container.removeChild(canvas);
       }
     };
-  }, [engine, className, createRenderOptions]);
+  }, [engine, className, createKeyframeGeometry, createRenderOptions, reportRenderError]);
 
   useEffect(() => {
     if (!containerRef.current || !workerRef.current) {
@@ -312,6 +450,7 @@ export function CanvasRenderer({
     workerRef.current.postMessage({
       type: 'UPDATE_OPTIONS',
       options: createRenderOptions(containerRef.current),
+      keyframesRequested: renderOptionsRef.current.showKeyframes,
     });
   }, [
     showClipLabels,
@@ -319,7 +458,8 @@ export function CanvasRenderer({
     showClips,
     showInOutBoundaryLines,
     showInOutPoints,
-    showKeyframes,
+    shouldShowKeyframes,
+    keyframeProperty,
     showRulerLabels,
     showSnapLines,
     ruler,

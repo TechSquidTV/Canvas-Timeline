@@ -1,12 +1,38 @@
 import { act, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+  type TimelineKeyframePropertyDefinition,
+} from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { CanvasRenderer } from './CanvasRenderer';
 import { TimelineCanvasLayer } from './TimelineCanvasLayer';
 import type { TimelineCanvasLayerDrawContext } from './useTimelineCanvasLayer';
+
+const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
+  id: 'level',
+  min: 0,
+  max: 1,
+  defaultValue: 1,
+});
+
+const throwingKeyframeProperty: TimelineKeyframePropertyDefinition<'throwing'> = {
+  id: 'throwing',
+  min: 0,
+  max: 1,
+  defaultValue: 0,
+  clampValue: (value) => value,
+  normalizeValue: (value) => {
+    if (value === 0.5) {
+      throw new RangeError('Cannot normalize test value.');
+    }
+    return value;
+  },
+  denormalizeValue: (normalized) => normalized,
+};
 
 class MockWorker {
   static instances: MockWorker[] = [];
@@ -68,6 +94,84 @@ function createEngineWithClip() {
       },
     ],
     zoomScale: 200,
+  });
+}
+
+function createEngineWithKeyframes() {
+  return new TimelineEngine({
+    duration: fromSeconds(10),
+    keyframeProperties: [levelKeyframeProperty],
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        clips: [
+          {
+            id: 'clip-1',
+            sourceId: 'source-1',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: true,
+            keyframes: [
+              {
+                id: 'level-start',
+                property: 'level',
+                time: fromSeconds(0),
+                value: 0,
+              },
+              {
+                id: 'level-end',
+                property: 'level',
+                time: fromSeconds(4),
+                value: 1,
+              },
+            ],
+          },
+        ],
+        locked: false,
+        muted: false,
+        visible: true,
+        selected: false,
+      },
+    ],
+    zoomScale: 100,
+  });
+}
+
+function createEngineWithThrowingKeyframes() {
+  return new TimelineEngine({
+    duration: fromSeconds(10),
+    keyframeProperties: [throwingKeyframeProperty],
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        clips: [
+          {
+            id: 'clip-1',
+            sourceId: 'source-1',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: true,
+            keyframes: [
+              {
+                id: 'throwing-middle',
+                property: 'throwing',
+                time: fromSeconds(2),
+                value: 0.5,
+              },
+            ],
+          },
+        ],
+        locked: false,
+        muted: false,
+        visible: true,
+        selected: false,
+      },
+    ],
+    zoomScale: 100,
   });
 }
 
@@ -153,6 +257,79 @@ describe('CanvasRenderer', () => {
     expect(initMessage?.options.showSnapLines).toBe(true);
     expect(initMessage?.options.theme.colors.background).toBe('rgb(1, 2, 3)');
     expect(initMessage?.options.theme.colors.clip.bg).toBe('#111111');
+  });
+
+  it('posts prepared keyframe geometry for a registered renderer property', async () => {
+    const getBoundingClientRect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        bottom: 160,
+        height: 160,
+        left: 0,
+        right: 400,
+        top: 0,
+        width: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      });
+
+    render(
+      <TimelineProvider engine={createEngineWithKeyframes()}>
+        <CanvasRenderer keyframeProperty="level" showClipLabels={false} />
+      </TimelineProvider>
+    );
+
+    await waitFor(() => expect(MockWorker.instances.length).toBe(1));
+    const worker = MockWorker.instances[0];
+    const initMessage = getMessage<{
+      keyframesRequested: boolean;
+      options: {
+        keyframeGeometry?: { clips: Array<{ clipId: string }>; property: string };
+        showKeyframes: boolean;
+      };
+      type: 'INIT';
+    }>(worker, 'INIT');
+
+    expect(initMessage?.options.showKeyframes).toBe(true);
+    expect(initMessage?.keyframesRequested).toBe(true);
+    expect(initMessage?.options.keyframeGeometry?.property).toBe('level');
+    expect(initMessage?.options.keyframeGeometry?.clips).toHaveLength(1);
+
+    getBoundingClientRect.mockRestore();
+  });
+
+  it('reports keyframe geometry preparation errors without throwing', async () => {
+    const onRenderError = vi.fn();
+
+    expect(() => {
+      render(
+        <TimelineProvider engine={createEngineWithThrowingKeyframes()}>
+          <CanvasRenderer keyframeProperty="throwing" onRenderError={onRenderError} />
+        </TimelineProvider>
+      );
+    }).not.toThrow();
+
+    await waitFor(() =>
+      expect(onRenderError).toHaveBeenCalledWith({
+        reason: 'invalid-options',
+        message: 'CanvasRenderer could not prepare keyframe geometry.',
+        cause: expect.any(RangeError),
+      })
+    );
+    const worker = MockWorker.instances[0];
+    const initMessage = getMessage<{
+      keyframesRequested: boolean;
+      options: {
+        keyframeGeometry?: unknown;
+        showKeyframes: boolean;
+      };
+      type: 'INIT';
+    }>(worker, 'INIT');
+
+    expect(initMessage?.options.showKeyframes).toBe(false);
+    expect(initMessage?.keyframesRequested).toBe(true);
+    expect(initMessage?.options.keyframeGeometry).toBeUndefined();
   });
 
   it('rounds fractional CSS sizes up for the canvas backing bitmap', async () => {
