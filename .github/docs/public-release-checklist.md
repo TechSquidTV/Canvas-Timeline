@@ -50,6 +50,7 @@ Last verified against repository contents on 2026-07-07.
   - [x] Add or confirm `strict: true`.
   - [ ] Consider `exactOptionalPropertyTypes: true` in a follow-up optional-property cleanup.
   - [ ] Consider `noUncheckedIndexedAccess: true` in a follow-up indexed-access cleanup.
+  - [x] Confirm `exactOptionalPropertyTypes: true` and `noUncheckedIndexedAccess: true` were probed and deferred because each exposes a broad cleanup pass.
   - [x] Add or confirm `noImplicitOverride: true`.
   - [x] Add or confirm `noImplicitReturns: true`.
   - [x] Add or confirm `noFallthroughCasesInSwitch: true`.

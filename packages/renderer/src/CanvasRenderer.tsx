@@ -76,7 +76,10 @@ function createWorkerRenderErrorCause(
   return cause;
 }
 
-interface CanvasRendererBaseProps extends Omit<
+/**
+ * Shared props for the worker-backed canvas renderer.
+ */
+export interface CanvasRendererBaseProps extends Omit<
   TimelineRenderOptions,
   'keyframeGeometry' | 'showKeyframes'
 > {
@@ -109,7 +112,10 @@ interface CanvasRendererBaseProps extends Omit<
   onRenderError?: (error: CanvasRendererError) => void;
 }
 
-type CanvasRendererKeyframeProps =
+/**
+ * Keyframe rendering props for the worker-backed canvas renderer.
+ */
+export type CanvasRendererKeyframeProps =
   | {
       /** Draw keyframe segments and handles inside visible clips. Requires `keyframeProperty`. */
       showKeyframes?: true;
