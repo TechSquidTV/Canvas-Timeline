@@ -279,7 +279,7 @@ Last verified against repository contents on 2026-07-07.
 
 - [x] GitHub governance files are complete: `SECURITY.md`, `CODE_OF_CONDUCT.md`, support policy, issue templates, and PR template.
 - [x] Public package manifests advertise `bugs`, `author`, `engines`, and `sideEffects`.
-- [x] Library packages inherit a base TypeScript config that does not currently declare `strict: true`.
+- [ ] Library packages inherit a base TypeScript config that does not currently declare `strict: true`.
 - [x] CI exists and is broad; branch protection and required-check settings are configured externally for the solo-maintainer workflow.
 - [x] Package validation exists through `publint`, packed tarballs, Are The Types Wrong, and a clean Vite/React consumer smoke test.
 - [x] Docs/demo observability exists through Sentry metrics, but alerting, release identifiers, uptime checks, and synthetic checks still need to be confirmed.

@@ -16,13 +16,14 @@ const run = (command, args, options = {}) =>
     });
 
     child.on('error', rejectRun);
-    child.on('exit', (code) => {
+    child.on('close', (code, signal) => {
       if (code === 0) {
         resolveRun();
         return;
       }
 
-      rejectRun(new Error(`${command} ${args.join(' ')} exited with ${code}`));
+      const reason = code === null ? `signal ${signal ?? 'unknown'}` : `code ${code}`;
+      rejectRun(new Error(`${command} ${args.join(' ')} exited with ${reason}`));
     });
   });
 
