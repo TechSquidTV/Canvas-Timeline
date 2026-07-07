@@ -2,7 +2,7 @@
   "name": "@techsquidtv/canvas-timeline",
   "version": "0.0.1",
   "license": "MPL-2.0",
-  "description": "Batteries-included Canvas Timeline package for React timeline editing.",
+  "description": "React timeline editing toolkit for Canvas Timeline.",
   "type": "module",
   "homepage": "https://canvastimeline.com",
   "repository": {
