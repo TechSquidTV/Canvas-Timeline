@@ -5,7 +5,7 @@
 [![CI](https://github.com/techsquidtv/canvas-timeline/actions/workflows/ci.yml/badge.svg)](https://github.com/techsquidtv/canvas-timeline/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-canvastimeline.com-0f766e.svg)](https://canvastimeline.com/packages/timeline/)
 
-Batteries-included Canvas Timeline package for React timeline editing.
+React timeline editing toolkit for Canvas Timeline.
 
 ## Install
 
