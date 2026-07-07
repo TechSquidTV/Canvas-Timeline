@@ -23,7 +23,7 @@ export function createLibraryPackConfig({
       sourcemap: false,
     },
     unbundle: true,
-    fixedExtension: false,
+    fixedExtension: true,
     deps: {
       neverBundle,
     },

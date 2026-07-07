@@ -6,7 +6,12 @@ on:
       tag:
         description: 'npm dist-tag to publish'
         required: true
+        type: choice
         default: 'canary'
+        options:
+          - canary
+          - next
+          - latest
       snapshot:
         description: 'Publish Changesets snapshot versions'
         required: true
@@ -27,7 +32,7 @@ jobs:
     name: Version or publish packages
     runs-on: ubuntu-latest
     environment: npm-publish
-    if: github.event_name == 'workflow_dispatch' && !inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -85,7 +90,7 @@ jobs:
     name: Publish snapshot packages
     runs-on: ubuntu-latest
     environment: npm-publish
-    if: github.event_name == 'workflow_dispatch' && inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7

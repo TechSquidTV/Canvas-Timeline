@@ -1,0 +1,24 @@
+name: Performance issue
+description: Report rendering, interaction, bundle-size, or docs-demo performance concerns.
+title: 'perf: '
+labels:
+  - performance
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: Describe the timeline size, browser, device, package, or demo involved.
+    validations:
+      required: true
+  - type: textarea
+    id: measurement
+    attributes:
+      label: Measurement
+      description: FPS, timings, traces, bundle size, or other observed data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Performance

@@ -4,6 +4,13 @@
   "license": "MPL-2.0",
   "description": "Mediabunny adapter for Canvas Timeline media playback and frame access.",
   "type": "module",
+  "author": "TechSquidTV",
+  "bugs": {
+    "url": "https://github.com/techsquidtv/canvas-timeline/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "homepage": "https://canvastimeline.com",
   "repository": {
     "type": "git",
@@ -19,22 +26,23 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     },
     "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js"
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
     },
     "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "scripts": {
     "build": "vp pack",
     "dev": "vp pack --watch --no-clean",

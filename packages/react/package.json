@@ -4,6 +4,13 @@
   "license": "MPL-2.0",
   "description": "React bindings, hooks, and interaction components for Canvas Timeline.",
   "type": "module",
+  "author": "TechSquidTV",
+  "bugs": {
+    "url": "https://github.com/techsquidtv/canvas-timeline/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "homepage": "https://canvastimeline.com",
   "repository": {
     "type": "git",
@@ -20,36 +27,36 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     },
     "./hooks": {
-      "types": "./dist/hooks/index.d.ts",
-      "import": "./dist/hooks/index.js"
+      "types": "./dist/hooks/index.d.mts",
+      "import": "./dist/hooks/index.mjs"
     },
     "./range-scrollbar": {
-      "types": "./dist/rangeScrollbar/index.d.ts",
-      "import": "./dist/rangeScrollbar/index.js"
+      "types": "./dist/rangeScrollbar/index.d.mts",
+      "import": "./dist/rangeScrollbar/index.mjs"
     },
     "./timecode-input": {
-      "types": "./dist/timecodeInput/index.d.ts",
-      "import": "./dist/timecodeInput/index.js"
+      "types": "./dist/timecodeInput/index.d.mts",
+      "import": "./dist/timecodeInput/index.mjs"
     },
     "./timecode-field": {
-      "types": "./dist/timecodeField/index.d.ts",
-      "import": "./dist/timecodeField/index.js"
+      "types": "./dist/timecodeField/index.d.mts",
+      "import": "./dist/timecodeField/index.mjs"
     },
     "./components": {
-      "types": "./dist/components/index.d.ts",
-      "import": "./dist/components/index.js"
+      "types": "./dist/components/index.d.mts",
+      "import": "./dist/components/index.mjs"
     },
     "./docs-metadata": {
-      "types": "./dist/docs-metadata.d.ts",
-      "import": "./dist/docs-metadata.js"
+      "types": "./dist/docs-metadata.d.mts",
+      "import": "./dist/docs-metadata.mjs"
     },
     "./base.css": "./dist/base.css",
     "./theme.css": "./dist/theme.css",
@@ -58,6 +65,9 @@
   },
   "files": [
     "dist"
+  ],
+  "sideEffects": [
+    "*.css"
   ],
   "scripts": {
     "build": "vp pack && cp src/base.css dist/base.css && cp src/theme.css dist/theme.css && cp src/styles.css dist/styles.css",

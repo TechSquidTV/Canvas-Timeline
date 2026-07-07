@@ -1,0 +1,103 @@
+---
+title: Support & troubleshooting
+description: Supported runtimes, browser assumptions, SSR notes, worker behavior, changelog path, and common integration fixes.
+section: reference
+order: 50
+---
+
+## Support matrix
+
+Canvas Timeline is alpha software before the first public `0.0.1` release.
+Breaking changes are allowed before `0.1.0`, and the project does not keep
+backwards-compatibility aliases or fallback APIs during this period.
+
+| Area            | Supported target                                                                                                                                         |
+| :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node.js         | `>=24` for package tooling and published package engines.                                                                                                |
+| React           | `^19.2.7` for React-facing packages.                                                                                                                     |
+| React DOM       | `^19.2.7` where DOM integration is required.                                                                                                             |
+| Package manager | Published packages should install with standard npm-compatible clients; repository development uses `pnpm@11.2.2` through Vite+.                         |
+| Browsers        | Current target is the latest stable Chromium, Firefox, and Safari with modern Pointer Events, CSS custom properties, ResizeObserver, and canvas support. |
+
+## SSR and server imports
+
+Use `@techsquidtv/canvas-timeline-core` and
+`@techsquidtv/canvas-timeline-utils` for server-safe timeline state, command,
+time, and math work. These headless packages are validated by the consumer smoke
+test with a Node import path.
+
+React components, interaction layers, media adapters, and renderer components
+are browser-facing. They should be rendered in a client component, browser-only
+island, or equivalent client boundary in SSR frameworks. Keep direct DOM,
+canvas, media element, and worker usage out of server-only modules.
+
+## Worker behavior
+
+The renderer keeps dense timeline drawing on canvas and can use worker-backed
+drawing where the host browser and bundler support it. The main thread owns CSS
+variable resolution and posts serializable renderer options to the drawing
+path. Apps should import renderer components from public package entrypoints and
+let the bundler handle worker assets.
+
+If a bundler cannot resolve the worker path, first confirm the app is importing
+from `@techsquidtv/canvas-timeline` or
+`@techsquidtv/canvas-timeline-renderer`, not from package source files. Then run
+the app's production build, because worker handling often differs between dev
+server and build output.
+
+## Published-package validation
+
+The README quick start and package examples use public package entrypoints. The
+release gate validates the package path by packing every publishable package,
+installing those tarballs into a clean Vite/React fixture, typechecking that
+fixture, building it with Vite, and importing the headless packages in Node.
+
+The docs site also runs generated API reference, source-backed demo registry,
+link, and build checks in CI. Prefer source-backed demos for larger examples so
+docs code is exercised by the same validation path that renders the public docs.
+
+## Troubleshooting
+
+### Install fails on Node
+
+Use Node `>=24`. The root repo and every public package declare that engine.
+Older Node versions are not part of the first public release support target.
+
+### React peer dependency warning
+
+Install React `^19.2.7`. Packages that render DOM controls also require
+React DOM `^19.2.7`.
+
+### CSS imports render unstyled controls
+
+Import `@techsquidtv/canvas-timeline/styles.css` for the common
+shadcn-compatible path. If your app owns all visual treatment, import
+`@techsquidtv/canvas-timeline/base.css` and provide the visual CSS variables
+yourself. See [Styling & variables](/docs/styling).
+
+### Timeline code runs during SSR
+
+Move React, renderer, media adapter, and DOM interaction code behind a client
+boundary. Keep server modules limited to `@techsquidtv/canvas-timeline-core`
+and `@techsquidtv/canvas-timeline-utils`.
+
+### Media adapter import is larger than expected
+
+Install adapter packages only when the app needs them. The main package exports
+the native HTML media adapter path for convenience; Mediabunny remains in the
+focused `@techsquidtv/canvas-timeline-mediabunny-adapter` package with
+`mediabunny` as a peer dependency.
+
+### Worker or canvas output is missing
+
+Check that package CSS is loaded, the timeline container has measurable
+dimensions, and the renderer is used inside a `TimelineProvider`. Then verify a
+production build, because worker asset loading can be different from a dev
+server.
+
+## Changelog path
+
+Release notes are managed by Changesets and GitHub Releases. The repository
+keeps a root [CHANGELOG](https://github.com/techsquidtv/canvas-timeline/blob/main/CHANGELOG.md)
+as the stable changelog entry point, while published release details live on the
+corresponding GitHub release.
