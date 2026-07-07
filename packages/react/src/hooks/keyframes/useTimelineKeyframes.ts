@@ -45,13 +45,13 @@ export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOpt
  * The result combines keyframe lists, viewport geometry, visible geometry, and
  * mutation commands. Use it for keyframe inspectors, custom DOM overlays,
  * property editors, and toolbar actions. For pointer-driven dragging, combine
- * it with {@link useTimelineKeyframeDrag}; for Bezier easing handles, use
- * {@link useTimelineKeyframeCurves}.
+ * it with {@link useTimelineKeyframeDrag}; for Bezier easing handles, combine
+ * it with {@link useTimelineKeyframeTangentDrag}.
  *
  * @template TrackKind - App-defined track kind values carried by returned track
  * entries.
  *
- * @see {@link useTimelineKeyframeCurves}
+ * @see {@link useTimelineKeyframeTangentDrag}
  * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
  */
 export interface UseTimelineKeyframesResult<TrackKind = string> {
@@ -147,7 +147,7 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
  * ```
  *
  * @see {@link useTimelineKeyframeDrag}
- * @see {@link useTimelineKeyframeCurves}
+ * @see {@link useTimelineKeyframeTangentDrag}
  * @see {@link https://canvastimeline.com/demos/keyframe-opacity | Keyframe opacity demo}
  */
 export function useTimelineKeyframes<TrackKind = string>(
