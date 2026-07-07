@@ -100,6 +100,12 @@ Releases are managed by Changesets and GitHub Actions. When changes land on
 `main`, the Release workflow runs validation and then invokes
 `changesets/action`.
 
+TechSquidTV is the release owner and fallback owner for npm, GitHub, docs, and
+incident response. This repository is maintained by a solo developer, so the
+release process relies on protected `main`, required CI checks, manual dispatch
+controls, npm trusted publishing, and conventional commits rather than GitHub
+environment approval flows.
+
 The action has two outcomes:
 
 - If unreleased changesets exist, it opens or updates the release pull request:

@@ -19,6 +19,8 @@ smooth while your app owns the product UI around them.
 - [Live demos](https://canvastimeline.com/demos)
 - [Package docs](https://canvastimeline.com/packages)
 - [React registry](https://canvastimeline.com/packages/react/registry)
+- [Support & troubleshooting](https://canvastimeline.com/docs/support-and-troubleshooting)
+- [Changelog](./CHANGELOG.md)
 - [NPM package](https://www.npmjs.com/package/@techsquidtv/canvas-timeline)
 
 ## Install
@@ -62,6 +64,26 @@ Canvas Timeline is alpha software. The first planned public release is `0.0.1`.
 Breaking changes are acceptable before the API reaches `0.1.0`, and this project
 does not keep backwards-compatibility aliases or fallback APIs during that
 period.
+
+## Release Stage & Versioning
+
+The first public release target is `0.0.1`. Until Canvas Timeline reaches
+`0.1.0`, public APIs may change without compatibility aliases, deprecated
+fallbacks, or duplicate export paths. Package release notes are managed through
+Changesets and GitHub Releases, with [CHANGELOG.md](./CHANGELOG.md) as the
+stable changelog entry point.
+
+## Compatibility
+
+Canvas Timeline currently targets Node `>=24`, React `^19.2.7`, and modern
+Chromium, Firefox, and Safari browsers. Headless imports from core and utils are
+safe for server-side code; React components, renderer components, media
+adapters, and worker-backed canvas rendering belong behind client/browser
+boundaries.
+
+The README quick start is covered by the release package gate: every public
+package is packed, installed into a clean Vite/React fixture from tarballs,
+typechecked, built, and checked for headless Node imports.
 
 ## Packages
 

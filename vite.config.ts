@@ -128,6 +128,7 @@ export default defineConfig({
       'repo:package:check': [
         'vp run build:packages',
         'node scripts/check-publishable-packages.mjs',
+        'node scripts/check-consumer-smoke.mjs',
       ],
       'repo:preview': {
         command: 'vp run --filter @techsquidtv/canvas-timeline-www preview',
