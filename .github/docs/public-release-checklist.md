@@ -47,10 +47,12 @@ Last verified against repository contents on 2026-07-07.
 ## 2. TypeScript And Static Quality
 
 - [ ] Enable the strictest practical TypeScript config for library packages.
-  - [ ] Add or confirm `strict: true`.
-  - [ ] Consider `exactOptionalPropertyTypes: true`.
-  - [ ] Consider `noUncheckedIndexedAccess: true`.
-  - [ ] Consider `noImplicitOverride: true`.
+  - [x] Add or confirm `strict: true`.
+  - [ ] Consider `exactOptionalPropertyTypes: true` in a follow-up optional-property cleanup.
+  - [ ] Consider `noUncheckedIndexedAccess: true` in a follow-up indexed-access cleanup.
+  - [x] Add or confirm `noImplicitOverride: true`.
+  - [x] Add or confirm `noImplicitReturns: true`.
+  - [x] Add or confirm `noFallthroughCasesInSwitch: true`.
   - [ ] Keep `skipLibCheck` only if it is a deliberate toolchain tradeoff.
 - [x] Keep `typescript/no-explicit-any` enforced.
 - [ ] Review every public `unknown` use and keep only deliberate extensibility points, such as metadata or external callback payloads.
@@ -279,7 +281,7 @@ Last verified against repository contents on 2026-07-07.
 
 - [x] GitHub governance files are complete: `SECURITY.md`, `CODE_OF_CONDUCT.md`, support policy, issue templates, and PR template.
 - [x] Public package manifests advertise `bugs`, `author`, `engines`, and `sideEffects`.
-- [ ] Library packages inherit a base TypeScript config that does not currently declare `strict: true`.
+- [x] Library packages inherit a base TypeScript config with `strict: true`.
 - [x] CI exists and is broad; branch protection and required-check settings are configured externally for the solo-maintainer workflow.
 - [x] Package validation exists through `publint`, packed tarballs, Are The Types Wrong, and a clean Vite/React consumer smoke test.
 - [x] Docs/demo observability exists through Sentry metrics, but alerting, release identifiers, uptime checks, and synthetic checks still need to be confirmed.
