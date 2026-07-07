@@ -50,4 +50,4 @@ import { formatTimecode } from '@techsquidtv/canvas-timeline-utils/timecode';
 
 ## Release Status
 
-`0.0.1` is alpha software. Breaking changes may happen before `1.0.0`, and Canvas Timeline does not keep backwards-compatibility aliases or fallback APIs during this period.
+`0.0.1` is alpha software. Breaking changes may happen before `0.1.0`, and Canvas Timeline does not keep backwards-compatibility aliases or fallback APIs during this period.

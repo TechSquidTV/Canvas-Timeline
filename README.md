@@ -59,7 +59,7 @@ export function EditorTimeline() {
 ## Status
 
 Canvas Timeline is alpha software. The first planned public release is `0.0.1`.
-Breaking changes are acceptable before the API reaches `1.0.0`, and this project
+Breaking changes are acceptable before the API reaches `0.1.0`, and this project
 does not keep backwards-compatibility aliases or fallback APIs during that
 period.
 
