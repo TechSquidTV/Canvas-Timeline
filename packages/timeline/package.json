@@ -29,32 +29,32 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     },
     "./core": {
-      "types": "./dist/core.d.ts",
-      "import": "./dist/core.js"
+      "types": "./dist/core.d.mts",
+      "import": "./dist/core.mjs"
     },
     "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js"
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
     },
     "./html-media": {
-      "types": "./dist/html-media.d.ts",
-      "import": "./dist/html-media.js"
+      "types": "./dist/html-media.d.mts",
+      "import": "./dist/html-media.mjs"
     },
     "./renderer": {
-      "types": "./dist/renderer.d.ts",
-      "import": "./dist/renderer.js"
+      "types": "./dist/renderer.d.mts",
+      "import": "./dist/renderer.mjs"
     },
     "./utils": {
-      "types": "./dist/utils.d.ts",
-      "import": "./dist/utils.js"
+      "types": "./dist/utils.d.mts",
+      "import": "./dist/utils.mjs"
     },
     "./base.css": "./dist/base.css",
     "./theme.css": "./dist/theme.css",

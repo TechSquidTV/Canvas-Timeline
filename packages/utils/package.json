@@ -27,24 +27,24 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     },
     "./math": {
-      "types": "./dist/math.d.ts",
-      "import": "./dist/math.js"
+      "types": "./dist/math.d.mts",
+      "import": "./dist/math.mjs"
     },
     "./time": {
-      "types": "./dist/time.d.ts",
-      "import": "./dist/time.js"
+      "types": "./dist/time.d.mts",
+      "import": "./dist/time.mjs"
     },
     "./timecode": {
-      "types": "./dist/timecode.d.ts",
-      "import": "./dist/timecode.js"
+      "types": "./dist/timecode.d.mts",
+      "import": "./dist/timecode.mjs"
     },
     "./package.json": "./package.json"
   },

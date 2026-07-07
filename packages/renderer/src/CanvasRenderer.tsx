@@ -334,7 +334,7 @@ export function CanvasRenderer({
 
     let worker: Worker;
     try {
-      worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
     } catch (workerError: unknown) {
       reportRenderError({
         reason: 'worker-failed',
