@@ -107,6 +107,7 @@ export default defineConfig({
         'vp run repo:typecheck',
         'vp run repo:check',
         'vp run custom:rules',
+        'vp run repo:package:check',
         'vp test run --coverage',
         'node scripts/check-package-coverage.mjs',
       ],
@@ -126,6 +127,7 @@ export default defineConfig({
       'docs:api': 'vp run --filter @techsquidtv/canvas-timeline-www docs:api',
       knip: 'knip',
       'repo:package:check': [
+        `vp run ${packageWorkspaceFilter} clean`,
         'vp run build:packages',
         'node scripts/check-publishable-packages.mjs',
         'node scripts/check-consumer-smoke.mjs',
