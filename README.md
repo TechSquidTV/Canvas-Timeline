@@ -1,5 +1,10 @@
 # Canvas Timeline
 
+[![npm version](https://img.shields.io/npm/v/@techsquidtv/canvas-timeline.svg)](https://www.npmjs.com/package/@techsquidtv/canvas-timeline)
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://github.com/techsquidtv/canvas-timeline/blob/main/LICENSE)
+[![CI](https://github.com/techsquidtv/canvas-timeline/actions/workflows/ci.yml/badge.svg)](https://github.com/techsquidtv/canvas-timeline/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-canvastimeline.com-0f766e.svg)](https://canvastimeline.com/docs)
+
 Canvas Timeline is a canvas-based React timeline editor engine for video, audio,
 and animation tools. It combines a headless timeline engine, React interaction
 layers, and a worker-backed canvas renderer so dense editing surfaces can stay
@@ -13,6 +18,8 @@ smooth while your app owns the product UI around them.
 - [Getting started](https://canvastimeline.com/docs/getting-started)
 - [Live demos](https://canvastimeline.com/demos)
 - [Package docs](https://canvastimeline.com/packages)
+- [React registry](https://canvastimeline.com/packages/react/registry)
+- [NPM package](https://www.npmjs.com/package/@techsquidtv/canvas-timeline)
 
 ## Install
 
