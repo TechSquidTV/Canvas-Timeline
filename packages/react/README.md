@@ -7,6 +7,8 @@
 
 React bindings, hooks, and interaction components for Canvas Timeline.
 
+![Canvas Timeline editor screenshot](https://raw.githubusercontent.com/techsquidtv/canvas-timeline/main/.github/screenshot.webp)
+
 ## Install
 
 ```bash
