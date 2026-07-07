@@ -68,12 +68,15 @@ period.
 Use `@techsquidtv/canvas-timeline` for the common React + canvas path, or install
 focused packages when you need a lower-level layer:
 
-- `@techsquidtv/canvas-timeline-core` - headless state, editing, playback, history, snapping, and markers.
-- `@techsquidtv/canvas-timeline-react` - provider, hooks, and delegated interaction layers.
-- `@techsquidtv/canvas-timeline-renderer` - canvas drawing, theme resolution, and worker-backed rendering.
-- `@techsquidtv/canvas-timeline-utils` - rational time and shared timeline math.
-- `@techsquidtv/canvas-timeline-html-media-adapter` - native HTML media element sync.
-- `@techsquidtv/canvas-timeline-mediabunny-adapter` - optional Mediabunny-powered media integration.
+| Package                                           | Purpose                                                            | README                                                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `@techsquidtv/canvas-timeline`                    | Batteries-included React timeline editing path.                    | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/timeline/README.md)           |
+| `@techsquidtv/canvas-timeline-core`               | Headless state, editing, playback, history, snapping, and markers. | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/core/README.md)               |
+| `@techsquidtv/canvas-timeline-react`              | Provider, hooks, and delegated interaction layers.                 | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/react/README.md)              |
+| `@techsquidtv/canvas-timeline-renderer`           | Canvas drawing, theme resolution, and worker-backed rendering.     | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/renderer/README.md)           |
+| `@techsquidtv/canvas-timeline-utils`              | Rational time and shared timeline math.                            | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/utils/README.md)              |
+| `@techsquidtv/canvas-timeline-html-media-adapter` | Native HTML media element sync.                                    | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/html-media-adapter/README.md) |
+| `@techsquidtv/canvas-timeline-mediabunny-adapter` | Optional Mediabunny-powered media integration.                     | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/mediabunny-adapter/README.md) |
 
 ## Repository
 
