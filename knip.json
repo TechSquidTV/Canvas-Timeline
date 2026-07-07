@@ -8,6 +8,7 @@
       "entry": [
         "scripts/check-package-coverage.mjs",
         "scripts/check-publishable-packages.mjs",
+        "scripts/check-consumer-smoke.mjs",
         "scripts/check-vite-plus-custom-rules.mjs"
       ],
       "project": ["*.{js,ts}", "scripts/**/*.mjs"],
