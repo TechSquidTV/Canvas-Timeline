@@ -95,6 +95,7 @@ describe('structured data helpers', () => {
       name: '@techsquidtv/canvas-timeline-react',
       url: 'https://canvastimeline.com/packages/react',
       codeRepository: 'https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react',
+      keywords: 'React, You need React bindings., Wrap editors in TimelineProvider.',
       targetProduct: {
         '@type': 'SoftwareApplication',
         installUrl: 'https://www.npmjs.com/package/@techsquidtv/canvas-timeline-react',
@@ -163,22 +164,33 @@ function createPackageDoc(): PackageDoc {
     purpose: 'React provider and hooks.',
     description: 'React package for Canvas Timeline.',
     installCommand: 'pnpm add @techsquidtv/canvas-timeline-react',
-    sourceLinks: [
+    overview: ['React package overview.'],
+    useCasesTitle: 'Use React bindings for',
+    useCases: ['You need React bindings.', 'Wrap editors in `TimelineProvider`.'],
+    usage: {
+      title: 'Bind the engine to React',
+      body: 'Use the provider and hooks.',
+      steps: ['Wrap the editor in `TimelineProvider`.'],
+    },
+    example: {
+      title: 'Example',
+      code: 'export function Example() {}',
+    },
+    linkGroups: [
       {
-        label: 'NPM',
-        href: 'https://www.npmjs.com/package/@techsquidtv/canvas-timeline-react',
-      },
-      {
-        label: 'GitHub',
-        href: 'https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react',
+        title: 'Package links',
+        links: [
+          {
+            title: 'NPM',
+            href: 'https://www.npmjs.com/package/@techsquidtv/canvas-timeline-react',
+          },
+          {
+            title: 'GitHub',
+            href: 'https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react',
+          },
+        ],
       },
     ],
-    whenToUse: ['You need React bindings.'],
-    commonImports: [],
-    usageNotes: [],
-    exports: [],
-    relatedGuides: [],
-    nextSteps: [],
   };
 }
 

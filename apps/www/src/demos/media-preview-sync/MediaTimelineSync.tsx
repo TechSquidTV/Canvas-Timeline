@@ -14,25 +14,23 @@ import {
   demoMarkers,
   demoTracks,
   sampleDurationSeconds,
-  sampleMediaUrls,
+  sampleMediaSource,
   sampleSourceId,
 } from './timeline-demo-data';
 import type { DemoMetrics } from '../demo-instrumentation';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
-// Demo configuration
+// Timeline layer selectors tell the adapter which active clips should drive preview outputs.
 const playbackRates = [0.5, 1, 2] as const;
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
   audio: { trackKind: 'audio', sourceId: sampleSourceId },
 } as const;
 
-// Display helpers
 function formatRenderedFrame(seconds: number | null) {
   return seconds === null ? 'Pending' : formatMediabunnyTime(seconds);
 }
 
-// Timeline chrome
 function TimelineLayers() {
   const { state } = useTimeline();
 
@@ -51,7 +49,6 @@ function TimelineLayers() {
   );
 }
 
-// Mediabunny preview and timeline sync
 function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const playheadTime = useTimelinePlayheadTime();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,8 +56,8 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const decodeMetricReportedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
-  // Adapter setup
-  const sources = useMemo(() => sampleMediaUrls.map((url) => ({ id: sampleSourceId, url })), []);
+  // The source id joins app-owned media descriptors to timeline clips without storing media in timeline state.
+  const sources = useMemo(() => [sampleMediaSource], []);
   const {
     ready,
     status,

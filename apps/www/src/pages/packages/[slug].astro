@@ -3,8 +3,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 import CodeBlock from '@/components/CodeBlock.astro';
 import PackageManagerTabs from '@/components/PackageManagerTabs.astro';
 import { packageDocs, type PackageDoc } from '@/data/packages';
-import { groupApiSymbols, groupNameForApiSymbol } from '@/lib/api-symbol-groups';
-import { apiPackageHref, apiReference, apiSymbolHref } from '@/lib/api-reference';
+import { apiPackageHref } from '@/lib/api-reference';
+import { inlineProseHtml } from '@/lib/inline-prose';
 import { createPackageStructuredData } from '@/lib/structured-data';
 
 interface Props {
@@ -22,75 +22,28 @@ const { packageDoc } = Astro.props;
 const packageApiHref = apiPackageHref(packageDoc.slug);
 const packageInstallPackages = packageDoc.installCommand.replace(/^pnpm add\s+/, '');
 
-// Resolve exported symbols for the current package
-const packageRef = apiReference.packages.find((p) => p.slug === packageDoc.slug);
-const symbols = packageRef ? packageRef.symbols : [];
-const sortedSymbolGroups = groupApiSymbols(packageDoc.slug, symbols);
-
-const commonEntryPointNames: Partial<Record<string, string[]>> = {
-  timeline: [
-    'TimelineEngine',
-    'TimelineProvider',
-    'Timeline',
-    'CanvasRenderer',
-    'fromSeconds',
-    'useTimeline',
-  ],
-  core: ['TimelineEngine', 'TimelineState', 'Track', 'Clip', 'fromSeconds', 'SpatialIndex'],
-  react: [
-    'TimelineProvider',
-    'Timeline',
-    'useTimeline',
-    'useTimelineState',
-    'useTimelinePlayback',
-    'TimecodeField',
-  ],
-  renderer: ['CanvasRenderer', 'CanvasRendererProps', 'createTimelineRendererTheme'],
-  utils: ['fromSeconds', 'toSeconds', 'formatTime', 'formatTimecode', 'addRational'],
-  'html-media-adapter': [
-    'useHTMLTimelineMedia',
-    'createHTMLMediaAdapter',
-    'useHTMLMediaAdapter',
-    'HTMLMediaAdapter',
-  ],
-  'mediabunny-adapter': [
-    'useMediabunnyTimelineMedia',
-    'createMediabunnyAdapter',
-    'useMediabunnyAdapter',
-    'MediabunnyAdapter',
-  ],
-};
-
-const commonEntryPoints = (commonEntryPointNames[packageDoc.slug] ?? [])
-  .map((symbolName) => symbols.find((symbol) => symbol.name === symbolName))
-  .filter(Boolean) as typeof symbols;
-
 const seoTitles: Record<string, string> = {
   timeline: 'React Timeline Editor Component - @techsquidtv/canvas-timeline',
-  core: 'Headless Timeline Editor React Engine - @techsquidtv/canvas-timeline-core',
+  core: 'Timeline Editor Core Engine - @techsquidtv/canvas-timeline-core',
   react: 'React Timeline Component Hooks & UI - @techsquidtv/canvas-timeline-react',
-  renderer: '60fps Canvas React Timeline Renderer - @techsquidtv/canvas-timeline-renderer',
-  utils: 'React Timeline Rational Time Utilities - @techsquidtv/canvas-timeline-utils',
+  renderer: '60fps Canvas Timeline Renderer - @techsquidtv/canvas-timeline-renderer',
+  utils: 'Timeline Rational Time Utilities - @techsquidtv/canvas-timeline-utils',
   'html-media-adapter': 'React Timeline Component Media Sync - @techsquidtv/canvas-timeline-html-media-adapter',
   'mediabunny-adapter': 'React Timeline Component Mediabunny Adapter - @techsquidtv/canvas-timeline-mediabunny-adapter',
 };
 
 const seoH1s: Record<string, string> = {
   timeline: 'Canvas React Timeline Editor & Component',
-  core: 'React Timeline Editor Core Engine',
+  core: 'Timeline Editor Core Engine',
   react: 'Canvas React Timeline Editor UI Bindings',
-  renderer: 'React Timeline Canvas Rendering Engine',
-  utils: 'React Timeline Math & Time Utilities',
+  renderer: 'Timeline Canvas Rendering Engine',
+  utils: 'Timeline Math & Time Utilities',
   'html-media-adapter': 'HTML Media Sync Adapter',
   'mediabunny-adapter': 'Mediabunny Audio & Video Sync Adapter',
 };
 
 const seoTitle = seoTitles[packageDoc.slug] || packageDoc.name;
 const seoH1 = seoH1s[packageDoc.slug] || packageDoc.name;
-const descriptionLink = packageDoc.descriptionLinks?.[0];
-const descriptionParts = descriptionLink
-  ? packageDoc.description.split(descriptionLink.label)
-  : [packageDoc.description];
 const structuredData = createPackageStructuredData(packageDoc);
 ---
 
@@ -129,299 +82,144 @@ const structuredData = createPackageStructuredData(packageDoc);
       </p>
 
       <!-- Description -->
-      <p class="mt-3 text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-        {descriptionLink ? (
-          <>
-            {descriptionParts.map((part, index) => (
-              <>
-                {part}
-                {index < descriptionParts.length - 1 && (
-                  <a
-                    href={descriptionLink.href}
-                    rel="noreferrer"
-                    target="_blank"
-                    class="text-foreground underline decoration-border underline-offset-4 hover:text-primary hover:decoration-primary"
-                  >
-                    {descriptionLink.label}
-                  </a>
-                )}
-              </>
-            ))}
-          </>
-        ) : (
-          packageDoc.description
-        )}
-      </p>
+      <p
+        class="mt-3 text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
+        set:html={inlineProseHtml(packageDoc.description)}
+      />
     </div>
   </section>
 
   <!-- Main Content Layout -->
   <div class="container-page px-4 py-12 md:py-16">
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-      
       <!-- Main Content Column -->
-      <article class="lg:col-span-8 space-y-12">
-        
-        <!-- Installation Section -->
+      <article class="detail-main lg:col-span-8 space-y-12">
+        <section aria-labelledby="overview-heading">
+          <h2 id="overview-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
+            Overview
+          </h2>
+          <div class="max-w-3xl space-y-4">
+            {packageDoc.overview.map((paragraph) => (
+              <p
+                class="text-sm md:text-base text-muted-foreground leading-relaxed text-left"
+                set:html={inlineProseHtml(paragraph)}
+              />
+            ))}
+          </div>
+        </section>
+
         <section aria-labelledby="install-heading">
           <h2 id="install-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
-            Installation
+            Install
           </h2>
           <PackageManagerTabs packages={packageInstallPackages} />
         </section>
 
-        <!-- When to Use Section -->
-        <section aria-labelledby="when-to-use-heading">
-          <h2 id="when-to-use-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
-            When to use it
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {packageDoc.whenToUse.map((item) => (
-              <div class="flex gap-3 bg-muted/20 border border-border/60 rounded-xl p-4 text-left">
-                <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                <span class="text-sm text-foreground/80 leading-relaxed">{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <!-- Integration Guide Section -->
-        {packageDoc.integrationGuide && (
-          <section aria-labelledby="integration-guide-heading" class="space-y-6">
-            <div class="max-w-3xl text-left">
-              <h2 id="integration-guide-heading" class="text-xl md:text-2xl font-bold text-foreground">
-                How it fits together
-              </h2>
-              <p class="mt-3 text-sm text-muted-foreground leading-relaxed">
-                {packageDoc.integrationGuide.mentalModel}
-              </p>
-            </div>
-
-            <div class="grid grid-cols-1 gap-4">
-              <div class="border border-border/60 rounded-xl bg-muted/10 p-5 text-left">
-                <h3 class="text-sm font-bold text-foreground">Setup flow</h3>
-                <ol class="mt-4 space-y-3">
-                  {packageDoc.integrationGuide.steps.map((step, index) => (
-                    <li class="flex gap-3 text-sm text-muted-foreground leading-relaxed">
-                      <span class="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-
-              <CodeBlock
-                code={packageDoc.integrationGuide.example.code}
-                lang="tsx"
-                title={packageDoc.integrationGuide.example.label}
-              />
-
-              <div class="border border-border/60 rounded-xl bg-card p-5 text-left">
-                <h3 class="text-sm font-bold text-foreground">What to look for in the demo</h3>
-                <ul class="mt-4 space-y-3">
-                  {packageDoc.integrationGuide.demoNotes.map((note) => (
-                    <li class="flex gap-3 text-sm text-muted-foreground leading-relaxed">
-                      <span class="text-primary mt-1 select-none font-bold">•</span>
-                      <span>{note}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+        {packageDoc.useCases && packageDoc.useCasesTitle && (
+          <section aria-labelledby="use-cases-heading">
+            <h2 id="use-cases-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
+              {packageDoc.useCasesTitle}
+            </h2>
+            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {packageDoc.useCases.map((item) => (
+                <li class="flex gap-3 bg-muted/20 border border-border/60 rounded-xl p-4 text-left">
+                  <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span
+                    class="text-sm text-foreground/80 leading-relaxed"
+                    set:html={inlineProseHtml(item)}
+                  />
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
-        <!-- Common Imports Section -->
-        <section aria-labelledby="imports-heading">
-          <h2 id="imports-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
-            Common imports
-          </h2>
-          <div class="space-y-6">
-            {
-              packageDoc.commonImports.map((example) => (
-                <CodeBlock code={example.code} lang="ts" title={example.label} />
-              ))
-            }
+        <section aria-labelledby="usage-heading" class="space-y-5">
+          <div class="max-w-3xl text-left">
+            <h2 id="usage-heading" class="text-xl md:text-2xl font-bold text-foreground">
+              Usage
+            </h2>
+            <h3 class="mt-4 text-base font-bold text-foreground">{packageDoc.usage.title}</h3>
+            <p
+              class="mt-2 text-sm md:text-base text-muted-foreground leading-relaxed"
+              set:html={inlineProseHtml(packageDoc.usage.body)}
+            />
           </div>
-        </section>
 
-        <!-- Usage Notes Section -->
-        <section aria-labelledby="usage-notes-heading">
-          <h2 id="usage-notes-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
-            Usage notes
-          </h2>
-          <ul class="space-y-3 pl-1">
-            {packageDoc.usageNotes.map((item) => (
-              <li class="flex gap-3 text-sm text-muted-foreground text-left leading-relaxed">
-                <span class="text-primary mt-1 select-none font-bold">•</span>
-                <span>{item}</span>
+          <ol class="grid grid-cols-1 gap-3">
+            {packageDoc.usage.steps.map((step, index) => (
+              <li class="flex gap-3 text-sm text-muted-foreground leading-relaxed border border-border/60 rounded-xl bg-muted/10 p-4">
+                <span class="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  {index + 1}
+                </span>
+                <span set:html={inlineProseHtml(step)} />
               </li>
             ))}
-          </ul>
+          </ol>
         </section>
 
-        <!-- Public API Surface Section -->
-        <section aria-labelledby="api-surface-heading" class="space-y-6">
-          <div class="max-w-3xl text-left border-t border-border pt-8">
-            <h2 id="api-surface-heading" class="text-xl md:text-2xl font-bold text-foreground">
-              API Surface
-            </h2>
-            <p class="mt-2 text-sm text-muted-foreground leading-relaxed">
-              Explore the key components, hooks, and classes exported by this package. Click any symbol to view its full TSDoc parameter signatures.
-            </p>
-          </div>
-
-          {commonEntryPoints.length > 0 && (
-            <div class="space-y-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Key Entry Points</h3>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {commonEntryPoints.map((symbol) => (
-                  <a
-                    href={apiSymbolHref(packageDoc.slug, symbol.slug)}
-                    class="group bg-card border border-border rounded-xl p-4 flex flex-col justify-between hover:border-primary hover:shadow-sm transition-all duration-300 text-left"
-                  >
-                    <div>
-                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary mb-2">
-                        {groupNameForApiSymbol(packageDoc.slug, symbol)}
-                      </span>
-                      <strong class="block text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                        {symbol.name}
-                      </strong>
-                      <p class="mt-1 text-xs text-muted-foreground leading-normal line-clamp-2">
-                        {symbol.summary || 'No description summary.'}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <section aria-labelledby="example-heading">
+          <h2 id="example-heading" class="text-xl md:text-2xl font-bold text-foreground mb-4">
+            Example
+          </h2>
+          <CodeBlock
+            code={packageDoc.example.code}
+            lang={packageDoc.example.lang ?? 'tsx'}
+            title={packageDoc.example.title}
+          />
         </section>
-
-        <!-- Subpath Imports Section -->
-        <section aria-labelledby="subpaths-heading" class="space-y-4">
-          <div class="max-w-3xl text-left border-t border-border pt-8">
-            <h2 id="subpaths-heading" class="text-xl md:text-2xl font-bold text-foreground">
-              Subpath Imports
-            </h2>
-            <p class="mt-2 text-sm text-muted-foreground leading-relaxed">
-              Import specific files or modules directly to reduce bundle size or target specialized package layers.
-            </p>
-          </div>
-          <div class="overflow-x-auto rounded-xl border border-border bg-card">
-            <table class="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr class="border-b border-border bg-muted/30">
-                  <th class="p-4 font-semibold text-foreground">Import Path</th>
-                  <th class="p-4 font-semibold text-foreground">Description</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-border/60">
-                {packageDoc.exports.map((item) => (
-                  <tr class="hover:bg-muted/10 transition-colors">
-                    <td class="p-4 font-mono text-xs text-primary whitespace-nowrap">
-                      {packageDoc.name}{item.path === '.' ? '' : item.path.replace('.', '')}
-                    </td>
-                    <td class="p-4 text-muted-foreground leading-relaxed">{item.description}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
       </article>
 
       <!-- Sidebar Column -->
-      <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-        
-        <!-- API Reference CTA Card -->
+      <aside class="detail-aside lg:col-span-4 space-y-6 lg:sticky lg:top-24">
         <div class="bg-primary/5 border border-primary/20 rounded-xl p-5 flex flex-col justify-between hover:shadow-md transition-all duration-300">
           <div>
-            <h3 class="text-sm font-bold text-foreground">API Reference</h3>
+            <h3 class="text-sm font-bold text-foreground">API reference</h3>
             <p class="mt-2 text-xs text-muted-foreground leading-relaxed">
-              Open the generated, comprehensive developer reference for {packageDoc.name}.
+              Generated reference for every public symbol exported by {packageDoc.name}.
             </p>
           </div>
           <a class="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:opacity-90 transition-all shadow-sm" href={packageApiHref}>
-            Open API Reference
+            Open API reference
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </a>
         </div>
 
-        <!-- Source Links Card -->
-        <div class="bg-card border border-border rounded-xl p-5">
-          <h3 class="text-sm font-bold text-foreground mb-3">Source Code</h3>
-          <div class="flex flex-col gap-2">
-            {
-              packageDoc.sourceLinks.map((link) => (
+        {packageDoc.linkGroups.map((group) => (
+          <div class="bg-card border border-border rounded-xl p-5">
+            <h3 class="text-sm font-bold text-foreground mb-3">{group.title}</h3>
+            <div class="flex flex-col gap-2">
+              {group.links.map((link) => (
                 <a
                   href={link.href}
-                  rel="noreferrer"
-                  target="_blank"
-                  class="inline-flex items-center justify-between p-2.5 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-muted/10 transition-all text-xs text-foreground/80 font-medium"
+                  rel={link.href.startsWith('http') ? 'noreferrer' : undefined}
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  class="group block text-left p-3 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-muted/10 transition-all"
                 >
-                  <span>{link.label}</span>
-                  <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-              ))
-            }
-          </div>
-        </div>
-
-        <!-- Related Guides Card -->
-        {packageDoc.relatedGuides.length > 0 && (
-          <div class="bg-card border border-border rounded-xl p-5">
-            <h3 class="text-sm font-bold text-foreground mb-3">Related Guides</h3>
-            <div class="flex flex-col gap-2">
-              {
-                packageDoc.relatedGuides.map((guide) => (
-                  <a
-                    href={guide.href}
-                    class="inline-flex items-center justify-between p-2.5 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-muted/10 transition-all text-xs text-foreground/80 font-medium"
-                  >
-                    <span>{guide.title}</span>
-                    <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  <span class="flex items-center justify-between gap-3">
+                    <strong class="text-xs text-foreground group-hover:text-primary transition-colors">
+                      {link.title}
+                    </strong>
+                    <svg class="w-3.5 h-3.5 flex-shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d={link.href.startsWith('http') ? 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' : 'M9 5l7 7-7 7'} />
                     </svg>
-                  </a>
-                ))
-              }
+                  </span>
+                  {link.description && (
+                    <span
+                      class="block text-[11px] text-muted-foreground mt-1 leading-normal"
+                      set:html={inlineProseHtml(link.description)}
+                    />
+                  )}
+                </a>
+              ))}
             </div>
           </div>
-        )}
-
-        <!-- Next Steps Card -->
-        {packageDoc.nextSteps.length > 0 && (
-          <div class="bg-card border border-border rounded-xl p-5">
-            <h3 class="text-sm font-bold text-foreground mb-3">Next Steps</h3>
-            <div class="flex flex-col gap-3">
-              {
-                packageDoc.nextSteps.map((link) => (
-                  <a
-                    href={link.href}
-                    class="group block text-left p-3 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-muted/10 transition-all"
-                  >
-                    <strong class="block text-xs text-foreground group-hover:text-primary transition-colors">{link.title}</strong>
-                    {link.description && <span class="block text-[11px] text-muted-foreground mt-1 leading-normal">{link.description}</span>}
-                  </a>
-                ))
-              }
-            </div>
-          </div>
-        )}
-
+        ))}
       </aside>
-
     </div>
   </div>
 </BaseLayout>
