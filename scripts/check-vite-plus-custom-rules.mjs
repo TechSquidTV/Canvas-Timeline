@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
 import ts from 'typescript';
 
+const repoRootUrl = new URL('../', import.meta.url);
+const repoRootPath = fileURLToPath(repoRootUrl);
 const localPathPattern = /(['"`])\/(?:Users|home)\//;
 const sourceFilePattern = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/;
 const hookFilePattern = /\.(?:cts|mts|ts|tsx)$/;
@@ -40,21 +43,73 @@ const curatedReactApiSpecs = [
     ],
   },
 ];
+const removedPublicApiGuards = [
+  {
+    file: 'packages/react/package.json',
+    pattern: /"\.\/docs-metadata"/,
+    message: 'React package must not expose docs-only metadata as a public subpath.',
+  },
+  {
+    file: 'packages/react/src/index.ts',
+    pattern: /export\s+\*\s+from\s+['"]\.\/context['"]|TimelineContext(Value)?/,
+    message: 'React root must not export provider context internals.',
+  },
+  {
+    file: 'packages/react/src/timecodeInput/index.ts',
+    pattern:
+      /\b(?:formatTimecode|parseTimecode|TimecodeFrameRate|TimecodeFormat|TimecodeFormatOptions|TimecodeParseOptions|TimecodeParseRounding)\b/,
+    message: 'React timecode input must not re-export utility timecode helpers or aliases.',
+  },
+  {
+    file: 'packages/react/src/timecodeInput/timecode.ts',
+    pattern: /[\s\S]/,
+    message: 'React timecode helper wrapper must stay removed; use utils timecode helpers.',
+    mustNotExist: true,
+  },
+  {
+    file: 'packages/core/src/index.ts',
+    pattern: /export\s+\*\s+from\s+['"]\.\/emitter['"]/,
+    message: 'Core root must not export the internal event emitter primitive.',
+  },
+  {
+    file: 'packages/core/package.json',
+    pattern: /"\.\/snapshot"/,
+    message: 'Core package must not expose internal snapshot helpers as a public subpath.',
+  },
+  {
+    file: 'packages/core/src/index.ts',
+    pattern: /export\s+\*\s+from\s+['"]\.\/snapshot['"]/,
+    message: 'Core root must not barrel internal snapshot helpers.',
+  },
+  {
+    file: 'packages/core/src/lean.ts',
+    pattern: /[\s\S]/,
+    message: 'Core lean helper module must stay renamed; use the internal snapshot module.',
+    mustNotExist: true,
+  },
+  {
+    file: 'packages/core/src/engine.ts',
+    pattern:
+      /export\s+(?:function|const)\s+(?:createLeanClip|createLeanTrack|createLeanTracks|stringifyLeanTracks|createLeanMarkers|createLeanClipGroups|createClipSnapshot|createTrackSnapshot|createTrackSnapshots|stringifyTrackSnapshots|createMarkerSnapshots|createClipGroupSnapshots)\b|export\s+\{[^}]*\b(?:createLeanClip|createLeanTrack|createLeanTracks|stringifyLeanTracks|createLeanMarkers|createLeanClipGroups|createClipSnapshot|createTrackSnapshot|createTrackSnapshots|stringifyTrackSnapshots|createMarkerSnapshots|createClipGroupSnapshots)\b[^}]*\}/,
+    message: 'Core engine entrypoint must not export internal snapshot helpers.',
+  },
+];
 
-const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+const files = execFileSync('git', ['ls-files'], { cwd: repoRootPath, encoding: 'utf8' })
   .split('\n')
-  .filter((file) => file.length > 0 && existsSync(file));
+  .filter((file) => file.length > 0 && existsSync(resolveRepoFile(file)));
 
 const failures = [];
 
 runTsdocQualitySelfTest();
+checkRemovedPublicApiGuards();
 
 for (const file of files) {
   if (!sourceFilePattern.test(file)) {
     continue;
   }
 
-  const sourceText = readFileSync(file, 'utf8');
+  const sourceText = readFileSync(resolveRepoFile(file), 'utf8');
   if (localPathPattern.test(sourceText)) {
     failures.push(`${file}: contains a hardcoded local absolute path`);
   }
@@ -67,7 +122,7 @@ for (const file of files) {
     continue;
   }
 
-  const sourceText = readFileSync(file, 'utf8');
+  const sourceText = readFileSync(resolveRepoFile(file), 'utf8');
   const sourceFile = ts.createSourceFile(
     file,
     sourceText,
@@ -80,12 +135,12 @@ for (const file of files) {
 }
 
 for (const spec of curatedReactApiSpecs) {
-  if (!existsSync(spec.file)) {
+  if (!existsSync(resolveRepoFile(spec.file))) {
     failures.push(`${spec.file}: curated React API TSDoc file is missing`);
     continue;
   }
 
-  const sourceText = readFileSync(spec.file, 'utf8');
+  const sourceText = readFileSync(resolveRepoFile(spec.file), 'utf8');
   const sourceFile = ts.createSourceFile(
     spec.file,
     sourceText,
@@ -207,6 +262,34 @@ export function useBadHook<Value>(input: string): Value {
   ) {
     throw new Error(`TSDoc quality self-test did not catch expected failures.`);
   }
+}
+
+function checkRemovedPublicApiGuards() {
+  for (const guard of removedPublicApiGuards) {
+    const guardPath = resolveRepoFile(guard.file);
+    const exists = existsSync(guardPath);
+
+    if (guard.mustNotExist) {
+      if (exists) {
+        failures.push(`${guard.file}: ${guard.message}`);
+      }
+      continue;
+    }
+
+    if (!exists) {
+      failures.push(`${guard.file}: public API guard file is missing`);
+      continue;
+    }
+
+    const sourceText = readFileSync(guardPath, 'utf8');
+    if (guard.pattern.test(sourceText)) {
+      failures.push(`${guard.file}: ${guard.message}`);
+    }
+  }
+}
+
+function resolveRepoFile(file) {
+  return new URL(file, repoRootUrl);
 }
 
 function checkCuratedApiTsdoc(sourceFile, spec, outputFailures) {

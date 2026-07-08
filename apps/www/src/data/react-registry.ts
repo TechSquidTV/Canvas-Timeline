@@ -3,7 +3,7 @@ import {
   timelineHookMetadata,
   type TimelineHookGroupId,
   type TimelineHookReactivity,
-} from '@techsquidtv/canvas-timeline-react/docs-metadata';
+} from './react-hook-metadata';
 
 type ReactRegistryKind = 'component' | 'primitive' | 'hook';
 export type ReactRegistryDemoVariant =
@@ -846,14 +846,12 @@ export function ClipRangeScrollbar() {
     demo: timecodeInputDemo,
     sourceTitle: 'ClipStartTimecode.tsx',
     usageCode: `import { useState } from 'react';
-import {
-  TimecodeInput,
-  parseTimecodeInput,
-} from '@techsquidtv/canvas-timeline-react/timecode-input';
+import { TimecodeInput } from '@techsquidtv/canvas-timeline-react/timecode-input';
+import { parseTimecode } from '@techsquidtv/canvas-timeline-utils/timecode';
 
 export function ClipStartTimecode() {
   const [text, setText] = useState('90.5');
-  const invalid = parseTimecodeInput(text) === null;
+  const invalid = parseTimecode(text) === null;
 
   return (
     <TimecodeInput
@@ -872,13 +870,13 @@ export function ClipStartTimecode() {
         demo: timecodeInputFormattingDemo,
         usageCode: `import { type FormEvent, useState } from 'react';
 import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { TimecodeInput } from '@techsquidtv/canvas-timeline-react/timecode-input';
 import {
-  TimecodeInput,
-  type TimecodeInputFormatOptions,
-  type TimecodeInputParseOptions,
-  formatTimecodeInput,
-  parseTimecodeInput,
-} from '@techsquidtv/canvas-timeline-react/timecode-input';
+  type TimecodeFormatOptions,
+  type TimecodeParseOptions,
+  formatTimecode,
+  parseTimecode,
+} from '@techsquidtv/canvas-timeline-utils/timecode';
 
 const formatOptions = [
   { value: 'seconds', label: 'Seconds', formatOptions: { format: 'seconds' } },
@@ -892,8 +890,8 @@ const formatOptions = [
 ] satisfies Array<{
   value: string;
   label: string;
-  formatOptions: TimecodeInputFormatOptions;
-  parseOptions?: TimecodeInputParseOptions;
+  formatOptions: TimecodeFormatOptions;
+  parseOptions?: TimecodeParseOptions;
 }>;
 const initialSeconds = 90.5;
 const sequenceRate = 24000;
@@ -905,15 +903,15 @@ export function ClipStartTimecode({
 }) {
   const [formatValue, setFormatValue] = useState('seconds');
   const [text, setText] = useState(() =>
-    formatTimecodeInput(initialSeconds, { format: 'seconds' })
+    formatTimecode(initialSeconds, { format: 'seconds' })
   );
   const selectedFormat =
     formatOptions.find((option) => option.value === formatValue) ?? formatOptions[0];
-  const parsedSeconds = parseTimecodeInput(text, selectedFormat.parseOptions);
+  const parsedSeconds = parseTimecode(text, selectedFormat.parseOptions);
 
   function handleFormatChange(nextFormatValue: string) {
     const nextFormat = formatOptions.find((option) => option.value === nextFormatValue);
-    const nextSeconds = parseTimecodeInput(text, selectedFormat.parseOptions);
+    const nextSeconds = parseTimecode(text, selectedFormat.parseOptions);
 
     if (!nextFormat) {
       return;
@@ -922,7 +920,7 @@ export function ClipStartTimecode({
     setFormatValue(nextFormat.value);
 
     if (nextSeconds !== null) {
-      setText(formatTimecodeInput(nextSeconds, nextFormat.formatOptions));
+      setText(formatTimecode(nextSeconds, nextFormat.formatOptions));
     }
   }
 
@@ -934,7 +932,7 @@ export function ClipStartTimecode({
     }
 
     onApply(fromSeconds(parsedSeconds, sequenceRate));
-    setText(formatTimecodeInput(parsedSeconds, selectedFormat.formatOptions));
+    setText(formatTimecode(parsedSeconds, selectedFormat.formatOptions));
   }
 
   return (
@@ -954,7 +952,7 @@ export function ClipStartTimecode({
           <option key={option.value} value={option.value}>
             {parsedSeconds === null
               ? option.label
-              : \`\${option.label} (\${formatTimecodeInput(parsedSeconds, {
+              : \`\${option.label} (\${formatTimecode(parsedSeconds, {
                   ...option.formatOptions,
                 })})\`}
           </option>
@@ -980,49 +978,12 @@ export function ClipStartTimecode({
           'Base UI Input props plus invalid styling for form wrappers that own validation feedback.',
         apiSlug: 'timecode-input-props',
       },
-      {
-        name: 'formatTimecodeInput',
-        description:
-          'Formats seconds as decimal clock text, total seconds/minutes, or frame-rate timecode.',
-        apiSlug: 'format-timecode-input',
-      },
-      {
-        name: 'parseTimecodeInput',
-        description:
-          'Converts decimal or frame timecode text into precise seconds, or null when invalid.',
-        apiSlug: 'parse-timecode-input',
-      },
-      {
-        name: 'TimecodeFrameRate',
-        description: 'Number or rational frame rate accepted by frame-based timecode helpers.',
-        apiSlug: 'timecode-frame-rate',
-      },
-      {
-        name: 'TimecodeInputFormat',
-        description: 'Allowed output formats for formatting timecode input text.',
-        apiSlug: 'timecode-input-format',
-      },
-      {
-        name: 'TimecodeInputFormatOptions',
-        description: 'Options object accepted by formatTimecodeInput.',
-        apiSlug: 'timecode-input-format-options',
-      },
-      {
-        name: 'TimecodeInputParseRounding',
-        description: 'Optional rounding policy for parsed timecode input text.',
-        apiSlug: 'timecode-input-parse-rounding',
-      },
-      {
-        name: 'TimecodeInputParseOptions',
-        description: 'Options object accepted by parseTimecodeInput.',
-        apiSlug: 'timecode-input-parse-options',
-      },
     ],
     props: [
       {
         name: 'invalid',
         type: 'boolean',
-        description: 'Marks the input invalid when parseTimecodeInput returns null.',
+        description: 'Marks the input invalid when parseTimecode returns null.',
       },
       {
         name: 'value',
@@ -1081,8 +1042,8 @@ export function ClipStartField() {
         demo: timecodeFieldFormattingDemo,
         usageCode: `import { useState } from 'react';
 import { type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { type TimecodeFormatOptions } from '@techsquidtv/canvas-timeline-utils/timecode';
 import { TimecodeField } from '@techsquidtv/canvas-timeline-react/timecode-field';
-import { type TimecodeInputFormatOptions } from '@techsquidtv/canvas-timeline-react/timecode-input';
 
 const formatOptions = [
   { value: 'seconds', label: 'Seconds', formatOptions: { format: 'seconds' } },
@@ -1105,7 +1066,7 @@ const formatOptions = [
 ] satisfies Array<{
   value: string;
   label: string;
-  formatOptions: TimecodeInputFormatOptions;
+  formatOptions: TimecodeFormatOptions;
 }>;
 
 const sequenceRate = 24000;
@@ -1182,16 +1143,6 @@ export function ClipStartField({
         description: 'Reason the field committed the draft text.',
         apiSlug: 'timecode-field-commit-reason',
       },
-      {
-        name: 'TimecodeInputFormatOptions',
-        description: 'Formatting options used by TimecodeField.Root formatOptions.',
-        apiSlug: 'timecode-input-format-options',
-      },
-      {
-        name: 'TimecodeInputParseOptions',
-        description: 'Optional parsing overrides used by TimecodeField.Root parseOptions.',
-        apiSlug: 'timecode-input-parse-options',
-      },
     ],
     props: [
       {
@@ -1206,7 +1157,7 @@ export function ClipStartField({
       },
       {
         name: 'formatOptions',
-        type: 'TimecodeInputFormatOptions',
+        type: 'TimecodeFormatOptions',
         description: 'Formats the trigger text and the draft value when editing starts.',
       },
       {
@@ -1223,7 +1174,7 @@ export function ClipStartField({
       },
       {
         name: 'parseOptions',
-        type: 'TimecodeInputParseOptions',
+        type: 'TimecodeParseOptions',
         description:
           'Optional parser overrides when draft validation should differ from formatOptions.',
       },

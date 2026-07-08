@@ -49,7 +49,7 @@ describe('timeline accessibility utilities', () => {
     ).toBe('1 second to 5 seconds, duration 4 seconds');
   });
 
-  it('builds concise clip names and descriptions from lean timeline state', () => {
+  it('builds concise clip names and descriptions from timeline state snapshots', () => {
     const track = createTrack({ locked: true });
     const clip = createClip({ selected: true, resizable: false });
 

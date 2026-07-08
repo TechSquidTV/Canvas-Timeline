@@ -19,8 +19,8 @@ export interface TimelineViewportRangeControlOptions
 /**
  * Adds formatted accessibility values to the timeline viewport range adapter.
  *
- * This hook builds on `useTimelineViewportScrollbar`, preserving the same lean
- * viewport scrollbar geometry and keyboard behavior while adding
+ * This hook builds on `useTimelineViewportScrollbar`, preserving the same
+ * lightweight viewport scrollbar geometry and keyboard behavior while adding
  * `aria-valuetext` formatting for the thumb and resize handles. Use it with the
  * generic `RangeScrollbar` primitive when composing a custom viewport control.
  *

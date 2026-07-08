@@ -112,7 +112,7 @@ and reference them from the clip using a unique ID stored in `clip.metadata.id`.
 
 ## Engine events reference
 
-The `TimelineEngine` extends `TypedEventEmitter` to publish type-safe events for structural modifications, live interactions, and playback updates.
+The `TimelineEngine` publishes type-safe events for structural modifications, live interactions, and playback updates.
 
 You can subscribe to these events using `engine.on()`, which returns a cleanup function to unsubscribe:
 

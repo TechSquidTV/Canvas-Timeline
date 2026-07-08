@@ -1,4 +1,5 @@
-import { type TimelineEngine, createLeanClip, shiftClipKeyframes } from './engine';
+import { type TimelineEngine, shiftClipKeyframes } from './engine';
+import { createClipSnapshot } from './snapshot';
 import type { Clip, TimelineState } from './types';
 import type { ClipCreatedEvent, ClipRemovedEvent } from './events';
 import {
@@ -45,7 +46,7 @@ export class ClipboardManager {
         if (clip.selected) {
           const group = this.engine.getClipGroupForClip(clip.id);
           this.clipboard.push({
-            clip: createLeanClip(clip),
+            clip: createClipSnapshot(clip),
             originClipId: clip.id,
             ...(group !== undefined ? { originGroupId: group.id } : {}),
             ...(group?.label !== undefined ? { originGroupLabel: group.label } : {}),
@@ -63,7 +64,7 @@ export class ClipboardManager {
     for (const track of state.tracks) {
       track.clips = track.clips.filter((clip) => {
         if (clip.selected) {
-          removedClips.push(createLeanClip(clip));
+          removedClips.push(createClipSnapshot(clip));
           return false;
         }
         return true;
@@ -112,7 +113,7 @@ export class ClipboardManager {
     this.clipboard.forEach(({ clip, originClipId, originGroupId, originGroupLabel }) => {
       const offset = subRational(clip.timelineStart, earliestStart);
       const duration = subRational(clip.timelineEnd, clip.timelineStart);
-      const newClip = createLeanClip(clip, {
+      const newClip = createClipSnapshot(clip, {
         id: crypto.randomUUID(),
         timelineStart: addRational(time, offset),
         timelineEnd: addRational(addRational(time, offset), duration),
@@ -130,7 +131,7 @@ export class ClipboardManager {
       }
       this.engine.applyOverwrites(newClip.id);
       this.engine.emit('clip:created', {
-        clip: createLeanClip(newClip),
+        clip: createClipSnapshot(newClip),
         originClipId,
         reason: 'paste',
       } satisfies ClipCreatedEvent);

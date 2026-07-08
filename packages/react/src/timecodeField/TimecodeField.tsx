@@ -1,4 +1,12 @@
-import { fromSeconds, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import {
+  formatTimecode,
+  fromSeconds,
+  parseTimecode,
+  toSeconds,
+  type RationalTime,
+  type TimecodeFormatOptions,
+  type TimecodeParseOptions,
+} from '@techsquidtv/canvas-timeline-utils';
 import React, {
   createContext,
   useCallback,
@@ -10,14 +18,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  TimecodeInput,
-  type TimecodeInputFormatOptions,
-  type TimecodeInputParseOptions,
-  type TimecodeInputProps,
-  formatTimecodeInput,
-  parseTimecodeInput,
-} from '../timecodeInput';
+import { TimecodeInput, type TimecodeInputProps } from '../timecodeInput';
 
 /**
  * Reason a `TimecodeField` committed the current draft text.
@@ -56,9 +57,9 @@ export interface TimecodeFieldRootProps extends Omit<
   /** Optional label used in trigger accessibility text instead of the formatted value. */
   valueLabel?: string;
   /** Formatting options used for the trigger text and draft value when editing starts. */
-  formatOptions?: TimecodeInputFormatOptions;
+  formatOptions?: TimecodeFormatOptions;
   /** Parsing options used for draft validation and commit. */
-  parseOptions?: TimecodeInputParseOptions;
+  parseOptions?: TimecodeParseOptions;
   /** Tick rate used for `details.time`. Defaults to the value rate, or `60000` for seconds. */
   timebase?: number;
   /** Disables trigger activation and cancels active editing when true. */
@@ -260,9 +261,9 @@ function useComposedRef<T>(
 }
 
 function getEffectiveParseOptions(
-  formatOptions: TimecodeInputFormatOptions | undefined,
-  parseOptions: TimecodeInputParseOptions | undefined
-): TimecodeInputParseOptions {
+  formatOptions: TimecodeFormatOptions | undefined,
+  parseOptions: TimecodeParseOptions | undefined
+): TimecodeParseOptions {
   return {
     frameRate: formatOptions?.frameRate,
     dropFrame: formatOptions?.format === 'drop-frame' ? true : formatOptions?.dropFrame,
@@ -518,7 +519,7 @@ export const TimecodeFieldRoot = React.forwardRef<HTMLSpanElement, TimecodeField
       [duration, valueSeconds]
     );
     const formattedValue = useMemo(
-      () => formatTimecodeInput(valueSeconds, formatOptions),
+      () => formatTimecode(valueSeconds, formatOptions),
       [formatOptions, valueSeconds]
     );
     const displaySegments = useMemo(
@@ -535,7 +536,7 @@ export const TimecodeFieldRoot = React.forwardRef<HTMLSpanElement, TimecodeField
       [controlledEditing, uncontrolledEditing]
     );
     const [draftValue, setDraftValue] = useState(() =>
-      formatTimecodeInput(getValueSeconds(value), formatOptions)
+      formatTimecode(getValueSeconds(value), formatOptions)
     );
     const [invalid, setInvalid] = useState(false);
     const [reservedWidth, setReservedWidth] = useState<string | undefined>();
@@ -623,7 +624,7 @@ export const TimecodeFieldRoot = React.forwardRef<HTMLSpanElement, TimecodeField
         reason: TimecodeFieldCommitReason;
         restoreFocus: boolean;
       }) => {
-        const parsedSeconds = parseTimecodeInput(draftValue, effectiveParseOptions);
+        const parsedSeconds = parseTimecode(draftValue, effectiveParseOptions);
 
         if (parsedSeconds === null) {
           if (cancelOnInvalid) {

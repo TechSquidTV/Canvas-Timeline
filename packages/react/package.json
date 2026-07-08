@@ -54,10 +54,6 @@
       "types": "./dist/components/index.d.mts",
       "import": "./dist/components/index.mjs"
     },
-    "./docs-metadata": {
-      "types": "./dist/docs-metadata.d.mts",
-      "import": "./dist/docs-metadata.mjs"
-    },
     "./base.css": "./dist/base.css",
     "./theme.css": "./dist/theme.css",
     "./styles.css": "./dist/styles.css",
