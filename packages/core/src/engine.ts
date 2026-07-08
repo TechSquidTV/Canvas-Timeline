@@ -130,6 +130,23 @@ import {
 import { PlaybackManager } from './playback';
 import { HistoryManager } from './history';
 import { ClipboardManager } from './clipboard';
+import {
+  assertNonNegativeTimelineNumber,
+  assertPositiveTimelineNumber,
+  assertValidClipTiming,
+  assertValidTimelineNumber,
+  cloneRationalTime,
+  cloneTimelineKeyframe,
+  cloneTimelineKeyframes,
+  createClipSnapshot,
+  createClipGroupSnapshots,
+  createMarkerSnapshots,
+  createTrackSnapshot,
+  createTrackSnapshots,
+  hasTimelineKeyframes,
+  sortTimelineKeyframes,
+  stringifyTrackSnapshots,
+} from './snapshot';
 
 /**
  * Options for building snap targets before a drag, trim, or range-boundary edit.
@@ -278,102 +295,6 @@ function clampViewportCoordinate(value: number, min: number, max: number) {
   return normalizeViewportCoordinate(Math.max(min, Math.min(value, max)));
 }
 
-function assertValidTimelineNumber(value: number, label: string) {
-  if (!Number.isFinite(value)) {
-    throw new RangeError(`${label} must be a finite number.`);
-  }
-}
-
-function assertNonNegativeTimelineNumber(value: number, label: string) {
-  assertValidTimelineNumber(value, label);
-  if (value < 0) {
-    throw new RangeError(`${label} must be greater than or equal to 0.`);
-  }
-}
-
-function assertPositiveTimelineNumber(value: number, label: string) {
-  assertValidTimelineNumber(value, label);
-  if (value <= 0) {
-    throw new RangeError(`${label} must be greater than 0.`);
-  }
-}
-
-function assertValidClipTiming(clip: Clip, label: string) {
-  assertValidRationalTime(clip.timelineStart, `${label}.timelineStart`);
-  assertValidRationalTime(clip.timelineEnd, `${label}.timelineEnd`);
-  assertValidRationalTime(clip.sourceStart, `${label}.sourceStart`);
-  if (compareRational(clip.timelineEnd, clip.timelineStart) <= 0) {
-    throw new RangeError(`${label}.timelineEnd must be after ${label}.timelineStart.`);
-  }
-  if (clip.minStart !== undefined) {
-    assertValidRationalTime(clip.minStart, `${label}.minStart`);
-  }
-  if (clip.maxEnd !== undefined) {
-    assertValidRationalTime(clip.maxEnd, `${label}.maxEnd`);
-  }
-  if (
-    clip.minStart !== undefined &&
-    clip.maxEnd !== undefined &&
-    compareRational(clip.maxEnd, clip.minStart) <= 0
-  ) {
-    throw new RangeError(`${label}.maxEnd must be after ${label}.minStart.`);
-  }
-}
-
-function assertValidMarkerTiming(marker: Marker, label: string) {
-  assertValidRationalTime(marker.time, `${label}.time`);
-}
-
-function assertValidKeyframe(keyframe: TimelineKeyframe, label: string) {
-  assertValidRationalTime(keyframe.time, `${label}.time`);
-  assertValidTimelineNumber(keyframe.value, `${label}.value`);
-}
-
-function cloneTimelineKeyframe(keyframe: TimelineKeyframe): TimelineKeyframe {
-  assertValidKeyframe(keyframe, `keyframe "${keyframe.id}"`);
-  const next: TimelineKeyframe = {
-    id: keyframe.id,
-    property: keyframe.property,
-    time: cloneRationalTime(keyframe.time),
-    value: keyframe.value,
-  };
-
-  if (keyframe.incoming !== undefined) {
-    next.incoming = normalizeTimelineKeyframeSideInterpolation(
-      keyframe.incoming,
-      defaultTimelineIncomingBezierHandle
-    );
-  }
-  if (keyframe.outgoing !== undefined) {
-    next.outgoing = normalizeTimelineKeyframeSideInterpolation(
-      keyframe.outgoing,
-      defaultTimelineOutgoingBezierHandle
-    );
-  }
-  if (keyframe.selected !== undefined) {
-    next.selected = keyframe.selected;
-  }
-
-  return next;
-}
-
-function sortTimelineKeyframes(keyframes: TimelineKeyframe[]) {
-  keyframes.sort((a, b) => {
-    const propertyCompare = a.property.localeCompare(b.property);
-    return propertyCompare === 0 ? compareRational(a.time, b.time) : propertyCompare;
-  });
-}
-
-function cloneTimelineKeyframes(keyframes: TimelineKeyframe[] | undefined): TimelineKeyframe[] {
-  const next = (keyframes ?? []).map((keyframe) => cloneTimelineKeyframe(keyframe));
-  sortTimelineKeyframes(next);
-  return next;
-}
-
-function hasTimelineKeyframes(clip: Clip) {
-  return (clip.keyframes?.length ?? 0) > 0;
-}
-
 /**
  * Shifts all keyframes on a clip by a timeline delta.
  *
@@ -405,211 +326,6 @@ function filterClipKeyframesToClipRange(clip: Clip) {
 
 function isSameRationalTime(left: RationalTime, right: RationalTime) {
   return compareRational(left, right) === 0;
-}
-
-/**
- * Creates a sanitized, lightweight copy of a clip with optional overrides,
- * stripping runtime/bulky metadata to keep state payloads lean.
- *
- * @internal
- * @param clip - The source clip object to sanitize.
- * @param overrides - Optional property overrides to apply to the cloned clip.
- * @returns A lightweight, lean Clip object.
- */
-export function createLeanClip(clip: Clip, overrides: Partial<Clip> = {}): Clip {
-  const next: Clip = {
-    id: overrides.id ?? clip.id,
-    sourceId: overrides.sourceId ?? clip.sourceId,
-    timelineStart: overrides.timelineStart ?? clip.timelineStart,
-    timelineEnd: overrides.timelineEnd ?? clip.timelineEnd,
-    sourceStart: overrides.sourceStart ?? clip.sourceStart,
-    selected: overrides.selected ?? clip.selected,
-  };
-
-  const color = overrides.color ?? clip.color;
-  if (color !== undefined) {
-    next.color = color;
-  }
-
-  const opacity = overrides.opacity ?? clip.opacity;
-  if (opacity !== undefined) {
-    next.opacity = opacity;
-  }
-
-  const label = overrides.label ?? clip.label;
-  if (label !== undefined) {
-    next.label = label;
-  }
-
-  const movable = overrides.movable ?? clip.movable;
-  if (movable !== undefined) {
-    next.movable = movable;
-  }
-
-  const resizable = overrides.resizable ?? clip.resizable;
-  if (resizable !== undefined) {
-    next.resizable = resizable;
-  }
-
-  const disabled = overrides.disabled ?? clip.disabled;
-  if (disabled !== undefined) {
-    next.disabled = disabled;
-  }
-
-  const minStart = overrides.minStart ?? clip.minStart;
-  if (minStart !== undefined) {
-    next.minStart = minStart;
-  }
-
-  const maxEnd = overrides.maxEnd ?? clip.maxEnd;
-  if (maxEnd !== undefined) {
-    next.maxEnd = maxEnd;
-  }
-
-  const editPreview = overrides.editPreview ?? clip.editPreview;
-  if (editPreview !== undefined) {
-    next.editPreview = editPreview;
-  }
-
-  const snap = overrides.snap ?? clip.snap;
-  if (snap !== undefined) {
-    next.snap = typeof snap === 'object' && snap !== null ? { ...snap } : snap;
-  }
-
-  const keyframes = overrides.keyframes ?? clip.keyframes;
-  if (keyframes !== undefined) {
-    next.keyframes = cloneTimelineKeyframes(keyframes);
-  }
-
-  const metadata = overrides.metadata ?? clip.metadata;
-  if (metadata !== undefined) {
-    next.metadata = typeof metadata === 'object' && metadata !== null ? { ...metadata } : metadata;
-  }
-
-  assertValidClipTiming(next, `clip "${next.id}"`);
-  return next;
-}
-
-/**
- * Creates a sanitized, lightweight copy of a track, stripping runtime metadata
- * and sanitizing all child clips to keep state payloads lean.
- *
- * @internal
- * @param track - The track object to sanitize.
- * @returns A lightweight, lean Track object.
- */
-export function createLeanTrack(track: Track): Track {
-  if (track.height !== undefined) {
-    assertPositiveTimelineNumber(track.height, `track "${track.id}".height`);
-  }
-  const next: Track = {
-    id: track.id,
-    kind: track.kind,
-    clips: track.clips.map((clip) => createLeanClip(clip)),
-    selected: track.selected,
-    locked: track.locked,
-    muted: track.muted,
-    visible: track.visible,
-  };
-
-  if (track.height !== undefined) {
-    next.height = track.height;
-  }
-  if (track.collapsed !== undefined) {
-    next.collapsed = track.collapsed;
-  }
-  if (track.name !== undefined) {
-    next.name = track.name;
-  }
-  if (track.targeted !== undefined) {
-    next.targeted = track.targeted;
-  }
-  if (track.groupId !== undefined) {
-    next.groupId = track.groupId;
-  }
-  if (track.snap !== undefined) {
-    next.snap =
-      typeof track.snap === 'object' && track.snap !== null ? { ...track.snap } : track.snap;
-  }
-
-  return next;
-}
-
-/**
- * Sanitizes an array of tracks by calling createLeanTrack on each.
- *
- * @internal
- * @param tracks - The array of tracks to sanitize.
- * @returns A sanitized, lean array of tracks.
- */
-export function createLeanTracks(tracks: Track[]): Track[] {
-  return tracks.map((track) => createLeanTrack(track));
-}
-
-/**
- * Serializes a lean copy of tracks to a JSON string, useful for history snapshots.
- *
- * @internal
- * @param tracks - The tracks to serialize.
- * @returns A JSON string representation of the sanitized tracks.
- */
-export function stringifyLeanTracks(tracks: Track[]): string {
-  return JSON.stringify(createLeanTracks(tracks));
-}
-
-/**
- * Creates a sanitized marker array for timeline state and history snapshots.
- *
- * @param markers - Optional marker array to sanitize.
- * @returns A sanitized marker array.
- */
-export function createLeanMarkers(markers: Marker[] | undefined): Marker[] {
-  return (markers ?? []).map((marker) => {
-    assertValidMarkerTiming(marker, `marker "${marker.id}"`);
-    return { ...marker };
-  });
-}
-
-/**
- * Creates a sanitized clip group array for timeline state and history snapshots.
- *
- * @param clipGroups - Optional clip group array to sanitize.
- * @returns A sanitized clip group array.
- */
-export function createLeanClipGroups(
-  clipGroups: TimelineClipGroup[] | undefined
-): TimelineClipGroup[] {
-  const groupIds = new Set<string>();
-  const groupedClipIds = new Set<string>();
-  return (clipGroups ?? []).map((group) => {
-    if (groupIds.has(group.id)) {
-      throw new RangeError(`duplicate clip group id "${group.id}".`);
-    }
-    groupIds.add(group.id);
-    if (group.clipIds.length < 2) {
-      throw new RangeError(`clip group "${group.id}" must contain at least two clips.`);
-    }
-    const uniqueClipIds = new Set(group.clipIds);
-    if (uniqueClipIds.size !== group.clipIds.length) {
-      throw new RangeError(`clip group "${group.id}" contains duplicate clip ids.`);
-    }
-    for (const clipId of group.clipIds) {
-      if (groupedClipIds.has(clipId)) {
-        throw new RangeError(`clip "${clipId}" belongs to more than one clip group.`);
-      }
-      groupedClipIds.add(clipId);
-    }
-    return {
-      id: group.id,
-      clipIds: [...group.clipIds],
-      ...(group.label !== undefined ? { label: group.label } : {}),
-    };
-  });
-}
-
-function cloneRationalTime(time: RationalTime): RationalTime {
-  assertValidRationalTime(time);
-  return { v: time.v, r: time.r };
 }
 
 function createClipDropFeedbackSnapshot(
@@ -651,7 +367,7 @@ function isSameClipDropFeedback(left: TimelineClipDropFeedback, right: TimelineC
 }
 
 function cloneClipForEditImpacts(clip: Clip): Clip {
-  const next = createLeanClip(clip, {
+  const next = createClipSnapshot(clip, {
     timelineStart: cloneRationalTime(clip.timelineStart),
     timelineEnd: cloneRationalTime(clip.timelineEnd),
     sourceStart: cloneRationalTime(clip.sourceStart),
@@ -769,8 +485,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.editPolicy = initialState.editPolicy;
     this.registerKeyframeProperties(initialState.keyframeProperties ?? []);
     this.state = {
-      tracks: createLeanTracks(initialState.tracks),
-      clipGroups: createLeanClipGroups(initialState.clipGroups),
+      tracks: createTrackSnapshots(initialState.tracks),
+      clipGroups: createClipGroupSnapshots(initialState.clipGroups),
       contentRevision: 0,
       playheadTime: initialState.playheadTime ?? { v: 0, r: 24000 },
       zoomScale: initialState.zoomScale ?? 100, // 100 px per second
@@ -780,7 +496,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       snapThresholdPixels: initialState.snapThresholdPixels ?? 10,
       snapFeedback: emptyTimelineSnapFeedback,
       clipDropFeedback: emptyTimelineClipDropFeedback,
-      markers: createLeanMarkers(initialState.markers),
+      markers: createMarkerSnapshots(initialState.markers),
       playing: false,
       playbackRate: 1.0,
       duration: initialState.duration,
@@ -3444,7 +3160,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (!validation.valid) {
       return this.createRejectedResolvedEdit(
         command,
-        createLeanTracks(this.state.tracks),
+        createTrackSnapshots(this.state.tracks),
         validation
       );
     }
@@ -4170,7 +3886,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveMoveEdit(command: TimelineMoveEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const found = this.getClipInTracks(tracks, command.clipId);
     if (!found) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
@@ -4219,7 +3935,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('source-bounds'));
       }
 
-      const movedClip = createLeanClip(linked.clip, {
+      const movedClip = createClipSnapshot(linked.clip, {
         timelineStart: nextStart,
         timelineEnd: nextEnd,
       });
@@ -4230,7 +3946,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       } else {
         linked.track.clips.splice(linked.clipIndex, 1, movedClip);
       }
-      changedClips.push(createLeanClip(movedClip));
+      changedClips.push(createClipSnapshot(movedClip));
     }
 
     for (const track of tracks) {
@@ -4279,13 +3995,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     command: TimelineTrimEditCommand | TimelineRippleTrimEditCommand,
     ripple: boolean
   ): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const found = this.getClipInTracks(tracks, command.clipId);
     if (!found) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
     }
 
-    const originalClip = createLeanClip(found.clip);
+    const originalClip = createClipSnapshot(found.clip);
     const snap = command.snap === false ? null : this.resolveSnap(command.newTime, false);
     const targetTime = snap?.snappedTime ?? command.newTime;
     const minDuration = fromSeconds(minimumTimelineEditDurationSeconds, targetTime.r);
@@ -4315,7 +4031,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       command.edge === 'start'
         ? subRational(found.clip.timelineStart, oldStart)
         : subRational(found.clip.timelineEnd, oldEnd);
-    const changedClips = [createLeanClip(found.clip)];
+    const changedClips = [createClipSnapshot(found.clip)];
     if (ripple && toSeconds(delta) !== 0) {
       for (const clip of found.track.clips) {
         if (clip.id === found.clip.id || compareRational(clip.timelineStart, oldEnd) < 0) {
@@ -4324,7 +4040,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         clip.timelineStart = addRational(clip.timelineStart, delta);
         clip.timelineEnd = addRational(clip.timelineEnd, delta);
         shiftClipKeyframes(clip, delta);
-        changedClips.push(createLeanClip(clip));
+        changedClips.push(createClipSnapshot(clip));
       }
       this.sortTrackClips(found.track);
     }
@@ -4343,7 +4059,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             clipId: found.clip.id,
             trackId: found.track.id,
             originalClip,
-            resultClips: [createLeanClip(found.clip)],
+            resultClips: [createClipSnapshot(found.clip)],
             effect: command.edge === 'start' ? 'trim-start' : 'trim-end',
             affectedStartTime: minRational(oldStart, found.clip.timelineStart),
             affectedEndTime: maxRational(oldEnd, found.clip.timelineEnd),
@@ -4356,7 +4072,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveRollTrimEdit(command: TimelineRollTrimEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const left = this.getClipInTracks(tracks, command.leftClipId);
     const right = this.getClipInTracks(tracks, command.rightClipId);
     if (!left || !right || left.track.id !== right.track.id) {
@@ -4369,8 +4085,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (!boundaryValidation.valid) {
       return this.createRejectedResolvedEdit(command, tracks, boundaryValidation);
     }
-    const originalLeft = createLeanClip(left.clip);
-    const originalRight = createLeanClip(right.clip);
+    const originalLeft = createClipSnapshot(left.clip);
+    const originalRight = createClipSnapshot(right.clip);
     left.clip.timelineEnd = boundaryTime;
     right.clip.sourceStart = addRational(
       right.clip.sourceStart,
@@ -4384,7 +4100,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       tracks,
       this.createResolvedEditPreview(command, {
         snap,
-        changedClips: [createLeanClip(left.clip), createLeanClip(right.clip)],
+        changedClips: [createClipSnapshot(left.clip), createClipSnapshot(right.clip)],
         createdClips: [],
         removedClips: [],
         affectedRanges: [
@@ -4399,7 +4115,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             clipId: left.clip.id,
             trackId: left.track.id,
             originalClip: originalLeft,
-            resultClips: [createLeanClip(left.clip)],
+            resultClips: [createClipSnapshot(left.clip)],
             effect: 'trim-end',
             affectedStartTime: minRational(originalLeft.timelineEnd, boundaryTime),
             affectedEndTime: maxRational(originalLeft.timelineEnd, boundaryTime),
@@ -4409,7 +4125,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             clipId: right.clip.id,
             trackId: right.track.id,
             originalClip: originalRight,
-            resultClips: [createLeanClip(right.clip)],
+            resultClips: [createClipSnapshot(right.clip)],
             effect: 'trim-start',
             affectedStartTime: minRational(originalRight.timelineStart, boundaryTime),
             affectedEndTime: maxRational(originalRight.timelineStart, boundaryTime),
@@ -4421,13 +4137,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveSlipEdit(command: TimelineSlipEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const found = this.getClipInTracks(tracks, command.clipId);
     if (!found) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('not-found'));
     }
 
-    const originalClip = createLeanClip(found.clip);
+    const originalClip = createClipSnapshot(found.clip);
     found.clip.sourceStart = maxRational(
       addRational(found.clip.sourceStart, command.deltaTime),
       fromSeconds(0, command.deltaTime.r)
@@ -4438,7 +4154,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       tracks,
       this.createResolvedEditPreview(command, {
         snap: null,
-        changedClips: [createLeanClip(found.clip)],
+        changedClips: [createClipSnapshot(found.clip)],
         createdClips: [],
         removedClips: [],
         affectedRanges: [
@@ -4453,7 +4169,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             clipId: found.clip.id,
             trackId: found.track.id,
             originalClip,
-            resultClips: [createLeanClip(found.clip)],
+            resultClips: [createClipSnapshot(found.clip)],
             effect: 'trim-start',
             affectedStartTime: found.clip.timelineStart,
             affectedEndTime: found.clip.timelineEnd,
@@ -4468,7 +4184,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     if (!found) {
       return this.createRejectedResolvedEdit(
         command,
-        createLeanTracks(this.state.tracks),
+        createTrackSnapshots(this.state.tracks),
         this.rejectEdit('not-found')
       );
     }
@@ -4494,7 +4210,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveSplitEdit(command: TimelineSplitEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const requestedClipIds = new Set(this.getLinkedCommandClipIds(command.clipIds));
 
     const changedClips: Clip[] = [];
@@ -4515,9 +4231,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           continue;
         }
 
-        const originalClip = createLeanClip(clip);
-        const leftClip = createLeanClip(clip, { timelineEnd: command.time });
-        const rightClip = createLeanClip(clip, {
+        const originalClip = createClipSnapshot(clip);
+        const leftClip = createClipSnapshot(clip, { timelineEnd: command.time });
+        const rightClip = createClipSnapshot(clip, {
           id: crypto.randomUUID(),
           timelineStart: command.time,
           sourceStart: addRational(clip.sourceStart, subRational(command.time, clip.timelineStart)),
@@ -4527,10 +4243,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         filterClipKeyframesToClipRange(rightClip);
         nextClips.push(leftClip, rightClip);
         splitRightClipIds.set(clip.id, rightClip.id);
-        changedClips.push(createLeanClip(leftClip), createLeanClip(rightClip));
-        createdClips.push(createLeanClip(rightClip));
+        changedClips.push(createClipSnapshot(leftClip), createClipSnapshot(rightClip));
+        createdClips.push(createClipSnapshot(rightClip));
         createdClipEvents.push({
-          clip: createLeanClip(rightClip),
+          clip: createClipSnapshot(rightClip),
           reason: 'split',
           originClipId: clip.id,
         });
@@ -4538,7 +4254,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           clipId: clip.id,
           trackId: track.id,
           originalClip,
-          resultClips: [createLeanClip(leftClip), createLeanClip(rightClip)],
+          resultClips: [createClipSnapshot(leftClip), createClipSnapshot(rightClip)],
           effect: 'split',
           affectedStartTime: command.time,
           affectedEndTime: command.time,
@@ -4576,7 +4292,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveDeleteClipsEdit(command: TimelineDeleteClipsEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const requestedClipIds = new Set(this.getLinkedCommandClipIds(command.clipIds));
     const removedClips: Clip[] = [];
     const removedClipEvents: TimelineRemovedClipEvent[] = [];
@@ -4591,7 +4307,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           continue;
         }
 
-        const originalClip = createLeanClip(clip);
+        const originalClip = createClipSnapshot(clip);
         removedClips.push(originalClip);
         removedClipEvents.push({ clip: originalClip, reason: 'delete' });
         affectedRanges.push({
@@ -4637,7 +4353,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveInsertEdit(command: TimelineInsertEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const targetTrack = tracks.find((track) => track.id === command.targetTrackId);
     if (!targetTrack) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('invalid-track'));
@@ -4656,7 +4372,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.sortTrackClips(targetTrack);
 
     const placedClipEvent = {
-      clip: createLeanClip(placedClip),
+      clip: createClipSnapshot(placedClip),
       reason: 'insert',
     } satisfies TimelineCreatedClipEvent;
 
@@ -4671,8 +4387,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
               clip.id !== placedClip.id &&
               compareRational(clip.timelineStart, placedClip.timelineEnd) >= 0
           )
-          .map((clip) => createLeanClip(clip)),
-        createdClips: [createLeanClip(placedClip)],
+          .map((clip) => createClipSnapshot(clip)),
+        createdClips: [createClipSnapshot(placedClip)],
         removedClips: [],
         affectedRanges: [
           {
@@ -4688,7 +4404,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private resolveOverwriteEdit(command: TimelineOverwriteEditCommand): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const targetTrack = tracks.find((track) => track.id === command.targetTrackId);
     if (!targetTrack) {
       return this.createRejectedResolvedEdit(command, tracks, this.rejectEdit('invalid-track'));
@@ -4699,7 +4415,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     const overwriteResult = this.resolveTrackOverwrite(targetTrack, placedClip);
 
     const placedClipEvent = {
-      clip: createLeanClip(placedClip),
+      clip: createClipSnapshot(placedClip),
       reason: 'overwrite',
     } satisfies TimelineCreatedClipEvent;
 
@@ -4709,7 +4425,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.createResolvedEditPreview(command, {
         snap: command.snap === false ? null : this.resolveSnap(command.startTime, false),
         changedClips: overwriteResult.changedClips,
-        createdClips: [createLeanClip(placedClip), ...overwriteResult.createdClips],
+        createdClips: [createClipSnapshot(placedClip), ...overwriteResult.createdClips],
         removedClips: overwriteResult.removedClips,
         affectedRanges: [
           {
@@ -4733,7 +4449,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private resolveInsertClipGroupEdit(
     command: TimelineInsertClipGroupEditCommand
   ): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const resolvedPlacements = this.resolveClipGroupPlacements(command, tracks);
     if ('validation' in resolvedPlacements) {
       return this.createRejectedResolvedEdit(command, tracks, resolvedPlacements.validation);
@@ -4741,7 +4457,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     const changedClips: Clip[] = [];
     const createdClips = resolvedPlacements.placements.map((placement) =>
-      createLeanClip(placement.clip)
+      createClipSnapshot(placement.clip)
     );
     const affectedRanges = resolvedPlacements.placements.map((placement) => ({
       trackId: placement.track.id,
@@ -4779,7 +4495,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         clip.timelineStart = addRational(clip.timelineStart, delta);
         clip.timelineEnd = addRational(clip.timelineEnd, delta);
         shiftClipKeyframes(clip, delta);
-        changedClips.push(createLeanClip(clip));
+        changedClips.push(createClipSnapshot(clip));
       }
     }
 
@@ -4812,7 +4528,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private resolveOverwriteClipGroupEdit(
     command: TimelineOverwriteClipGroupEditCommand
   ): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const resolvedPlacements = this.resolveClipGroupPlacements(command, tracks);
     if ('validation' in resolvedPlacements) {
       return this.createRejectedResolvedEdit(command, tracks, resolvedPlacements.validation);
@@ -4820,7 +4536,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     const changedClips: Clip[] = [];
     const placedClips = resolvedPlacements.placements.map((placement) =>
-      createLeanClip(placement.clip)
+      createClipSnapshot(placement.clip)
     );
     const createdClips: Clip[] = [...placedClips];
     const removedClips: Clip[] = [];
@@ -4899,7 +4615,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private createClipGroupsAfterGroupedPlacement(
     command: TimelineInsertClipGroupEditCommand | TimelineOverwriteClipGroupEditCommand
   ): TimelineClipGroup[] {
-    return createLeanClipGroups([
+    return createClipGroupSnapshots([
       ...this.state.clipGroups,
       {
         id: command.groupId ?? crypto.randomUUID(),
@@ -4913,7 +4629,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     command: TimelineDeleteRangeEditCommand | TimelineLiftRangeEditCommand,
     ripple: boolean
   ): TimelineResolvedEdit {
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const selectedTrackIds = new Set(command.trackIds ?? tracks.map((track) => track.id));
     const removedClips: Clip[] = [];
     const changedClips: Clip[] = [];
@@ -4939,13 +4655,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             clip.timelineStart = subRational(clip.timelineStart, duration);
             clip.timelineEnd = subRational(clip.timelineEnd, duration);
             shiftClipKeyframes(clip, subRational(fromSeconds(0, duration.r), duration));
-            changedClips.push(createLeanClip(clip));
+            changedClips.push(createClipSnapshot(clip));
           }
           nextClips.push(clip);
           continue;
         }
 
-        const originalClip = createLeanClip(clip);
+        const originalClip = createClipSnapshot(clip);
         const resultClips: Clip[] = [];
         if (
           compareRational(command.startTime, clip.timelineStart) <= 0 &&
@@ -4960,8 +4676,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           compareRational(command.startTime, clip.timelineStart) > 0 &&
           compareRational(command.endTime, clip.timelineEnd) < 0
         ) {
-          const leftClip = createLeanClip(clip, { timelineEnd: command.startTime });
-          const rightClip = createLeanClip(clip, {
+          const leftClip = createClipSnapshot(clip, { timelineEnd: command.startTime });
+          const rightClip = createClipSnapshot(clip, {
             id: crypto.randomUUID(),
             timelineStart: ripple ? command.startTime : command.endTime,
             timelineEnd: ripple ? subRational(clip.timelineEnd, duration) : clip.timelineEnd,
@@ -4977,16 +4693,16 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           filterClipKeyframesToClipRange(leftClip);
           filterClipKeyframesToClipRange(rightClip);
           resultClips.push(leftClip, rightClip);
-          createdClips.push(createLeanClip(rightClip));
+          createdClips.push(createClipSnapshot(rightClip));
           createdClipEvents.push({
-            clip: createLeanClip(rightClip),
+            clip: createClipSnapshot(rightClip),
             reason: 'range-split',
             originClipId: clip.id,
           });
-          changedClips.push(createLeanClip(leftClip), createLeanClip(rightClip));
+          changedClips.push(createClipSnapshot(leftClip), createClipSnapshot(rightClip));
         } else if (compareRational(command.startTime, clip.timelineStart) <= 0) {
           const nextStart = ripple ? command.startTime : command.endTime;
-          const changedClip = createLeanClip(clip, {
+          const changedClip = createClipSnapshot(clip, {
             timelineStart: nextStart,
             timelineEnd: ripple ? subRational(clip.timelineEnd, duration) : clip.timelineEnd,
             sourceStart: addRational(
@@ -4999,12 +4715,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           }
           filterClipKeyframesToClipRange(changedClip);
           resultClips.push(changedClip);
-          changedClips.push(createLeanClip(changedClip));
+          changedClips.push(createClipSnapshot(changedClip));
         } else {
-          const changedClip = createLeanClip(clip, { timelineEnd: command.startTime });
+          const changedClip = createClipSnapshot(clip, { timelineEnd: command.startTime });
           filterClipKeyframesToClipRange(changedClip);
           resultClips.push(changedClip);
-          changedClips.push(createLeanClip(changedClip));
+          changedClips.push(createClipSnapshot(changedClip));
         }
 
         nextClips.push(...resultClips);
@@ -5012,7 +4728,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           clipId: clip.id,
           trackId: track.id,
           originalClip,
-          resultClips: resultClips.map((resultClip) => createLeanClip(resultClip)),
+          resultClips: resultClips.map((resultClip) => createClipSnapshot(resultClip)),
           effect:
             resultClips.length === 0
               ? 'remove'
@@ -5066,7 +4782,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       }
     }
 
-    return createLeanClipGroups([
+    return createClipGroupSnapshots([
       {
         id: options.id ?? crypto.randomUUID(),
         clipIds: [...options.clipIds],
@@ -5201,7 +4917,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       }
     }
 
-    return createLeanClipGroups(nextGroups);
+    return createClipGroupSnapshots(nextGroups);
   }
 
   /**
@@ -5328,14 +5044,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       insertedClipIds.add(placement.clip.id);
     }
 
-    const group = createLeanClipGroups([
+    const group = createClipGroupSnapshots([
       {
         id: options.groupId ?? crypto.randomUUID(),
         clipIds: [...insertedClipIds],
         ...(options.label !== undefined ? { label: options.label } : {}),
       },
     ])[0];
-    const tracks = createLeanTracks(this.state.tracks);
+    const tracks = createTrackSnapshots(this.state.tracks);
     const createdClips: Clip[] = [];
     try {
       for (const placement of options.placements) {
@@ -5344,14 +5060,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           return null;
         }
         const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
-        const clip = createLeanClip(placement.clip, {
+        const clip = createClipSnapshot(placement.clip, {
           timelineStart: placement.startTime,
           timelineEnd: addRational(placement.startTime, duration),
         });
         shiftClipKeyframes(clip, subRational(clip.timelineStart, placement.clip.timelineStart));
         targetTrack.clips.push(clip);
         this.sortTrackClips(targetTrack);
-        createdClips.push(createLeanClip(clip));
+        createdClips.push(createClipSnapshot(clip));
       }
     } catch {
       return null;
@@ -5375,7 +5091,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     const snap =
       command.snap === false ? null : this.resolveClipBoundarySnap(command.startTime, duration);
     const startTime = snap?.startTime ?? command.startTime;
-    const placedClip = createLeanClip(command.clip, {
+    const placedClip = createClipSnapshot(command.clip, {
       timelineStart: startTime,
       timelineEnd: addRational(startTime, duration),
     });
@@ -5423,7 +5139,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       snapDeltaTime === null
         ? placement.startTime
         : addRational(placement.startTime, snapDeltaTime);
-    const placedClip = createLeanClip(placement.clip, {
+    const placedClip = createClipSnapshot(placement.clip, {
       timelineStart: startTime,
       timelineEnd: addRational(startTime, duration),
     });
@@ -5471,7 +5187,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         continue;
       }
 
-      const originalClip = createLeanClip(clip);
+      const originalClip = createClipSnapshot(clip);
       const resultClips: Clip[] = [];
       if (
         compareRational(winner.timelineStart, clip.timelineStart) <= 0 &&
@@ -5482,8 +5198,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         compareRational(winner.timelineStart, clip.timelineStart) > 0 &&
         compareRational(winner.timelineEnd, clip.timelineEnd) < 0
       ) {
-        const leftClip = createLeanClip(clip, { timelineEnd: winner.timelineStart });
-        const rightClip = createLeanClip(clip, {
+        const leftClip = createClipSnapshot(clip, { timelineEnd: winner.timelineStart });
+        const rightClip = createClipSnapshot(clip, {
           id: crypto.randomUUID(),
           timelineStart: winner.timelineEnd,
           sourceStart: addRational(
@@ -5494,14 +5210,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         filterClipKeyframesToClipRange(leftClip);
         filterClipKeyframesToClipRange(rightClip);
         resultClips.push(leftClip, rightClip);
-        createdClips.push(createLeanClip(rightClip));
+        createdClips.push(createClipSnapshot(rightClip));
         createdClipEvents.push({
-          clip: createLeanClip(rightClip),
+          clip: createClipSnapshot(rightClip),
           reason: 'overwrite-split',
           originClipId: clip.id,
         });
       } else if (compareRational(winner.timelineStart, clip.timelineStart) <= 0) {
-        const changedClip = createLeanClip(clip, {
+        const changedClip = createClipSnapshot(clip, {
           timelineStart: winner.timelineEnd,
           sourceStart: addRational(
             clip.sourceStart,
@@ -5511,18 +5227,18 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         filterClipKeyframesToClipRange(changedClip);
         resultClips.push(changedClip);
       } else {
-        const changedClip = createLeanClip(clip, { timelineEnd: winner.timelineStart });
+        const changedClip = createClipSnapshot(clip, { timelineEnd: winner.timelineStart });
         filterClipKeyframesToClipRange(changedClip);
         resultClips.push(changedClip);
       }
 
       newClips.push(...resultClips);
-      changedClips.push(...resultClips.map((resultClip) => createLeanClip(resultClip)));
+      changedClips.push(...resultClips.map((resultClip) => createClipSnapshot(resultClip)));
       impacts.push({
         clipId: clip.id,
         trackId: track.id,
         originalClip,
-        resultClips: resultClips.map((resultClip) => createLeanClip(resultClip)),
+        resultClips: resultClips.map((resultClip) => createClipSnapshot(resultClip)),
         effect:
           resultClips.length === 0
             ? 'remove'
@@ -5804,7 +5520,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   moveClip(options: TimelineClipMoveOptions): boolean {
     assertValidRationalTime(options.startTime, 'options.startTime');
     if (this.dragSnapshot) {
-      this.state.tracks = createLeanTracks(JSON.parse(this.dragSnapshot));
+      this.state.tracks = createTrackSnapshots(JSON.parse(this.dragSnapshot));
     }
 
     const found = this.getClip(options.clipId);
@@ -5896,7 +5612,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
       const movingClip =
         linkedClipId === options.clipId && targetTrack.id !== linked.track.id
-          ? createLeanClip(linked.clip)
+          ? createClipSnapshot(linked.clip)
           : linked.clip;
       movingClip.timelineStart = nextStart;
       movingClip.timelineEnd = nextEnd;
@@ -5906,7 +5622,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         linked.track.clips.splice(linked.clipIndex, 1);
         targetTrack.clips.push(movingClip);
       }
-      changedClips.push(createLeanClip(movingClip));
+      changedClips.push(createClipSnapshot(movingClip));
     }
 
     for (const track of this.state.tracks) {
@@ -5967,7 +5683,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     assertValidRationalTime(newTime, 'newTime');
     let snapshotTaken = false;
     if (this.dragSnapshot) {
-      this.state.tracks = createLeanTracks(JSON.parse(this.dragSnapshot));
+      this.state.tracks = createTrackSnapshots(JSON.parse(this.dragSnapshot));
     }
     const found = this.getClip(clipId);
     if (found && found.clip.resizable !== false) {
@@ -6101,12 +5817,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           compareRational(winner.timelineEnd, clip.timelineEnd) >= 0
         ) {
           // Winner completely covers clip -> clip is deleted (don't push to newClips)
-          removedClips.push(createLeanClip(clip));
+          removedClips.push(createClipSnapshot(clip));
           if (isPreview) {
             impacts.push({
               clipId: clip.id,
               trackId: track.id,
-              originalClip: createLeanClip(clip),
+              originalClip: createClipSnapshot(clip),
               resultClips: [],
               effect: 'remove',
               affectedStartTime: clip.timelineStart,
@@ -6120,11 +5836,11 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           compareRational(winner.timelineEnd, clip.timelineEnd) < 0
         ) {
           // Winner is entirely inside clip -> split clip
-          const clip1 = createLeanClip(clip, {
+          const clip1 = createClipSnapshot(clip, {
             timelineEnd: winner.timelineStart,
             editPreview: { operation: 'overwrite', cutEnd: true },
           });
-          const clip2 = createLeanClip(clip, {
+          const clip2 = createClipSnapshot(clip, {
             id: crypto.randomUUID(),
             timelineStart: winner.timelineEnd,
             sourceStart: addRational(
@@ -6136,13 +5852,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           filterClipKeyframesToClipRange(clip1);
           filterClipKeyframesToClipRange(clip2);
           newClips.push(clip1, clip2);
-          createdClips.push({ clip: createLeanClip(clip2), originClipId: clip.id });
+          createdClips.push({ clip: createClipSnapshot(clip2), originClipId: clip.id });
           if (isPreview) {
             impacts.push({
               clipId: clip.id,
               trackId: track.id,
-              originalClip: createLeanClip(clip),
-              resultClips: [createLeanClip(clip1), createLeanClip(clip2)],
+              originalClip: createClipSnapshot(clip),
+              resultClips: [createClipSnapshot(clip1), createClipSnapshot(clip2)],
               effect: 'split',
               affectedStartTime: winner.timelineStart,
               affectedEndTime: winner.timelineEnd,
@@ -6153,7 +5869,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         } else if (compareRational(winner.timelineStart, clip.timelineStart) <= 0) {
           // Winner overlaps left side of clip
           const delta = subRational(winner.timelineEnd, clip.timelineStart);
-          const newClip = createLeanClip(clip, {
+          const newClip = createClipSnapshot(clip, {
             timelineStart: winner.timelineEnd,
             sourceStart: addRational(clip.sourceStart, delta),
             editPreview: { operation: 'overwrite', cutStart: true },
@@ -6164,8 +5880,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             impacts.push({
               clipId: clip.id,
               trackId: track.id,
-              originalClip: createLeanClip(clip),
-              resultClips: [createLeanClip(newClip)],
+              originalClip: createClipSnapshot(clip),
+              resultClips: [createClipSnapshot(newClip)],
               effect: 'trim-start',
               affectedStartTime: clip.timelineStart,
               affectedEndTime: winner.timelineEnd,
@@ -6174,7 +5890,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           }
         } else {
           // Winner overlaps right side of clip
-          const newClip = createLeanClip(clip, {
+          const newClip = createClipSnapshot(clip, {
             timelineEnd: winner.timelineStart,
             editPreview: { operation: 'overwrite', cutEnd: true },
           });
@@ -6184,8 +5900,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
             impacts.push({
               clipId: clip.id,
               trackId: track.id,
-              originalClip: createLeanClip(clip),
-              resultClips: [createLeanClip(newClip)],
+              originalClip: createClipSnapshot(clip),
+              resultClips: [createClipSnapshot(newClip)],
               effect: 'trim-end',
               affectedStartTime: winner.timelineStart,
               affectedEndTime: clip.timelineEnd,
@@ -6242,7 +5958,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Captures the current track state for live drag preview.
    */
   startDrag() {
-    this.dragSnapshot = stringifyLeanTracks(this.state.tracks);
+    this.dragSnapshot = stringifyTrackSnapshots(this.state.tracks);
     this.editImpacts = null;
     this.pendingClipMoveCommitEvent = null;
   }
@@ -6395,7 +6111,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       for (const track of this.state.tracks) {
         track.clips = track.clips.filter((clip) => {
           if (clipIdsToRemove.has(clip.id)) {
-            removedClips.push(createLeanClip(clip));
+            removedClips.push(createClipSnapshot(clip));
             return false;
           }
           return true;
@@ -6505,7 +6221,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param track - Track to add. Its id should be unique within the timeline.
    */
   addTrack(track: Track) {
-    const nextTrack = createLeanTrack(track);
+    const nextTrack = createTrackSnapshot(track);
     this.state.tracks.push(nextTrack);
     this.snapshot();
     this.emit('track:add', { track: nextTrack });

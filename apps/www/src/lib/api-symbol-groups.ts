@@ -1,4 +1,4 @@
-import { timelineHookMetadata } from '@techsquidtv/canvas-timeline-react/docs-metadata';
+import { timelineHookMetadata } from '../data/react-hook-metadata';
 import type { ApiSymbol } from './api-reference';
 
 const timelineHookNames: ReadonlySet<string> = new Set(

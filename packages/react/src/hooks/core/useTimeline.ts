@@ -1,5 +1,16 @@
 import { useContext } from 'react';
+import type { TimelineEngine, TimelineState } from '@techsquidtv/canvas-timeline-core';
 import { TimelineContext } from '../../context';
+
+/**
+ * Engine and synchronized state returned by {@link useTimeline}.
+ */
+export interface UseTimelineResult {
+  /** Shared engine instance that owns timeline state and commands. */
+  engine: TimelineEngine;
+  /** React-rendered snapshot of the current timeline state. */
+  state: TimelineState;
+}
 
 /**
  * Reads the timeline engine and synchronized state from React context.
@@ -26,7 +37,7 @@ import { TimelineContext } from '../../context';
  * );
  * ```
  */
-export function useTimeline() {
+export function useTimeline(): UseTimelineResult {
   const ctx = useContext(TimelineContext);
   if (!ctx) {
     throw new Error('useTimeline must be used within TimelineProvider');

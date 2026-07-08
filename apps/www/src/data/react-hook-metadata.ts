@@ -366,7 +366,7 @@ export const timelineHookMetadata = [
     group: 'accessible-controls',
     category: 'control-adapter',
     reactivity: 'adapter',
-    description: 'Adds formatted ARIA values to the lean viewport range scrollbar adapter.',
+    description: 'Adds formatted ARIA values to the lightweight viewport range scrollbar adapter.',
   },
   {
     name: 'useTimelineViewportScrollbar',

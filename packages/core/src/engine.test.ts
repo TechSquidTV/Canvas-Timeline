@@ -80,7 +80,7 @@ describe('TimelineEngine', () => {
     });
   });
 
-  describe('Lean timeline state', () => {
+  describe('Timeline state snapshots', () => {
     it('rejects invalid rational clip timings at the engine boundary', () => {
       expect(
         () =>
@@ -174,7 +174,7 @@ describe('TimelineEngine', () => {
       expect(JSON.stringify(metadataEngine.getState().tracks)).not.toContain(bulky);
     });
 
-    it('keeps snapshots, drag previews, and clipboard payloads lean after runtime injection', () => {
+    it('keeps snapshots, drag previews, and clipboard payloads lightweight after runtime injection', () => {
       const bulky = 'runtime-sentinel'.repeat(300);
       const track = engine.getState().tracks[0] as RuntimeTrack;
       const clip = track.clips[0] as RuntimeClip;

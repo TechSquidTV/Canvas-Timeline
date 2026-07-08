@@ -4,7 +4,7 @@
 
 Use this as the final pre-public-release checklist for Canvas Timeline. The goal is to ship a small, coherent, well-tested open source library with observable docs, reliable publishing, and clear maintenance paths.
 
-Last verified against repository contents on 2026-07-07.
+Last verified against repository contents on 2026-07-08.
 
 ## 0. Release Criteria
 
@@ -29,20 +29,29 @@ Last verified against repository contents on 2026-07-07.
 
 - [ ] Audit every exported symbol in each package.
   - [ ] Remove experimental exports that are not ready for public support.
-  - [ ] Move exports to the lowest appropriate package boundary.
-  - [ ] Avoid duplicated types, helpers, and naming patterns across packages.
+  - [x] Move exports to the lowest appropriate package boundary.
+    - [x] Timecode parsing and formatting helpers now live only in `@techsquidtv/canvas-timeline-utils/timecode`; React timecode input exports only `TimecodeInput` and `TimecodeInputProps`.
+    - [x] Docs hook registry metadata moved into the docs app data layer instead of the React package export map.
+  - [x] Avoid duplicated types, helpers, and naming patterns across packages.
+    - [x] React timecode helper/type aliases were removed instead of retained as compatibility aliases.
   - [ ] Verify public names are consistent across core, React, renderer, adapters, and docs.
 - [x] Decide whether all current subpath exports are intentional.
   - [ ] Main package: `.`, `./core`, `./react`, `./html-media`, `./renderer`, `./utils`, CSS entrypoints.
-  - [ ] React package: `.`, `./hooks`, `./components`, `./range-scrollbar`, `./timecode-input`, `./timecode-field`, CSS entrypoints.
-  - [ ] Core, renderer, utils, and adapters: ensure each subpath is supportable.
-- [ ] Remove backwards-compatibility aliases and fallback exports before publishing.
+  - [x] React package: `.`, `./hooks`, `./components`, `./range-scrollbar`, `./timecode-input`, `./timecode-field`, CSS entrypoints.
+    - [x] Removed the unintentional `./docs-metadata` subpath export.
+  - [x] Core, renderer, utils, and adapters: ensure each subpath is supportable.
+    - [x] Core root no longer re-exports internal snapshot helpers or `./emitter`.
+- [x] Remove backwards-compatibility aliases and fallback exports before publishing.
+  - [x] Added an explicit public API guard for the removed React docs metadata subpath, React context root export, React timecode aliases, core snapshot helpers, and core root `./emitter` export.
 - [x] Confirm the aggregate `@techsquidtv/canvas-timeline` package remains a thin composition layer.
 - [x] Confirm framework-free code stays in `packages/core` and `packages/utils`.
 - [ ] Confirm renderer and worker modules remain DOM-free except for main-thread theme resolution in `CanvasRenderer`.
-- [ ] Confirm React package APIs do not leak app/demo-specific concerns.
+- [x] Confirm React package APIs do not leak app/demo-specific concerns.
+  - [x] Hook registry metadata is now owned by `apps/www`.
 - [x] Confirm adapter packages do not force optional media dependencies into the main package.
-- [ ] Generate and review API docs from the actual package entrypoints.
+- [x] Generate and review API docs from the actual package entrypoints.
+  - [x] `docs:api` generated 7 packages and 903 symbols with 0 warnings after the public surface changes.
+  - [x] Manual generated API scan found no removed React timecode aliases, React context exports, docs metadata subpath, core snapshot helpers, or core typed emitter export.
 
 ## 2. TypeScript And Static Quality
 
@@ -63,7 +72,8 @@ Last verified against repository contents on 2026-07-07.
   - [ ] Keep test-only casts isolated to tests.
 - [ ] Resolve or explicitly justify every lint ignore, `ts-expect-error`, and custom Knip ignore.
 - [ ] Keep `knip` in CI and review ignored files before release.
-- [ ] Keep duplicate exported types and helpers out of the package graph.
+- [x] Keep duplicate exported types and helpers out of the package graph.
+  - [x] The public API guard blocks the removed duplicate timecode aliases from returning through the React package.
 - [ ] Confirm all public APIs have useful TSDoc where generated docs depend on it.
 
 ## 3. Tests And Coverage
@@ -188,6 +198,7 @@ Last verified against repository contents on 2026-07-07.
   - [x] The consumer smoke test installs packed tarballs into a clean Vite/React fixture and builds the README quick-start import path.
 - [x] Verify docs examples compile against public entrypoints.
   - [x] Source-backed demos and docs-site TypeScript paths compile in CI; larger examples should stay source-backed instead of prose-only.
+  - [x] React timecode docs, registry examples, and demo previews import parser/formatter helpers from `@techsquidtv/canvas-timeline-utils/timecode`.
 - [x] Verify docs package pages match package manifests and exports.
   - [x] Package pages link to generated API reference from package entrypoints and use public package imports.
 - [x] Verify API reference generation is reproducible in CI.
@@ -285,16 +296,20 @@ Last verified against repository contents on 2026-07-07.
 - [x] Library packages inherit a base TypeScript config with `strict: true`.
 - [x] CI exists and is broad; branch protection and required-check settings are configured externally for the solo-maintainer workflow.
 - [x] Package validation exists through `publint`, packed tarballs, Are The Types Wrong, and a clean Vite/React consumer smoke test.
+- [x] Public API hardening guard blocks removed React timecode aliases, React context root exports, React docs metadata subpath, core snapshot helper exports, and the core root `./emitter` export from returning.
 - [x] Docs/demo observability exists through Sentry metrics, but alerting, release identifiers, uptime checks, and synthetic checks still need to be confirmed.
 - [x] Coverage gates exist, including package-level line coverage, but riskier public APIs should be reviewed for behavior-driven test coverage beyond the minimum.
 
 ## Final Shape Check
 
-- [ ] The public API is smaller than the internal implementation.
-- [ ] Every public export has one clear home.
+- [x] The public API is smaller than the internal implementation.
+  - [x] Internal core snapshot helpers and React docs metadata are no longer exported as package API.
+- [x] Every public export has one clear home.
+  - [x] Timecode helpers belong to utils, docs registry metadata belongs to the docs app, and React context internals stay behind provider/hooks APIs.
 - [x] Every package has one clear responsibility.
 - [x] CI enforces quality instead of relying on manual discipline.
 - [x] Release automation can be tested with canary packages before stable publish.
 - [ ] Observability watches docs, demos, CI, publish, and uptime, not user applications.
 - [x] Documentation examples compile against published entrypoints.
-- [ ] No compatibility aliases or fallback APIs remain from pre-release churn.
+- [x] No compatibility aliases or fallback APIs remain from pre-release churn.
+  - [x] No aliases were added for the removed React timecode helpers or internal core exports.

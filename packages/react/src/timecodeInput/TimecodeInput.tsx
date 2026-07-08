@@ -34,7 +34,7 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  * while the companion helpers parse precise input and format display text
  * consistently.
  *
- * This component renders only the input. Pair it with `parseTimecodeInput` to
+ * This component renders only the input. Pair it with `parseTimecode` to
  * validate the current text, pass `invalid` when parsing returns `null`, and
  * convert valid seconds back to `RationalTime` with `fromSeconds(parsed, rate)`
  * at your timeline boundary.
@@ -50,14 +50,14 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import {
- *   TimecodeInput,
- *   type TimecodeInputFormatOptions,
- *   type TimecodeInputParseOptions,
- *   formatTimecodeInput,
- *   parseTimecodeInput,
- * } from '@techsquidtv/canvas-timeline-react/timecode-input';
+ * import { TimecodeInput } from '@techsquidtv/canvas-timeline-react/timecode-input';
  * import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+ * import {
+ *   type TimecodeFormatOptions,
+ *   type TimecodeParseOptions,
+ *   formatTimecode,
+ *   parseTimecode,
+ * } from '@techsquidtv/canvas-timeline-utils/timecode';
  *
  * const formatOptions = [
  *   { value: 'seconds', label: 'Seconds', formatOptions: { format: 'seconds' } },
@@ -70,8 +70,8 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  * ] satisfies Array<{
  *   value: string;
  *   label: string;
- *   formatOptions: TimecodeInputFormatOptions;
- *   parseOptions?: TimecodeInputParseOptions;
+ *   formatOptions: TimecodeFormatOptions;
+ *   parseOptions?: TimecodeParseOptions;
  * }>;
  * const sequenceRate = 24000;
  * const initialSeconds = 3723.04;
@@ -83,15 +83,15 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  * }) {
  *   const [formatValue, setFormatValue] = useState('seconds');
  *   const [text, setText] = useState(() =>
- *     formatTimecodeInput(initialSeconds, { format: 'seconds' })
+ *     formatTimecode(initialSeconds, { format: 'seconds' })
  *   );
  *   const selectedFormat =
  *     formatOptions.find((option) => option.value === formatValue) ?? formatOptions[0];
- *   const parsedSeconds = parseTimecodeInput(text, selectedFormat.parseOptions);
+ *   const parsedSeconds = parseTimecode(text, selectedFormat.parseOptions);
  *
  *   function handleFormatChange(nextFormatValue: string) {
  *     const nextFormat = formatOptions.find((option) => option.value === nextFormatValue);
- *     const nextSeconds = parseTimecodeInput(text, selectedFormat.parseOptions);
+ *     const nextSeconds = parseTimecode(text, selectedFormat.parseOptions);
  *
  *     if (!nextFormat) {
  *       return;
@@ -100,7 +100,7 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  *     setFormatValue(nextFormat.value);
  *
  *     if (nextSeconds !== null) {
- *       setText(formatTimecodeInput(nextSeconds, nextFormat.formatOptions));
+ *       setText(formatTimecode(nextSeconds, nextFormat.formatOptions));
  *     }
  *   }
  *
@@ -110,7 +110,7 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  *         event.preventDefault();
  *         if (parsedSeconds !== null) {
  *           onApply(fromSeconds(parsedSeconds, sequenceRate));
- *           setText(formatTimecodeInput(parsedSeconds, selectedFormat.formatOptions));
+ *           setText(formatTimecode(parsedSeconds, selectedFormat.formatOptions));
  *         }
  *       }}
  *     >
@@ -129,7 +129,7 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  *           <option key={option.value} value={option.value}>
  *             {parsedSeconds === null
  *               ? option.label
- *               : `${option.label} (${formatTimecodeInput(parsedSeconds, {
+ *               : `${option.label} (${formatTimecode(parsedSeconds, {
  *                   ...option.formatOptions,
  *                 })})`}
  *           </option>

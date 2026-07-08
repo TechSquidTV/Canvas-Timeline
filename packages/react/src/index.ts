@@ -1,4 +1,3 @@
-export * from './context';
 export * from './Provider';
 export * from './accessibility';
 export * from './hooks';

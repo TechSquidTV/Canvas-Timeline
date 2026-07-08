@@ -1,14 +1,16 @@
 import { TimelineEngine, type Marker, type Track } from '@techsquidtv/canvas-timeline-core';
 import {
+  formatTimecode,
+  parseTimecode,
+  type TimecodeFormatOptions,
+  type TimecodeParseOptions,
+} from '@techsquidtv/canvas-timeline-utils/timecode';
+import {
   RangeScrollbar,
   Timeline,
   TimelineProvider,
   TimecodeField,
   TimecodeInput,
-  type TimecodeInputFormatOptions,
-  type TimecodeInputParseOptions,
-  formatTimecodeInput,
-  parseTimecodeInput,
   useActiveClips,
   useActiveLayers,
   useTimeline,
@@ -41,7 +43,7 @@ interface ReactRegistryDemoPreviewProps {
 interface TimecodeDemoFormatOption {
   value: string;
   label: string;
-  formatOptions: TimecodeInputFormatOptions;
+  formatOptions: TimecodeFormatOptions;
 }
 
 const timecodeFormatOptions = [
@@ -68,8 +70,8 @@ const timecodeFieldInitialTime = fromSeconds(90.5, 24000);
 
 function getParseOptionsFromFormat(
   option: TimecodeDemoFormatOption
-): TimecodeInputParseOptions | undefined {
-  const parseOptions: TimecodeInputParseOptions = {};
+): TimecodeParseOptions | undefined {
+  const parseOptions: TimecodeParseOptions = {};
 
   if (option.formatOptions.frameRate !== undefined) {
     parseOptions.frameRate = option.formatOptions.frameRate;
@@ -199,9 +201,9 @@ function RangeScrollbarDemo() {
 
 function TimecodeInputBasicDemo() {
   const [text, setText] = useState(() =>
-    formatTimecodeInput(toSeconds(timecodeFieldInitialTime), { format: 'seconds' })
+    formatTimecode(toSeconds(timecodeFieldInitialTime), { format: 'seconds' })
   );
-  const invalid = parseTimecodeInput(text) === null;
+  const invalid = parseTimecode(text) === null;
 
   return (
     <div className="registry-live-timecode-frame">
@@ -219,7 +221,7 @@ function TimecodeInputBasicDemo() {
 function TimecodeInputFormattingDemo() {
   const [formatValue, setFormatValue] = useState('seconds');
   const [text, setText] = useState(() =>
-    formatTimecodeInput(timecodeDemoInitialSeconds, { format: 'seconds' })
+    formatTimecode(timecodeDemoInitialSeconds, { format: 'seconds' })
   );
   const selectedOption = useMemo(
     () =>
@@ -231,7 +233,7 @@ function TimecodeInputFormattingDemo() {
   const handleFormatChange = useCallback(
     (nextFormatValue: string) => {
       const nextOption = timecodeFormatOptions.find((option) => option.value === nextFormatValue);
-      const nextSeconds = parseTimecodeInput(text, parseOptions);
+      const nextSeconds = parseTimecode(text, parseOptions);
 
       if (!nextOption) {
         return;
@@ -240,12 +242,12 @@ function TimecodeInputFormattingDemo() {
       setFormatValue(nextOption.value);
 
       if (nextSeconds !== null) {
-        setText(formatTimecodeInput(nextSeconds, nextOption.formatOptions));
+        setText(formatTimecode(nextSeconds, nextOption.formatOptions));
       }
     },
     [parseOptions, text]
   );
-  const parsed = parseTimecodeInput(text, parseOptions);
+  const parsed = parseTimecode(text, parseOptions);
   const invalid = parsed === null;
 
   return (
@@ -268,7 +270,7 @@ function TimecodeInputFormattingDemo() {
             <option key={option.value} value={option.value}>
               {parsed === null
                 ? option.label
-                : `${option.label} (${formatTimecodeInput(parsed, option.formatOptions)})`}
+                : `${option.label} (${formatTimecode(parsed, option.formatOptions)})`}
             </option>
           ))}
         </select>
@@ -330,12 +332,12 @@ function TimecodeFieldFormattingDemo() {
         >
           {timecodeFormatOptions.map((option) => (
             <option key={option.value} value={option.value}>
-              {`${option.label} (${formatTimecodeInput(seconds, option.formatOptions)})`}
+              {`${option.label} (${formatTimecode(seconds, option.formatOptions)})`}
             </option>
           ))}
         </select>
         <span className="registry-live-timecode-readout">
-          {formatTimecodeInput(seconds, { format: 'seconds' })}s
+          {formatTimecode(seconds, { format: 'seconds' })}s
         </span>
       </div>
     </div>
