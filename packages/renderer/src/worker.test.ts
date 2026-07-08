@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type TimelineState } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineRenderOptions } from './render/types';
+import type { TimelineRenderOptions } from '#renderer/render/types';
 
 type RenderTimelineMock = ReturnType<
   typeof vi.fn<
@@ -86,7 +86,7 @@ describe('renderer worker', () => {
       return 1;
     });
     vi.stubGlobal('postMessage', vi.fn());
-    await import('./worker');
+    await import('#renderer/worker');
   });
 
   afterEach(() => {

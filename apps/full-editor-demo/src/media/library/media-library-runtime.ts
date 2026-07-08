@@ -3,7 +3,7 @@ import type {
   MediaLibraryManifestSource,
   MediaLibraryMediaKind,
   MediaLibrarySource,
-} from './media-library-types';
+} from '#full-editor/media/library/media-library-types';
 
 export function createPlayableSources(
   sources: readonly MediaLibrarySource[]

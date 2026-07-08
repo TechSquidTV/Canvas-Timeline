@@ -1,24 +1,28 @@
-import { Root } from './surface/Root';
-import { TrackList } from './surface/TrackList';
-import { TrackItem as Track } from './surface/TrackItem';
-import { TrackHeaderList, TrackHeader, TrackHeaderResizeHandle } from './tracks/TrackHeader';
-import { ClipInteractionLayer } from './interactions/ClipInteractionLayer';
-import { KeyframeInteractionLayer } from './interactions/KeyframeInteractionLayer';
-import { KeyframeTangentInteractionLayer } from './interactions/KeyframeTangentInteractionLayer';
-import { PlayheadArea } from './playhead/PlayheadArea';
-import { PlayheadGrabber } from './playhead/PlayheadGrabber';
-import { KeyboardScope } from './controls/KeyboardScope';
+import { Root } from '#react/components/surface/Root';
+import { TrackList } from '#react/components/surface/TrackList';
+import { TrackItem as Track } from '#react/components/surface/TrackItem';
+import {
+  TrackHeaderList,
+  TrackHeader,
+  TrackHeaderResizeHandle,
+} from '#react/components/tracks/TrackHeader';
+import { ClipInteractionLayer } from '#react/components/interactions/ClipInteractionLayer';
+import { KeyframeInteractionLayer } from '#react/components/interactions/KeyframeInteractionLayer';
+import { KeyframeTangentInteractionLayer } from '#react/components/interactions/KeyframeTangentInteractionLayer';
+import { PlayheadArea } from '#react/components/playhead/PlayheadArea';
+import { PlayheadGrabber } from '#react/components/playhead/PlayheadGrabber';
+import { KeyboardScope } from '#react/components/controls/KeyboardScope';
 import {
   ViewportScrollbarRoot as ViewportScrollbar,
   ViewportScrollbarThumb,
   ViewportScrollbarHandle,
-} from './scrollbars/ViewportScrollbar';
+} from '#react/components/scrollbars/ViewportScrollbar';
 import {
   VerticalScrollbarRoot as VerticalScrollbar,
   VerticalScrollbarThumb,
   VerticalScrollbarHandle,
-} from './scrollbars/VerticalScrollbar';
-import { RangeSelector } from './controls/RangeSelector';
+} from '#react/components/scrollbars/VerticalScrollbar';
+import { RangeSelector } from '#react/components/controls/RangeSelector';
 
 /**
  * Namespace of timeline UI components for composing an editor surface.
@@ -89,41 +93,44 @@ export {
 export type {
   ClipDoubleClickDetails,
   ClipInteractionLayerProps,
-} from './interactions/ClipInteractionLayer';
+} from '#react/components/interactions/ClipInteractionLayer';
 export type {
   KeyframeDeleteDetails,
   KeyframeDoubleClickDetails,
   KeyframeInteractionLayerProps,
-} from './interactions/KeyframeInteractionLayer';
+} from '#react/components/interactions/KeyframeInteractionLayer';
 export type {
   KeyframeTangentHandleDoubleClickDetails,
   KeyframeTangentInteractionLayerProps,
-} from './interactions/KeyframeTangentInteractionLayer';
-export type { KeyboardScopeProps } from './controls/KeyboardScope';
-export type { PlayheadAreaProps } from './playhead/PlayheadArea';
-export type { PlayheadGrabberProps } from './playhead/PlayheadGrabber';
-export type { TimeGrabberChildren, TimeGrabberRenderProps } from './playhead/TimeGrabber';
+} from '#react/components/interactions/KeyframeTangentInteractionLayer';
+export type { KeyboardScopeProps } from '#react/components/controls/KeyboardScope';
+export type { PlayheadAreaProps } from '#react/components/playhead/PlayheadArea';
+export type { PlayheadGrabberProps } from '#react/components/playhead/PlayheadGrabber';
+export type {
+  TimeGrabberChildren,
+  TimeGrabberRenderProps,
+} from '#react/components/playhead/TimeGrabber';
 export type {
   TrackHeaderChildren,
   TrackHeaderListProps,
   TrackHeaderProps,
   TrackHeaderResizeHandleProps,
-} from './tracks/TrackHeader';
-export type { TrackItemProps } from './surface/TrackItem';
+} from '#react/components/tracks/TrackHeader';
+export type { TrackItemProps } from '#react/components/surface/TrackItem';
 export type {
   ViewportScrollbarHandleProps,
   ViewportScrollbarRootProps,
   ViewportScrollbarThumbProps,
-} from './scrollbars/ViewportScrollbar';
+} from '#react/components/scrollbars/ViewportScrollbar';
 export type {
   VerticalScrollbarHandleProps,
   VerticalScrollbarRootProps,
   VerticalScrollbarThumbProps,
-} from './scrollbars/VerticalScrollbar';
+} from '#react/components/scrollbars/VerticalScrollbar';
 export type {
   InOutBoundary,
   RangeSelectorGrabberChildren,
   RangeSelectorGrabberRenderProps,
   RangeSelectorProps,
   RangeSelectorRootProps,
-} from './controls/RangeSelector';
+} from '#react/components/controls/RangeSelector';

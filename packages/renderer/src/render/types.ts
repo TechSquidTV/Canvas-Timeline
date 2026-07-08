@@ -5,7 +5,7 @@ import type {
   TimelineRulerTickOptions,
   TimelineState,
 } from '@techsquidtv/canvas-timeline-core';
-import type { TimelineRendererTheme, TimelineRendererThemeInput } from '../theme';
+import type { TimelineRendererTheme, TimelineRendererThemeInput } from '#renderer/theme';
 
 /**
  * Optional ruler behavior for canvas-painted timeline ticks and labels.

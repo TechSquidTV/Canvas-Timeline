@@ -8,9 +8,9 @@ import {
 } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { CanvasRenderer } from './CanvasRenderer';
-import { TimelineCanvasLayer } from './TimelineCanvasLayer';
-import type { TimelineCanvasLayerDrawContext } from './useTimelineCanvasLayer';
+import { CanvasRenderer } from '#renderer/CanvasRenderer';
+import { TimelineCanvasLayer } from '#renderer/TimelineCanvasLayer';
+import type { TimelineCanvasLayerDrawContext } from '#renderer/useTimelineCanvasLayer';
 
 const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'level',

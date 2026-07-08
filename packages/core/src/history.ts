@@ -1,10 +1,10 @@
-import type { TimelineEngine } from './engine';
+import type { TimelineEngine } from '#core/engine';
 import {
   createClipGroupSnapshots,
   createMarkerSnapshots,
   createTrackSnapshots,
   stringifyTrackSnapshots,
-} from './snapshot';
+} from '#core/snapshot';
 
 export class HistoryManager {
   private engine: TimelineEngine;

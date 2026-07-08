@@ -1,10 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { extname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { demoDocs } from '../data/demos';
-import { packageDocs } from '../data/packages';
-import { reactRegistryItems } from '../data/react-registry';
-import { apiPackageHref, apiReference, apiSymbolHref } from './api-reference';
+import { demoDocs } from '#www/data/demos';
+import { packageDocs } from '#www/data/packages';
+import { reactRegistryItems } from '#www/data/react-registry';
+import { apiPackageHref, apiReference, apiSymbolHref } from '#www/lib/api-reference';
 
 export interface OpenGraphPage {
   readonly title: string;

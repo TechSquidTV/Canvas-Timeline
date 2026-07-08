@@ -5,7 +5,7 @@ import {
 } from 'react-resizable-panels';
 import { GripVertical } from 'lucide-react';
 import type { ComponentProps } from 'react';
-import { cn } from '@/lib/cn';
+import { cn } from '#full-editor/lib/cn';
 
 type ResizablePanelGroupProps = ComponentProps<typeof ResizablePanelGroup>;
 type ResizablePanelProps = ComponentProps<typeof ResizablePanel>;

@@ -6,7 +6,7 @@ import {
   formatTimelineTimeValue,
   getClipAccessibleDescription,
   getClipAccessibleName,
-} from './accessibility';
+} from '#react/accessibility';
 
 function createClip(overrides: Partial<Clip> = {}): Clip {
   return {

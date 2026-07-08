@@ -1,8 +1,8 @@
 import { MonitorPlay } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEditorProject } from '@/editor/project/project-context';
-import { getPreviewVideoResolution } from '@/project/video-settings';
-import { useEditorMediaSync } from './media-sync-context';
+import { useEditorProject } from '#full-editor/editor/project/project-context';
+import { getPreviewVideoResolution } from '#full-editor/project/video-settings';
+import { useEditorMediaSync } from '#full-editor/editor/shell/media-sync-context';
 
 export function PreviewMonitor() {
   const media = useEditorMediaSync();

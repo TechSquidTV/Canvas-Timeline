@@ -1,5 +1,19 @@
 {
   "$schema": "https://knip.dev/schema-json.json",
+  "paths": {
+    "#core/*": ["packages/core/src/*"],
+    "#full-editor/*": ["apps/full-editor-demo/src/*"],
+    "#html-media-adapter/*": ["packages/html-media-adapter/src/*"],
+    "#mediabunny-adapter/*": ["packages/mediabunny-adapter/src/*"],
+    "#react/*": ["packages/react/src/*"],
+    "#renderer/*": ["packages/renderer/src/*"],
+    "#test-utils/*": ["test-utils/*"],
+    "#timeline/*": ["packages/timeline/src/*"],
+    "#utils/*": ["packages/utils/src/*"],
+    "#www/*": ["apps/www/src/*"],
+    "#www-generated/*": ["apps/www/.generated/*"],
+    "@techsquidtv/canvas-timeline-renderer/*": ["packages/renderer/src/*"]
+  },
   "rules": {
     "duplicates": "off"
   },
@@ -9,9 +23,10 @@
         "scripts/check-package-coverage.mjs",
         "scripts/check-publishable-packages.mjs",
         "scripts/check-consumer-smoke.mjs",
-        "scripts/check-vite-plus-custom-rules.mjs"
+        "scripts/check-vite-plus-custom-rules.mjs",
+        "scripts/vite-plus-pack-config.mjs"
       ],
-      "project": ["*.{js,ts}", "scripts/**/*.mjs"],
+      "project": ["*.{js,ts}", "scripts/**/*.mjs", "test-utils/**/*.ts"],
       "ignoreDependencies": ["@arethetypeswrong/cli"]
     },
     "apps/www": {
@@ -27,12 +42,35 @@
       "project": ["src/**/*.ts"]
     },
     "packages/core": {
+      "paths": {
+        "#test-utils/*": ["../../test-utils/*"]
+      },
       "project": ["src/**/*.ts"]
     },
     "packages/react": {
+      "paths": {
+        "#test-utils/*": ["../../test-utils/*"],
+        "#react/*": ["src/*"]
+      },
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/html-media-adapter": {
+      "paths": {
+        "#html-media-adapter/*": ["src/*"]
+      },
+      "project": ["src/**/*.ts"]
+    },
+    "packages/mediabunny-adapter": {
+      "paths": {
+        "#mediabunny-adapter/*": ["src/*"]
+      },
       "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/renderer": {
+      "entry": ["src/worker.ts", "src/renderTimeline.ts", "src/render/**/*.{ts,tsx}"],
+      "paths": {
+        "#renderer/*": ["src/*"]
+      },
       "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/timeline": {
@@ -47,6 +85,7 @@
     "packages/react/src/timecodeField/TimecodeField.tsx": ["exports"],
     "packages/react/src/hooks/core/timelineScalarControlProps.ts": ["types"],
     "packages/renderer/src/render/geometry.ts": ["exports"],
+    "packages/renderer/src/render/types.ts": ["types"],
     "apps/full-editor-demo/src/persistence/project/project-store.ts": ["exports"]
   }
 }

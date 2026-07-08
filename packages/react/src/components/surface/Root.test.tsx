@@ -2,8 +2,8 @@ import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type Track } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '../../Provider';
-import { Root } from './Root';
+import { TimelineProvider } from '#react/Provider';
+import { Root } from '#react/components/surface/Root';
 
 class MockResizeObserver {
   observe() {}

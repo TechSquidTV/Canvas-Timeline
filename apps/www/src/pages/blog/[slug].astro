@@ -1,20 +1,20 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { render } from 'astro:content';
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import BlogFaq from '@/components/BlogFaq.astro';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import BlogFaq from '#www/components/BlogFaq.astro';
 import {
   formatBlogDate,
   getBlogPostImage,
   getBlogPostUrl,
   getBlogPosts,
   getReadingMinutes,
-} from '@/data/blog';
-import { site } from '@/data/site';
+} from '#www/data/blog';
+import { site } from '#www/data/site';
 import {
   createBlogFaqStructuredData,
   createBlogPostStructuredData,
-} from '@/lib/structured-data';
+} from '#www/lib/structured-data';
 
 type BlogEntry = CollectionEntry<'blog'>;
 

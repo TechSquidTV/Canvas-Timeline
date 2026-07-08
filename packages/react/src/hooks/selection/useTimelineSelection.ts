@@ -1,9 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import type { Track } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { deriveTimelineSelection, type TimelineSelectionState } from '../clips/timelineClipModel';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import {
+  deriveTimelineSelection,
+  type TimelineSelectionState,
+} from '#react/hooks/clips/timelineClipModel';
 
-export type { TimelineSelectionState } from '../clips/timelineClipModel';
+export type { TimelineSelectionState } from '#react/hooks/clips/timelineClipModel';
 
 /**
  * Result returned by `useTimelineSelection`.
@@ -51,7 +54,7 @@ export interface UseTimelineSelectionResult<
  *
  * @example
  * ```tsx
- * import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineSelection } from '#react/hooks';
  *
  * export function SelectionSummary() {
  *   const selection = useTimelineSelection();

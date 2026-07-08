@@ -1,7 +1,7 @@
 ---
-import { sponsorsSnapshot } from '@/data/sponsors.generated';
-import { site, type SponsorshipTier, type SponsorshipTierId } from '@/data/site';
-import { privateSponsorCountForTier, sponsorsForTier } from '@/lib/sponsors';
+import { sponsorsSnapshot } from '#www/data/sponsors.generated';
+import { site, type SponsorshipTier, type SponsorshipTierId } from '#www/data/site';
+import { privateSponsorCountForTier, sponsorsForTier } from '#www/lib/sponsors';
 
 const tierOrder = [...site.sponsorship.tiers].reverse();
 const hasSponsors =

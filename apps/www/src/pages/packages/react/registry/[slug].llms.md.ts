@@ -1,6 +1,6 @@
 import type { APIRoute, GetStaticPaths } from 'astro';
-import { reactRegistryItems, type ReactRegistryItem } from '@/data/react-registry';
-import { buildReactRegistryLlmMarkdown } from '@/lib/react-registry-markdown';
+import { reactRegistryItems, type ReactRegistryItem } from '#www/data/react-registry';
+import { buildReactRegistryLlmMarkdown } from '#www/lib/react-registry-markdown';
 
 interface Props {
   item: ReactRegistryItem;

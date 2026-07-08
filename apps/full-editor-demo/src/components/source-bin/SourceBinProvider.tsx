@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPlayableSources } from '@/media/library/media-library-runtime';
-import { mediaLibraryStore } from '@/media/library/media-library-store';
-import type { MediaLibrarySource } from '@/media/library/media-library-types';
-import { SourceBinContext, SourceBinMediaContext } from './source-bin-context';
+import { createPlayableSources } from '#full-editor/media/library/media-library-runtime';
+import { mediaLibraryStore } from '#full-editor/media/library/media-library-store';
+import type { MediaLibrarySource } from '#full-editor/media/library/media-library-types';
+import {
+  SourceBinContext,
+  SourceBinMediaContext,
+} from '#full-editor/components/source-bin/source-bin-context';
 import {
   createInitialSources,
   createRuntimeSourceFromImport,
   upsertSource,
-} from './source-bin-runtime';
-import type { SourceBinActionMessage, SourceBinSource } from './types';
+} from '#full-editor/components/source-bin/source-bin-runtime';
+import type {
+  SourceBinActionMessage,
+  SourceBinSource,
+} from '#full-editor/components/source-bin/types';
 
 interface SourceBinProviderProps {
   children: ReactNode;

@@ -1,10 +1,10 @@
 import React, { useRef } from 'react';
-import { useTimeline } from '../../hooks';
+import { useTimeline } from '#react/hooks';
 
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 
-import { consumeTimelineDoubleTap } from '../interactions/tapState';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
 
 /**
  * Props for the interactive playhead scrub area.

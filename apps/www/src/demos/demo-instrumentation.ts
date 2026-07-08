@@ -3,7 +3,7 @@ import type {
   TimelineMetricContext,
   TimelineMetricOperation,
   WorkerRenderMetric,
-} from '../lib/metrics-common';
+} from '#www/lib/metrics-common';
 
 export interface DemoMetrics {
   onTimelineFpsSample?: (context: TimelineMetricContext, fps: number) => void;

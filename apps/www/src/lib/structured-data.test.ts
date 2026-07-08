@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vite-plus/test';
-import type { BlogPost } from '../data/blog';
-import type { DemoDoc } from '../data/demos';
-import type { PackageDoc } from '../data/packages';
+import type { BlogPost } from '#www/data/blog';
+import type { DemoDoc } from '#www/data/demos';
+import type { PackageDoc } from '#www/data/packages';
 import {
   createBlogFaqStructuredData,
   createBlogPostStructuredData,
@@ -10,7 +10,7 @@ import {
   createDemoStructuredData,
   createPackageStructuredData,
   toAbsoluteUrl,
-} from './structured-data';
+} from '#www/lib/structured-data';
 
 describe('structured data helpers', () => {
   test('converts paths and URLs to canonical absolute URLs', () => {

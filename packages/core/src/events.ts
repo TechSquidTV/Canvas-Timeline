@@ -11,7 +11,7 @@ import type {
   Track,
   Marker,
   TimelineKeyframe,
-} from './types';
+} from '#core/types';
 
 /** Reason a committed engine command created a new clip. */
 export type ClipCreatedReason =

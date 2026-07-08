@@ -7,9 +7,9 @@ import {
   type Track,
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '../../Provider';
-import { KeyframeInteractionLayer } from './KeyframeInteractionLayer';
-import { resetTimelineTapState } from './tapState';
+import { TimelineProvider } from '#react/Provider';
+import { KeyframeInteractionLayer } from '#react/components/interactions/KeyframeInteractionLayer';
+import { resetTimelineTapState } from '#react/components/interactions/tapState';
 
 function getElementPrototypeMethod<
   K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',

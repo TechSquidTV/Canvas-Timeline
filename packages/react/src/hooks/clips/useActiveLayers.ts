@@ -1,7 +1,7 @@
 import type { ActiveLayerOptions, ActiveLayerResult } from '@techsquidtv/canvas-timeline-core';
 import { useMemo } from 'react';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelinePlayheadTime } from '../playback/useTimelinePlayheadTime';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 
 /**
  * Returns active timeline layers at a timeline time.
@@ -24,7 +24,7 @@ import { useTimelinePlayheadTime } from '../playback/useTimelinePlayheadTime';
  * @example
  * ```tsx
  * import { useMemo } from 'react';
- * import { useActiveLayers } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useActiveLayers } from '#react/hooks';
  *
  * const previewLayers = {
  *   visuals: { trackKind: 'visual' },

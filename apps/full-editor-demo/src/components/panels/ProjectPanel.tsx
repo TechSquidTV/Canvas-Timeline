@@ -4,11 +4,11 @@ import {
   useTimelineState,
   useTimelineTracks,
 } from '@techsquidtv/canvas-timeline-react';
-import { Button } from '@/components/ui/button';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { useEditorProject } from '@/editor/project/project-context';
-import { formatRationalTime } from '@/lib/timeline-format';
-import { normalizeProjectTitle } from '@/project/project-metadata';
+import { Button } from '#full-editor/components/ui/button';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { useEditorProject } from '#full-editor/editor/project/project-context';
+import { formatRationalTime } from '#full-editor/lib/timeline-format';
+import { normalizeProjectTitle } from '#full-editor/project/project-metadata';
 import {
   defaultVideoResolutionPresetId,
   formatVideoResolution,
@@ -16,7 +16,7 @@ import {
   isVideoResolutionPresetId,
   type VideoResolutionPresetId,
   videoResolutionPresets,
-} from '@/project/video-settings';
+} from '#full-editor/project/video-settings';
 
 export function ProjectPanel() {
   const state = useTimelineState();

@@ -3,10 +3,10 @@ import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '../../Provider';
-import { useTimeline } from '../../hooks';
-import { ClipInteractionLayer } from './ClipInteractionLayer';
-import { resetTimelineTapState } from './tapState';
+import { TimelineProvider } from '#react/Provider';
+import { useTimeline } from '#react/hooks';
+import { ClipInteractionLayer } from '#react/components/interactions/ClipInteractionLayer';
+import { resetTimelineTapState } from '#react/components/interactions/tapState';
 
 function getElementPrototypeMethod<
   K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',

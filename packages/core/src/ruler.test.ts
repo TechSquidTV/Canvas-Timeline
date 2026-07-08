@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { getTimelineRulerTicks } from './ruler';
+import { getTimelineRulerTicks } from '#core/ruler';
 
 describe('getTimelineRulerTicks', () => {
   it('returns second ruler ticks with major labels and minor subdivisions', () => {

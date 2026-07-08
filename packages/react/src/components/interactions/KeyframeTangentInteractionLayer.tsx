@@ -13,8 +13,8 @@ import {
   useTimeline,
   useTimelineKeyframeSegments,
   useTimelineKeyframeTangentDrag,
-} from '../../hooks';
-import { consumeTimelineDoubleTap } from './tapState';
+} from '#react/hooks';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
 
 interface HoveredTangentHandle {
   clipId: string;

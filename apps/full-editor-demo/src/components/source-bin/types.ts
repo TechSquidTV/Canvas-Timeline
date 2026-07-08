@@ -1,5 +1,5 @@
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import type { MediaLibrarySource } from '../../media/library/media-library-types';
+import type { MediaLibrarySource } from '#full-editor/media/library/media-library-types';
 
 export interface SourceBinSource extends MediaLibrarySource {
   thumbnailUrl: string | null;

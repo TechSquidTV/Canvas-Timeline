@@ -4,8 +4,8 @@ import {
   type TimelineRulerTick,
   type TimelineRulerTickOptions,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /** Options accepted by `useTimelineRulerTicks`. */
 export type UseTimelineRulerTicksOptions = Partial<TimelineRulerTickOptions>;

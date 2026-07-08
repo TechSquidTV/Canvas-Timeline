@@ -8,16 +8,16 @@ import type {
   Track,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineSelection } from '../selection/useTimelineSelection';
-import { flattenTimelineClips, type TimelineClipEntry } from './timelineClipModel';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
+import { flattenTimelineClips, type TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
-export type { TimelineClipEntry } from './timelineClipModel';
+export type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 
 /**
  * Editable presentation fields accepted by `useTimelineClips().updateClip`.
@@ -115,7 +115,7 @@ export interface UseTimelineClipsResult<TrackKind = string> {
  *
  * @example
  * ```tsx
- * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClips } from '#react/hooks';
  *
  * export function ClipLabelEditor() {
  *   const { selectedClip, updateClip } = useTimelineClips();
@@ -136,7 +136,7 @@ export interface UseTimelineClipsResult<TrackKind = string> {
  * @example
  * ```tsx
  * import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClips } from '#react/hooks';
  *
  * export function ClipInspector() {
  *   const { selectedClip, selectedClipTrackId, timelineTimeToSourceTime } = useTimelineClips();

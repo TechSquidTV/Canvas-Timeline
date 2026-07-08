@@ -14,10 +14,10 @@ import {
   Panel as ResizablePanel,
   Separator as ResizableHandle,
 } from 'react-resizable-panels';
-import { demoMarkers, demoTracks } from './timeline-demo-data';
-import { ControlBar } from './timeline-controls';
+import { demoMarkers, demoTracks } from '#www/demos/timeline-editor-controls/timeline-demo-data';
+import { ControlBar } from '#www/demos/timeline-editor-controls/timeline-controls';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-import './timeline-editor.css';
+import '#www/demos/timeline-editor-controls/timeline-editor.css';
 
 function TrackLockButton({ trackId }: { trackId: string }) {
   const lockControl = useTimelineTrackLockControl(trackId);

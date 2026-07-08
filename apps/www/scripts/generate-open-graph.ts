@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateOpenGraphImage } from 'astro-og-canvas';
-import { getOpenGraphPages } from '../src/lib/open-graph-pages';
+import { getOpenGraphPages } from '#www/lib/open-graph-pages';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 const outputRoot = join(appRoot, 'public/open-graph');

@@ -1,6 +1,6 @@
 import type { Clip } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelinePlayheadTime } from '../playback/useTimelinePlayheadTime';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 
 /**
  * Returns clips that intersect the current playhead time.

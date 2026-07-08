@@ -3,12 +3,12 @@ import {
   formatTimelineRangeValue,
   formatTimelineTimeValue,
   type TimelineTimeValueFormatOptions,
-} from '../../accessibility';
+} from '#react/accessibility';
 import {
   useTimelineViewportScrollbar,
   type UseTimelineViewportScrollbarOptions,
-} from './useTimelineViewportScrollbar';
-import type { RangeScrollbarAriaValueTextDetails } from '../../rangeScrollbar';
+} from '#react/hooks/viewport/useTimelineViewportScrollbar';
+import type { RangeScrollbarAriaValueTextDetails } from '#react/rangeScrollbar';
 
 /**
  * Options for viewport scrollbar accessibility formatting.

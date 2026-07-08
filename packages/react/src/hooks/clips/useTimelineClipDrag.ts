@@ -6,17 +6,17 @@ import type {
   TimelineInteractionGeometry,
   TimelineTrackHitTestResult,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   useTimelineTrackDropTargets,
   type TimelineTrackDropGuard,
   type TimelineTrackDropResult,
-} from '../tracks/useTimelineTrackDropTargets';
+} from '#react/hooks/tracks/useTimelineTrackDropTargets';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Pointer data needed to begin a clip body drag. */
 export interface TimelineClipDragStartInput {
@@ -151,7 +151,7 @@ function getTrackPenetration<TrackKind>(
  *
  * @example
  * ```tsx
- * import { useTimelineClipDrag } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClipDrag } from '#react/hooks';
  *
  * export function CustomClipDragHandle({ clipId }: { clipId: string }) {
  *   const drag = useTimelineClipDrag();

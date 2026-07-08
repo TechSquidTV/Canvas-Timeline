@@ -1,11 +1,11 @@
 import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /**
  * Result returned by `useTimelineTracks`.
@@ -90,7 +90,7 @@ export interface UseTimelineTracksResult<TrackKind = string> {
  *
  * @example
  * ```tsx
- * import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineTracks } from '#react/hooks';
  *
  * export function TrackVisibilityMenu() {
  *   const { tracks, toggleVisibility } = useTimelineTracks();

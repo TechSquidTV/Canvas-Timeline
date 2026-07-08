@@ -1,15 +1,15 @@
 ---
-import { site } from '@/data/site';
-import Breadcrumbs, { type BreadcrumbItem } from '@/components/Breadcrumbs.astro';
-import GitHubIcon from '@/components/GitHubIcon.astro';
-import SiteFooter from '@/components/SiteFooter.astro';
+import { site } from '#www/data/site';
+import Breadcrumbs, { type BreadcrumbItem } from '#www/components/Breadcrumbs.astro';
+import GitHubIcon from '#www/components/GitHubIcon.astro';
+import SiteFooter from '#www/components/SiteFooter.astro';
 import {
   createSiteStructuredData,
   normalizeStructuredData,
   type StructuredDataInput,
-} from '@/lib/structured-data';
-import { openGraphImage, openGraphRouteForPath } from '@/lib/open-graph';
-import '@/styles/global.css';
+} from '#www/lib/structured-data';
+import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
+import '#www/styles/global.css';
 
 interface Props {
   title?: string;
@@ -137,7 +137,7 @@ const structuredDataItems = [
     </main>
     <SiteFooter />
     <script>
-      import { recordPageView } from '@/lib/metrics';
+      import { recordPageView } from '#www/lib/metrics';
 
       recordPageView(window.location.pathname);
     </script>

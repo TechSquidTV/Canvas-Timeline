@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vite-plus/test';
-import { TypedEventEmitter } from './emitter';
+import { TypedEventEmitter } from '#core/emitter';
 
 type PrototypeEventMap = {
   constructor: { value: number };

@@ -1,4 +1,4 @@
-import { groupApiSymbols } from './api-symbol-groups';
+import { groupApiSymbols } from '#www/lib/api-symbol-groups';
 import {
   apiReference,
   apiDocPartHref,
@@ -10,15 +10,15 @@ import {
   type ApiDocTextPart,
   type ApiSymbol,
   type ApiTypeParameter,
-} from './api-reference';
+} from '#www/lib/api-reference';
 import {
   absoluteUrl,
   markdownCode as code,
   markdownCodeBlock as codeBlock,
   markdownTable,
   normalizeMarkdown,
-} from './markdown-format';
-import { site } from '../data/site';
+} from '#www/lib/markdown-format';
+import { site } from '#www/data/site';
 
 type ApiMarkdownOptions = {
   siteUrl?: string;

@@ -11,8 +11,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { DemoMetrics } from '../demo-instrumentation';
-import type { TimelineMetricContext, TimelineMetricOperation } from '../../lib/metrics-common';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
+import type { TimelineMetricContext, TimelineMetricOperation } from '#www/lib/metrics-common';
 
 interface BenchmarkConfig {
   numTracks: number;

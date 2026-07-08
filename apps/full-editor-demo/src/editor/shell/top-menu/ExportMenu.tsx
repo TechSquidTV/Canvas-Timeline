@@ -1,5 +1,5 @@
-import { ExportPanel } from '@/components/panels/ExportPanel';
-import type { TimelineExportStatus } from '@/export/timeline-export-types';
+import { ExportPanel } from '#full-editor/components/panels/ExportPanel';
+import type { TimelineExportStatus } from '#full-editor/export/timeline-export-types';
 
 interface ExportMenuProps {
   onStatusChange: (status: TimelineExportStatus) => void;

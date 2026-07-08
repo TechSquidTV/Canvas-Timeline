@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useTimeline } from './useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 
 /**
@@ -24,7 +24,7 @@ import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import { usePlaybackEffect } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { usePlaybackEffect } from '#react/hooks';
  *
  * export function ClipActiveBadge({ clipId }: { clipId: string }) {
  *   const [active, setActive] = useState(false);

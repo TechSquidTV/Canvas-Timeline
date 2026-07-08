@@ -6,8 +6,11 @@ import type {
   TimelineSnapTarget,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { timelineCommandOk, type TimelineCommandResult } from '../core/timelineCommandResult';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import {
+  timelineCommandOk,
+  type TimelineCommandResult,
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Result returned by `useTimelineSnapping`. */
 export interface UseTimelineSnappingResult {

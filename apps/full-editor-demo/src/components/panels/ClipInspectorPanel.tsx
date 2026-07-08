@@ -1,8 +1,8 @@
 import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import { formatFrameRate } from '@/lib/media-format';
-import { formatRationalTime } from '@/lib/timeline-format';
-import type { EditorTrackKind } from '@/data/demo-project';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
+import { formatFrameRate } from '#full-editor/lib/media-format';
+import { formatRationalTime } from '#full-editor/lib/timeline-format';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
 
 export function ClipInspectorPanel() {
   const { selectedClip, selectedClipTrackId } = useTimelineSelection<EditorTrackKind>();

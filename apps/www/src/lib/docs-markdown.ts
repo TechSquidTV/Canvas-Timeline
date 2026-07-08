@@ -6,8 +6,8 @@ import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
 import { unified } from 'unified';
 import { CONTINUE, SKIP, visit } from 'unist-util-visit';
-import { docsSections, type DocsSectionId, type OrderedDoc } from '../data/docs';
-import { site } from '../data/site';
+import { docsSections, type DocsSectionId, type OrderedDoc } from '#www/data/docs';
+import { site } from '#www/data/site';
 
 const markdownProcessor = unified()
   .use(remarkParse)

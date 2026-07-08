@@ -2,12 +2,12 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useSourceBinMedia } from '@/components/source-bin/source-bin-context';
+import { useSourceBinMedia } from '#full-editor/components/source-bin/source-bin-context';
 import {
   EditorMediaSyncContext,
   type EditorMediaSyncContextValue,
   type PreviewLayerName,
-} from './media-sync-context';
+} from '#full-editor/editor/shell/media-sync-context';
 
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual' },

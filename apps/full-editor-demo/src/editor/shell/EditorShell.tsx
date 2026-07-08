@@ -1,8 +1,12 @@
-import { PreviewMonitor } from './PreviewMonitor';
-import { TimelineDock } from './TimelineDock';
-import { ToolPanelStack } from './ToolPanelStack';
-import { TopMenuBar } from './TopMenuBar';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { PreviewMonitor } from '#full-editor/editor/shell/PreviewMonitor';
+import { TimelineDock } from '#full-editor/editor/shell/TimelineDock';
+import { ToolPanelStack } from '#full-editor/editor/shell/ToolPanelStack';
+import { TopMenuBar } from '#full-editor/editor/shell/TopMenuBar';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '#full-editor/components/ui/resizable';
 
 export function EditorShell() {
   return (

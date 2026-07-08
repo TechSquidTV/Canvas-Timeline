@@ -12,14 +12,14 @@ import type {
   TimelineUpdateClipKeyframeSideOptions,
   VisibleTimelineKeyframeSegment,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import {
   timelineCommandFail,
   timelineCommandInvalidInput,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Options accepted by `useTimelineKeyframeSegments`. */
 export interface UseTimelineKeyframeSegmentsOptions extends TimelineKeyframeSegmentGeometryOptions {

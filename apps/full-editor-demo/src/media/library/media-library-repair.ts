@@ -1,5 +1,5 @@
-import { listDirectoryEntries, removeEntryIfExists } from '@/persistence/opfs/files';
-import { isNotFoundError } from '@/persistence/opfs/support';
+import { listDirectoryEntries, removeEntryIfExists } from '#full-editor/persistence/opfs/files';
+import { isNotFoundError } from '#full-editor/persistence/opfs/support';
 import {
   ASSETS_DIRECTORY,
   getMediaLibraryRoot,
@@ -7,9 +7,12 @@ import {
   readSourceOriginal,
   readSourcePoster,
   writeMediaLibraryManifest,
-} from './media-library-files';
-import { createFailedManifestSource, toManifestSource } from './media-library-runtime';
-import type { MediaLibrarySource } from './media-library-types';
+} from '#full-editor/media/library/media-library-files';
+import {
+  createFailedManifestSource,
+  toManifestSource,
+} from '#full-editor/media/library/media-library-runtime';
+import type { MediaLibrarySource } from '#full-editor/media/library/media-library-types';
 
 export async function loadMediaLibrarySources() {
   const root = await getMediaLibraryRoot();

@@ -1,5 +1,5 @@
-import { timelineHookMetadata } from '../data/react-hook-metadata';
-import type { ApiSymbol } from './api-reference';
+import { timelineHookMetadata } from '#www/data/react-hook-metadata';
+import type { ApiSymbol } from '#www/lib/api-reference';
 
 const timelineHookNames: ReadonlySet<string> = new Set(
   timelineHookMetadata.map((hook) => hook.name)

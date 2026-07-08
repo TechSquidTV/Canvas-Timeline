@@ -6,12 +6,12 @@ import {
   subRational,
   type RationalTime,
 } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Result returned by `useTimelinePlayback`. */
 export interface UseTimelinePlaybackResult {

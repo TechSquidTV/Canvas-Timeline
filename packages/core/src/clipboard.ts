@@ -1,7 +1,7 @@
-import { type TimelineEngine, shiftClipKeyframes } from './engine';
-import { createClipSnapshot } from './snapshot';
-import type { Clip, TimelineState } from './types';
-import type { ClipCreatedEvent, ClipRemovedEvent } from './events';
+import { type TimelineEngine, shiftClipKeyframes } from '#core/engine';
+import { createClipSnapshot } from '#core/snapshot';
+import type { Clip, TimelineState } from '#core/types';
+import type { ClipCreatedEvent, ClipRemovedEvent } from '#core/events';
 import {
   addRational,
   compareRational,

@@ -7,10 +7,13 @@ import {
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
 import { ClipboardPaste, Copy, Redo2, Trash2, Undo2, Unlink2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { useTimelineDropMode, type TimelineSourceDropMode } from '@/timeline/drop-mode-context';
+import { Button } from '#full-editor/components/ui/button';
+import { Separator } from '#full-editor/components/ui/separator';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import {
+  useTimelineDropMode,
+  type TimelineSourceDropMode,
+} from '#full-editor/timeline/drop-mode-context';
 
 function HistoryCommandGroup() {
   const history = useTimelineHistory();

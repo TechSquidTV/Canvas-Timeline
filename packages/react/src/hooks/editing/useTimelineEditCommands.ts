@@ -18,14 +18,14 @@ import type {
   TimelineTrimEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineSelection } from '../selection/useTimelineSelection';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandFailureReason,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Result returned by `useTimelineEditCommands`. */
 export interface UseTimelineEditCommandsResult {

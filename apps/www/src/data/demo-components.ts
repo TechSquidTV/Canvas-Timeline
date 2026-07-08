@@ -1,45 +1,45 @@
 import type { ComponentType } from 'react';
-import type { LiveDemoId } from './demos';
+import type { LiveDemoId } from '#www/data/demos';
 
 type LiveDemoLoader = () => Promise<ComponentType>;
 
 export const liveDemoLoaders: Record<LiveDemoId, LiveDemoLoader> = {
   basic: () =>
-    import('../demos/basic-editor-surface/BasicTimeline').then((module) => module.BasicTimeline),
+    import('#www/demos/basic-editor-surface/BasicTimeline').then((module) => module.BasicTimeline),
   'media-sync': () =>
-    import('../demos/media-preview-sync/MediaTimelineSync').then(
+    import('#www/demos/media-preview-sync/MediaTimelineSync').then(
       (module) => module.MediaTimelineSync
     ),
   'html-media-sync': () =>
-    import('../demos/html-media-sync/HTMLMediaTimelineSync').then(
+    import('#www/demos/html-media-sync/HTMLMediaTimelineSync').then(
       (module) => module.HTMLMediaTimelineSync
     ),
   'editor-controls': () =>
-    import('../demos/timeline-editor-controls/TimelineEditorControls').then(
+    import('#www/demos/timeline-editor-controls/TimelineEditorControls').then(
       (module) => module.TimelineEditorControls
     ),
   'clip-grouping-import': () =>
-    import('../demos/clip-grouping-import/ClipGroupingImportTimeline').then(
+    import('#www/demos/clip-grouping-import/ClipGroupingImportTimeline').then(
       (module) => module.ClipGroupingImportTimeline
     ),
   'external-clip-drop': () =>
-    import('../demos/external-clip-drop/ExternalClipDropTimeline').then(
+    import('#www/demos/external-clip-drop/ExternalClipDropTimeline').then(
       (module) => module.ExternalClipDropTimeline
     ),
   'keyframe-opacity': () =>
-    import('../demos/keyframe-opacity/KeyframeOpacityTimeline').then(
+    import('#www/demos/keyframe-opacity/KeyframeOpacityTimeline').then(
       (module) => module.KeyframeOpacityTimeline
     ),
   'stress-test': () =>
-    import('../demos/timeline-stress-test/TimelineStressTest').then(
+    import('#www/demos/timeline-stress-test/TimelineStressTest').then(
       (module) => module.TimelineStressTest
     ),
   'react-dom-timeline': () =>
-    import('../demos/react-dom-timeline/ReactDOMTimeline').then(
+    import('#www/demos/react-dom-timeline/ReactDOMTimeline').then(
       (module) => module.ReactDOMTimeline
     ),
   'custom-playhead': () =>
-    import('../demos/custom-playhead/CustomPlayheadTimeline').then(
+    import('#www/demos/custom-playhead/CustomPlayheadTimeline').then(
       (module) => module.CustomPlayheadTimeline
     ),
 };

@@ -2,7 +2,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimecodeField } from './index';
+import { TimecodeField } from '#react/timecodeField';
 
 describe('TimecodeField', () => {
   it('renders a formatted trigger by default and opens a focused selected input', () => {

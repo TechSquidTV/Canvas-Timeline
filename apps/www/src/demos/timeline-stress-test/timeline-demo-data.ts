@@ -1,6 +1,6 @@
 import type { Track, Clip, Marker } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { getDemoClipColor } from '../demo-clip-colors';
+import { getDemoClipColor } from '#www/demos/demo-clip-colors';
 
 export function generateStressTestData(
   numTracks: number,

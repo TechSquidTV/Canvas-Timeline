@@ -1,5 +1,5 @@
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 
 const scrollTopEvents = ['scroll:change', 'render'] as const;
 const getTimelineScrollTop = (engine: TimelineEngine) => engine.scrollTop;

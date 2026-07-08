@@ -1,8 +1,8 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import CodeBlock from '@/components/CodeBlock.astro';
-import ApiTypeText from '@/components/ApiTypeText.astro';
-import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import CodeBlock from '#www/components/CodeBlock.astro';
+import ApiTypeText from '#www/components/ApiTypeText.astro';
+import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
 import {
   apiPackageHref,
   apiDocPartHref,
@@ -12,8 +12,8 @@ import {
   type ApiDocTextPart,
   type ApiPackage,
   type ApiSymbol,
-} from '@/lib/api-reference';
-import { createApiSymbolArticleStructuredData } from '@/lib/structured-data';
+} from '#www/lib/api-reference';
+import { createApiSymbolArticleStructuredData } from '#www/lib/structured-data';
 
 interface Props {
   packageDoc: ApiPackage;

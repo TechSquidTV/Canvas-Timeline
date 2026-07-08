@@ -1,11 +1,14 @@
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { demoProject, timelineMarkers, timelineTracks } from '@/data/demo-project';
-import { mediaLibraryStore } from '@/media/library/media-library-store';
-import type { MediaLibrarySource } from '@/media/library/media-library-types';
-import { errorMessage, hasOpfsSupport } from '@/persistence/opfs/support';
-import { loadProjectSnapshot } from '@/persistence/project/project-store';
-import { getDefaultProjectMetadata, type ProjectMetadata } from '@/project/project-metadata';
-import type { PersistedTimelineState } from '@/persistence/project/types';
+import { demoProject, timelineMarkers, timelineTracks } from '#full-editor/data/demo-project';
+import { mediaLibraryStore } from '#full-editor/media/library/media-library-store';
+import type { MediaLibrarySource } from '#full-editor/media/library/media-library-types';
+import { errorMessage, hasOpfsSupport } from '#full-editor/persistence/opfs/support';
+import { loadProjectSnapshot } from '#full-editor/persistence/project/project-store';
+import {
+  getDefaultProjectMetadata,
+  type ProjectMetadata,
+} from '#full-editor/project/project-metadata';
+import type { PersistedTimelineState } from '#full-editor/persistence/project/types';
 
 export interface EditorBootstrapState {
   projectState: PersistedTimelineState;

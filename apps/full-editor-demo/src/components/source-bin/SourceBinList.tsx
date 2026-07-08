@@ -1,5 +1,5 @@
-import { SourceBinItem } from './SourceBinItem';
-import type { SourceBinSource } from './types';
+import { SourceBinItem } from '#full-editor/components/source-bin/SourceBinItem';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 interface SourceBinListProps {
   actionMessageBySourceId: ReadonlyMap<string, string>;

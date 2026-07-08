@@ -50,7 +50,7 @@ export interface TimecodeInputProps extends React.ComponentPropsWithoutRef<typeo
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import { TimecodeInput } from '@techsquidtv/canvas-timeline-react/timecode-input';
+ * import { TimecodeInput } from '#react/timecode-input';
  * import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
  * import {
  *   type TimecodeFormatOptions,

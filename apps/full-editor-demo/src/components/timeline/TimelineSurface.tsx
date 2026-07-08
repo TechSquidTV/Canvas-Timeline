@@ -1,7 +1,7 @@
 import { Timeline } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
-import { TimelineLayers } from './TimelineLayers';
-import { TimelineSourceDropTarget } from './TimelineSourceDropTarget';
+import { TimelineLayers } from '#full-editor/components/timeline/TimelineLayers';
+import { TimelineSourceDropTarget } from '#full-editor/components/timeline/TimelineSourceDropTarget';
 
 export function TimelineSurface() {
   return (

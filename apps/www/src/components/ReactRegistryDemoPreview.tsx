@@ -29,11 +29,11 @@ import {
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
-import type { ReactRegistryDemoVariant } from '@/data/react-registry';
+import type { ReactRegistryDemoVariant } from '#www/data/react-registry';
 import {
   demoMarkers as basicDemoMarkers,
   demoTracks as basicDemoTracks,
-} from '@/demos/basic-editor-surface/timeline-demo-data';
+} from '#www/demos/basic-editor-surface/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 interface ReactRegistryDemoPreviewProps {

@@ -1,4 +1,4 @@
-import { isNotFoundError } from './support';
+import { isNotFoundError } from '#full-editor/persistence/opfs/support';
 
 const APP_ROOT_SEGMENTS = ['canvas-timeline-full-editor-demo', 'v1'] as const;
 

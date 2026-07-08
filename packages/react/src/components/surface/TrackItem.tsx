@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTimeline } from '../../hooks';
+import { useTimeline } from '#react/hooks';
 
 /**
  * Props for a timeline track row bound to a track id.

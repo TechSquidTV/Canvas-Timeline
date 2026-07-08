@@ -1,14 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { site } from '../src/data/site';
+import { site } from '#www/data/site';
 import {
   emptySponsorsSnapshot,
   normalizeSponsorsSnapshot,
   type GitHubSponsorsAccount,
   type GitHubSponsorsResponse,
   type SponsorsSnapshot,
-} from '../src/lib/sponsors';
+} from '#www/lib/sponsors';
 
 type GitHubGraphQlResponse = {
   readonly data?: GitHubSponsorsResponse;
@@ -198,7 +198,7 @@ async function writeSnapshot(snapshot: SponsorsSnapshot) {
 }
 
 function formatSnapshotSource(snapshot: SponsorsSnapshot): string {
-  return `import type { SponsorsSnapshot } from '@/lib/sponsors';
+  return `import type { SponsorsSnapshot } from '#www/lib/sponsors';
 
 export const sponsorsSnapshot = {
   source: ${stringLiteral(snapshot.source)},

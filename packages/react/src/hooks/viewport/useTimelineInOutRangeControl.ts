@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { formatTimelineRangeValue, formatTimelineTimeValue } from '../../accessibility';
-import { useTimeline } from '../core/useTimeline';
+import { formatTimelineRangeValue, formatTimelineTimeValue } from '#react/accessibility';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 
 /**
  * Options for adapting timeline In/Out points to a range control.

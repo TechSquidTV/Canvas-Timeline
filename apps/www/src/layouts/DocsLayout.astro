@@ -1,10 +1,10 @@
 ---
 import type { MarkdownHeading } from 'astro';
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import DocsNav from '@/components/DocsNav.astro';
-import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
-import { docsSections, type DocsSectionId } from '@/data/docs';
-import type { StructuredDataInput } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import DocsNav from '#www/components/DocsNav.astro';
+import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
+import { docsSections, type DocsSectionId } from '#www/data/docs';
+import type { StructuredDataInput } from '#www/lib/structured-data';
 
 interface PagerLink {
   id: string;

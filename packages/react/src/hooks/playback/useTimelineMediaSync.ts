@@ -5,14 +5,14 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useActiveLayers } from '../clips/useActiveLayers';
+import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import {
   useTimelineMediaPlayback,
   type TimelineLayerSyncDetails,
   type UseTimelineMediaPlaybackOptions,
-} from './useTimelineMediaPlayback';
-import { useTimeline } from '../core/useTimeline';
-import type { TimelineCommandResult } from '../core/timelineCommandResult';
+} from '#react/hooks/playback/useTimelineMediaPlayback';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
 
 /**
  * Adapter callbacks used to connect timeline playback to an external media clock.

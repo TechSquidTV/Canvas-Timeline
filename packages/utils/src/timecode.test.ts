@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { fromSeconds } from './time';
+import { fromSeconds } from '#utils/time';
 import {
   formatRationalTimecode,
   formatTimecode,
@@ -8,7 +8,7 @@ import {
   parseTimecodeToRationalTime,
   resolveTimecodeFrameRate,
   toTimecodeFrameNumber,
-} from './timecode';
+} from '#utils/timecode';
 
 describe('timecode utilities', () => {
   it('formats decimal timecode with centisecond precision', () => {

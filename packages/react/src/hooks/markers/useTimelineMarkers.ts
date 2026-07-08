@@ -1,12 +1,12 @@
 import type { Marker } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Editable marker fields accepted by `useTimelineMarkers().updateMarker`. */
 export type TimelineMarkerUpdate = Partial<

@@ -4,15 +4,15 @@ import {
   readFileFromPath,
   removeEntryIfExists,
   writeBlobToPath,
-} from '@/persistence/opfs/files';
-import { createMutationQueue } from '@/persistence/opfs/mutation-queue';
-import { isNotFoundError } from '@/persistence/opfs/support';
+} from '#full-editor/persistence/opfs/files';
+import { createMutationQueue } from '#full-editor/persistence/opfs/mutation-queue';
+import { isNotFoundError } from '#full-editor/persistence/opfs/support';
 import {
   createEmptyMediaLibraryManifest,
   parseMediaLibraryManifest,
   type MediaLibraryManifestFile,
-} from './media-library-manifest';
-import type { MediaLibraryManifestSource } from './media-library-types';
+} from '#full-editor/media/library/media-library-manifest';
+import type { MediaLibraryManifestSource } from '#full-editor/media/library/media-library-types';
 
 export const ASSETS_DIRECTORY = 'assets';
 

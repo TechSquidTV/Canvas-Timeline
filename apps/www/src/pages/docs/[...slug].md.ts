@@ -1,7 +1,7 @@
 import type { APIRoute, GetStaticPaths } from 'astro';
 import type { CollectionEntry } from 'astro:content';
 import { getCollection } from 'astro:content';
-import { buildDocsMarkdown } from '@/lib/docs-markdown';
+import { buildDocsMarkdown } from '#www/lib/docs-markdown';
 
 type DocsEntry = CollectionEntry<'docs'>;
 

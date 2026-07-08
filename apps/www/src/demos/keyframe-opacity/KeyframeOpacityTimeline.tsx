@@ -23,7 +23,7 @@ import {
   Panel as ResizablePanel,
   Separator as ResizableHandle,
 } from 'react-resizable-panels';
-import type { DemoMetrics } from '../demo-instrumentation';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import {
   findClipContainingTime,
   findOpacityKeyframeNearTime,
@@ -31,7 +31,7 @@ import {
   opacityKeyframeProperty,
   opacityKeyframeValuePadding,
   toggleOpacityKeyframeAtTime,
-} from './keyframe-opacity-utils';
+} from '#www/demos/keyframe-opacity/keyframe-opacity-utils';
 import {
   demoMarkers,
   demoTracks,
@@ -39,9 +39,9 @@ import {
   sampleDurationSeconds,
   sampleMediaUrl,
   sampleSourceId,
-} from './timeline-demo-data';
+} from '#www/demos/keyframe-opacity/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-import './timeline-editor.css';
+import '#www/demos/keyframe-opacity/timeline-editor.css';
 
 const trackHeight = 64;
 const keyframeSize = 6;

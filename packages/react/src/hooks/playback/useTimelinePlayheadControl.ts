@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { formatTimelineTimeValue } from '../../accessibility';
-import { createTimelineScalarControlProps } from '../core/timelineScalarControlProps';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelinePlayheadTime } from './useTimelinePlayheadTime';
+import { formatTimelineTimeValue } from '#react/accessibility';
+import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 
 /**
  * Options for adapting the timeline playhead to a scalar control.

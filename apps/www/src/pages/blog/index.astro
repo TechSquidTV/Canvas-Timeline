@@ -1,13 +1,13 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
 import {
   formatBlogDate,
   getBlogPostImage,
   getBlogPostUrl,
   getBlogPosts,
   getReadingMinutes,
-} from '@/data/blog';
-import { createBlogIndexStructuredData } from '@/lib/structured-data';
+} from '#www/data/blog';
+import { createBlogIndexStructuredData } from '#www/lib/structured-data';
 
 const posts = await getBlogPosts();
 const [featuredPost, ...recentPosts] = posts;

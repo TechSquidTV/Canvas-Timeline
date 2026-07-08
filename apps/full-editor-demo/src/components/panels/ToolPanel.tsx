@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/cn';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '#full-editor/lib/cn';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#full-editor/components/ui/collapsible';
 
 interface ToolPanelProps {
   badge?: string;

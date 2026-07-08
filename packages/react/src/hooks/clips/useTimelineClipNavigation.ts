@@ -2,13 +2,13 @@ import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
 import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { getClipAccessibleDescription, getClipAccessibleName } from '../../accessibility';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineClips } from './useTimelineClips';
-import { useTimelineEditCommands } from '../editing/useTimelineEditCommands';
-import { useTimelineSnapping } from '../editing/useTimelineSnapping';
-import type { TimelineClipEntry } from './timelineClipModel';
-import { timelineCommandFail } from '../core/timelineCommandResult';
+import { getClipAccessibleDescription, getClipAccessibleName } from '#react/accessibility';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineClips } from '#react/hooks/clips/useTimelineClips';
+import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
+import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
+import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
+import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
 
 /**
  * Metadata for one canvas-rendered clip exposed through clip navigation.
@@ -117,7 +117,7 @@ function getActiveClipStatus<TrackKind>(
  *
  * @example
  * ```tsx
- * import { useTimelineClipNavigation } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClipNavigation } from '#react/hooks';
  *
  * export function CanvasClipNavigator() {
  *   const clipNavigation = useTimelineClipNavigation({ selectOnNavigate: true });

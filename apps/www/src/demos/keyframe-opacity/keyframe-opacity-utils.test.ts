@@ -4,13 +4,17 @@ import {
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import { opacityClipId, sampleDurationSeconds, demoTracks } from './timeline-demo-data';
+import {
+  opacityClipId,
+  sampleDurationSeconds,
+  demoTracks,
+} from '#www/demos/keyframe-opacity/timeline-demo-data';
 import {
   findClipContainingTime,
   findOpacityKeyframeNearTime,
   opacityKeyframeProperty,
   toggleOpacityKeyframeAtTime,
-} from './keyframe-opacity-utils';
+} from '#www/demos/keyframe-opacity/keyframe-opacity-utils';
 
 function createEngine() {
   return new TimelineEngine({

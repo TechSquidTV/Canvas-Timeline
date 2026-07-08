@@ -1,6 +1,6 @@
 import type { Clip, TimelineKeyframeRenderClip } from '@techsquidtv/canvas-timeline-core';
-import { timeToX } from './geometry';
-import type { RenderContext } from './types';
+import { timeToX } from '#renderer/render/geometry';
+import type { RenderContext } from '#renderer/render/types';
 
 export type ClipRenderContext = RenderContext & {
   clip: Clip;

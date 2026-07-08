@@ -1,14 +1,14 @@
 ---
-import ComponentPreview from '@/components/react-registry/ComponentPreview.astro';
-import ComponentSource from '@/components/react-registry/ComponentSource.astro';
-import RegistryApiReference from '@/components/react-registry/RegistryApiReference.astro';
-import RegistryExamples from '@/components/react-registry/RegistryExamples.astro';
-import RegistryInstall from '@/components/react-registry/RegistryInstall.astro';
-import RegistryNotes from '@/components/react-registry/RegistryNotes.astro';
+import ComponentPreview from '#www/components/react-registry/ComponentPreview.astro';
+import ComponentSource from '#www/components/react-registry/ComponentSource.astro';
+import RegistryApiReference from '#www/components/react-registry/RegistryApiReference.astro';
+import RegistryExamples from '#www/components/react-registry/RegistryExamples.astro';
+import RegistryInstall from '#www/components/react-registry/RegistryInstall.astro';
+import RegistryNotes from '#www/components/react-registry/RegistryNotes.astro';
 import {
   getReactRegistryItem,
   getReactRegistryPageSections,
-} from '@/data/react-registry';
+} from '#www/data/react-registry';
 
 interface Props {
   registryKey: string;

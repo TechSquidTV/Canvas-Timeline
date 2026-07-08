@@ -1,12 +1,15 @@
-import { getSupportedSourceKind, probeSourceFile } from '@/media/ingest/source-media';
-import { errorMessage } from '@/persistence/opfs/support';
+import { getSupportedSourceKind, probeSourceFile } from '#full-editor/media/ingest/source-media';
+import { errorMessage } from '#full-editor/persistence/opfs/support';
 import {
   persistSourceOriginal,
   persistSourcePoster,
   updateMediaLibraryManifest,
-} from './media-library-files';
-import { createFailedManifestSource } from './media-library-runtime';
-import type { MediaLibraryImportResult, MediaLibraryManifestSource } from './media-library-types';
+} from '#full-editor/media/library/media-library-files';
+import { createFailedManifestSource } from '#full-editor/media/library/media-library-runtime';
+import type {
+  MediaLibraryImportResult,
+  MediaLibraryManifestSource,
+} from '#full-editor/media/library/media-library-types';
 
 export async function importSourceFile(file: File): Promise<MediaLibraryImportResult> {
   const sourceId = `source-${crypto.randomUUID()}`;

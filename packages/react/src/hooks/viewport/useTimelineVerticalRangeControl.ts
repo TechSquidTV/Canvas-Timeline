@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import {
   useTimelineVerticalScrollbar,
   type UseTimelineVerticalScrollbarResult,
-} from './useTimelineVerticalScrollbar';
+} from '#react/hooks/viewport/useTimelineVerticalScrollbar';
 
 function formatPixels(value: number) {
   return `${Math.round(value)} pixels`;

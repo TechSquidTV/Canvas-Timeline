@@ -4,12 +4,12 @@ import type {
   TimelineKeyframeRect,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Pointer data needed to begin a keyframe drag. */
 export interface TimelineKeyframeDragStartInput {
@@ -108,7 +108,7 @@ function clampRatio(value: number) {
  *
  * @example
  * ```tsx
- * import { useTimelineKeyframeDrag } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineKeyframeDrag } from '#react/hooks';
  *
  * export function KeyframeHandle({ clipId, keyframeId }: { clipId: string; keyframeId: string }) {
  *   const drag = useTimelineKeyframeDrag();

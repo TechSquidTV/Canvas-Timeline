@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineEditCommitResult } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineEditCommands } from '../editing/useTimelineEditCommands';
-import type { TimelineCommandResult } from '../core/timelineCommandResult';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
 
 /** Timeline range selected for range edit commands. */
 export interface TimelineRangeSelection {

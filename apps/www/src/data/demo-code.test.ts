@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { demoCodeExamples } from './demo-code';
-import { toCopyableDemoSource } from './demo-snippets';
+import { demoCodeExamples } from '#www/data/demo-code';
+import { toCopyableDemoSource } from '#www/data/demo-snippets';
 
 const publicPackageName = '@techsquidtv/canvas-timeline';
 const adapterPackageExports = [

@@ -9,7 +9,7 @@ import {
   useTimelineTrackHeader,
   useTimelineScrollTop,
   type UseTimelineTrackHeaderResult,
-} from '../../hooks';
+} from '#react/hooks';
 
 /** Props for the track header list column. */
 export interface TrackHeaderListProps extends React.HTMLAttributes<HTMLDivElement> {

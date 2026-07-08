@@ -1,5 +1,5 @@
 import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from './useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 
 /**
  * Reads the current synchronized {@link TimelineState} snapshot.

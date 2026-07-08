@@ -12,9 +12,13 @@ import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { compareRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Link2, Scissors, Unlink } from 'lucide-react';
 import { useMemo } from 'react';
-import { demoMarkers, demoTracks, linkedClipGroupLabel } from './timeline-demo-data';
+import {
+  demoMarkers,
+  demoTracks,
+  linkedClipGroupLabel,
+} from '#www/demos/clip-grouping-import/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-import './timeline-editor.css';
+import '#www/demos/clip-grouping-import/timeline-editor.css';
 
 function TrackHeaderColumn() {
   const { state } = useTimeline();

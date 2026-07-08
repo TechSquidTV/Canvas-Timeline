@@ -10,14 +10,14 @@ import type {
   VisibleTimelineKeyframe,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import {
   timelineCommandFail,
   timelineCommandInvalidInput,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /**
  * Options accepted by `useTimelineKeyframes`.
@@ -107,7 +107,7 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
  * @example
  * ```tsx
  * import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineKeyframes } from '#react/hooks';
  *
  * export function OpacityKeyframeButton({ clipId }: { clipId: string }) {
  *   const keyframes = useTimelineKeyframes({ clipId, property: 'opacity' });
@@ -132,7 +132,7 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
  *
  * @example
  * ```tsx
- * import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineKeyframes } from '#react/hooks';
  *
  * export function SelectedKeyframeOverlay() {
  *   const { keyframeRects } = useTimelineKeyframes({ selectedClipOnly: true });

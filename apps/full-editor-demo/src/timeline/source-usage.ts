@@ -1,5 +1,5 @@
 import type { Track } from '@techsquidtv/canvas-timeline-core';
-import type { EditorTrackKind } from '@/data/demo-project';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
 
 export function countTimelineSourceUsage(tracks: readonly Track<EditorTrackKind>[]) {
   const usageCounts = new Map<string, number>();

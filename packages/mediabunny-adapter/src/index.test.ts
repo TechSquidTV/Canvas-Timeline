@@ -2,7 +2,11 @@ import { afterEach, beforeEach, expect, test, vi } from 'vite-plus/test';
 import type { ActiveClip, ActiveLayerResult, Clip, Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import * as RealMediabunny from 'mediabunny';
-import { createMediabunnyAdapter, formatMediabunnyTime, type MediabunnyModule } from './index';
+import {
+  createMediabunnyAdapter,
+  formatMediabunnyTime,
+  type MediabunnyModule,
+} from '#mediabunny-adapter/index';
 
 const originalAudioContext = window.AudioContext;
 const originalWebkitAudioContext = (

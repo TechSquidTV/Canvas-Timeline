@@ -2,12 +2,12 @@ import React from 'react';
 import { Slider } from '@base-ui/react/slider';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { type RationalTime, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { formatTimelineTimeValue } from '../../accessibility';
+import { formatTimelineTimeValue } from '#react/accessibility';
 import {
   type TimelineInOutRangeControlOptions,
   useTimeline,
   useTimelineInOutRangeControl,
-} from '../../hooks';
+} from '#react/hooks';
 
 /** Timeline range boundary controlled by an In/Out grabber. */
 export type InOutBoundary = 'in' | 'out';

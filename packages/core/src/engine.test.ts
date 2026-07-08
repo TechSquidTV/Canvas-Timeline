@@ -1,18 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test';
-import { TimelineEngine } from './engine';
+import { TimelineEngine } from '#core/engine';
 import {
   createTimelineScalarKeyframeProperty,
   getTimelineKeyframeBezierProgress,
   getTimelineKeyframeBezierControlPoints,
-} from './keyframes';
-import type { Clip, Track } from './types';
-import type { ClipCreatedEvent, ClipMoveEvent, ClipRemovedEvent, ClipSplitEvent } from './events';
+} from '#core/keyframes';
+import type { Clip, Track } from '#core/types';
+import type {
+  ClipCreatedEvent,
+  ClipMoveEvent,
+  ClipRemovedEvent,
+  ClipSplitEvent,
+} from '#core/events';
 import {
   assertValidRationalTime,
   fromSeconds,
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
-import { expectDefined } from '../../../test-utils/assertions';
+import { expectDefined } from '#test-utils/assertions';
 
 const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',

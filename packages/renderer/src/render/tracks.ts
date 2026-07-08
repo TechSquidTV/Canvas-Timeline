@@ -1,7 +1,7 @@
 import type { Clip } from '@techsquidtv/canvas-timeline-core';
-import { drawClip } from './clips';
-import { getActiveWidth } from './geometry';
-import type { RenderContext } from './types';
+import { drawClip } from '#renderer/render/clips';
+import { getActiveWidth } from '#renderer/render/geometry';
+import type { RenderContext } from '#renderer/render/types';
 
 type SelectedClip = {
   clip: Clip;

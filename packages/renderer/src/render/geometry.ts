@@ -1,5 +1,5 @@
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import type { RenderContext } from './types';
+import type { RenderContext } from '#renderer/render/types';
 
 export function timeToX({ state }: RenderContext, time: Parameters<typeof toSeconds>[0]) {
   return Math.floor(toSeconds(time) * state.zoomScale - state.scrollLeft);

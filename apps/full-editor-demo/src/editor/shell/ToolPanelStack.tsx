@@ -1,9 +1,9 @@
 import { Boxes, Clapperboard, FolderKanban } from 'lucide-react';
-import { ClipInspectorPanel } from '@/components/panels/ClipInspectorPanel';
-import { ProjectPanel } from '@/components/panels/ProjectPanel';
-import { SourceBinPanel } from '@/components/source-bin/SourceBinPanel';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import { ToolPanel } from '@/components/panels/ToolPanel';
+import { ClipInspectorPanel } from '#full-editor/components/panels/ClipInspectorPanel';
+import { ProjectPanel } from '#full-editor/components/panels/ProjectPanel';
+import { SourceBinPanel } from '#full-editor/components/source-bin/SourceBinPanel';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
+import { ToolPanel } from '#full-editor/components/panels/ToolPanel';
 
 export function ToolPanelStack() {
   const { sources } = useSourceBin();

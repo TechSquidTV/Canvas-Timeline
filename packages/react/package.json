@@ -29,6 +29,12 @@
   },
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "imports": {
+    "#react/*": {
+      "types": "./dist/*.d.mts",
+      "import": "./dist/*.mjs"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",

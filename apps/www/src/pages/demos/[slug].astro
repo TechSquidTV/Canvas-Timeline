@@ -1,10 +1,10 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import { demoDocs, type DemoDoc } from '@/data/demos';
-import { demoCodeExamples } from '@/data/demo-code';
-import CodeExampleTabs from '@/components/CodeExampleTabs.astro';
-import LiveDemoRenderer from '@/components/LiveDemoRenderer';
-import { createDemoStructuredData } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import { demoDocs, type DemoDoc } from '#www/data/demos';
+import { demoCodeExamples } from '#www/data/demo-code';
+import CodeExampleTabs from '#www/components/CodeExampleTabs.astro';
+import LiveDemoRenderer from '#www/components/LiveDemoRenderer';
+import { createDemoStructuredData } from '#www/lib/structured-data';
 
 interface Props {
   demoDoc: DemoDoc;

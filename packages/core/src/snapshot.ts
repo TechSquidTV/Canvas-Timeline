@@ -1,9 +1,9 @@
-import type { Clip, Marker, TimelineClipGroup, TimelineKeyframe, Track } from './types';
+import type { Clip, Marker, TimelineClipGroup, TimelineKeyframe, Track } from '#core/types';
 import {
   defaultTimelineIncomingBezierHandle,
   defaultTimelineOutgoingBezierHandle,
   normalizeTimelineKeyframeSideInterpolation,
-} from './keyframes';
+} from '#core/keyframes';
 import {
   assertValidRationalTime,
   compareRational,

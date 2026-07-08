@@ -3,7 +3,7 @@ import { TimelineProvider, Timeline, useTimeline } from '@techsquidtv/canvas-tim
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
-import { demoMarkers, demoTracks } from './timeline-demo-data';
+import { demoMarkers, demoTracks } from '#www/demos/custom-playhead/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 function CustomInPointGrabber({ dragging }: { dragging: boolean }) {

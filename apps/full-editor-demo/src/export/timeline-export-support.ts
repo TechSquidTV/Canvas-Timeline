@@ -1,6 +1,9 @@
 import type * as Mediabunny from 'mediabunny';
-import { EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_SAMPLE_RATE } from './timeline-export-constants';
-import type { TimelineExportPlan } from './timeline-export-types';
+import {
+  EXPORT_AUDIO_CHANNELS,
+  EXPORT_AUDIO_SAMPLE_RATE,
+} from '#full-editor/export/timeline-export-constants';
+import type { TimelineExportPlan } from '#full-editor/export/timeline-export-types';
 
 export async function ensureMp4EncodeSupport(
   mediabunny: typeof Mediabunny,

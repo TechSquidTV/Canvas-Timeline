@@ -1,7 +1,10 @@
 import type * as Mediabunny from 'mediabunny';
-import type { ExportMediaCache } from './timeline-export-media-cache';
-import { throwIfAborted } from './timeline-export-support';
-import type { TimelineExportPlan, TimelineExportProgress } from './timeline-export-types';
+import type { ExportMediaCache } from '#full-editor/export/timeline-export-media-cache';
+import { throwIfAborted } from '#full-editor/export/timeline-export-support';
+import type {
+  TimelineExportPlan,
+  TimelineExportProgress,
+} from '#full-editor/export/timeline-export-types';
 
 export async function renderVideoTrack(options: {
   cache: ExportMediaCache;

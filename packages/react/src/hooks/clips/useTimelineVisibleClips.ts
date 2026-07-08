@@ -3,8 +3,8 @@ import type {
   VisibleTimelineClip,
   VisibleTimelineClipOptions,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /**
  * Options accepted by `useTimelineVisibleClips`.
@@ -37,7 +37,7 @@ export type UseTimelineVisibleClipsOptions = VisibleTimelineClipOptions;
  *
  * @example
  * ```tsx
- * import { useTimelineVisibleClips } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineVisibleClips } from '#react/hooks';
  *
  * export function VisibleClipList() {
  *   const visibleClips = useTimelineVisibleClips({ overscanPixels: 160 });

@@ -1,7 +1,7 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import { demoDocs } from '@/data/demos';
-import { createDemoIndexStructuredData } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import { demoDocs } from '#www/data/demos';
+import { createDemoIndexStructuredData } from '#www/lib/structured-data';
 
 const featuredDemoDocs = demoDocs.filter((demoDoc) => demoDoc.featured);
 const standardDemoDocs = demoDocs.filter((demoDoc) => !demoDoc.featured);

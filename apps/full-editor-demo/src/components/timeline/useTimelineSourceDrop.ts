@@ -5,19 +5,19 @@ import {
   useTimelineExternalClipDrop,
   useTimelineTracks,
 } from '@techsquidtv/canvas-timeline-react';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import type { SourceBinSource } from '@/components/source-bin/types';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { useTimelineDropMode } from '@/timeline/drop-mode-context';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { useTimelineDropMode } from '#full-editor/timeline/drop-mode-context';
 import {
   createSourceBinDragPayload,
   readSourceBinDragPayload,
-} from '@/timeline/source-drag-payload';
+} from '#full-editor/timeline/source-drag-payload';
 import {
   canCreateSourceDropPlacements,
   createSourceDropPlacements,
   resolveSourceDropPatch,
-} from '@/timeline/source-drop-placement';
+} from '#full-editor/timeline/source-drop-placement';
 
 interface SourceTimelineDragData {
   source: SourceBinSource;

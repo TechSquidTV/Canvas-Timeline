@@ -1,10 +1,10 @@
 import { expect, test } from 'vite-plus/test';
-import { TimelineEngine } from './core';
-import { TimelineProvider } from './react';
-import { CanvasRenderer } from './renderer';
-import { fromSeconds } from './utils';
-import * as htmlMedia from './html-media';
-import * as timeline from './index';
+import { TimelineEngine } from '#timeline/core';
+import { TimelineProvider } from '#timeline/react';
+import { CanvasRenderer } from '#timeline/renderer';
+import { fromSeconds } from '#timeline/utils';
+import * as htmlMedia from '#timeline/html-media';
+import * as timeline from '#timeline/index';
 
 test('timeline package re-exports the public composition surface', () => {
   expect(timeline.TimelineEngine).toBe(TimelineEngine);

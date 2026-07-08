@@ -8,8 +8,8 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline, useTimelineKeyframeDrag, useTimelineKeyframes } from '../../hooks';
-import { consumeTimelineDoubleTap } from './tapState';
+import { useTimeline, useTimelineKeyframeDrag, useTimelineKeyframes } from '#react/hooks';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
 
 interface HoveredKeyframe {
   clipId: string;

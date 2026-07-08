@@ -11,6 +11,50 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^#full-editor\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'apps/full-editor-demo/src/$1'),
+      },
+      {
+        find: /^#core\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/core/src/$1'),
+      },
+      {
+        find: /^#html-media-adapter\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/html-media-adapter/src/$1'),
+      },
+      {
+        find: /^#mediabunny-adapter\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/mediabunny-adapter/src/$1'),
+      },
+      {
+        find: /^#react\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/react/src/$1'),
+      },
+      {
+        find: /^#renderer\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/renderer/src/$1'),
+      },
+      {
+        find: /^#test-utils\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'test-utils/$1'),
+      },
+      {
+        find: /^#timeline\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/timeline/src/$1'),
+      },
+      {
+        find: /^#utils\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'packages/utils/src/$1'),
+      },
+      {
+        find: /^#www\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'apps/www/src/$1'),
+      },
+      {
+        find: /^#www-generated\/(.*)$/,
+        replacement: path.resolve(workspaceRoot, 'apps/www/.generated/$1'),
+      },
+      {
         find: /^@techsquidtv\/canvas-timeline-core$/,
         replacement: path.resolve(workspaceRoot, 'packages/core/src/index.ts'),
       },
@@ -352,6 +396,7 @@ export default defineConfig({
             },
           ],
           'canvas-timeline/react-api-tsdoc': 'error',
+          'canvas-timeline/no-relative-imports': 'error',
           'typescript/ban-ts-comment': [
             'error',
             {

@@ -7,6 +7,9 @@ const repoRootUrl = new URL('../', import.meta.url);
 const repoRootPath = fileURLToPath(repoRootUrl);
 const localPathPattern = /(['"`])\/(?:Users|home)\//;
 const sourceFilePattern = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/;
+const contentImportFilePattern = /\.(?:astro|mdx)$/;
+const relativeContentImportPattern =
+  /^\s*import(?:\s+[\s\S]*?\s+from)?\s+['"](?<specifier>\.{1,2}\/[^'"]+)['"]/gm;
 const hookFilePattern = /\.(?:cts|mts|ts|tsx)$/;
 const camelCasePattern = /^[a-z][a-zA-Z0-9]*$/;
 const kebabCasePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -105,7 +108,7 @@ runTsdocQualitySelfTest();
 checkRemovedPublicApiGuards();
 
 for (const file of files) {
-  if (!sourceFilePattern.test(file)) {
+  if (!sourceFilePattern.test(file) && !contentImportFilePattern.test(file)) {
     continue;
   }
 
@@ -114,6 +117,20 @@ for (const file of files) {
     failures.push(`${file}: contains a hardcoded local absolute path`);
   }
 
+  if (contentImportFilePattern.test(file)) {
+    checkContentAliasedImports(file, sourceText);
+    continue;
+  }
+
+  const sourceFile = ts.createSourceFile(
+    file,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindForFile(file)
+  );
+
+  checkAliasedImports(sourceFile, sourceFile);
   checkNamingConventions(file);
 }
 
@@ -180,6 +197,53 @@ function checkHookGrouping(node, sourceFile) {
   }
 
   ts.forEachChild(node, (child) => checkHookGrouping(child, sourceFile));
+}
+
+function checkAliasedImports(node, sourceFile) {
+  const moduleSpecifier =
+    (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+    node.moduleSpecifier !== undefined &&
+    ts.isStringLiteralLike(node.moduleSpecifier)
+      ? node.moduleSpecifier
+      : undefined;
+
+  if (moduleSpecifier && isRelativeSpecifier(moduleSpecifier.text)) {
+    const position = sourceFile.getLineAndCharacterOfPosition(moduleSpecifier.getStart(sourceFile));
+    failures.push(
+      `${sourceFile.fileName}:${position.line + 1}:${position.character + 1}: use a configured alias instead of relative module specifier "${moduleSpecifier.text}"`
+    );
+  }
+
+  if (
+    ts.isCallExpression(node) &&
+    node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+    node.arguments.length === 1 &&
+    ts.isStringLiteralLike(node.arguments[0]) &&
+    isRelativeSpecifier(node.arguments[0].text)
+  ) {
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.arguments[0].getStart(sourceFile)
+    );
+    failures.push(
+      `${sourceFile.fileName}:${position.line + 1}:${position.character + 1}: use a configured alias instead of relative module specifier "${node.arguments[0].text}"`
+    );
+  }
+
+  ts.forEachChild(node, (child) => checkAliasedImports(child, sourceFile));
+}
+
+function checkContentAliasedImports(file, sourceText) {
+  for (const match of sourceText.matchAll(relativeContentImportPattern)) {
+    const specifier = match.groups?.specifier;
+    if (specifier === undefined) {
+      continue;
+    }
+
+    const line = sourceText.slice(0, match.index).split('\n').length;
+    failures.push(
+      `${file}:${line}: use a configured alias instead of relative module specifier "${specifier}"`
+    );
+  }
 }
 
 function runTsdocQualitySelfTest() {
@@ -520,6 +584,22 @@ function isHookName(expression) {
     expression.expression.text === 'React' &&
     /^use[A-Z0-9]/.test(expression.name.text)
   );
+}
+
+function scriptKindForFile(file) {
+  if (file.endsWith('.tsx') || file.endsWith('.jsx')) {
+    return ts.ScriptKind.TSX;
+  }
+
+  if (file.endsWith('.json')) {
+    return ts.ScriptKind.JSON;
+  }
+
+  return ts.ScriptKind.TS;
+}
+
+function isRelativeSpecifier(specifier) {
+  return specifier.startsWith('./') || specifier.startsWith('../');
 }
 
 function checkNamingConventions(file) {

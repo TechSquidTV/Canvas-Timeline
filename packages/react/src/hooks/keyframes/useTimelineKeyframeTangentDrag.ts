@@ -6,13 +6,13 @@ import type {
   TimelineKeyframeSide,
   TimelineKeyframeTangentHandle,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandInvalidInput,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Pointer data needed to begin a Bezier tangent handle drag by ids. */
 export interface TimelineKeyframeTangentDragIdStartInput {

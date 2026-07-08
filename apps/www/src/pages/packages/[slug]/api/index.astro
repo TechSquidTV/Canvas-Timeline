@@ -1,9 +1,9 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
-import { groupApiSymbols, groupNameForApiSymbol } from '@/lib/api-symbol-groups';
-import { apiReference, apiSymbolHref, type ApiPackage } from '@/lib/api-reference';
-import { createApiPackageArticleStructuredData } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
+import { groupApiSymbols, groupNameForApiSymbol } from '#www/lib/api-symbol-groups';
+import { apiReference, apiSymbolHref, type ApiPackage } from '#www/lib/api-reference';
+import { createApiPackageArticleStructuredData } from '#www/lib/structured-data';
 
 interface Props {
   packageDoc: ApiPackage;

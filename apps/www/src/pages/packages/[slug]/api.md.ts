@@ -1,6 +1,6 @@
 import type { APIRoute, GetStaticPaths } from 'astro';
-import { apiReference, type ApiPackage } from '@/lib/api-reference';
-import { buildApiPackageMarkdown } from '@/lib/api-markdown';
+import { apiReference, type ApiPackage } from '#www/lib/api-reference';
+import { buildApiPackageMarkdown } from '#www/lib/api-markdown';
 
 interface Props {
   packageDoc: ApiPackage;

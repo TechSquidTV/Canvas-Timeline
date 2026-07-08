@@ -11,9 +11,9 @@ import {
   useTimelineZoomScale,
 } from '@techsquidtv/canvas-timeline-react';
 import { useMemo } from 'react';
-import type { EditorTrackKind } from '@/data/demo-project';
-import type { PersistedTimelineState } from '@/persistence/project/types';
-import { sanitizePersistedTimelineState } from '@/persistence/project/timeline-state-persistence';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import type { PersistedTimelineState } from '#full-editor/persistence/project/types';
+import { sanitizePersistedTimelineState } from '#full-editor/persistence/project/timeline-state-persistence';
 
 type PersistedTimelineContentState = Omit<
   PersistedTimelineState,

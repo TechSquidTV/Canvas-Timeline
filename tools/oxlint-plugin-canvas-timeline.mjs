@@ -30,6 +30,55 @@ const reactApiTsdocDefaultOptions = {
   ],
 };
 
+const noRelativeImportsRule = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Require repo aliases instead of relative module specifiers.',
+      recommended: false,
+    },
+    messages: {
+      relativeImport:
+        'Use a configured alias instead of the relative module specifier "{{specifier}}".',
+    },
+  },
+  createOnce(context) {
+    function checkSource(node) {
+      const specifier = literalValue(node);
+
+      if (typeof specifier !== 'string' || !isRelativeSpecifier(specifier)) {
+        return;
+      }
+
+      context.report({
+        node,
+        messageId: 'relativeImport',
+        data: { specifier },
+      });
+    }
+
+    return {
+      ImportDeclaration(node) {
+        checkSource(node.source);
+      },
+      ExportAllDeclaration(node) {
+        checkSource(node.source);
+      },
+      ExportNamedDeclaration(node) {
+        checkSource(node.source);
+      },
+      ImportExpression(node) {
+        checkSource(node.source);
+      },
+      CallExpression(node) {
+        if (node.callee?.type === 'Import') {
+          checkSource(node.arguments?.[0]);
+        }
+      },
+    };
+  },
+};
+
 const exportCountingRule = {
   meta: {
     type: 'suggestion',
@@ -265,6 +314,7 @@ export default {
   },
   rules: {
     'max-exports-per-module': exportCountingRule,
+    'no-relative-imports': noRelativeImportsRule,
     'react-api-tsdoc': reactApiTsdocRule,
   },
 };
@@ -484,6 +534,22 @@ function classifyFile(fileName) {
 
 function isDirectBarrelExport(sourceValue) {
   return typeof sourceValue === 'string' && sourceValue.startsWith('./') && sourceValue !== './';
+}
+
+function literalValue(node) {
+  if (typeof node?.value === 'string') {
+    return node.value;
+  }
+
+  if (typeof node?.raw === 'string') {
+    return node.raw.replace(/^['"]|['"]$/g, '');
+  }
+
+  return undefined;
+}
+
+function isRelativeSpecifier(specifier) {
+  return specifier.startsWith('./') || specifier.startsWith('../');
 }
 
 function countDeclarationExports(declaration) {

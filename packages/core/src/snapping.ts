@@ -1,5 +1,5 @@
 import { fromSeconds, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineSnapResult, TimelineSnapTarget } from './types';
+import type { TimelineSnapResult, TimelineSnapTarget } from '#core/types';
 
 /**
  * Controls which built-in timeline boundaries are indexed as magnetic snap targets.

@@ -9,7 +9,7 @@ import {
   type TimelineMetricContext,
   type TimelineMetricOperation,
   type WorkerRenderMetric,
-} from './metrics-common';
+} from '#www/lib/metrics-common';
 
 const millisecondUnit = 'millisecond';
 

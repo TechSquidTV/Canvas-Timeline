@@ -3,13 +3,13 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '../../Provider';
-import { expectDefined } from '../../../../../test-utils/assertions';
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
 import {
   ViewportScrollbarHandle,
   ViewportScrollbarRoot,
   ViewportScrollbarThumb,
-} from './ViewportScrollbar';
+} from '#react/components/scrollbars/ViewportScrollbar';
 
 function createViewportScrollbarEngine() {
   const engine = new TimelineEngine({

@@ -6,8 +6,8 @@ import type {
   Track,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import type { EditorTrackKind } from '@/data/demo-project';
-import type { PersistedTimelineState } from './types';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import type { PersistedTimelineState } from '#full-editor/persistence/project/types';
 
 export function sanitizeTimelineState(state: TimelineState): PersistedTimelineState {
   return sanitizePersistedTimelineState({

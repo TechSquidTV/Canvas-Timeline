@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTimelineKeyboard, type TimelineKeyboardOptions } from '../../hooks';
+import { useTimelineKeyboard, type TimelineKeyboardOptions } from '#react/hooks';
 
 /** Props for the focus-scoped timeline keyboard shortcut wrapper. */
 export interface KeyboardScopeProps

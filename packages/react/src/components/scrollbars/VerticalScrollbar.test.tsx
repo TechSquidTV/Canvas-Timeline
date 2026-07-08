@@ -2,13 +2,13 @@ import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '../../Provider';
-import { expectDefined } from '../../../../../test-utils/assertions';
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
 import {
   VerticalScrollbarHandle,
   VerticalScrollbarRoot,
   VerticalScrollbarThumb,
-} from './VerticalScrollbar';
+} from '#react/components/scrollbars/VerticalScrollbar';
 
 function createVerticalScrollbarEngine() {
   const engine = new TimelineEngine({

@@ -1,7 +1,7 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import { packageDocs } from '@/data/packages';
-import { createPackageIndexStructuredData } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import { packageDocs } from '#www/data/packages';
+import { createPackageIndexStructuredData } from '#www/lib/structured-data';
 
 const corePackages = packageDocs.filter(
   (p) => p.slug !== 'html-media-adapter' && p.slug !== 'mediabunny-adapter'
