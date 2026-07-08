@@ -2,10 +2,10 @@ import { act, render } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it } from 'vite-plus/test';
 import { TimelineEngine, type Track } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '../../Provider';
-import { expectDefined } from '../../../../../test-utils/assertions';
-import { TrackItem } from './TrackItem';
-import { TrackList } from './TrackList';
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
+import { TrackItem } from '#react/components/surface/TrackItem';
+import { TrackList } from '#react/components/surface/TrackList';
 
 function createTracks(count: number): Track[] {
   return Array.from({ length: count }, (_, index) => ({

@@ -1,11 +1,11 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import CodeBlock from '@/components/CodeBlock.astro';
-import PackageManagerTabs from '@/components/PackageManagerTabs.astro';
-import { packageDocs, type PackageDoc } from '@/data/packages';
-import { apiPackageHref } from '@/lib/api-reference';
-import { inlineProseHtml } from '@/lib/inline-prose';
-import { createPackageStructuredData } from '@/lib/structured-data';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import CodeBlock from '#www/components/CodeBlock.astro';
+import PackageManagerTabs from '#www/components/PackageManagerTabs.astro';
+import { packageDocs, type PackageDoc } from '#www/data/packages';
+import { apiPackageHref } from '#www/lib/api-reference';
+import { inlineProseHtml } from '#www/lib/inline-prose';
+import { createPackageStructuredData } from '#www/lib/structured-data';
 
 interface Props {
   packageDoc: PackageDoc;

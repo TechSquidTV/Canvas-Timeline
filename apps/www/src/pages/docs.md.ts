@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import { buildDocsIndexMarkdown } from '@/lib/docs-markdown';
+import { buildDocsIndexMarkdown } from '#www/lib/docs-markdown';
 
 export const GET = (async () => {
   const docs = await getCollection('docs');

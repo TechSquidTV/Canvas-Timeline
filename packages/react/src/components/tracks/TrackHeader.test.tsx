@@ -2,8 +2,12 @@ import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type Track } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '../../Provider';
-import { TrackHeader, TrackHeaderList, TrackHeaderResizeHandle } from './TrackHeader';
+import { TimelineProvider } from '#react/Provider';
+import {
+  TrackHeader,
+  TrackHeaderList,
+  TrackHeaderResizeHandle,
+} from '#react/components/tracks/TrackHeader';
 
 function getElementPrototypeMethod<K extends 'setPointerCapture' | 'releasePointerCapture'>(
   name: K

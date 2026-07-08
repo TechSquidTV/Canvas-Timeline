@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TimelineClipDropFeedback, TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 
 const clipDropFeedbackEvents = ['clip:drop-feedback'] as const;
 const getTimelineClipDropFeedback = (engine: TimelineEngine) => engine.getClipDropFeedback();
@@ -49,7 +49,7 @@ export interface UseTimelineClipDropFeedbackResult {
  *
  * @example
  * ```tsx
- * import { useTimelineClipDropFeedback } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClipDropFeedback } from '#react/hooks';
  *
  * export function DropStatus() {
  *   const feedback = useTimelineClipDropFeedback();

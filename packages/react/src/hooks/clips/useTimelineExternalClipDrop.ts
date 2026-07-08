@@ -15,13 +15,13 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandFailureReason,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** External-drop edit operation selected by app chrome or drop context. */
 export type TimelineExternalClipDropEditMode = 'insert' | 'overwrite';
@@ -267,7 +267,7 @@ function isLeavingCurrentTarget(event: DragEvent<HTMLElement>) {
  * @example
  * ```tsx
  * import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineExternalClipDrop } from '#react/hooks';
  *
  * interface MediaAsset {
  *   id: string;

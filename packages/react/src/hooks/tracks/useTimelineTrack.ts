@@ -4,10 +4,13 @@ import type {
   Track,
 } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
-import { timelineCommandFail, type TimelineCommandResult } from '../core/timelineCommandResult';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
-import { useTimelineTracks } from './useTimelineTracks';
+import {
+  timelineCommandFail,
+  type TimelineCommandResult,
+} from '#react/hooks/core/timelineCommandResult';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
+import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
 
 /**
  * Result returned by `useTimelineTrack`.
@@ -97,7 +100,7 @@ export interface UseTimelineTrackResult<TrackKind extends string = string> {
  *
  * @example
  * ```tsx
- * import { useTimelineTrack } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineTrack } from '#react/hooks';
  *
  * export function TrackMuteButton({ trackId }: { trackId: string }) {
  *   const track = useTimelineTrack(trackId);

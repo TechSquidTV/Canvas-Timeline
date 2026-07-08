@@ -88,8 +88,8 @@ import type {
   VisibleTimelineKeyframe,
   VisibleTimelineClip,
   VisibleTimelineClipOptions,
-} from './types';
-import { TypedEventEmitter } from './emitter';
+} from '#core/types';
+import { TypedEventEmitter } from '#core/emitter';
 import type {
   EngineEventMap,
   ClipCreatedEvent,
@@ -101,8 +101,8 @@ import type {
   ClipKeyframeChangeEvent,
   ClipKeyframeRemoveEvent,
   ClipKeyframeSelectEvent,
-} from './events';
-import { SnapIndex, type SnapTargetOptions } from './snapping';
+} from '#core/events';
+import { SnapIndex, type SnapTargetOptions } from '#core/snapping';
 import {
   defaultTimelineIncomingBezierHandle,
   defaultTimelineOutgoingBezierHandle,
@@ -112,7 +112,7 @@ import {
   normalizeTimelineKeyframeBezierHandle,
   normalizeTimelineKeyframeInterpolation,
   normalizeTimelineKeyframeSideInterpolation,
-} from './keyframes';
+} from '#core/keyframes';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import {
   assertValidRationalTime,
@@ -127,9 +127,9 @@ import {
   resolveTimecodeFrameRate,
 } from '@techsquidtv/canvas-timeline-utils';
 
-import { PlaybackManager } from './playback';
-import { HistoryManager } from './history';
-import { ClipboardManager } from './clipboard';
+import { PlaybackManager } from '#core/playback';
+import { HistoryManager } from '#core/history';
+import { ClipboardManager } from '#core/clipboard';
 import {
   assertNonNegativeTimelineNumber,
   assertPositiveTimelineNumber,
@@ -146,7 +146,7 @@ import {
   hasTimelineKeyframes,
   sortTimelineKeyframes,
   stringifyTrackSnapshots,
-} from './snapshot';
+} from '#core/snapshot';
 
 /**
  * Options for building snap targets before a drag, trim, or range-boundary edit.

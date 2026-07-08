@@ -10,11 +10,11 @@ import {
 } from '@techsquidtv/canvas-timeline-react';
 import { compareRational } from '@techsquidtv/canvas-timeline-utils';
 import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 'lucide-react';
-import { useEditorMediaSync } from '@/editor/shell/media-sync-context';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { useEditorProject } from '@/editor/project/project-context';
-import type { EditorTrackKind } from '@/data/demo-project';
+import { useEditorMediaSync } from '#full-editor/editor/shell/media-sync-context';
+import { Button } from '#full-editor/components/ui/button';
+import { Separator } from '#full-editor/components/ui/separator';
+import { useEditorProject } from '#full-editor/editor/project/project-context';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
 
 function PlayheadTimecodeControl() {
   const playheadControl = useTimelinePlayheadControl();

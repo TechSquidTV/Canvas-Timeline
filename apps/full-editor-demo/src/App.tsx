@@ -1,24 +1,30 @@
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ProjectAutosave } from './editor/autosave/ProjectAutosave';
+import { ProjectAutosave } from '#full-editor/editor/autosave/ProjectAutosave';
 import {
   loadEditorBootstrap,
   type EditorBootstrapState,
-} from './editor/bootstrap/loadEditorBootstrap';
-import { ProjectProvider } from './editor/project/ProjectProvider';
-import type { ProjectAutosaveStatus } from './editor/project/project-context';
-import { EditorShell } from './editor/shell/EditorShell';
-import { MediaSyncProvider } from './editor/shell/MediaSyncProvider';
-import { SourceBinProvider } from './components/source-bin/SourceBinProvider';
-import { mediaLibraryStore } from './media/library/media-library-store';
+} from '#full-editor/editor/bootstrap/loadEditorBootstrap';
+import { ProjectProvider } from '#full-editor/editor/project/ProjectProvider';
+import type { ProjectAutosaveStatus } from '#full-editor/editor/project/project-context';
+import { EditorShell } from '#full-editor/editor/shell/EditorShell';
+import { MediaSyncProvider } from '#full-editor/editor/shell/MediaSyncProvider';
+import { SourceBinProvider } from '#full-editor/components/source-bin/SourceBinProvider';
+import { mediaLibraryStore } from '#full-editor/media/library/media-library-store';
 import {
   resetProjectSnapshot,
   savePersistedProjectState,
-} from './persistence/project/project-store';
-import type { ProjectMetadata, ProjectMetadataOverride } from './project/project-metadata';
-import { findVideoResolutionPreset, type VideoResolutionPresetId } from './project/video-settings';
-import { TimelineDropModeProvider } from './timeline/TimelineDropModeProvider';
+} from '#full-editor/persistence/project/project-store';
+import type {
+  ProjectMetadata,
+  ProjectMetadataOverride,
+} from '#full-editor/project/project-metadata';
+import {
+  findVideoResolutionPreset,
+  type VideoResolutionPresetId,
+} from '#full-editor/project/video-settings';
+import { TimelineDropModeProvider } from '#full-editor/timeline/TimelineDropModeProvider';
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<EditorBootstrapState | null>(null);

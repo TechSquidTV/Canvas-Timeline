@@ -5,7 +5,7 @@ import {
   RangeScrollbar,
   type RangeScrollbarValue,
   type RangeScrollbarValueChangeDetails,
-} from './RangeScrollbar';
+} from '#react/rangeScrollbar/RangeScrollbar';
 
 interface ControlledRangeScrollbarProps {
   initialValue?: RangeScrollbarValue;

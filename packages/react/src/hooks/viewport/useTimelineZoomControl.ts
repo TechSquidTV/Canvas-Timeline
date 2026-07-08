@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
-import { createTimelineScalarControlProps } from '../core/timelineScalarControlProps';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineZoomScale } from './useTimelineZoomScale';
+import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineZoomScale } from '#react/hooks/viewport/useTimelineZoomScale';
 
 /**
  * Options for adapting timeline zoom to a scalar control.

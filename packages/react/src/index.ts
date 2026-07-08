@@ -1,10 +1,10 @@
-export * from './Provider';
-export * from './accessibility';
-export * from './hooks';
-export * from './rangeScrollbar';
-export * from './timecodeField';
-export * from './timecodeInput';
-export { Timeline } from './components';
+export * from '#react/Provider';
+export * from '#react/accessibility';
+export * from '#react/hooks';
+export * from '#react/rangeScrollbar';
+export * from '#react/timecodeField';
+export * from '#react/timecodeInput';
+export { Timeline } from '#react/components';
 export type {
   ClipDoubleClickDetails,
   ClipInteractionLayerProps,
@@ -34,4 +34,4 @@ export type {
   VerticalScrollbarHandleProps,
   VerticalScrollbarRootProps,
   VerticalScrollbarThumbProps,
-} from './components';
+} from '#react/components';

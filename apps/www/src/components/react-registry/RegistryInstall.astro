@@ -1,12 +1,12 @@
 ---
-import CodeBlock from '@/components/CodeBlock.astro';
-import PackageManagerTabs from '@/components/PackageManagerTabs.astro';
+import CodeBlock from '#www/components/CodeBlock.astro';
+import PackageManagerTabs from '#www/components/PackageManagerTabs.astro';
 import {
   getReactRegistryInstallPackages,
   getReactRegistryPackageName,
   getReactRegistryStyleImport,
   reactRegistryItems,
-} from '@/data/react-registry';
+} from '#www/data/react-registry';
 
 interface Props {
   registryKey?: string;

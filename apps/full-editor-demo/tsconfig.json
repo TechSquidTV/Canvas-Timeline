@@ -6,7 +6,17 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "paths": {
-      "@/*": ["./src/*"],
+      "#core/*": ["../../packages/core/src/*"],
+      "#full-editor/*": ["./src/*"],
+      "#html-media-adapter/*": ["../../packages/html-media-adapter/src/*"],
+      "#mediabunny-adapter/*": ["../../packages/mediabunny-adapter/src/*"],
+      "#react/*": ["../../packages/react/src/*"],
+      "#renderer/*": ["../../packages/renderer/src/*"],
+      "#test-utils/*": ["../../test-utils/*"],
+      "#timeline/*": ["../../packages/timeline/src/*"],
+      "#utils/*": ["../../packages/utils/src/*"],
+      "#www/*": ["../www/src/*"],
+      "#www-generated/*": ["../www/.generated/*"],
       "@techsquidtv/canvas-timeline-core": ["../../packages/core/src/index.ts"],
       "@techsquidtv/canvas-timeline-core/*": ["../../packages/core/src/*"],
       "@techsquidtv/canvas-timeline-mediabunny-adapter": [

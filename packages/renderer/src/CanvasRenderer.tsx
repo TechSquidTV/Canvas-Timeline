@@ -5,12 +5,12 @@ import type {
   TimelineKeyframePropertyId,
   TimelineKeyframeRenderGeometry,
 } from '@techsquidtv/canvas-timeline-core';
-import type { TimelineRenderOptions, TimelineRulerOptions } from './render/types';
+import type { TimelineRenderOptions, TimelineRulerOptions } from '#renderer/render/types';
 import {
   resolveTimelineRendererThemeFromElement,
   type TimelineRendererTheme,
   type TimelineRendererThemeInput,
-} from './theme';
+} from '#renderer/theme';
 
 /**
  * Reason the worker rendered a new canvas timeline frame.

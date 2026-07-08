@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { addRational, assertValidRationalTime, fromSeconds, subRational, toSeconds } from './time';
+import {
+  addRational,
+  assertValidRationalTime,
+  fromSeconds,
+  subRational,
+  toSeconds,
+} from '#utils/time';
 
 describe('rational time utilities', () => {
   it('rejects invalid rational times with field-specific messages', () => {

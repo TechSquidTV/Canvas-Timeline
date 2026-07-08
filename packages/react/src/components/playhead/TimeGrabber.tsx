@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { addRational, fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimelineTimePosition, type TimelineTimePositionEvent } from '../../hooks';
+import { useTimelineTimePosition, type TimelineTimePositionEvent } from '#react/hooks';
 
 const DEFAULT_POSITION_EVENTS: TimeGrabberProps['positionEvents'] = ['render'];
 

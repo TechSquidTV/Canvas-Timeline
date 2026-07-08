@@ -4,7 +4,7 @@ import type {
   TimelineKeyframeInterpolation,
   TimelineKeyframePropertyDefinition,
   TimelineKeyframeSideInterpolation,
-} from './types';
+} from '#core/types';
 
 /** Inputs for mapping a keyframe time/value pair into viewport space. */
 export interface TimelineKeyframePointInput {

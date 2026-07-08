@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite-plus';
-import { createLibraryPackConfig } from '../../scripts/vite-plus-pack-config.js';
+import { createLibraryPackConfig } from '@techsquidtv/canvas-timeline-scripts/vite-plus-pack-config';
 
 export default defineConfig({
   pack: createLibraryPackConfig({

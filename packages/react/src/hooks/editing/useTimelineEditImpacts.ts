@@ -5,7 +5,7 @@ import type {
   TimelineEditOperation,
   TimelineEngine,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 
 const emptyTimelineEditImpacts: readonly TimelineEditImpact[] = Object.freeze([]);
 const editImpactEvents = ['edit:impacts', 'state:settled'] as const;

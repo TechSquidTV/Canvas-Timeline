@@ -1,12 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import type { TimelineClipEntry, TimelineClipGroup } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineSelection } from '../selection/useTimelineSelection';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Result returned by `useTimelineClipGroups`. */
 export interface UseTimelineClipGroupsResult {

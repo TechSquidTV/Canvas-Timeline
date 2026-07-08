@@ -3,7 +3,7 @@ import type {
   MediaLibraryMediaKind,
   MediaLibraryMediaMetadata,
   MediaLibraryStatus,
-} from './media-library-types';
+} from '#full-editor/media/library/media-library-types';
 
 export interface MediaLibraryManifestFile {
   version: 1;

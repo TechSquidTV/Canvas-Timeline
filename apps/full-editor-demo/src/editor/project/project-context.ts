@@ -1,6 +1,9 @@
 import { createContext, useContext } from 'react';
-import type { VideoResolutionPresetId } from '@/project/video-settings';
-import type { ProjectMetadata, ProjectMetadataOverride } from '@/project/project-metadata';
+import type { VideoResolutionPresetId } from '#full-editor/project/video-settings';
+import type {
+  ProjectMetadata,
+  ProjectMetadataOverride,
+} from '#full-editor/project/project-metadata';
 
 export type ProjectAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unavailable';
 

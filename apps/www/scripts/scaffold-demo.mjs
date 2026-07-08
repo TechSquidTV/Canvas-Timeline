@@ -59,7 +59,7 @@ import { TimelineProvider, Timeline, useTimeline } from '@techsquidtv/canvas-tim
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
-import { demoTracks } from './timeline-demo-data';
+import { demoTracks } from '#www/demos/${slug}/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 function TimelineLayers() {
@@ -114,13 +114,13 @@ console.log(`Scaffolded source-backed demo "${slug}" (${liveDemoId}).`);
 async function insertRegistryEntry() {
   const registryPath = resolve(appDir, 'src/data/demo-code.ts');
   let source = await readFile(registryPath, 'utf8');
-  const importBlock = `import ${liveDemoIdToIdentifier(liveDemoId)}TimelineSource from '../demos/${slug}/${componentFile}?raw';
-import ${liveDemoIdToIdentifier(liveDemoId)}DataSource from '../demos/${slug}/timeline-demo-data.ts?raw';
+  const importBlock = `import ${liveDemoIdToIdentifier(liveDemoId)}TimelineSource from '#www/demos/${slug}/${componentFile}?raw';
+import ${liveDemoIdToIdentifier(liveDemoId)}DataSource from '#www/demos/${slug}/timeline-demo-data?raw';
 `;
 
   source = source.replace(
-    /import \{ toCopyableDemoSource \} from '\.\/demo-snippets';/,
-    `${importBlock}import { toCopyableDemoSource } from './demo-snippets';`
+    /import \{ toCopyableDemoSource \} from '#www\/data\/demo-snippets';/,
+    `${importBlock}import { toCopyableDemoSource } from '#www/data/demo-snippets';`
   );
 
   const key = liveDemoId.includes('-') ? singleQuotedStringLiteral(liveDemoId) : liveDemoId;
@@ -144,7 +144,7 @@ async function insertComponentEntry() {
   let source = await readFile(registryPath, 'utf8');
   const key = liveDemoId.includes('-') ? singleQuotedStringLiteral(liveDemoId) : liveDemoId;
   const entry = `  ${key}: () =>
-    import('../demos/${slug}/${componentName}').then((module) => module.${componentName}),
+    import('#www/demos/${slug}/${componentName}').then((module) => module.${componentName}),
 `;
 
   source = source.replace(/\n};\s*$/, `\n${entry}};\n`);

@@ -1,14 +1,14 @@
 import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { createTimelineRendererTheme } from './theme';
-import { drawClipDropFeedback, drawInOutPoints, drawSnapLines } from './render/feedback';
-import { getActiveWidth } from './render/geometry';
-import { drawMarkers, drawRuler } from './render/ruler';
-import { drawTracks } from './render/tracks';
+import { createTimelineRendererTheme } from '#renderer/theme';
+import { drawClipDropFeedback, drawInOutPoints, drawSnapLines } from '#renderer/render/feedback';
+import { getActiveWidth } from '#renderer/render/geometry';
+import { drawMarkers, drawRuler } from '#renderer/render/ruler';
+import { drawTracks } from '#renderer/render/tracks';
 import type {
   RenderContext,
   ResolvedTimelineRenderOptions,
   TimelineRenderOptions,
-} from './render/types';
+} from '#renderer/render/types';
 
 const defaultRenderOptions: Omit<ResolvedTimelineRenderOptions, 'theme'> = {
   showClips: true,

@@ -13,10 +13,13 @@ import {
   initialNumTracks,
   initialClipsPerTrack,
   initialDurationSeconds,
-} from './timeline-demo-data';
-import { BenchmarkControls, type BenchmarkDisplayOptions } from './timeline-benchmark-controls';
-import type { DemoMetrics } from '../demo-instrumentation';
-import { RulerDOM, DOMClip } from '../react-dom-timeline/DOMTimelineComponents';
+} from '#www/demos/timeline-stress-test/timeline-demo-data';
+import {
+  BenchmarkControls,
+  type BenchmarkDisplayOptions,
+} from '#www/demos/timeline-stress-test/timeline-benchmark-controls';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
+import { RulerDOM, DOMClip } from '#www/demos/react-dom-timeline/DOMTimelineComponents';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 interface BenchmarkConfig {

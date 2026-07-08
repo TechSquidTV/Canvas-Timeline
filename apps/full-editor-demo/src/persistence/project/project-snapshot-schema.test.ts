@@ -1,8 +1,8 @@
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import { getDefaultProjectMetadata } from '../../project/project-metadata';
-import { parseProjectSnapshot } from './project-snapshot-schema';
-import type { ProjectStorageSnapshot } from './types';
+import { getDefaultProjectMetadata } from '#full-editor/project/project-metadata';
+import { parseProjectSnapshot } from '#full-editor/persistence/project/project-snapshot-schema';
+import type { ProjectStorageSnapshot } from '#full-editor/persistence/project/types';
 
 describe('project snapshot schema', () => {
   it('parses version 3 project snapshots with video settings', () => {

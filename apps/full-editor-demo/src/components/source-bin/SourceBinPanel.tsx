@@ -1,10 +1,10 @@
 import { useMemo, useRef } from 'react';
 import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { countTimelineSourceUsage } from '@/timeline/source-usage';
-import { SourceBinDropZone } from './SourceBinDropZone';
-import { SourceBinList } from './SourceBinList';
-import { useSourceBin } from './source-bin-context';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { countTimelineSourceUsage } from '#full-editor/timeline/source-usage';
+import { SourceBinDropZone } from '#full-editor/components/source-bin/SourceBinDropZone';
+import { SourceBinList } from '#full-editor/components/source-bin/SourceBinList';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
 
 const acceptedSourceTypes = 'video/*,audio/*,image/*,video/x-matroska,video/mp2t,.ts,audio/aac';
 

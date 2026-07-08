@@ -3,8 +3,8 @@ import { act, render, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '../../Provider';
-import { RangeSelector } from './RangeSelector';
+import { TimelineProvider } from '#react/Provider';
+import { RangeSelector } from '#react/components/controls/RangeSelector';
 
 function renderHighLevelRangeSelector(
   engine: TimelineEngine,

@@ -9,7 +9,7 @@ import {
   type CreateMediabunnyAdapterOptions,
   type MediabunnyAdapter,
   type MediabunnyModule,
-} from './index';
+} from '#mediabunny-adapter/index';
 
 /**
  * Options for creating a Mediabunny adapter from React.
@@ -118,7 +118,7 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
  * @example
  * ```tsx
  * import { useMemo, useRef } from 'react';
- * import { useMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ * import { useMediabunnyAdapter } from '#mediabunny-adapter/react';
  *
  * export function DecoderStatus() {
  *   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -188,7 +188,7 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
  * @example
  * ```tsx
  * import { useMemo, useRef } from 'react';
- * import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ * import { useMediabunnyTimelineMedia } from '#mediabunny-adapter/react';
  *
  * type PreviewLayerName = 'visuals' | 'audio';
  *

@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
-import { createTimelineScalarControlProps } from '../core/timelineScalarControlProps';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineScrollLeft } from './useTimelineScrollLeft';
+import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineScrollLeft } from '#react/hooks/viewport/useTimelineScrollLeft';
 
 /**
  * Options for adapting horizontal timeline scroll to a scalar control.

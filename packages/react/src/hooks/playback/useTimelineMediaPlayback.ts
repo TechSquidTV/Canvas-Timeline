@@ -5,12 +5,12 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useTimeline } from '../core/useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
   timelineCommandOk,
   type TimelineCommandResult,
-} from '../core/timelineCommandResult';
+} from '#react/hooks/core/timelineCommandResult';
 
 /**
  * Reason an external media callback is being synchronized.
@@ -139,7 +139,7 @@ function isPromiseLike(value: MaybePromise<void> | undefined): boolean {
  * @example
  * ```tsx
  * import { useMemo, useRef } from 'react';
- * import { useTimelineMediaPlayback } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineMediaPlayback } from '#react/hooks';
  *
  * const previewLayers = {
  *   visuals: { trackKind: 'visual' },

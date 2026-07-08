@@ -7,7 +7,7 @@ import React, {
 import {
   useTimelineCanvasLayer,
   type UseTimelineCanvasLayerOptions,
-} from './useTimelineCanvasLayer';
+} from '#renderer/useTimelineCanvasLayer';
 
 /**
  * Props for the package custom canvas layer component.

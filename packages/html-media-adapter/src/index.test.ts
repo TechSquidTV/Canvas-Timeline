@@ -4,7 +4,11 @@ import React from 'react';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
-import { createHTMLMediaAdapter, useHTMLMediaAdapter, useHTMLTimelineMedia } from './index';
+import {
+  createHTMLMediaAdapter,
+  useHTMLMediaAdapter,
+  useHTMLTimelineMedia,
+} from '#html-media-adapter/index';
 
 function createMediaSyncEngine() {
   return new TimelineEngine({

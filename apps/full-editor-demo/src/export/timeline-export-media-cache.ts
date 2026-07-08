@@ -1,5 +1,5 @@
 import type * as Mediabunny from 'mediabunny';
-import type { SourceBinSource } from '@/components/source-bin/types';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 interface AudioDecoderEntry {
   sink: Mediabunny.AudioSampleSink;

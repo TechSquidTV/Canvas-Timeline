@@ -1,6 +1,6 @@
 import type { CollectionEntry } from 'astro:content';
 import { getCollection } from 'astro:content';
-import { openGraphImage, openGraphRouteForPath } from '../lib/open-graph';
+import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
 
 export type BlogPost = CollectionEntry<'blog'>;
 type BlogPostImage = {

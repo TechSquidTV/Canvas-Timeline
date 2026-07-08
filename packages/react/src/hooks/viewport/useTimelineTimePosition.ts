@@ -72,7 +72,7 @@ function parsePositionEventsKey(positionEventsKey: string): TimelineTimePosition
  * @example
  * ```tsx
  * import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimeline, useTimelineTimePosition } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimeline, useTimelineTimePosition } from '#react/hooks';
  *
  * export function MarkerHead({ markerTime }: { markerTime: RationalTime }) {
  *   const { engine } = useTimeline();

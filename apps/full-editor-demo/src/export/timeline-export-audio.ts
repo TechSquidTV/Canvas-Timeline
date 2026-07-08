@@ -3,14 +3,14 @@ import {
   EXPORT_AUDIO_CHANNELS,
   EXPORT_AUDIO_SAMPLE_RATE,
   EXPORT_SILENCE_CHUNK_SECONDS,
-} from './timeline-export-constants';
-import type { ExportMediaCache } from './timeline-export-media-cache';
-import { throwIfAborted } from './timeline-export-support';
+} from '#full-editor/export/timeline-export-constants';
+import type { ExportMediaCache } from '#full-editor/export/timeline-export-media-cache';
+import { throwIfAborted } from '#full-editor/export/timeline-export-support';
 import type {
   TimelineExportPlan,
   TimelineExportProgress,
   TimelineExportSegment,
-} from './timeline-export-types';
+} from '#full-editor/export/timeline-export-types';
 
 export async function renderAudioTrack(options: {
   audioSource: Mediabunny.AudioSampleSource;

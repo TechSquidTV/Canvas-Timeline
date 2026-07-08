@@ -18,7 +18,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { TimecodeInput, type TimecodeInputProps } from '../timecodeInput';
+import { TimecodeInput, type TimecodeInputProps } from '#react/timecodeInput';
 
 /**
  * Reason a `TimecodeField` committed the current draft text.

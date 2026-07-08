@@ -15,8 +15,8 @@ import {
   sampleDurationSeconds,
   sampleMediaUrl,
   sampleSourceId,
-} from './timeline-demo-data';
-import type { DemoMetrics } from '../demo-instrumentation';
+} from '#www/demos/html-media-sync/timeline-demo-data';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 // Demo configuration

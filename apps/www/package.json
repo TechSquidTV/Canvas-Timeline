@@ -4,6 +4,10 @@
   "version": "0.0.1",
   "license": "MPL-2.0",
   "type": "module",
+  "imports": {
+    "#www/*": "./src/*",
+    "#www-generated/*": "./.generated/*"
+  },
   "scripts": {
     "dev": "vp run docs:api && astro dev --port=4321 --host=0.0.0.0",
     "build": "vp run docs:sponsors && vp run docs:api && vp run docs:demos && vp run docs:links && vp run docs:registry && vp run docs:og && vp run docs:editor && astro build",

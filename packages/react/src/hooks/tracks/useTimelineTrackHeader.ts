@@ -1,6 +1,9 @@
 import type { TimelineTrackGeometryOptions } from '@techsquidtv/canvas-timeline-core';
 import { useMemo, type HTMLAttributes } from 'react';
-import { useTimelineTrack, type UseTimelineTrackResult } from './useTimelineTrack';
+import {
+  useTimelineTrack,
+  type UseTimelineTrackResult,
+} from '#react/hooks/tracks/useTimelineTrack';
 
 /**
  * DOM props returned for a track header row.
@@ -52,7 +55,7 @@ export interface UseTimelineTrackHeaderResult<
  *
  * @example
  * ```tsx
- * import { useTimelineTrackHeader } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineTrackHeader } from '#react/hooks';
  *
  * export function CustomTrackHeader({ trackId }: { trackId: string }) {
  *   const header = useTimelineTrackHeader(trackId);

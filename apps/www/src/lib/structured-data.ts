@@ -1,11 +1,11 @@
-import type { BlogPost } from '../data/blog';
-import type { DemoDoc } from '../data/demos';
-import type { PackageDoc } from '../data/packages';
-import type { ReactRegistryApi, ReactRegistryItem } from '../data/react-registry';
-import { site } from '../data/site';
-import type { ApiPackage, ApiSymbol } from './api-reference';
-import { apiPackageHref, apiSymbolHref } from './api-reference';
-import { openGraphRouteForPath } from './open-graph';
+import type { BlogPost } from '#www/data/blog';
+import type { DemoDoc } from '#www/data/demos';
+import type { PackageDoc } from '#www/data/packages';
+import type { ReactRegistryApi, ReactRegistryItem } from '#www/data/react-registry';
+import { site } from '#www/data/site';
+import type { ApiPackage, ApiSymbol } from '#www/lib/api-reference';
+import { apiPackageHref, apiSymbolHref } from '#www/lib/api-reference';
+import { openGraphRouteForPath } from '#www/lib/open-graph';
 
 const reactRegistryPackageName = '@techsquidtv/canvas-timeline-react';
 

@@ -4,11 +4,11 @@ import {
   resolveTimecodeFrameRate,
   type TimecodeFrameRate,
 } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineMarkers } from '../markers/useTimelineMarkers';
-import { useTimelinePlayback } from '../playback/useTimelinePlayback';
-import { useTimelineSnapping } from '../editing/useTimelineSnapping';
-import { useTimelineViewport } from '../viewport/useTimelineViewport';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineMarkers } from '#react/hooks/markers/useTimelineMarkers';
+import { useTimelinePlayback } from '#react/hooks/playback/useTimelinePlayback';
+import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
 
 /** Named shortcut presets for `useTimelineKeyboard`. */
 export type TimelineKeyboardPreset = 'professionalEditor' | 'minimal';

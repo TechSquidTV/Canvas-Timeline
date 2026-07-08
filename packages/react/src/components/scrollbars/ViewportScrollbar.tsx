@@ -4,9 +4,9 @@ import {
   type RangeScrollbarHandleProps,
   type RangeScrollbarRootProps,
   type RangeScrollbarThumbProps,
-} from '../../rangeScrollbar';
-import { useTimelineViewportRangeControl } from '../../hooks';
-import type { UseTimelineViewportScrollbarOptions } from '../../hooks';
+} from '#react/rangeScrollbar';
+import { useTimelineViewportRangeControl } from '#react/hooks';
+import type { UseTimelineViewportScrollbarOptions } from '#react/hooks';
 
 /**
  * Props for the timeline viewport scrollbar root.

@@ -6,8 +6,8 @@ import {
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import { renderTimeline } from './renderTimeline';
-import { defaultTimelineRendererTheme } from './theme';
+import { renderTimeline } from '#renderer/renderTimeline';
+import { defaultTimelineRendererTheme } from '#renderer/theme';
 
 const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'level',

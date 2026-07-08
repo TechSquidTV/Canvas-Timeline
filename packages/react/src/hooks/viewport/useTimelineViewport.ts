@@ -5,11 +5,14 @@ import {
   toSeconds,
   type RationalTime,
 } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineScrollLeft } from './useTimelineScrollLeft';
-import { useTimelineScrollTop } from './useTimelineScrollTop';
-import { useTimelineZoomScale } from './useTimelineZoomScale';
-import { timelineCommandOk, type TimelineCommandResult } from '../core/timelineCommandResult';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineScrollLeft } from '#react/hooks/viewport/useTimelineScrollLeft';
+import { useTimelineScrollTop } from '#react/hooks/viewport/useTimelineScrollTop';
+import { useTimelineZoomScale } from '#react/hooks/viewport/useTimelineZoomScale';
+import {
+  timelineCommandOk,
+  type TimelineCommandResult,
+} from '#react/hooks/core/timelineCommandResult';
 
 /** Result returned by `useTimelineViewport`. */
 export interface UseTimelineViewportResult {

@@ -1,12 +1,12 @@
 ---
-import BaseLayout from '@/layouts/BaseLayout.astro';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
 import {
   reactRegistryGroups,
   reactRegistryItems,
   reactRegistryPackageName,
-} from '@/data/react-registry';
-import PackageManagerTabs from '@/components/PackageManagerTabs.astro';
-import { createReactRegistryIndexStructuredData } from '@/lib/structured-data';
+} from '#www/data/react-registry';
+import PackageManagerTabs from '#www/components/PackageManagerTabs.astro';
+import { createReactRegistryIndexStructuredData } from '#www/lib/structured-data';
 
 const structuredData = createReactRegistryIndexStructuredData(reactRegistryItems);
 ---

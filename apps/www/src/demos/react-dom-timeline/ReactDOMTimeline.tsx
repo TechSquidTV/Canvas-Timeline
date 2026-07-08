@@ -7,9 +7,9 @@ import {
 } from '@techsquidtv/canvas-timeline-react';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
-import { demoTracks, demoMarkers } from './timeline-demo-data';
-import { ControlBar } from './timeline-controls';
-import { RulerDOM, DOMClip } from './DOMTimelineComponents';
+import { demoTracks, demoMarkers } from '#www/demos/react-dom-timeline/timeline-demo-data';
+import { ControlBar } from '#www/demos/react-dom-timeline/timeline-controls';
+import { RulerDOM, DOMClip } from '#www/demos/react-dom-timeline/DOMTimelineComponents';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 function TimelineLayers() {

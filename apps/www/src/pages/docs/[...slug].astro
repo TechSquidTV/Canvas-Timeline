@@ -1,9 +1,9 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { getCollection, render } from 'astro:content';
-import DocsLayout from '@/layouts/DocsLayout.astro';
-import { adjacentDocs } from '@/data/docs';
-import { createDocsArticleStructuredData } from '@/lib/structured-data';
+import DocsLayout from '#www/layouts/DocsLayout.astro';
+import { adjacentDocs } from '#www/data/docs';
+import { createDocsArticleStructuredData } from '#www/lib/structured-data';
 
 type DocsEntry = CollectionEntry<'docs'>;
 

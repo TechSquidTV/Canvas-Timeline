@@ -4,8 +4,8 @@ import {
   type RangeScrollbarHandleProps,
   type RangeScrollbarRootProps,
   type RangeScrollbarThumbProps,
-} from '../../rangeScrollbar';
-import { useTimelineVerticalRangeControl } from '../../hooks';
+} from '#react/rangeScrollbar';
+import { useTimelineVerticalRangeControl } from '#react/hooks';
 
 /** Props for the timeline vertical scrollbar root. */
 export type VerticalScrollbarRootProps = Omit<

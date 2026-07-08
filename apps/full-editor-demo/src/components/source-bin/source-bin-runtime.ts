@@ -2,8 +2,8 @@ import type { MutableRefObject } from 'react';
 import type {
   MediaLibraryImportResult,
   MediaLibrarySource,
-} from '@/media/library/media-library-types';
-import type { SourceBinSource } from './types';
+} from '#full-editor/media/library/media-library-types';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 function createRuntimeSource(
   storedSource: MediaLibrarySource,

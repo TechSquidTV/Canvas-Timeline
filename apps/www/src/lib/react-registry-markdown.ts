@@ -1,14 +1,14 @@
-import type { ReactRegistryItem } from '../data/react-registry';
-import { site } from '../data/site';
-import { buildApiSymbolMarkdown, getApiPackage } from './api-markdown';
-import { getApiSymbol } from './api-reference';
+import type { ReactRegistryItem } from '#www/data/react-registry';
+import { site } from '#www/data/site';
+import { buildApiSymbolMarkdown, getApiPackage } from '#www/lib/api-markdown';
+import { getApiSymbol } from '#www/lib/api-reference';
 import {
   absoluteUrl,
   markdownCode as code,
   markdownCodeBlock as codeBlock,
   markdownTable,
   normalizeMarkdown,
-} from './markdown-format';
+} from '#www/lib/markdown-format';
 
 type ReactRegistryMarkdownOptions = {
   siteUrl?: string;

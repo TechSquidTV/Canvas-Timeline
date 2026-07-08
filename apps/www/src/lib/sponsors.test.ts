@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test';
-import { site } from '../data/site';
-import { normalizeSponsorsSnapshot, type GitHubSponsorsResponse } from './sponsors';
+import { site } from '#www/data/site';
+import { normalizeSponsorsSnapshot, type GitHubSponsorsResponse } from '#www/lib/sponsors';
 
 const tiers = site.sponsorship.tiers;
 type SponsorshipNode = NonNullable<

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vite-plus/test';
-import { buildApiPackageMarkdown, buildApiSymbolMarkdown } from './api-markdown';
-import { apiReference } from './api-reference';
-import { markdownCode, markdownTable } from './markdown-format';
+import { buildApiPackageMarkdown, buildApiSymbolMarkdown } from '#www/lib/api-markdown';
+import { apiReference } from '#www/lib/api-reference';
+import { markdownCode, markdownTable } from '#www/lib/markdown-format';
 
 describe('API Markdown builder', () => {
   test('builds static package API index Markdown', () => {

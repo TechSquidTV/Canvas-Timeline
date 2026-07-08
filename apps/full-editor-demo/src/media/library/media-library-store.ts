@@ -1,12 +1,15 @@
-import { importSourceFile } from './media-library-import';
-import { loadMediaLibrarySources } from './media-library-repair';
-import { createPlayableSources } from './media-library-runtime';
-import { clearStoredMediaLibrary, removeStoredSource } from './media-library-files';
+import { importSourceFile } from '#full-editor/media/library/media-library-import';
+import { loadMediaLibrarySources } from '#full-editor/media/library/media-library-repair';
+import { createPlayableSources } from '#full-editor/media/library/media-library-runtime';
+import {
+  clearStoredMediaLibrary,
+  removeStoredSource,
+} from '#full-editor/media/library/media-library-files';
 import type {
   MediaLibraryImportResult,
   MediaLibrarySource,
   MediaLibraryStore,
-} from './media-library-types';
+} from '#full-editor/media/library/media-library-types';
 
 function createMediaLibraryStore(): MediaLibraryStore {
   let sources: readonly MediaLibrarySource[] = [];

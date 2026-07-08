@@ -6,9 +6,9 @@ import {
   type RangeScrollbarValue,
   type RangeScrollbarValueChangeDetails,
   type UseRangeScrollbarResult,
-} from '../../rangeScrollbar';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineViewport } from './useTimelineViewport';
+} from '#react/rangeScrollbar';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
 
 const DEFAULT_MIN_VIEW_DURATION_SECONDS = 0.1;
 const KEYBOARD_NUDGE_PX = 40;

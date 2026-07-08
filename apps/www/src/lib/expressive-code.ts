@@ -1,6 +1,6 @@
 import { createRenderer, type ExpressiveCodeBlockOptions } from 'rehype-expressive-code';
 import { toHtml } from 'rehype-expressive-code/hast';
-import { expressiveCodeOptions } from './expressive-code-config.mjs';
+import { expressiveCodeOptions } from '#www/lib/expressive-code-config.mjs';
 
 type RenderCodeOptions = {
   code: string;

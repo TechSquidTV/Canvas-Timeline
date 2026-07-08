@@ -1,8 +1,12 @@
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { TimelineCommandBar } from '@/components/timeline/TimelineCommandBar';
-import { TimelineSurface } from '@/components/timeline/TimelineSurface';
-import { TrackHeaderColumn } from '@/components/timeline/TrackHeaderColumn';
-import { TransportBar } from '@/components/timeline/TransportBar';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '#full-editor/components/ui/resizable';
+import { TimelineCommandBar } from '#full-editor/components/timeline/TimelineCommandBar';
+import { TimelineSurface } from '#full-editor/components/timeline/TimelineSurface';
+import { TrackHeaderColumn } from '#full-editor/components/timeline/TrackHeaderColumn';
+import { TransportBar } from '#full-editor/components/timeline/TransportBar';
 
 export function TimelineDock() {
   return (

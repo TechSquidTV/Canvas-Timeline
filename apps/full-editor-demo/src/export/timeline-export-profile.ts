@@ -2,13 +2,16 @@ import {
   formatVideoResolution,
   getRecommendedVideoBitrate,
   videoResolutionPresets,
-} from '../project/video-settings';
-import { getDefaultProjectMetadata, type ProjectMetadata } from '../project/project-metadata';
+} from '#full-editor/project/video-settings';
+import {
+  getDefaultProjectMetadata,
+  type ProjectMetadata,
+} from '#full-editor/project/project-metadata';
 import type {
   TimelineExportProfile,
   TimelineExportResolution,
   TimelineExportResolutionId,
-} from './timeline-export-types';
+} from '#full-editor/export/timeline-export-types';
 
 const timelineExportResolutions = videoResolutionPresets.map((preset) => ({
   ...preset,

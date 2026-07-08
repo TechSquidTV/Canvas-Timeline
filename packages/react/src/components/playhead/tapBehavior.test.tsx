@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vite-plus/test';
 import React from 'react';
 import { render, fireEvent, screen } from '@testing-library/react';
-import { PlayheadArea } from './PlayheadArea';
-import { PlayheadGrabber } from './PlayheadGrabber';
-import { globalTapState } from '../interactions/tapState';
+import { PlayheadArea } from '#react/components/playhead/PlayheadArea';
+import { PlayheadGrabber } from '#react/components/playhead/PlayheadGrabber';
+import { globalTapState } from '#react/components/interactions/tapState';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '../../Provider';
+import { TimelineProvider } from '#react/Provider';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 
 function getElementPrototypeMethod<

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import { useTimeline } from './useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 
 interface TimelineGeometryRevisionOptions {
   /** Include high-frequency playhead scrubs in the revision stream. */

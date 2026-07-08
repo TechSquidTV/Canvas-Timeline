@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useTimeline } from '../../hooks';
+import { useTimeline } from '#react/hooks';
 import { clamp, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 
 interface ActivePointer {

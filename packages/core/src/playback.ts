@@ -1,5 +1,5 @@
-import type { TimelineEngine } from './engine';
-import type { PlaybackClockSource, PlaybackOptions } from './types';
+import type { TimelineEngine } from '#core/engine';
+import type { PlaybackClockSource, PlaybackOptions } from '#core/types';
 import {
   addRational,
   compareRational,

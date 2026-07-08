@@ -1,5 +1,5 @@
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 
 const playheadTimeEvents = ['playhead:scrub', 'render'] as const;

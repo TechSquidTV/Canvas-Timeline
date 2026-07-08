@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import type { TimelineEngine, TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { TimelineContext } from '../../context';
+import { TimelineContext } from '#react/context';
 
 /**
  * Engine and synchronized state returned by {@link useTimeline}.

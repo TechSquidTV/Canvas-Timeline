@@ -4,8 +4,8 @@ import {
   useTimelineTrackLockControl,
 } from '@techsquidtv/canvas-timeline-react';
 import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import type { EditorTrackKind } from '@/data/demo-project';
+import { Button } from '#full-editor/components/ui/button';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
 
 function TrackLockButton({ trackId }: { trackId: string }) {
   const lockControl = useTimelineTrackLockControl(trackId);

@@ -1,13 +1,19 @@
-import { renderAudioTrack } from './timeline-export-audio';
-import { EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_SAMPLE_RATE } from './timeline-export-constants';
-import { ExportMediaCache } from './timeline-export-media-cache';
+import { renderAudioTrack } from '#full-editor/export/timeline-export-audio';
+import {
+  EXPORT_AUDIO_CHANNELS,
+  EXPORT_AUDIO_SAMPLE_RATE,
+} from '#full-editor/export/timeline-export-constants';
+import { ExportMediaCache } from '#full-editor/export/timeline-export-media-cache';
 import {
   downloadTimelineExport,
   ensureMp4EncodeSupport,
   throwIfAborted,
-} from './timeline-export-support';
-import { renderVideoTrack } from './timeline-export-video';
-import type { TimelineExportPlan, TimelineExportProgress } from './timeline-export-types';
+} from '#full-editor/export/timeline-export-support';
+import { renderVideoTrack } from '#full-editor/export/timeline-export-video';
+import type {
+  TimelineExportPlan,
+  TimelineExportProgress,
+} from '#full-editor/export/timeline-export-types';
 
 interface TimelineExportRunOptions {
   onProgress?: (progress: TimelineExportProgress) => void;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test';
-import { clamp, round } from './math';
+import { clamp, round } from '#utils/math';
 
 describe('math utilities', () => {
   it('clamps values to inclusive bounds', () => {

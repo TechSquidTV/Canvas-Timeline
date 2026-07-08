@@ -1,5 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { TimelineDropModeContext, type TimelineSourceDropMode } from './drop-mode-context';
+import {
+  TimelineDropModeContext,
+  type TimelineSourceDropMode,
+} from '#full-editor/timeline/drop-mode-context';
 
 export function TimelineDropModeProvider({ children }: { children: ReactNode }) {
   const [dropMode, setDropMode] = useState<TimelineSourceDropMode>('insert');

@@ -3,8 +3,8 @@ import type {
   TimelineClipGeometryOptions,
   TimelineClipRect,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /**
  * Options accepted by `useTimelineClipRects`.
@@ -37,7 +37,7 @@ export type UseTimelineClipRectsOptions = TimelineClipGeometryOptions;
  *
  * @example
  * ```tsx
- * import { useTimelineClipRects } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineClipRects } from '#react/hooks';
  *
  * export function SelectedClipBadges() {
  *   const rects = useTimelineClipRects();

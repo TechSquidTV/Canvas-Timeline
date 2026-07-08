@@ -28,6 +28,12 @@
   },
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "imports": {
+    "#mediabunny-adapter/*": {
+      "types": "./dist/*.d.mts",
+      "import": "./dist/*.mjs"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",

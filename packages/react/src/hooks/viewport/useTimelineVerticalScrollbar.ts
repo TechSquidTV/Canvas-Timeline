@@ -11,9 +11,9 @@ import {
   type RangeScrollbarValue,
   type RangeScrollbarValueChangeDetails,
   type UseRangeScrollbarResult,
-} from '../../rangeScrollbar';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineViewport } from './useTimelineViewport';
+} from '#react/rangeScrollbar';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
 
 const KEYBOARD_NUDGE_PX = 40;
 const KEYBOARD_PAGE_NUDGE_RATIO = 0.8;

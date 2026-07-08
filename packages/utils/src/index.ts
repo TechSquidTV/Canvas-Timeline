@@ -1,3 +1,3 @@
-export * from './math';
-export * from './time';
-export * from './timecode';
+export * from '#utils/math';
+export * from '#utils/time';
+export * from '#utils/timecode';

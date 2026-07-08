@@ -5,7 +5,7 @@ import {
   resolveTimecodeFrameRate,
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineRulerTick, TimelineRulerTickOptions } from './types';
+import type { TimelineRulerTick, TimelineRulerTickOptions } from '#core/types';
 
 const minMajorTickSpacing = 50;
 const minFrameSubtickSpacing = 8;

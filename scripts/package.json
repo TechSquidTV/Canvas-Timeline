@@ -1,0 +1,16 @@
+{
+  "name": "@techsquidtv/canvas-timeline-scripts",
+  "private": true,
+  "type": "module",
+  "files": [
+    "vite-plus-pack-config.mjs",
+    "vite-plus-pack-config.ts"
+  ],
+  "exports": {
+    "./vite-plus-pack-config": {
+      "types": "./vite-plus-pack-config.ts",
+      "import": "./vite-plus-pack-config.mjs"
+    },
+    "./package.json": "./package.json"
+  }
+}

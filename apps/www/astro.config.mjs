@@ -8,7 +8,7 @@ import sentry from '@sentry/astro';
 import { defineConfig } from 'astro/config';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
-import { expressiveCodeOptions } from './src/lib/expressive-code-config.mjs';
+import { expressiveCodeOptions } from '#www/lib/expressive-code-config.mjs';
 
 const isBuild =
   process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'build';
@@ -61,6 +61,50 @@ export default defineConfig({
     plugins: [mediabunnySsrStub(), tailwindcss()],
     resolve: {
       alias: [
+        {
+          find: /^#full-editor\/(.*)$/,
+          replacement: `${workspaceRoot}/apps/full-editor-demo/src/$1`,
+        },
+        {
+          find: /^#core\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/core/src/$1`,
+        },
+        {
+          find: /^#html-media-adapter\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/html-media-adapter/src/$1`,
+        },
+        {
+          find: /^#mediabunny-adapter\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/mediabunny-adapter/src/$1`,
+        },
+        {
+          find: /^#react\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/react/src/$1`,
+        },
+        {
+          find: /^#renderer\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/renderer/src/$1`,
+        },
+        {
+          find: /^#test-utils\/(.*)$/,
+          replacement: `${workspaceRoot}/test-utils/$1`,
+        },
+        {
+          find: /^#timeline\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/timeline/src/$1`,
+        },
+        {
+          find: /^#utils\/(.*)$/,
+          replacement: `${workspaceRoot}/packages/utils/src/$1`,
+        },
+        {
+          find: /^#www\/(.*)$/,
+          replacement: `${workspaceRoot}/apps/www/src/$1`,
+        },
+        {
+          find: /^#www-generated\/(.*)$/,
+          replacement: `${workspaceRoot}/apps/www/.generated/$1`,
+        },
         {
           find: /^@techsquidtv\/canvas-timeline-core$/,
           replacement: `${workspaceRoot}/packages/core/src/index.ts`,

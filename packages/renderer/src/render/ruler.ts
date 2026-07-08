@@ -1,7 +1,7 @@
 import { getTimelineRulerTicks, type Marker } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { getActiveWidth, secondsToX } from './geometry';
-import type { RenderContext } from './types';
+import { getActiveWidth, secondsToX } from '#renderer/render/geometry';
+import type { RenderContext } from '#renderer/render/types';
 
 function drawRulerTicks(renderContext: RenderContext) {
   const { ctx, state, width, theme } = renderContext;

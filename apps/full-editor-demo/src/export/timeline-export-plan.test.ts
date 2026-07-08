@@ -1,15 +1,15 @@
 import type { Clip, TimelineState, Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import type { SourceBinSource } from '../components/source-bin/types';
-import type { EditorTrackKind } from '../data/demo-project';
-import { getDefaultProjectMetadata } from '../project/project-metadata';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { getDefaultProjectMetadata } from '#full-editor/project/project-metadata';
 import {
   createTimelineExportProfile,
   getTimelineExportResolutionOptions,
   normalizeExportFilename,
-} from './timeline-export-profile';
-import { createTimelineExportPlan } from './timeline-export-plan';
+} from '#full-editor/export/timeline-export-profile';
+import { createTimelineExportPlan } from '#full-editor/export/timeline-export-plan';
 
 const file = new File(['media'], 'source.mp4', { type: 'video/mp4' });
 const profile = createTimelineExportProfile({

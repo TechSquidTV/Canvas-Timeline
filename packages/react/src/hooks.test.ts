@@ -1,7 +1,7 @@
 import { renderHook, act, fireEvent, render, createEvent } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
-import { TimelineContext } from './context';
+import { TimelineContext } from '#react/context';
 import {
   createTimelineScalarKeyframeProperty,
   TimelineEngine,
@@ -9,8 +9,8 @@ import {
   type Track,
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from './Provider';
-import { expectDefined } from '../../../test-utils/assertions';
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
 import {
   useActiveClips,
   useActiveLayers,
@@ -50,7 +50,7 @@ import {
   useTimelineViewport,
   useTimelineVisibleClips,
   type TimelineTrackDropResult,
-} from './hooks';
+} from '#react/hooks';
 
 const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',

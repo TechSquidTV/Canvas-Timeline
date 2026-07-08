@@ -4,7 +4,7 @@ export {
   RangeScrollbarRoot,
   RangeScrollbarThumb,
   useRangeScrollbar,
-} from './RangeScrollbar';
+} from '#react/rangeScrollbar/RangeScrollbar';
 export type {
   RangeScrollbarAriaValueTextDetails,
   RangeScrollbarChangeReason,
@@ -17,4 +17,4 @@ export type {
   RangeScrollbarValueChangeDetails,
   UseRangeScrollbarOptions,
   UseRangeScrollbarResult,
-} from './RangeScrollbar';
+} from '#react/rangeScrollbar/RangeScrollbar';

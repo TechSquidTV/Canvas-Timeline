@@ -8,8 +8,8 @@ import type {
   Track,
   TrackHitTestInput,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelineGeometryRevision } from '../core/useTimelineGeometryRevision';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /**
  * Context passed to custom clip track-drop guards.
@@ -152,7 +152,7 @@ function normalizeGuardResult(
  *
  * @example
  * ```tsx
- * import { useTimelineTrackDropTargets } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineTrackDropTargets } from '#react/hooks';
  *
  * export function TrackDropOverlay({ clipId }: { clipId: string }) {
  *   const targets = useTimelineTrackDropTargets({

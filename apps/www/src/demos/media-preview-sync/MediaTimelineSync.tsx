@@ -16,8 +16,8 @@ import {
   sampleDurationSeconds,
   sampleMediaSource,
   sampleSourceId,
-} from './timeline-demo-data';
-import type { DemoMetrics } from '../demo-instrumentation';
+} from '#www/demos/media-preview-sync/timeline-demo-data';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 
 // Timeline layer selectors tell the adapter which active clips should drive preview outputs.

@@ -1,7 +1,7 @@
 import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { renderTimeline } from './renderTimeline';
-import type { CanvasRendererRenderReason, CanvasRendererStats } from './CanvasRenderer';
-import type { TimelineRenderOptions } from './render/types';
+import { renderTimeline } from '#renderer/renderTimeline';
+import type { CanvasRendererRenderReason, CanvasRendererStats } from '#renderer/CanvasRenderer';
+import type { TimelineRenderOptions } from '#renderer/render/types';
 
 let canvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;

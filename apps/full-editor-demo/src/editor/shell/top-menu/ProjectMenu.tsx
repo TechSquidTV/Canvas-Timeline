@@ -1,14 +1,14 @@
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { formatRationalTime } from '@/lib/timeline-format';
-import type { ProjectMetadata } from '@/project/project-metadata';
+import { Button } from '#full-editor/components/ui/button';
+import { Separator } from '#full-editor/components/ui/separator';
+import { formatRationalTime } from '#full-editor/lib/timeline-format';
+import type { ProjectMetadata } from '#full-editor/project/project-metadata';
 import {
   formatVideoResolution,
   isVideoResolutionPresetId,
   type VideoResolutionPresetId,
   videoResolutionPresets,
-} from '@/project/video-settings';
+} from '#full-editor/project/video-settings';
 
 interface ProjectMenuProps {
   confirmingNewProject: boolean;

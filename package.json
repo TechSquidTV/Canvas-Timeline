@@ -4,6 +4,19 @@
   "version": "0.0.1",
   "license": "MPL-2.0",
   "type": "module",
+  "imports": {
+    "#core/*": "./packages/core/src/*",
+    "#full-editor/*": "./apps/full-editor-demo/src/*",
+    "#html-media-adapter/*": "./packages/html-media-adapter/src/*",
+    "#mediabunny-adapter/*": "./packages/mediabunny-adapter/src/*",
+    "#react/*": "./packages/react/src/*",
+    "#renderer/*": "./packages/renderer/src/*",
+    "#test-utils/*": "./test-utils/*",
+    "#timeline/*": "./packages/timeline/src/*",
+    "#utils/*": "./packages/utils/src/*",
+    "#www/*": "./apps/www/src/*",
+    "#www-generated/*": "./apps/www/.generated/*"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -36,6 +49,7 @@
     "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.2.0",
+    "@techsquidtv/canvas-timeline-scripts": "file:scripts",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",

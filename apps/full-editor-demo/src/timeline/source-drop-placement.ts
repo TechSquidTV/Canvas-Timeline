@@ -1,8 +1,11 @@
 import type { TimelineClipGroupPlacement, Track } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import type { EditorTrackKind } from '@/data/demo-project';
-import type { MediaLibrarySource } from '@/media/library/media-library-types';
-import { createClipFromSource, getSourceClipDurationSeconds } from './source-clip-factory';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import type { MediaLibrarySource } from '#full-editor/media/library/media-library-types';
+import {
+  createClipFromSource,
+  getSourceClipDurationSeconds,
+} from '#full-editor/timeline/source-clip-factory';
 
 export type SourceDropRejectReason =
   | 'missing-companion-track'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, FileImage, Film, LoaderCircle, Music2 } from 'lucide-react';
-import type { SourceBinSource } from './types';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 interface SourceThumbnailProps {
   source: SourceBinSource;

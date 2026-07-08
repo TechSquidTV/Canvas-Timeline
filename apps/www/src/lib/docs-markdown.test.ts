@@ -1,7 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vite-plus/test';
-import { buildDocsIndexMarkdown, sanitizeDocsMdx, type DocsMarkdownEntry } from './docs-markdown';
+import {
+  buildDocsIndexMarkdown,
+  sanitizeDocsMdx,
+  type DocsMarkdownEntry,
+} from '#www/lib/docs-markdown';
 
 const docsContentDir = join(process.cwd(), 'apps/www/src/content/docs');
 
@@ -11,8 +15,8 @@ describe('docs Markdown sanitizer', () => {
 title: Example
 ---
 
-import Callout from '../../components/Callout.astro';
-import PackageManagerTabs from '../../components/PackageManagerTabs.astro';
+import Callout from '#www/components/Callout.astro';
+import PackageManagerTabs from '#www/components/PackageManagerTabs.astro';
 
 # Example
 
@@ -83,7 +87,7 @@ const value = '<Timeline.Root />';
       const markdown = sanitizeDocsMdx(source);
 
       expect(markdown.length, fileName).toBeGreaterThan(0);
-      expect(markdown, fileName).not.toContain("from '../../components");
+      expect(markdown, fileName).not.toContain("from '#www/components");
       expect(markdown, fileName).not.toContain('<Callout');
       expect(markdown, fileName).not.toContain('<PackageManagerTabs');
       expect(markdown, fileName).not.toContain('<figure');

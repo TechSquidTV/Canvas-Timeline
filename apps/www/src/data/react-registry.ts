@@ -1,9 +1,9 @@
-import { apiSymbolHref, getApiSymbol } from '@/lib/api-reference';
+import { apiSymbolHref, getApiSymbol } from '#www/lib/api-reference';
 import {
   timelineHookMetadata,
   type TimelineHookGroupId,
   type TimelineHookReactivity,
-} from './react-hook-metadata';
+} from '#www/data/react-hook-metadata';
 
 type ReactRegistryKind = 'component' | 'primitive' | 'hook';
 export type ReactRegistryDemoVariant =

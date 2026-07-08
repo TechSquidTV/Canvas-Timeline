@@ -9,9 +9,9 @@ import {
   type LazyExoticComponent,
   type ReactNode,
 } from 'react';
-import { liveDemoLoaders } from '@/data/demo-components';
-import type { LiveDemoId } from '@/data/demos';
-import type { DemoMetrics } from '@/demos/demo-instrumentation';
+import { liveDemoLoaders } from '#www/data/demo-components';
+import type { LiveDemoId } from '#www/data/demos';
+import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import {
   recordDemoHydrationFailed,
   recordDemoOpened,
@@ -21,7 +21,7 @@ import {
   recordTimelineFrameTimes,
   recordTimelineInteractionLatencies,
   recordTimelineWorkerRenderTimes,
-} from '@/lib/metrics';
+} from '#www/lib/metrics';
 
 interface LiveDemoRendererProps {
   liveDemoId: LiveDemoId;

@@ -4,7 +4,7 @@ import React from 'react';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { ActiveClip, ActiveLayerResult } from '@techsquidtv/canvas-timeline-core';
-import type { MediabunnyAdapter } from './index';
+import type { MediabunnyAdapter } from '#mediabunny-adapter/index';
 
 afterEach(() => {
   vi.doUnmock('react');
@@ -101,32 +101,34 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
     createMediabunnyAdapter,
   }));
 
-  return import('./react').then(async ({ useMediabunnyAdapter: useMockedMediabunnyAdapter }) => {
-    const canvasRef = { current: canvas };
-    const { result, unmount } = renderHook(() =>
-      useMockedMediabunnyAdapter({
-        canvasRef,
-        mediabunny: () => Promise.resolve({} as never),
-        sources: [],
-      })
-    );
+  return import('#mediabunny-adapter/react').then(
+    async ({ useMediabunnyAdapter: useMockedMediabunnyAdapter }) => {
+      const canvasRef = { current: canvas };
+      const { result, unmount } = renderHook(() =>
+        useMockedMediabunnyAdapter({
+          canvasRef,
+          mediabunny: () => Promise.resolve({} as never),
+          sources: [],
+        })
+      );
 
-    await waitFor(() => {
-      expect(result.current).toBe(adapter);
-    });
-    expect(createMediabunnyAdapter).toHaveBeenCalledWith(
-      expect.objectContaining({
-        audio: undefined,
-        mediabunny: expect.any(Function),
-        sources: [],
-        onChange: expect.any(Function),
-      })
-    );
-    expect(setCanvas).toHaveBeenCalledWith(canvas);
+      await waitFor(() => {
+        expect(result.current).toBe(adapter);
+      });
+      expect(createMediabunnyAdapter).toHaveBeenCalledWith(
+        expect.objectContaining({
+          audio: undefined,
+          mediabunny: expect.any(Function),
+          sources: [],
+          onChange: expect.any(Function),
+        })
+      );
+      expect(setCanvas).toHaveBeenCalledWith(canvas);
 
-    unmount();
-    expect(dispose).toHaveBeenCalled();
-  });
+      unmount();
+      expect(dispose).toHaveBeenCalled();
+    }
+  );
 });
 
 test('useMediabunnyAdapter returns noop behavior when window is unavailable', async () => {
@@ -145,7 +147,8 @@ test('useMediabunnyAdapter returns noop behavior when window is unavailable', as
   }));
   vi.stubGlobal('window', undefined);
 
-  const { useMediabunnyAdapter: useServerMediabunnyAdapter } = await import('./react');
+  const { useMediabunnyAdapter: useServerMediabunnyAdapter } =
+    await import('#mediabunny-adapter/react');
   const adapter = useServerMediabunnyAdapter({
     mediabunny: () => Promise.resolve({} as never),
     sources: [],
@@ -205,7 +208,7 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
   }));
 
   const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
-    import('./react'),
+    import('#mediabunny-adapter/react'),
     import('@techsquidtv/canvas-timeline-react'),
   ]);
   const { result } = renderHook(
@@ -252,7 +255,7 @@ test('useMediabunnyTimelineMedia accepts an explicit Mediabunny loader', async (
   }));
 
   const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
-    import('./react'),
+    import('#mediabunny-adapter/react'),
     import('@techsquidtv/canvas-timeline-react'),
   ]);
   renderHook(

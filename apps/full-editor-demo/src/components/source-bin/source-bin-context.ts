@@ -1,5 +1,8 @@
 import { createContext, useContext } from 'react';
-import type { SourceBinContextValue, SourceBinMediaContextValue } from './types';
+import type {
+  SourceBinContextValue,
+  SourceBinMediaContextValue,
+} from '#full-editor/components/source-bin/types';
 
 export const SourceBinContext = createContext<SourceBinContextValue | null>(null);
 export const SourceBinMediaContext = createContext<SourceBinMediaContextValue | null>(null);

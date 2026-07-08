@@ -1,13 +1,13 @@
 import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import type { SourceBinSource } from '../components/source-bin/types';
-import type { EditorTrackKind } from '../data/demo-project';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
 import type {
   TimelineExportPlanInput,
   TimelineExportPlanResult,
   TimelineExportSegment,
   TimelineExportValidationIssue,
-} from './timeline-export-types';
+} from '#full-editor/export/timeline-export-types';
 
 export function createTimelineExportPlan(input: TimelineExportPlanInput): TimelineExportPlanResult {
   const issues: TimelineExportValidationIssue[] = [];

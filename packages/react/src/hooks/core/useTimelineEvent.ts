@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { EngineEventMap } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from './useTimeline';
+import { useTimeline } from '#react/hooks/core/useTimeline';
 
 /**
  * Callback signature for a typed TimelineEngine event subscription.
@@ -42,7 +42,7 @@ export interface TimelineEventOptions {
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import { useTimelineEvent } from '@techsquidtv/canvas-timeline-react/hooks';
+ * import { useTimelineEvent } from '#react/hooks';
  *
  * export function PlaybackRateReadout() {
  *   const [rate, setRate] = useState(1);

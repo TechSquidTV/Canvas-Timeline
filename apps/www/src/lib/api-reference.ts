@@ -1,4 +1,4 @@
-import apiReferenceData from '../../.generated/api-reference.json';
+import apiReferenceData from '#www-generated/api-reference.json';
 
 export interface ApiParameter {
   name: string;

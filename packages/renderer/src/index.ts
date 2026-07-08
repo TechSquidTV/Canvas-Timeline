@@ -1,10 +1,10 @@
-export * from './CanvasRenderer';
-export { TimelineCanvasLayer } from './TimelineCanvasLayer';
-export type { TimelineCanvasLayerProps } from './TimelineCanvasLayer';
-export * from './useTimelineCanvasLayer';
-export * from './theme';
+export * from '#renderer/CanvasRenderer';
+export { TimelineCanvasLayer } from '#renderer/TimelineCanvasLayer';
+export type { TimelineCanvasLayerProps } from '#renderer/TimelineCanvasLayer';
+export * from '#renderer/useTimelineCanvasLayer';
+export * from '#renderer/theme';
 export type {
   TimelineRenderOptions,
   TimelineRulerLabelFormat,
   TimelineRulerOptions,
-} from './render/types';
+} from '#renderer/render/types';

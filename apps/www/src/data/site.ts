@@ -1,4 +1,4 @@
-import { openGraphImage, openGraphRouteForPath } from '../lib/open-graph';
+import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
 
 export type SiteLink = {
   readonly label: string;

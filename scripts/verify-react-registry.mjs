@@ -13,6 +13,7 @@ const hooksDirPath = resolve(repoRoot, 'packages/react/src/hooks');
 const rangeScrollbarIndexPath = resolve(repoRoot, 'packages/react/src/rangeScrollbar/index.ts');
 const outputDir = resolve(repoRoot, 'apps/www/.generated/react-registry-snippets');
 const internalHookAllowlist = new Set(['useTimelineExternalStore', 'useTimelineGeometryRevision']);
+const tsconfigPathAliases = loadTsconfigPathAliases();
 const publicReactEntrypoints = new Map([
   ['@techsquidtv/canvas-timeline-react', reactIndexPath],
   ['@techsquidtv/canvas-timeline-react/hooks', hookIndexPath],
@@ -490,7 +491,7 @@ async function collectExportedNames(entryPath, visited = new Set()) {
         continue;
       }
 
-      if (modulePath?.startsWith('.')) {
+      if (modulePath) {
         const resolvedModulePath = resolveExportModulePath(normalizedPath, modulePath);
 
         if (resolvedModulePath) {
@@ -531,7 +532,14 @@ async function collectExportedNames(entryPath, visited = new Set()) {
 }
 
 function resolveExportModulePath(fromPath, modulePath) {
-  const basePath = resolve(dirname(fromPath), modulePath);
+  const basePath = modulePath.startsWith('.')
+    ? resolve(dirname(fromPath), modulePath)
+    : resolveAliasedModulePath(modulePath);
+
+  if (!basePath) {
+    return undefined;
+  }
+
   const candidates = [
     basePath,
     `${basePath}.ts`,
@@ -541,6 +549,43 @@ function resolveExportModulePath(fromPath, modulePath) {
   ];
 
   return candidates.find((candidate) => ts.sys.fileExists(candidate));
+}
+
+function resolveAliasedModulePath(modulePath) {
+  for (const alias of tsconfigPathAliases) {
+    const match = modulePath.match(alias.pattern);
+
+    if (!match) {
+      continue;
+    }
+
+    return alias.replacement.replaceAll('*', match[1] ?? '');
+  }
+
+  return undefined;
+}
+
+function loadTsconfigPathAliases() {
+  const configPath = resolve(repoRoot, 'tsconfig.base.json');
+  const configFile = ts.readConfigFile(configPath, (path) => ts.sys.readFile(path));
+  const paths = configFile.config?.compilerOptions?.paths ?? {};
+
+  return Object.entries(paths)
+    .flatMap(([key, values]) =>
+      Array.isArray(values) && typeof values[0] === 'string'
+        ? [
+            {
+              pattern: new RegExp(`^${escapeRegExp(key).replace('\\*', '(.+)')}$`),
+              replacement: resolve(repoRoot, values[0]),
+            },
+          ]
+        : []
+    )
+    .sort((left, right) => right.pattern.source.length - left.pattern.source.length);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function assertNoDuplicates(label, values) {

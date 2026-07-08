@@ -19,9 +19,9 @@ import {
   externalClipAssets,
   type ExternalClipAsset,
   type ExternalClipDropTrackKind,
-} from './timeline-demo-data';
+} from '#www/demos/external-clip-drop/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-import './timeline-editor.css';
+import '#www/demos/external-clip-drop/timeline-editor.css';
 
 const externalAssetMimeType = 'application/x-canvas-timeline-external-asset';
 const demoAudioTrackId = 'audio-main';

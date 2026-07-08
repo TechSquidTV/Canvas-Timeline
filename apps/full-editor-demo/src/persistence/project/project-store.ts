@@ -4,13 +4,19 @@ import {
   getDirectoryFromPath,
   removeEntryIfExists,
   writeBlobToPath,
-} from '../opfs/files';
-import { createMutationQueue } from '../opfs/mutation-queue';
-import { isNotFoundError } from '../opfs/support';
-import { getDefaultProjectMetadata, type ProjectMetadata } from '../../project/project-metadata';
-import { parseProjectSnapshot } from './project-snapshot-schema';
-import { sanitizeTimelineState } from './timeline-state-persistence';
-import type { PersistedTimelineState, ProjectStorageSnapshot } from './types';
+} from '#full-editor/persistence/opfs/files';
+import { createMutationQueue } from '#full-editor/persistence/opfs/mutation-queue';
+import { isNotFoundError } from '#full-editor/persistence/opfs/support';
+import {
+  getDefaultProjectMetadata,
+  type ProjectMetadata,
+} from '#full-editor/project/project-metadata';
+import { parseProjectSnapshot } from '#full-editor/persistence/project/project-snapshot-schema';
+import { sanitizeTimelineState } from '#full-editor/persistence/project/timeline-state-persistence';
+import type {
+  PersistedTimelineState,
+  ProjectStorageSnapshot,
+} from '#full-editor/persistence/project/types';
 
 const PROJECT_DIRECTORY = 'project';
 const PROJECT_FILE = 'project.json';

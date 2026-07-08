@@ -1,9 +1,9 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
-import { docsSectionIds } from '@/data/docs';
-import { reactRegistryItems } from '@/data/react-registry';
-import { site } from '@/data/site';
+import { docsSectionIds } from '#www/data/docs';
+import { reactRegistryItems } from '#www/data/react-registry';
+import { site } from '#www/data/site';
 
 const reactRegistryKeys = new Set(reactRegistryItems.map((item) => item.slug));
 

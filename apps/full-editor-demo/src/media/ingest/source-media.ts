@@ -3,7 +3,7 @@ import type { Input } from 'mediabunny';
 import type {
   MediaLibraryImportableKind,
   MediaLibraryProbeResult,
-} from '@/media/library/media-library-types';
+} from '#full-editor/media/library/media-library-types';
 
 const POSTER_WIDTH = 160;
 const POSTER_HEIGHT = 90;

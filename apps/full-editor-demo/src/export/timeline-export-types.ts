@@ -1,7 +1,7 @@
 import type { Clip, TimelineState, Track } from '@techsquidtv/canvas-timeline-core';
-import type { VideoResolutionPresetId } from '@/project/video-settings';
-import type { EditorTrackKind } from '@/data/demo-project';
-import type { SourceBinSource } from '@/components/source-bin/types';
+import type { VideoResolutionPresetId } from '#full-editor/project/video-settings';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 export type TimelineExportResolutionId = 'project' | VideoResolutionPresetId;
 

@@ -5,7 +5,7 @@ import {
   defaultTimelineRendererTheme,
   getPresetColor,
   resolveTimelineRendererThemeFromElement,
-} from './theme';
+} from '#renderer/theme';
 
 function getHexChannelSpread(color: string) {
   if (color === 'transparent') {

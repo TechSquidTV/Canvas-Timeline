@@ -1,8 +1,8 @@
 import type { Marker } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
-import { useTimeline } from '../core/useTimeline';
-import { useTimelinePlayheadTime } from '../playback/useTimelinePlayheadTime';
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 
 /** Result returned by `useActiveMarkers`. */
 export interface UseActiveMarkersResult {

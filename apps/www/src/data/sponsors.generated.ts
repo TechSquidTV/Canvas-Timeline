@@ -1,4 +1,4 @@
-import type { SponsorsSnapshot } from '@/lib/sponsors';
+import type { SponsorsSnapshot } from '#www/lib/sponsors';
 
 export const sponsorsSnapshot = {
   source: 'empty',

@@ -1,12 +1,12 @@
 import type { DragEvent } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { formatSeconds } from '@/lib/timeline-format';
-import { cn } from '@/lib/cn';
-import { formatFrameRate } from '@/lib/media-format';
-import { writeSourceBinDragPayload } from '@/timeline/source-drag-payload';
-import { SourceThumbnail } from './SourceThumbnail';
-import type { SourceBinSource } from './types';
+import { Button } from '#full-editor/components/ui/button';
+import { formatSeconds } from '#full-editor/lib/timeline-format';
+import { cn } from '#full-editor/lib/cn';
+import { formatFrameRate } from '#full-editor/lib/media-format';
+import { writeSourceBinDragPayload } from '#full-editor/timeline/source-drag-payload';
+import { SourceThumbnail } from '#full-editor/components/source-bin/SourceThumbnail';
+import type { SourceBinSource } from '#full-editor/components/source-bin/types';
 
 interface SourceBinItemProps {
   onDragEnd: (sourceId: string) => void;

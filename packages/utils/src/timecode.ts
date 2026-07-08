@@ -1,4 +1,4 @@
-import { fromSeconds, toSeconds, type RationalTime } from './time';
+import { fromSeconds, toSeconds, type RationalTime } from '#utils/time';
 
 const TIMECODE_CENTISECONDS = 100;
 const TIMECODE_SECONDS_PER_MINUTE = 60;

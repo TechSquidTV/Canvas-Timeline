@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { cn } from '@/lib/cn';
+import { cn } from '#full-editor/lib/cn';
 
 type ButtonVariant = 'ghost' | 'primary' | 'subtle';
 

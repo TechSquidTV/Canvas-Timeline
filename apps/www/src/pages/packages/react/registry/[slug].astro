@@ -1,16 +1,16 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { getCollection, render } from 'astro:content';
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import MarkdownCopyButton from '@/components/MarkdownCopyButton.astro';
+import BaseLayout from '#www/layouts/BaseLayout.astro';
+import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
 import {
   getReactRegistryApiHref,
   getReactRegistryPageSections,
   reactRegistryItems,
   type ReactRegistryItem,
-} from '@/data/react-registry';
-import { apiPackageHref } from '@/lib/api-reference';
-import { createReactRegistryStructuredData } from '@/lib/structured-data';
+} from '#www/data/react-registry';
+import { apiPackageHref } from '#www/lib/api-reference';
+import { createReactRegistryStructuredData } from '#www/lib/structured-data';
 
 type ReactRegistryDocEntry = CollectionEntry<'reactRegistryDocs'>;
 

@@ -1,4 +1,4 @@
-import type { SponsorshipTier, SponsorshipTierId } from '../data/site';
+import type { SponsorshipTier, SponsorshipTierId } from '#www/data/site';
 
 type GitHubSponsorAccountKind = 'user' | 'organization';
 

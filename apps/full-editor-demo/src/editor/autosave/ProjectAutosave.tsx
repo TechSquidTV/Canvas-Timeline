@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { savePersistedProjectState } from '@/persistence/project/project-store';
-import type { ProjectMetadata } from '@/project/project-metadata';
-import type { ProjectAutosaveStatus } from '@/editor/project/project-context';
-import { usePersistableTimelineSnapshot } from './usePersistableTimelineSnapshot';
+import { savePersistedProjectState } from '#full-editor/persistence/project/project-store';
+import type { ProjectMetadata } from '#full-editor/project/project-metadata';
+import type { ProjectAutosaveStatus } from '#full-editor/editor/project/project-context';
+import { usePersistableTimelineSnapshot } from '#full-editor/editor/autosave/usePersistableTimelineSnapshot';
 
 const PROJECT_AUTOSAVE_DELAY_MS = 600;
 

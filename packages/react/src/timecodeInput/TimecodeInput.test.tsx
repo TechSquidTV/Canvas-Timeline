@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vite-plus/test';
-import { TimecodeInput } from './index';
+import { TimecodeInput } from '#react/timecodeInput';
 
 describe('TimecodeInput', () => {
   it('renders a Base UI input with text-entry defaults', () => {

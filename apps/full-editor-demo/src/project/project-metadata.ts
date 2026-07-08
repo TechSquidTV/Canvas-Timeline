@@ -1,4 +1,4 @@
-import { demoProject } from '../data/demo-project';
+import { demoProject } from '#full-editor/data/demo-project';
 
 export interface ProjectMetadata {
   description: string;

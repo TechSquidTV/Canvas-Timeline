@@ -1,22 +1,22 @@
 import { useMemo, useRef, useState } from 'react';
 import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
 import { Download, Square } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import { useEditorProject } from '@/editor/project/project-context';
-import { formatSeconds } from '@/lib/timeline-format';
+import { Button } from '#full-editor/components/ui/button';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
+import { useEditorProject } from '#full-editor/editor/project/project-context';
+import { formatSeconds } from '#full-editor/lib/timeline-format';
 import {
   createTimelineExportProfile,
   defaultTimelineExportResolutionId,
   getDefaultExportFilename,
   getTimelineExportResolutionOptions,
-} from '@/export/timeline-export-profile';
-import { createTimelineExportPlan } from '@/export/timeline-export-plan';
-import { formatVideoResolution } from '@/project/video-settings';
+} from '#full-editor/export/timeline-export-profile';
+import { createTimelineExportPlan } from '#full-editor/export/timeline-export-plan';
+import { formatVideoResolution } from '#full-editor/project/video-settings';
 import type {
   TimelineExportResolutionId,
   TimelineExportStatus,
-} from '@/export/timeline-export-types';
+} from '#full-editor/export/timeline-export-types';
 
 export function ExportPanel({
   onStatusChange,
@@ -56,7 +56,7 @@ export function ExportPanel({
 
     try {
       const { downloadTimelineExport, runTimelineExport } =
-        await import('@/export/mediabunny-timeline-export');
+        await import('#full-editor/export/mediabunny-timeline-export');
       const blob = await runTimelineExport(planResult.plan, {
         onProgress(progress) {
           onStatusChange({

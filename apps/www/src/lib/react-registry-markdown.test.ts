@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vite-plus/test';
-import { buildReactRegistryLlmMarkdown } from './react-registry-markdown';
+import { buildReactRegistryLlmMarkdown } from '#www/lib/react-registry-markdown';
 
 describe('React registry LLM Markdown builder', () => {
   test('builds deep API reference Markdown for registry compound components', () => {

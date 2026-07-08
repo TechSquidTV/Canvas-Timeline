@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Timeline } from '@techsquidtv/canvas-timeline-react';
-import { cn } from '@/lib/cn';
-import { TimelineSourceDropFeedback } from './TimelineSourceDropFeedback';
-import { useTimelineSourceDrop } from './useTimelineSourceDrop';
+import { cn } from '#full-editor/lib/cn';
+import { TimelineSourceDropFeedback } from '#full-editor/components/timeline/TimelineSourceDropFeedback';
+import { useTimelineSourceDrop } from '#full-editor/components/timeline/useTimelineSourceDrop';
 
 interface TimelineSourceDropTargetProps {
   children: ReactNode;

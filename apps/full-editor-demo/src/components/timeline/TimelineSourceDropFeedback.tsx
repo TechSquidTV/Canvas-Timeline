@@ -6,10 +6,13 @@ import {
 } from '@techsquidtv/canvas-timeline-react';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import type { EditorTrackKind } from '@/data/demo-project';
-import { cn } from '@/lib/cn';
-import type { TimelineSourceDropMode } from '@/timeline/drop-mode-context';
-import type { SourceDropPatch, SourceDropRejectReason } from '@/timeline/source-drop-placement';
+import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { cn } from '#full-editor/lib/cn';
+import type { TimelineSourceDropMode } from '#full-editor/timeline/drop-mode-context';
+import type {
+  SourceDropPatch,
+  SourceDropRejectReason,
+} from '#full-editor/timeline/source-drop-placement';
 
 interface TimelineSourceDropFeedbackProps {
   dropMode: TimelineSourceDropMode;

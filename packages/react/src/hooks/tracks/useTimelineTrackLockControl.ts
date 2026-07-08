@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ButtonHTMLAttributes } from 'react';
-import type { TimelineCommandResult } from '../core/timelineCommandResult';
-import { useTimelineTrackHeader } from './useTimelineTrackHeader';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineTrackHeader } from '#react/hooks/tracks/useTimelineTrackHeader';
 
 /** Props returned for a track lock button. */
 export type TimelineTrackLockControlButtonProps = ButtonHTMLAttributes<HTMLButtonElement>;

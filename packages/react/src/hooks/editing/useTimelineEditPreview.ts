@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TimelineEditPreview, TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { useTimelineExternalStore } from '../core/useTimelineExternalStore';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 
 const editPreviewEvents = ['edit:preview', 'state:settled'] as const;
 const getTimelineEditPreview = (engine: TimelineEngine) => engine.getEditPreview();

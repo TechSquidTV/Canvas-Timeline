@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
-import { Button } from '@/components/ui/button';
-import { useSourceBin } from '@/components/source-bin/source-bin-context';
-import { demoProject } from '@/data/demo-project';
-import { useEditorProject, type ProjectAutosaveStatus } from '@/editor/project/project-context';
-import { normalizeProjectTitle } from '@/project/project-metadata';
+import { Button } from '#full-editor/components/ui/button';
+import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
+import { demoProject } from '#full-editor/data/demo-project';
+import {
+  useEditorProject,
+  type ProjectAutosaveStatus,
+} from '#full-editor/editor/project/project-context';
+import { normalizeProjectTitle } from '#full-editor/project/project-metadata';
 import {
   defaultVideoResolutionPresetId,
   findVideoResolutionPreset,
   getVideoResolutionPresetId,
   type VideoResolutionPresetId,
-} from '@/project/video-settings';
-import type { TimelineExportStatus } from '@/export/timeline-export-types';
-import { AboutMenu } from './top-menu/AboutMenu';
-import { ExportMenu } from './top-menu/ExportMenu';
-import { ProjectMenu } from './top-menu/ProjectMenu';
+} from '#full-editor/project/video-settings';
+import type { TimelineExportStatus } from '#full-editor/export/timeline-export-types';
+import { AboutMenu } from '#full-editor/editor/shell/top-menu/AboutMenu';
+import { ExportMenu } from '#full-editor/editor/shell/top-menu/ExportMenu';
+import { ProjectMenu } from '#full-editor/editor/shell/top-menu/ProjectMenu';
 
 type OpenMenu = 'about' | 'export' | 'project' | null;
 

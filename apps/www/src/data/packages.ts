@@ -1,4 +1,4 @@
-import { packageResourceLinks } from './site';
+import { packageResourceLinks } from '#www/data/site';
 
 interface PackageExample {
   title: string;

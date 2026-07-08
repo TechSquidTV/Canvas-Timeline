@@ -3,8 +3,8 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '../Provider';
-import { expectDefined } from '../../../../test-utils/assertions';
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
 import {
   createTimelineKeyboardBindings,
   getTimelineKeyboardCommand,
@@ -19,8 +19,8 @@ import {
   useTimelineViewportRangeControl,
   useTimelineViewportScrollbar,
   useTimelineZoomControl,
-} from './index';
-import { Root, Timeline } from '../components';
+} from '#react/hooks';
+import { Root, Timeline } from '#react/components';
 
 function createClip(id: string, start: number, end: number, overrides: Partial<Clip> = {}): Clip {
   return {

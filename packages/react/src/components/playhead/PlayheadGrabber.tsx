@@ -1,10 +1,14 @@
 import React from 'react';
-import { useTimeline } from '../../hooks';
+import { useTimeline } from '#react/hooks';
 
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { consumeTimelineDoubleTap } from '../interactions/tapState';
-import { TimeGrabber, type TimeGrabberChildren, type TimeGrabberProps } from './TimeGrabber';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
+import {
+  TimeGrabber,
+  type TimeGrabberChildren,
+  type TimeGrabberProps,
+} from '#react/components/playhead/TimeGrabber';
 
 const PLAYHEAD_PART_CLASS_NAMES: TimeGrabberProps['partClassNames'] = {
   highlight: 'timeline-playhead-grabber-highlight',

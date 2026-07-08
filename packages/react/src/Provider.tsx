@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { TimelineEngine, TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { TimelineContext } from './context';
+import { TimelineContext } from '#react/context';
 
 /**
  * Props for wiring a {@link TimelineEngine} into React context.
