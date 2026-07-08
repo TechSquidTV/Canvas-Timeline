@@ -163,6 +163,10 @@ function createTechArticleStructuredData(input: ArticleStructuredDataInput): Jso
   };
 }
 
+function stripInlineCodeMarkers(value: string): string {
+  return value.replace(/`([^`\n]+)`/g, '$1');
+}
+
 export function createDocsArticleStructuredData(input: ArticleStructuredDataInput): JsonLdObject {
   return createTechArticleStructuredData(input);
 }
@@ -244,13 +248,15 @@ export function createPackageIndexStructuredData(
 }
 
 export function createPackageStructuredData(packageDoc: PackageDoc): JsonLdObject {
+  const packageLinks = packageDoc.linkGroups.flatMap((group) => group.links);
+
   return createSoftwareSourceCodeStructuredData({
     name: packageDoc.name,
     description: packageDoc.description,
     url: `/packages/${packageDoc.slug}`,
-    codeRepository: packageDoc.sourceLinks.find((link) => link.label === 'GitHub')?.href,
-    installUrl: packageDoc.sourceLinks.find((link) => link.label === 'NPM')?.href,
-    keywords: [packageDoc.shortName, ...packageDoc.whenToUse],
+    codeRepository: packageLinks.find((link) => link.title === 'GitHub')?.href,
+    installUrl: packageLinks.find((link) => link.title === 'NPM')?.href,
+    keywords: [packageDoc.shortName, ...(packageDoc.useCases ?? []).map(stripInlineCodeMarkers)],
     runtimePlatform: 'React',
     codeSampleType: packageDoc.installCommand,
   });

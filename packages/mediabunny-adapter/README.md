@@ -15,29 +15,47 @@ pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 
 `mediabunny` and React are peer dependencies. The high-level React hook can lazy-load Mediabunny in the browser by default, while lower-level APIs can receive an explicit module or loader.
 
+## Choosing an API
+
+- Start with `useMediabunnyTimelineMedia` in React apps. It creates the adapter, connects it to timeline playback, and returns play/pause/rate controls plus decoded-frame status.
+- Use `useMediabunnyAdapter` only when you want React lifecycle management but will wire `adapter.syncAdapter` into `useTimelineMediaSync` yourself.
+- Use `createMediabunnyAdapter` outside React or when custom infrastructure owns canvas assignment, transport wiring, and disposal.
+- Use the HTML media adapter instead when one native `<video>` or `<audio>` element is enough.
+
 ```tsx
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 ```
 
 ## Features
 
-- Drive decoded video frames, local media files, and Web Audio scheduling from timeline clips.
+- Use Mediabunny to decode video frames and audio buffers, then keep canvas drawing and Web Audio playback aligned with timeline clips.
 - Map `clip.sourceId` values to Mediabunny sources without storing heavy media objects in timeline state.
-- Build custom canvas preview composition while keeping timeline playback synchronized.
+- Build a custom timeline preview monitor without storing files, blobs, or decoded frames in timeline state.
 
 ## Quick Start
 
 ```tsx
 import { useRef } from 'react';
+import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
-const sources = [{ id: 'clip-source-main', url: '/media/preview.mp4' }];
+const sourceId = 'clip-source-main';
+const sources = [{ id: sourceId, url: '/media/preview.mp4' }] as const;
 const previewLayers = {
-  visuals: { trackKind: 'visual', sourceId: 'clip-source-main' },
-  audio: { trackKind: 'audio', sourceId: 'clip-source-main' },
+  visuals: { trackKind: 'visual', sourceId },
+  audio: { trackKind: 'audio', sourceId },
 } as const;
 
-export function DecodedPreview() {
+export function DecodedPreviewApp({ engine }: { engine: TimelineEngine }) {
+  return (
+    <TimelineProvider engine={engine}>
+      <DecodedPreview />
+    </TimelineProvider>
+  );
+}
+
+function DecodedPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const media = useMediabunnyTimelineMedia({
     canvasRef,
@@ -49,9 +67,7 @@ export function DecodedPreview() {
 }
 ```
 
-```ts
-import { createMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-```
+Each item in `sources` uses an `id` that matches timeline clip `sourceId` values. For local files or custom Mediabunny setup, replace the URL descriptor with a `blob`, `input`, or `createInput` descriptor that keeps the same join key.
 
 ## Documentation
 
