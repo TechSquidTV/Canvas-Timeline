@@ -104,8 +104,8 @@ const packageResources = {
 
 const sponsorship = {
   label: 'Sponsor Canvas Timeline',
-  href: 'https://github.com/sponsors/techsquidtv',
-  accountLogin: 'techsquidtv',
+  href: 'https://github.com/sponsors/KyleTryon',
+  accountLogin: 'KyleTryon',
   projectName: 'Canvas Timeline',
   tiers: [
     {
