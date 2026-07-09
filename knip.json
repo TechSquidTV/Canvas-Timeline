@@ -44,6 +44,7 @@
     },
     "packages/core": {
       "paths": {
+        "#core/*": ["src/*"],
         "#test-utils/*": ["../../test-utils/*"]
       },
       "project": ["src/**/*.ts"]

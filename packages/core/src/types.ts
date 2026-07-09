@@ -1103,7 +1103,13 @@ export interface TimelineCreateClipGroupOptions {
   label?: string;
 }
 
-/** Options for inserting multiple clips and grouping them in one history entry. */
+/**
+ * Options for inserting multiple clips and grouping them in one history entry.
+ *
+ * Inserted groups use the grouped insert command pipeline: the first placement
+ * may snap, the shared snap delta is applied to every placement, and later
+ * clips ripple forward per target track.
+ */
 export interface TimelineInsertClipGroupOptions {
   /** Optional stable group id. A random id is generated when omitted. */
   groupId?: string;

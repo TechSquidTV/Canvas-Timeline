@@ -9,6 +9,13 @@ import type {
 } from '#core/types';
 import type { ClipCreatedReason, ClipRemovedReason } from '#core/events';
 
+export interface TimelineClipLookup {
+  track: Track;
+  clip: Clip;
+  trackIndex: number;
+  clipIndex: number;
+}
+
 export interface TimelineResolvedEdit {
   preview: TimelineEditPreview;
   tracks: Track[];
