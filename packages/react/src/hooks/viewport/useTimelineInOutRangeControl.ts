@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { formatTimelineRangeValue, formatTimelineTimeValue } from '#react/accessibility';
+import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 
 /**
@@ -19,8 +20,16 @@ export interface TimelineInOutRangeControlOptions {
   inLabel?: string;
   /** Accessible label for the out-point thumb. */
   outLabel?: string;
-  /** Called after a Base UI-style value commit has settled the engine. */
-  onValueCommitted?: (value: readonly number[], eventDetails?: unknown) => void;
+  /**
+   * Called after a Base UI-style value commit has settled the engine.
+   *
+   * `eventDetails` is forwarded from the consumer's range control primitive
+   * and stays opaque to Canvas Timeline.
+   */
+  onValueCommitted?: (
+    value: readonly number[],
+    eventDetails?: TimelineControlCommitDetails
+  ) => void;
 }
 
 /**
@@ -167,7 +176,10 @@ export function useTimelineInOutRangeControl(options: TimelineInOutRangeControlO
         step: control.step,
         value: control.value,
         onValueChange: setValue,
-        onValueCommitted: (values: readonly number[], eventDetails?: unknown) => {
+        onValueCommitted: (
+          values: readonly number[],
+          eventDetails?: TimelineControlCommitDetails
+        ) => {
           preparedSnapIndexRef.current = null;
           engine.settle();
           onValueCommitted?.(values, eventDetails);

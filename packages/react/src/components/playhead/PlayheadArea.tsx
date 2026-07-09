@@ -58,7 +58,7 @@ export const PlayheadArea = React.forwardRef<
     }
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'touch' && e.button !== 0) {
       return;
     }
@@ -74,12 +74,12 @@ export const PlayheadArea = React.forwardRef<
       return;
     }
 
-    const target = e.currentTarget as HTMLElement;
     const rect = internalRef.current?.getBoundingClientRect();
     if (!rect) {
       return;
     }
 
+    const target = e.currentTarget;
     engine.pause();
     target.setPointerCapture(e.pointerId);
     e.preventDefault();

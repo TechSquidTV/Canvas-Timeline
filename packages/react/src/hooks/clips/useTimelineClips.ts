@@ -5,10 +5,10 @@ import type {
   TimelineEngine,
   TimelineClipGroup,
   TimelineInteractionGeometry,
-  Track,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import { flattenTimelineClips, type TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 import {
@@ -177,7 +177,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
   } = useTimelineSelection<TrackKind>();
 
   const clips = useMemo(
-    () => flattenTimelineClips(state.tracks as Track<TrackKind>[]),
+    () => flattenTimelineClips(getTimelineTracks<TrackKind>(state.tracks)),
     [state.tracks]
   );
 

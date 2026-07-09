@@ -139,6 +139,12 @@ Use control adapters when composing semantic UI:
   headless keyframe geometry, tangent handles, commands, property evaluation, and
   drag previews for custom keyframe editors.
 
+Control adapter `onValueCommitted` callbacks receive the committed value plus
+opaque `TimelineControlCommitDetails` forwarded from the underlying control
+primitive. Canvas Timeline settles the engine before forwarding that metadata,
+but does not inspect it; narrow the details in application code when a specific
+control library documents extra fields.
+
 Keyboard behavior from these hooks is opt-in and scoped to the element that
 spreads the returned props. Canvas Timeline does not install global hotkeys or
 override application shortcuts.

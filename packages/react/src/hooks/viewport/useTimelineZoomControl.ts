@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
+import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import { useTimelineZoomScale } from '#react/hooks/viewport/useTimelineZoomScale';
@@ -16,8 +17,13 @@ export interface TimelineZoomControlOptions {
   step?: number;
   /** Accessible label for the zoom control. */
   label?: string;
-  /** Called after a Base UI-style value commit has settled the engine. */
-  onValueCommitted?: (value: number[], eventDetails?: unknown) => void;
+  /**
+   * Called after a Base UI-style value commit has settled the engine.
+   *
+   * `eventDetails` is forwarded from the consumer's scalar control primitive
+   * and stays opaque to Canvas Timeline.
+   */
+  onValueCommitted?: (value: number[], eventDetails?: TimelineControlCommitDetails) => void;
 }
 
 function formatZoomValue(value: number) {

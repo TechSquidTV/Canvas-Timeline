@@ -239,7 +239,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const { adapter, layers, onError, ready = true } = options;
   const adapterSeek = adapter.seek;
   const { engine } = useTimeline();
-  const activeLayers = useActiveLayers({ layers });
+  const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
   const layersRef = useRef(layers);
   const initialSeekScheduledRef = useRef(false);
@@ -418,7 +418,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   return useMemo(
     () => ({
       /** Active layers at the current playhead time. */
-      activeLayers: activeLayers as ActiveLayerResult<LayerName>,
+      activeLayers,
       /** Whether synchronized timeline/media playback is currently running. */
       playing: syncPlayback.playing,
       /** Current synchronized playback speed multiplier. */

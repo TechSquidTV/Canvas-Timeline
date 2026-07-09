@@ -1,6 +1,7 @@
 import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import {
   timelineCommandFail,
   timelineCommandOk,
@@ -114,26 +115,20 @@ export interface UseTimelineTracksResult<TrackKind = string> {
  */
 export function useTimelineTracks<TrackKind = string>(): UseTimelineTracksResult<TrackKind> {
   const { engine, state } = useTimeline();
-  const tracks = useMemo(() => state.tracks as Track<TrackKind>[], [state.tracks]);
+  const tracks = useMemo(() => getTimelineTracks<TrackKind>(state.tracks), [state.tracks]);
   const selectedTrack = useMemo(() => tracks.find((track) => track.selected) || null, [tracks]);
   const visibleTracks = useMemo(() => tracks.filter((track) => track.visible), [tracks]);
   const hiddenTracks = useMemo(() => tracks.filter((track) => !track.visible), [tracks]);
   const targetedTracks = useMemo(() => tracks.filter((track) => track.targeted), [tracks]);
-  const tracksByGroupId = useMemo(
-    () =>
-      tracks.reduce(
-        (accumulator, track) => {
-          const groupId = track.groupId || 'ungrouped';
-          if (!accumulator[groupId]) {
-            accumulator[groupId] = [];
-          }
-          accumulator[groupId].push(track);
-          return accumulator;
-        },
-        {} as Record<string, Track<TrackKind>[]>
-      ),
-    [tracks]
-  );
+  const tracksByGroupId = useMemo(() => {
+    const groupedTracks: Record<string, Track<TrackKind>[]> = {};
+    for (const track of tracks) {
+      const groupId = track.groupId || 'ungrouped';
+      groupedTracks[groupId] ??= [];
+      groupedTracks[groupId].push(track);
+    }
+    return groupedTracks;
+  }, [tracks]);
 
   const selectTrack = useCallback(
     (trackId: string | null) => {

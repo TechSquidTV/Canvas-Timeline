@@ -785,7 +785,12 @@ export interface TimelineSnapTarget {
   priority?: number;
   /** Optional human-readable target label for UI status. */
   label?: string;
-  /** Lightweight application metadata for custom targets. */
+  /**
+   * Lightweight application metadata for custom snap targets.
+   *
+   * Values stay `unknown` because the core engine snapshots and carries this
+   * record without interpreting app-owned domain data.
+   */
   metadata?: Record<string, unknown>;
 }
 
@@ -1342,7 +1347,12 @@ export interface TimelineEditPreview {
   affectedRanges: TimelineEditAffectedRange[];
   /** Clip-level consequences available to renderer and headless UI affordances. */
   impacts: TimelineEditImpact[];
-  /** Lightweight app/UI metadata for custom edit guides. */
+  /**
+   * Lightweight app/UI metadata for custom edit guides.
+   *
+   * Values stay `unknown` because the core engine forwards this record without
+   * interpreting app-owned domain data.
+   */
   guideMetadata?: Record<string, unknown>;
 }
 
@@ -1395,7 +1405,12 @@ export interface Clip {
   snap?: false | ClipSnapOptions;
   /** Clip-scoped property keyframes positioned at absolute timeline times. */
   keyframes?: TimelineKeyframe[];
-  /** Arbitrary custom application metadata attached to this clip. */
+  /**
+   * Arbitrary custom application metadata attached to this clip.
+   *
+   * Values stay `unknown` because Canvas Timeline preserves this record through
+   * snapshots and edits while leaving the schema to the host application.
+   */
   metadata?: Record<string, unknown>;
 }
 

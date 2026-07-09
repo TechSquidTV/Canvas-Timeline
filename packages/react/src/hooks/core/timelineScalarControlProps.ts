@@ -1,3 +1,5 @@
+import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
+
 export interface TimelineScalarControlState {
   label: string;
   max: number;
@@ -12,7 +14,7 @@ export interface TimelineScalarControlPropsOptions {
   setValue: (value: number) => void;
   commit: (value?: number) => void;
   getAriaValueText: (value: number) => string;
-  onValueCommitted?: (value: number[], eventDetails?: unknown) => void;
+  onValueCommitted?: (value: number[], eventDetails?: TimelineControlCommitDetails) => void;
   onEmptyCommit?: () => void;
 }
 
@@ -36,7 +38,7 @@ export function createTimelineScalarControlProps({
           setValue(values[0]);
         }
       },
-      onValueCommitted: (values: number[], eventDetails?: unknown) => {
+      onValueCommitted: (values: number[], eventDetails?: TimelineControlCommitDetails) => {
         if (values[0] !== undefined) {
           commit(values[0]);
         } else {
