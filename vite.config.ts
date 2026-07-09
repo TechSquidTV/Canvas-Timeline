@@ -182,6 +182,9 @@ export default defineConfig({
       'repo:package:check': [
         `vp run ${packageWorkspaceFilter} clean`,
         'vp run build:packages',
+        'vp run repo:package:validate',
+      ],
+      'repo:package:validate': [
         'node scripts/check-publishable-packages.mjs',
         'node scripts/check-consumer-smoke.mjs',
       ],

@@ -7,6 +7,9 @@ import { fileURLToPath, URL } from 'node:url';
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const packagesRoot = join(workspaceRoot, 'packages');
 const defaultConcurrency = 3;
+const binExtension = process.platform === 'win32' ? '.cmd' : '';
+const binPath = (command) =>
+  join(workspaceRoot, 'node_modules', '.bin', `${command}${binExtension}`);
 
 const run = (command, args, options = {}) =>
   new Promise((resolveRun, rejectRun) => {
@@ -107,34 +110,19 @@ const checkPackage = async (packageDir) => {
   let output = `\nChecking ${manifest.name}\n`;
 
   try {
-    output += await run('pnpm', [
-      'exec',
-      'publint',
-      'run',
-      '--strict',
-      '--pack',
-      'pnpm',
-      packageDir,
-    ]);
+    output += await run(binPath('publint'), ['run', '--strict', '--pack', 'pnpm', packageDir]);
 
     const packedPackage = await packPackage(packageDir, manifest.name);
 
     try {
-      const attwArgs = [
-        'exec',
-        'attw',
-        packedPackage.tarballPath,
-        '--profile',
-        'esm-only',
-        '--no-emoji',
-      ];
+      const attwArgs = [packedPackage.tarballPath, '--profile', 'esm-only', '--no-emoji'];
       const cssEntrypoints = getCssEntrypoints(manifest);
 
       if (cssEntrypoints.length > 0) {
         attwArgs.push('--exclude-entrypoints', ...cssEntrypoints);
       }
 
-      output += await run('pnpm', attwArgs);
+      output += await run(binPath('attw'), attwArgs);
     } finally {
       await packedPackage.cleanup();
     }

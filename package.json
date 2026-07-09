@@ -36,6 +36,7 @@
     "dev:www": "vp run repo:dev:www",
     "lint": "vp check",
     "package:check": "vp run repo:package:check",
+    "package:validate": "vp run repo:package:validate",
     "prepare": "vp config --hooks-dir .vite-hooks --no-agent",
     "preview": "vp run repo:preview",
     "preview:www": "vp run repo:preview:www",

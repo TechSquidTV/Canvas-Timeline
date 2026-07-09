@@ -88,7 +88,7 @@ jobs:
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
 
   build:
-    name: Build
+    name: Build and Package
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -121,6 +121,9 @@ jobs:
       - name: Build packages and apps
         run: vp run build
 
+      - name: Validate built publishable packages
+        run: vp run package:validate
+
       - name: Upload docs build
         uses: actions/upload-artifact@v5
         with:
@@ -128,45 +131,6 @@ jobs:
           path: apps/www/dist/client
           if-no-files-found: error
           retention-days: 1
-
-      - name: Save Vite Task cache
-        if: success()
-        uses: actions/cache/save@v6
-        with:
-          path: node_modules/.vite/task-cache
-          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
-
-  package:
-    name: Package Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: '24'
-          cache: true
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
-
-      - name: Restore Vite Task cache
-        id: vite-task-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: node_modules/.vite/task-cache
-          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            vite-task-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Validate publishable packages
-        run: vp run package:check
 
       - name: Save Vite Task cache
         if: success()
