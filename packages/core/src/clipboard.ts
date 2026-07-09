@@ -1,4 +1,5 @@
-import { type TimelineEngine, shiftClipKeyframes } from '#core/engine';
+import type { TimelineEngine } from '#core/engine';
+import { shiftClipKeyframes } from '#core/engine/clip-keyframes';
 import { createClipSnapshot } from '#core/snapshot';
 import type { Clip, TimelineState } from '#core/types';
 import type { ClipCreatedEvent, ClipRemovedEvent } from '#core/events';
