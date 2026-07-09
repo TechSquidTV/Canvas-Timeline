@@ -72,7 +72,10 @@ interface TimelineClipGroup {
 Use `createClipGroup` when clips already exist on the timeline. Use
 `insertClipGroup` when your app has created multiple clips, such as video and
 audio clips from one imported media file, and wants to place them on chosen
-tracks in one history entry.
+tracks in one history entry. Group insertion uses the same command-layer path as
+`commitEdit({ type: 'insert-clip-group' })`, so validation, edit policy checks,
+snapping, ripple behavior, lifecycle events, and undo history stay consistent
+with other timeline edits.
 
 ```ts
 engine.insertClipGroup({
