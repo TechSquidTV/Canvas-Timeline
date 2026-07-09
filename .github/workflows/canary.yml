@@ -44,13 +44,10 @@ jobs:
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run quality checks
-        run: vp run ci
+        run: vp run ci:quality
 
       - name: Version snapshot packages
         run: vp exec changeset version --snapshot ${{ inputs.tag }}
-
-      - name: Build packages
-        run: vp run build:packages
 
       - name: Validate publishable packages
         run: vp run package:check

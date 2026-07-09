@@ -58,7 +58,7 @@ jobs:
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run release validation
-        run: vp run ci
+        run: vp run ci:quality
 
       - name: Use npm with trusted publishing support
         run: npm install --global npm@11
@@ -116,7 +116,7 @@ jobs:
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run quality checks
-        run: vp run ci
+        run: vp run ci:quality
 
       - name: Version snapshot packages
         run: vp exec changeset version --snapshot ${{ inputs.tag }}

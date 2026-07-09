@@ -4,7 +4,7 @@
 
 Use this as the final pre-public-release checklist for Canvas Timeline. The goal is to ship a small, coherent, well-tested open source library with observable docs, reliable publishing, and clear maintenance paths.
 
-Last verified against repository contents on 2026-07-08.
+Last verified against repository contents on 2026-07-09.
 
 ## 0. Release Criteria
 
@@ -84,11 +84,8 @@ Last verified against repository contents on 2026-07-08.
 
 - [ ] Run the full local gate:
   - [ ] `vp install`
-  - [ ] `vp run repo:check`
-  - [ ] `vp test`
   - [ ] `vp run ci`
-  - [ ] `vp run build`
-  - [ ] `vp run package:check`
+  - [ ] `vp run package:check` when validating the clean package rebuild path.
 - [x] Keep package-level line coverage at or above the enforced threshold.
 - [ ] Raise package-level coverage above the current minimum where risk is high.
   - [ ] Core command behavior, history, snapping, markers, hit testing, and playback.
@@ -136,15 +133,18 @@ Last verified against repository contents on 2026-07-08.
   - [x] No public package currently declares optional peer dependencies.
 - [x] Confirm CSS files are copied into `dist` and exported by both `react` and aggregate packages.
 - [x] Confirm source maps and declaration maps are intentionally included or intentionally omitted.
-- [x] Run `vp run package:check` after a clean build.
+- [x] Run `vp run package:check` for a clean package rebuild and validation pass.
 - [x] Inspect packed tarballs for all public packages.
-  - [x] `repo:package:check` runs `publint`, Are The Types Wrong, and the packed-tarball consumer smoke test.
+  - [x] `repo:package:check` cleans, builds, and delegates to `repo:package:validate`.
+  - [x] `repo:package:validate` runs `publint`, Are The Types Wrong, and the packed-tarball consumer smoke test against built package output.
 - [x] Install packed tarballs into at least one clean Vite/React consumer app.
 
 ## 6. CI, Branch Protection, And Release Automation
 
 - [x] Require these GitHub checks before merge:
-  - [x] CI quality job.
+  - [x] CI Quality job.
+  - [x] CI Build and Package job.
+  - [x] CI Deploy Docs job, when docs preview deployment is available for the pull request.
   - [x] Security CodeQL job.
   - [x] Production dependency audit.
   - [x] Changeset status.
@@ -206,7 +206,7 @@ Last verified against repository contents on 2026-07-08.
 - [x] Verify docs package pages match package manifests and exports.
   - [x] Package pages link to generated API reference from package entrypoints and use public package imports.
 - [x] Verify API reference generation is reproducible in CI.
-  - [x] CI runs `vp run ci`, `vp run build`, and `vp run package:check`; `repo:check` includes docs API generation and link verification.
+  - [x] CI runs `vp run ci:quality`, `vp run repo:build`, and `vp run repo:package:validate`; `repo:check` includes docs API generation and link verification.
 - [x] Document package selection clearly:
   - [x] Aggregate package for React plus renderer.
   - [x] Core for headless engine usage.
@@ -281,8 +281,7 @@ Last verified against repository contents on 2026-07-08.
 - [ ] Start from a clean clone.
 - [ ] Run `vp install`.
 - [ ] Run `vp run ci`.
-- [ ] Run `vp run build`.
-- [ ] Run `vp run package:check`.
+- [ ] Run `vp run package:check` when validating the clean rebuild path.
 - [ ] Run docs build.
 - [ ] Run canary/snapshot publish.
 - [ ] Install the canary in a clean consumer project.
