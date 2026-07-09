@@ -82,8 +82,10 @@ Use `vp run repo:package:validate` only after `vp run repo:build` when you want
 to validate already-built package `dist` output without repeating the clean
 package rebuild.
 
-Use `vp run ci` for final confidence when time allows or when preparing a
-release-facing PR.
+Use `vp run ci` for final pull request confidence. It includes the quality
+checks, docs/app build, and package validation against the built package output.
+Add `vp run repo:package:check` when release or package metadata risk warrants
+the clean package rebuild path.
 
 Before opening a PR, validate the PR title locally when commitlint runs on pull
 request titles:

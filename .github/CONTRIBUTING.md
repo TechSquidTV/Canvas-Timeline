@@ -69,9 +69,12 @@ touches shared behavior or package surfaces:
 vp run repo:check
 vp test
 vp run ci
-vp run build
 vp run package:check
 ```
+
+`vp run ci` mirrors the pull request CI shape: static quality, tests with
+coverage, docs/app build, and package validation against the built package
+output.
 
 `vp run package:check` performs a clean publishable package build, then validates
 packed package metadata with `publint`, Are The Types Wrong, and the packed

@@ -145,16 +145,7 @@ export default defineConfig({
         'vp run build:packages',
         'vp run --filter @techsquidtv/canvas-timeline-www build',
       ],
-      ci: [
-        'knip',
-        'vp run --filter @techsquidtv/canvas-timeline-www docs:registry',
-        'vp run repo:typecheck',
-        'vp run repo:check',
-        'vp run custom:rules',
-        'vp run repo:package:check',
-        'vp test run --coverage',
-        'node scripts/check-package-coverage.mjs',
-      ],
+      ci: ['vp run ci:quality', 'vp run repo:build', 'vp run repo:package:validate'],
       'ci:quality': [
         'knip',
         'vp run --filter @techsquidtv/canvas-timeline-www docs:registry',

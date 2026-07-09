@@ -84,11 +84,8 @@ Last verified against repository contents on 2026-07-09.
 
 - [ ] Run the full local gate:
   - [ ] `vp install`
-  - [ ] `vp run repo:check`
-  - [ ] `vp test`
   - [ ] `vp run ci`
-  - [ ] `vp run build`
-  - [ ] `vp run package:check`
+  - [ ] `vp run package:check` when validating the clean package rebuild path.
 - [x] Keep package-level line coverage at or above the enforced threshold.
 - [ ] Raise package-level coverage above the current minimum where risk is high.
   - [ ] Core command behavior, history, snapping, markers, hit testing, and playback.
@@ -284,8 +281,6 @@ Last verified against repository contents on 2026-07-09.
 - [ ] Start from a clean clone.
 - [ ] Run `vp install`.
 - [ ] Run `vp run ci`.
-- [ ] Run `vp run build`.
-- [ ] Run `vp run package:validate` after the build.
 - [ ] Run `vp run package:check` when validating the clean rebuild path.
 - [ ] Run docs build.
 - [ ] Run canary/snapshot publish.
