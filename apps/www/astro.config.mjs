@@ -5,6 +5,7 @@ import cloudflare from '@astrojs/cloudflare';
 import astroExpressiveCode from 'astro-expressive-code';
 import tailwindcss from '@tailwindcss/vite';
 import sentry from '@sentry/astro';
+import { createWorkspaceAliases } from '@techsquidtv/canvas-timeline-scripts/workspace-aliases';
 import { defineConfig } from 'astro/config';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
@@ -60,120 +61,7 @@ export default defineConfig({
       : undefined,
     plugins: [mediabunnySsrStub(), tailwindcss()],
     resolve: {
-      alias: [
-        {
-          find: /^#full-editor\/(.*)$/,
-          replacement: `${workspaceRoot}/apps/full-editor-demo/src/$1`,
-        },
-        {
-          find: /^#core\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/core/src/$1`,
-        },
-        {
-          find: /^#html-media-adapter\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/html-media-adapter/src/$1`,
-        },
-        {
-          find: /^#mediabunny-adapter\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/mediabunny-adapter/src/$1`,
-        },
-        {
-          find: /^#react\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/react/src/$1`,
-        },
-        {
-          find: /^#renderer\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/renderer/src/$1`,
-        },
-        {
-          find: /^#test-utils\/(.*)$/,
-          replacement: `${workspaceRoot}/test-utils/$1`,
-        },
-        {
-          find: /^#timeline\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/timeline/src/$1`,
-        },
-        {
-          find: /^#utils\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/utils/src/$1`,
-        },
-        {
-          find: /^#www\/(.*)$/,
-          replacement: `${workspaceRoot}/apps/www/src/$1`,
-        },
-        {
-          find: /^#www-generated\/(.*)$/,
-          replacement: `${workspaceRoot}/apps/www/.generated/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-core$/,
-          replacement: `${workspaceRoot}/packages/core/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-core\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/core/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-react$/,
-          replacement: `${workspaceRoot}/packages/react/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-react\/range-scrollbar$/,
-          replacement: `${workspaceRoot}/packages/react/src/rangeScrollbar/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-react\/timecode-field$/,
-          replacement: `${workspaceRoot}/packages/react/src/timecodeField/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-react\/timecode-input$/,
-          replacement: `${workspaceRoot}/packages/react/src/timecodeInput/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-react\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/react/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-html-media-adapter$/,
-          replacement: `${workspaceRoot}/packages/html-media-adapter/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-html-media-adapter\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/html-media-adapter/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-mediabunny-adapter$/,
-          replacement: `${workspaceRoot}/packages/mediabunny-adapter/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-mediabunny-adapter\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/mediabunny-adapter/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-renderer$/,
-          replacement: `${workspaceRoot}/packages/renderer/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-renderer\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/renderer/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-utils$/,
-          replacement: `${workspaceRoot}/packages/utils/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline-utils\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/utils/src/$1`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline$/,
-          replacement: `${workspaceRoot}/packages/timeline/src/index.ts`,
-        },
-        {
-          find: /^@techsquidtv\/canvas-timeline\/(.*)$/,
-          replacement: `${workspaceRoot}/packages/timeline/src/$1`,
-        },
-      ],
+      alias: createWorkspaceAliases({ workspaceRoot }),
     },
     build: {
       // Mediabunny is loaded only by the media-preview demo through dynamic import().

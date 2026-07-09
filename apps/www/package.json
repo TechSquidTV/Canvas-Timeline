@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
+    "@techsquidtv/canvas-timeline-scripts": "file:../../scripts",
     "@types/mdast": "^4.0.4",
     "@types/unist": "^3.0.3",
     "mdast-util-to-string": "^4.0.0",

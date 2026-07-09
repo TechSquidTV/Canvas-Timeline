@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
+    "@techsquidtv/canvas-timeline-scripts": "file:../../scripts",
     "@vitejs/plugin-react": "^6.0.3",
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.3",

@@ -24,7 +24,8 @@
         "scripts/check-publishable-packages.mjs",
         "scripts/check-consumer-smoke.mjs",
         "scripts/check-vite-plus-custom-rules.mjs",
-        "scripts/vite-plus-pack-config.mjs"
+        "scripts/vite-plus-pack-config.mjs",
+        "scripts/workspace-aliases.mjs"
       ],
       "project": ["*.{js,ts}", "scripts/**/*.mjs", "test-utils/**/*.ts"],
       "ignoreDependencies": ["@arethetypeswrong/cli"]

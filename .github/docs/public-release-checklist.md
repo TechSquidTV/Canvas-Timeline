@@ -172,7 +172,7 @@ Last verified against repository contents on 2026-07-09.
 
 ## 7. Security, Governance, And Community Files
 
-- [x] Add `SECURITY.md`.
+- [x] Add `.github/SECURITY.md`.
   - [x] Define where to report vulnerabilities.
   - [x] Define supported versions.
   - [x] Define expected response time.
@@ -181,7 +181,7 @@ Last verified against repository contents on 2026-07-09.
   - [x] Include validation commands.
   - [x] Include package boundary rules.
   - [x] Include conventional commit expectations.
-- [x] Add a `CODE_OF_CONDUCT.md`.
+- [x] Add `.github/CODE_OF_CONDUCT.md`.
 - [x] Add GitHub issue templates.
   - [x] Bug report.
   - [x] Feature request.
@@ -192,7 +192,7 @@ Last verified against repository contents on 2026-07-09.
   - [x] Include package/API impact.
   - [x] Include docs/demo impact.
   - [x] Include breaking-change acknowledgement.
-- [x] Add `SUPPORT.md` if support expectations differ from issue handling.
+- [x] Add `.github/SUPPORT.md` if support expectations differ from issue handling.
 - [ ] Review repository visibility, npm organization access, and maintainer 2FA.
 - [ ] Decide whether to require signed npm provenance on all public publishes.
 
@@ -294,7 +294,7 @@ Last verified against repository contents on 2026-07-09.
 
 ## Current Repo-Specific Gaps Observed
 
-- [x] GitHub governance files are complete: `SECURITY.md`, `CODE_OF_CONDUCT.md`, support policy, issue templates, and PR template.
+- [x] GitHub governance files are complete: `.github/SECURITY.md`, `.github/CODE_OF_CONDUCT.md`, support policy, issue templates, and PR template.
 - [x] Public package manifests advertise `bugs`, `author`, `engines`, and `sideEffects`.
 - [x] Library packages inherit a base TypeScript config with `strict: true`.
 - [x] CI exists and is broad; branch protection and required-check settings are configured externally for the solo-maintainer workflow.
