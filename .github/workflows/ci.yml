@@ -171,6 +171,9 @@ jobs:
           name: docs-build
           path: apps/www/dist/client
 
+      - name: Enable pnpm
+        run: corepack enable
+
       - name: Deploy production docs to Cloudflare Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
         id: deploy-production
@@ -179,6 +182,7 @@ jobs:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.107.0'
+          packageManager: pnpm
           workingDirectory: apps/www
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
 
@@ -190,6 +194,7 @@ jobs:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.107.0'
+          packageManager: pnpm
           workingDirectory: apps/www
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
 
