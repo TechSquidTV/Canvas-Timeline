@@ -35,12 +35,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
+        uses: voidzero-dev/setup-vp@v1.15.0
         with:
           node-version: '24'
           cache: true
@@ -50,7 +50,7 @@ jobs:
 
       - name: Restore Vite Task cache
         id: vite-task-cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -65,7 +65,7 @@ jobs:
 
       - name: Create release PR or publish to npm
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v1.9.0
         with:
           title: 'chore(release): version packages'
           commit: 'chore(release): version packages'
@@ -81,7 +81,7 @@ jobs:
 
       - name: Save Vite Task cache
         if: success()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
@@ -93,12 +93,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.snapshot && vars.ENABLE_PACKAGE_PUBLISH == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
+        uses: voidzero-dev/setup-vp@v1.15.0
         with:
           node-version: '24'
           cache: true
@@ -108,7 +108,7 @@ jobs:
 
       - name: Restore Vite Task cache
         id: vite-task-cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -132,7 +132,7 @@ jobs:
 
       - name: Save Vite Task cache
         if: success()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}

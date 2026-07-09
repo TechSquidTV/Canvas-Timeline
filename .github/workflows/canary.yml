@@ -21,12 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
+        uses: voidzero-dev/setup-vp@v1.15.0
         with:
           node-version: '24'
           cache: true
@@ -36,7 +36,7 @@ jobs:
 
       - name: Restore Vite Task cache
         id: vite-task-cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Save Vite Task cache
         if: success()
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
