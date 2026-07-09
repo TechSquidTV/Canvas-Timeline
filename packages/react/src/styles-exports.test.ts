@@ -91,7 +91,7 @@ describe('CSS package exports', () => {
   it('keeps root build output aligned with website preview', () => {
     const rootViteConfig = readText('vite.config.ts');
 
-    expect(rootViteConfig).toContain('vp run --filter @techsquidtv/canvas-timeline-www build');
+    expect(rootViteConfig).toContain('vp run build:www');
     expect(rootViteConfig).toContain('vp run --filter @techsquidtv/canvas-timeline-www preview');
   });
 
