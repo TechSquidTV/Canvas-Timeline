@@ -129,7 +129,7 @@ jobs:
         run: vp run repo:package:validate
 
       - name: Upload docs build
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: docs-build
           path: apps/www/dist/client
@@ -165,8 +165,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          run-install: false
+
       - name: Download docs build
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: docs-build
           path: apps/www/dist/client
