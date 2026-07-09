@@ -1,5 +1,6 @@
 import {
   TimecodeField,
+  useTimeline,
   useTimelineClips,
   useTimelineEditCommands,
   useTimelineMarkers,
@@ -8,13 +9,24 @@ import {
   useTimelinePlayheadTime,
   useTimelineSnapping,
 } from '@techsquidtv/canvas-timeline-react';
-import { compareRational } from '@techsquidtv/canvas-timeline-utils';
+import { compareRational, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 'lucide-react';
 import { useEditorMediaSync } from '#full-editor/editor/shell/media-sync-context';
 import { Button } from '#full-editor/components/ui/button';
 import { Separator } from '#full-editor/components/ui/separator';
 import { useEditorProject } from '#full-editor/editor/project/project-context';
 import type { EditorTrackKind } from '#full-editor/data/demo-project';
+
+interface TimelineBoundedClip {
+  timelineEnd: RationalTime;
+  timelineStart: RationalTime;
+}
+
+function containsTimelineTime(clip: TimelineBoundedClip, time: RationalTime) {
+  return (
+    compareRational(time, clip.timelineStart) > 0 && compareRational(time, clip.timelineEnd) < 0
+  );
+}
 
 function PlayheadTimecodeControl() {
   const playheadControl = useTimelinePlayheadControl();
@@ -33,13 +45,12 @@ function PlayheadTimecodeControl() {
 }
 
 function CutSelectedClipButton() {
-  const playheadTime = useTimelinePlayheadTime();
+  const { engine } = useTimeline();
   const { selectedClip } = useTimelineClips<EditorTrackKind>();
   const { splitClip } = useTimelineEditCommands();
+  const playheadTime = engine.getTime();
   const canCutSelectedClip =
-    selectedClip !== null &&
-    compareRational(playheadTime, selectedClip.timelineStart) > 0 &&
-    compareRational(playheadTime, selectedClip.timelineEnd) < 0;
+    selectedClip !== null && containsTimelineTime(selectedClip, playheadTime);
 
   return (
     <Button
@@ -47,8 +58,11 @@ function CutSelectedClipButton() {
       disabled={!canCutSelectedClip}
       iconOnly
       onClick={() => {
+        const currentPlayheadTime = engine.getTime();
         if (selectedClip !== null) {
-          splitClip(selectedClip.id, playheadTime);
+          if (containsTimelineTime(selectedClip, currentPlayheadTime)) {
+            splitClip(selectedClip.id, currentPlayheadTime);
+          }
         }
       }}
       title={
