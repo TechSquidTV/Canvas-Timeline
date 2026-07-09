@@ -14,21 +14,44 @@ concurrency:
 
 permissions:
   contents: read
-  issues: write
+
+env:
+  CI: true
+  PACKAGE_LINE_COVERAGE_MINIMUM: 80
 
 jobs:
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Lint pull request title
+        run: |
+          printf '%s\n' "${{ github.event.pull_request.title }}" | vp exec commitlint --verbose
+
+      - name: Lint commit messages
+        run: vp run commitlint -- --from=${{ github.event.pull_request.base.sha }} --to=${{ github.event.pull_request.head.sha }}
+
   quality:
     name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
-    env:
-      CI: true
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_PROJECT_NAME: canvas-timeline-www
-      GITHUB_SPONSORS_TOKEN: ${{ secrets.GITHUB_SPONSORS_TOKEN }}
-      PACKAGE_LINE_COVERAGE_MINIMUM: 80
 
     steps:
       - name: Checkout
@@ -50,27 +73,135 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: node_modules/.vite/task-cache
-          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Lint pull request title
-        if: github.event_name == 'pull_request'
-        run: |
-          printf '%s\n' "${{ github.event.pull_request.title }}" | vp exec commitlint --verbose
-
-      - name: Lint commit messages
-        if: github.event_name == 'pull_request'
-        run: vp run commitlint -- --from=${{ github.event.pull_request.base.sha }} --to=${{ github.event.pull_request.head.sha }}
-
       - name: Run quality checks
-        run: vp run ci
+        run: vp run ci:quality
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_SPONSORS_TOKEN: ${{ secrets.GITHUB_SPONSORS_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build packages and apps
         run: vp run build
 
+      - name: Upload docs build
+        uses: actions/upload-artifact@v5
+        with:
+          name: docs-build
+          path: apps/www/dist/client
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
+
+  package:
+    name: Package Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Restore Vite Task cache
+        id: vite-task-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vite-task-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Validate publishable packages
         run: vp run package:check
+
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
+
+  deploy-docs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+
+    permissions:
+      contents: read
+      issues: write
+
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_PROJECT_NAME: canvas-timeline-www
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download docs build
+        uses: actions/download-artifact@v6
+        with:
+          name: docs-build
+          path: apps/www/dist/client
 
       - name: Deploy production docs to Cloudflare Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
@@ -83,7 +214,7 @@ jobs:
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
 
       - name: Deploy preview docs to Cloudflare Pages
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        if: github.event_name == 'pull_request' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
         id: deploy-preview
         uses: cloudflare/wrangler-action@v3
         with:
@@ -93,7 +224,7 @@ jobs:
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
 
       - name: Comment docs preview URL
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.deploy-preview.conclusion == 'success'
+        if: github.event_name == 'pull_request' && steps.deploy-preview.conclusion == 'success'
         continue-on-error: true
         env:
           DEPLOYMENT_URL: ${{ steps.deploy-preview.outputs.deployment-url }}
@@ -125,10 +256,3 @@ jobs:
               "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
               -f body="$body"
           fi
-
-      - name: Save Vite Task cache
-        if: success()
-        uses: actions/cache/save@v6
-        with:
-          path: node_modules/.vite/task-cache
-          key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}

@@ -155,6 +155,15 @@ export default defineConfig({
         'vp test run --coverage',
         'node scripts/check-package-coverage.mjs',
       ],
+      'ci:quality': [
+        'knip',
+        'vp run --filter @techsquidtv/canvas-timeline-www docs:registry',
+        'vp run repo:typecheck',
+        'vp run repo:check',
+        'vp run custom:rules',
+        'vp test run --coverage',
+        'node scripts/check-package-coverage.mjs',
+      ],
       'repo:check': [
         'vp check',
         'vp run docs:api',
