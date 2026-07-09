@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "vp build",
+    "build:docs": "env CANVAS_TIMELINE_FULL_EDITOR_BASE=/demos/full-editor-demo/ vp build",
     "clean": "rm -rf dist",
     "dev": "vp dev --host=0.0.0.0",
     "preview": "vp preview --host=0.0.0.0",
