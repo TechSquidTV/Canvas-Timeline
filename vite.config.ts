@@ -64,8 +64,7 @@ export default defineConfig({
         dependsOn: ['build:core', 'build:react', 'build:utils'],
       },
       'build:full-editor-demo': {
-        command: 'vp build',
-        cwd: 'apps/full-editor-demo',
+        command: 'vp run --filter @techsquidtv/canvas-timeline-full-editor-demo build:docs',
         input: [
           'apps/full-editor-demo/index.html',
           'apps/full-editor-demo/package.json',
@@ -116,7 +115,7 @@ export default defineConfig({
       'build:www': {
         command: 'node -e ""',
         cache: false,
-        dependsOn: ['build:www:astro'],
+        dependsOn: ['build:www:verify-full-editor-demo'],
       },
       'build:www:astro': {
         command: 'vp exec astro build',
@@ -131,6 +130,17 @@ export default defineConfig({
           'docs:og',
           'docs:editor',
         ],
+      },
+      'build:www:verify-full-editor-demo': {
+        command: 'vp run docs:editor:verify',
+        cwd: 'apps/www',
+        dependsOn: ['build:www:astro'],
+        input: [
+          'apps/www/dist/client/demos/full-editor-demo/index.html',
+          'apps/www/dist/client/demos/full-editor-demo/assets/**',
+          'apps/www/scripts/verify-full-editor-demo-build.mjs',
+        ],
+        output: [],
       },
       'coverage:package': {
         command: 'node scripts/check-package-coverage.mjs',
