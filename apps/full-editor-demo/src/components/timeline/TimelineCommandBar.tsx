@@ -4,7 +4,7 @@ import {
   useTimelineClips,
   useTimelineEditCommands,
   useTimelineHistory,
-  useTimelinePlayheadTime,
+  useTimeline,
 } from '@techsquidtv/canvas-timeline-react';
 import { ClipboardPaste, Copy, Redo2, Trash2, Undo2, Unlink2 } from 'lucide-react';
 import { Button } from '#full-editor/components/ui/button';
@@ -62,15 +62,15 @@ function CopySelectionButton() {
 }
 
 function PasteAtPlayheadButton() {
+  const { engine } = useTimeline();
   const clipboard = useTimelineClipboard();
-  const playheadTime = useTimelinePlayheadTime();
 
   return (
     <Button
       aria-label="Paste at playhead"
       disabled={!clipboard.canPaste}
       iconOnly
-      onClick={() => clipboard.pasteSelection(playheadTime)}
+      onClick={() => clipboard.pasteSelection(engine.getTime())}
       title="Paste at playhead"
       variant="ghost"
     >

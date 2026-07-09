@@ -1,6 +1,5 @@
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSourceBinMedia } from '#full-editor/components/source-bin/source-bin-context';
 import {
@@ -64,12 +63,10 @@ function ActiveMediaSyncProvider({
 
   const value = useMemo<EditorMediaSyncContextValue>(
     () => ({
-      activeLayers: media.activeLayers,
       canvasRef,
       clearPlaybackError,
       durationBySourceId: media.durationBySourceId,
       hasMediaSources: true,
-      lastFrameTime: media.lastFrameTime,
       pause: media.pause,
       play: media.play,
       playbackError,
@@ -81,9 +78,7 @@ function ActiveMediaSyncProvider({
     [
       canvasRef,
       clearPlaybackError,
-      media.activeLayers,
       media.durationBySourceId,
-      media.lastFrameTime,
       media.pause,
       media.play,
       media.playing,
@@ -123,22 +118,10 @@ function IdleMediaSyncProvider({
   const togglePlay = useCallback(() => play().then(() => undefined), [play]);
   const value = useMemo<EditorMediaSyncContextValue>(
     () => ({
-      activeLayers: {
-        all: [],
-        byTrack: new Map(),
-        hasActiveClips: false,
-        layers: {
-          audio: [],
-          visuals: [],
-        },
-        primary: {},
-        time: fromSeconds(0),
-      },
       canvasRef,
       clearPlaybackError,
       durationBySourceId: new Map(),
       hasMediaSources: false,
-      lastFrameTime: null,
       pause,
       play,
       playbackError: null,
