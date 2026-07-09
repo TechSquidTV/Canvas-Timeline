@@ -73,6 +73,8 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: node_modules/.vite/task-cache
+          # Quality and build save in parallel, so scope primary keys by job while
+          # keeping restore keys broad enough to reuse prior Vite Task caches.
           key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             vite-task-${{ runner.os }}-${{ runner.arch }}-
@@ -114,15 +116,17 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: node_modules/.vite/task-cache
+          # Quality and build save in parallel, so scope primary keys by job while
+          # keeping restore keys broad enough to reuse prior Vite Task caches.
           key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             vite-task-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build packages and apps
-        run: vp run build
+        run: vp run repo:build
 
       - name: Validate built publishable packages
-        run: vp run package:validate
+        run: vp run repo:package:validate
 
       - name: Upload docs build
         uses: actions/upload-artifact@v5

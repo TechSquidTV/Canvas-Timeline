@@ -206,7 +206,7 @@ Last verified against repository contents on 2026-07-09.
 - [x] Verify docs package pages match package manifests and exports.
   - [x] Package pages link to generated API reference from package entrypoints and use public package imports.
 - [x] Verify API reference generation is reproducible in CI.
-  - [x] CI runs `vp run ci:quality`, `vp run build`, and `vp run package:validate`; `repo:check` includes docs API generation and link verification.
+  - [x] CI runs `vp run ci:quality`, `vp run repo:build`, and `vp run repo:package:validate`; `repo:check` includes docs API generation and link verification.
 - [x] Document package selection clearly:
   - [x] Aggregate package for React plus renderer.
   - [x] Core for headless engine usage.
