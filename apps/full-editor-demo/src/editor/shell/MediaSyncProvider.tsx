@@ -39,52 +39,53 @@ function ActiveMediaSyncProvider({
   sources: readonly MediabunnySource[];
 }) {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const media = useMediabunnyTimelineMedia<PreviewLayerName>({
-    canvasRef,
-    sources,
-    layers: previewLayerSelectors,
-    onError: setPlaybackError,
-  });
+  const { durationBySourceId, pause, play, playing, ready, status } =
+    useMediabunnyTimelineMedia<PreviewLayerName>({
+      canvasRef,
+      sources,
+      layers: previewLayerSelectors,
+      onError: setPlaybackError,
+    });
 
   const clearPlaybackError = useCallback(() => {
     setPlaybackError(null);
   }, []);
 
   const togglePlay = useCallback(async () => {
-    if (media.playing) {
-      media.pause();
+    if (playing) {
+      pause();
       clearPlaybackError();
       return;
     }
 
-    const result = await media.play();
+    const result = await play();
     setPlaybackError(result.ok ? null : result.message);
-  }, [clearPlaybackError, media]);
+  }, [clearPlaybackError, pause, play, playing]);
 
   const value = useMemo<EditorMediaSyncContextValue>(
     () => ({
       canvasRef,
       clearPlaybackError,
-      durationBySourceId: media.durationBySourceId,
+      durationBySourceId,
       hasMediaSources: true,
-      pause: media.pause,
-      play: media.play,
+      pause,
+      play,
       playbackError,
-      playing: media.playing,
-      ready: media.ready,
-      status: media.status,
+      playing,
+      ready,
+      status,
       togglePlay,
     }),
     [
       canvasRef,
       clearPlaybackError,
-      media.durationBySourceId,
-      media.pause,
-      media.play,
-      media.playing,
-      media.ready,
-      media.status,
+      durationBySourceId,
+      pause,
+      play,
+      playing,
       playbackError,
+      ready,
+      status,
       togglePlay,
     ]
   );
