@@ -78,6 +78,10 @@ vp run repo:build
 vp run repo:package:check
 ```
 
+Use `vp run repo:package:validate` only after `vp run repo:build` when you want
+to validate already-built package `dist` output without repeating the clean
+package rebuild.
+
 Use `vp run ci` for final confidence when time allows or when preparing a
 release-facing PR.
 

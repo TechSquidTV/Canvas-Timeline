@@ -73,8 +73,10 @@ vp run build
 vp run package:check
 ```
 
-`vp run package:check` builds publishable packages and validates packed package
-metadata with `publint` and `attw`.
+`vp run package:check` performs a clean publishable package build, then validates
+packed package metadata with `publint`, Are The Types Wrong, and the packed
+tarball consumer smoke test. Use `vp run package:validate` only when package
+`dist` output has already been built and should be reused.
 
 ## Changesets
 
