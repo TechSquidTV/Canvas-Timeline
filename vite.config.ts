@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react';
-import path from 'node:path';
+import { createWorkspaceAliases } from '@techsquidtv/canvas-timeline-scripts/workspace-aliases';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
@@ -43,120 +43,7 @@ const packageBuildTaskName = (packageName: (typeof publishablePackageNames)[numb
 export default defineConfig({
   plugins: lazyPlugins(() => [react()]),
   resolve: {
-    alias: [
-      {
-        find: /^#full-editor\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'apps/full-editor-demo/src/$1'),
-      },
-      {
-        find: /^#core\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/core/src/$1'),
-      },
-      {
-        find: /^#html-media-adapter\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/html-media-adapter/src/$1'),
-      },
-      {
-        find: /^#mediabunny-adapter\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/mediabunny-adapter/src/$1'),
-      },
-      {
-        find: /^#react\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/$1'),
-      },
-      {
-        find: /^#renderer\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/renderer/src/$1'),
-      },
-      {
-        find: /^#test-utils\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'test-utils/$1'),
-      },
-      {
-        find: /^#timeline\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/timeline/src/$1'),
-      },
-      {
-        find: /^#utils\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/utils/src/$1'),
-      },
-      {
-        find: /^#www\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'apps/www/src/$1'),
-      },
-      {
-        find: /^#www-generated\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'apps/www/.generated/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-core$/,
-        replacement: path.resolve(workspaceRoot, 'packages/core/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-core\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/core/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-react$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-react\/range-scrollbar$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/rangeScrollbar/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-react\/timecode-field$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/timecodeField/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-react\/timecode-input$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/timecodeInput/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-react\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/react/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-html-media-adapter$/,
-        replacement: path.resolve(workspaceRoot, 'packages/html-media-adapter/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-html-media-adapter\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/html-media-adapter/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-mediabunny-adapter$/,
-        replacement: path.resolve(workspaceRoot, 'packages/mediabunny-adapter/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-mediabunny-adapter\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/mediabunny-adapter/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-renderer$/,
-        replacement: path.resolve(workspaceRoot, 'packages/renderer/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-renderer\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/renderer/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-utils$/,
-        replacement: path.resolve(workspaceRoot, 'packages/utils/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline-utils\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/utils/src/$1'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline$/,
-        replacement: path.resolve(workspaceRoot, 'packages/timeline/src/index.ts'),
-      },
-      {
-        find: /^@techsquidtv\/canvas-timeline\/(.*)$/,
-        replacement: path.resolve(workspaceRoot, 'packages/timeline/src/$1'),
-      },
-    ],
+    alias: createWorkspaceAliases({ workspaceRoot }),
   },
   staged: {
     '*.{js,jsx,ts,tsx,mjs,cjs}': ['vp lint --fix', 'vp fmt'],

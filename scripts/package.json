@@ -4,12 +4,18 @@
   "type": "module",
   "files": [
     "vite-plus-pack-config.mjs",
-    "vite-plus-pack-config.ts"
+    "vite-plus-pack-config.ts",
+    "workspace-aliases.d.ts",
+    "workspace-aliases.mjs"
   ],
   "exports": {
     "./vite-plus-pack-config": {
       "types": "./vite-plus-pack-config.ts",
       "import": "./vite-plus-pack-config.mjs"
+    },
+    "./workspace-aliases": {
+      "types": "./workspace-aliases.d.ts",
+      "import": "./workspace-aliases.mjs"
     },
     "./package.json": "./package.json"
   }
