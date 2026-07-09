@@ -441,6 +441,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private editResolution: TimelineResolvedEdit | null = null;
   private pendingClipMoveCommitEvent: ClipMoveEvent | null = null;
 
+  private getTracks<TrackKind = string>(): Track<TrackKind>[] {
+    return this.state.tracks as Track<TrackKind>[];
+  }
+
   /**
    * Creates an instance of the TimelineEngine.
    *
@@ -1790,7 +1794,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     for (const rect of this.getTrackRects(input)) {
-      const track = this.state.tracks[rect.trackIndex] as Track<TrackKind> | undefined;
+      const track = this.getTracks<TrackKind>()[rect.trackIndex];
       if (track === undefined) {
         continue;
       }
@@ -2018,7 +2022,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     let y = resolvedGeometry.rulerHeight - this.state.scrollTop;
 
     for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.state.tracks[trackIndex] as Track<TrackKind>;
+      const track = this.getTracks<TrackKind>()[trackIndex];
       const trackHeight = this.getTrackViewportHeight(track, resolvedGeometry);
 
       for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {

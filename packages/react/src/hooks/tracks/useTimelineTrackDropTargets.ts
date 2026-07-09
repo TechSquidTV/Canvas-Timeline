@@ -9,6 +9,7 @@ import type {
   TrackHitTestInput,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /**
@@ -201,7 +202,7 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
 
   const trackTargets = useMemo(() => {
     void revision;
-    const tracks = state.tracks as Track<TrackKind>[];
+    const tracks = getTimelineTracks<TrackKind>(state.tracks);
     return engine
       .getTrackRects({ ...geometry, viewportWidth })
       .map((rect) => {
@@ -234,13 +235,12 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
         return { canDrop: false, reason: 'not-found', allowCrossKindTrackMove: false };
       }
 
+      const tracks = getTimelineTracks<TrackKind>(state.tracks);
       const sourceTrack =
         sourceTrackId === undefined
-          ? (found.track as Track<TrackKind>)
-          : ((state.tracks as Track<TrackKind>[]).find((track) => track.id === sourceTrackId) ??
-            null);
-      const targetTrack =
-        (state.tracks as Track<TrackKind>[]).find((track) => track.id === targetTrackId) ?? null;
+          ? tracks[found.trackIndex]
+          : (tracks.find((track) => track.id === sourceTrackId) ?? null);
+      const targetTrack = tracks.find((track) => track.id === targetTrackId) ?? null;
 
       if (!sourceTrack || !targetTrack) {
         return { canDrop: false, reason: 'invalid-track', allowCrossKindTrackMove: false };
@@ -249,12 +249,8 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
         return { canDrop: false, reason: 'locked', allowCrossKindTrackMove: false };
       }
 
-      const sourceTrackIndex = (state.tracks as Track<TrackKind>[]).findIndex(
-        (track) => track.id === sourceTrack.id
-      );
-      const targetTrackIndex = (state.tracks as Track<TrackKind>[]).findIndex(
-        (track) => track.id === targetTrack.id
-      );
+      const sourceTrackIndex = tracks.findIndex((track) => track.id === sourceTrack.id);
+      const targetTrackIndex = tracks.findIndex((track) => track.id === targetTrack.id);
       const sameKind = sourceTrack.kind === targetTrack.kind;
 
       if (!sameKind && !customCanDropClipOnTrack) {

@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useRef,
-  type CanvasHTMLAttributes,
-  type MutableRefObject,
-} from 'react';
+import React, { useCallback, useRef, type CanvasHTMLAttributes } from 'react';
 import {
   useTimelineCanvasLayer,
   type UseTimelineCanvasLayerOptions,
@@ -86,7 +81,7 @@ export const TimelineCanvasLayer = React.forwardRef<HTMLCanvasElement, TimelineC
         if (typeof forwardedRef === 'function') {
           forwardedRef(node);
         } else if (forwardedRef) {
-          (forwardedRef as MutableRefObject<HTMLCanvasElement | null>).current = node;
+          forwardedRef.current = node;
         }
       },
       [forwardedRef]

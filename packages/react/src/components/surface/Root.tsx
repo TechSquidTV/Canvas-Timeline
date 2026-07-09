@@ -89,13 +89,12 @@ export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     const startZoomScale = useRef(1);
     const startPinchDistance = useRef(0);
 
-    const handlePointerDown = (e: React.PointerEvent) => {
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.target === internalRef.current) {
         engine.selectClip(null);
       }
 
-      const target = e.currentTarget as HTMLElement;
-      target.setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
 
       activePointers.current.set(e.pointerId, {
         clientX: e.clientX,
@@ -110,7 +109,7 @@ export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
         startScrollTop.current = engine.scrollTop;
       } else if (activePointers.current.size === 2) {
         isDragging.current = false;
-        const pts = Array.from(activePointers.current.values()) as ActivePointer[];
+        const pts = Array.from(activePointers.current.values());
         const dx = pts[0].clientX - pts[1].clientX;
         const dy = pts[0].clientY - pts[1].clientY;
         startPinchDistance.current = Math.hypot(dx, dy);
@@ -120,7 +119,7 @@ export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
       }
     };
 
-    const handlePointerMove = (e: React.PointerEvent) => {
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
       const pt = activePointers.current.get(e.pointerId);
       if (!pt) {
         return;
@@ -135,7 +134,7 @@ export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
         engine.setScrollLeft(Math.max(0, startScrollLeft.current - deltaX));
         engine.setScrollTop(Math.max(0, startScrollTop.current - deltaY));
       } else if (activePointers.current.size === 2) {
-        const pts = Array.from(activePointers.current.values()) as ActivePointer[];
+        const pts = Array.from(activePointers.current.values());
         const dx = pts[0].clientX - pts[1].clientX;
         const dy = pts[0].clientY - pts[1].clientY;
         const currentDistance = Math.hypot(dx, dy);
@@ -169,10 +168,9 @@ export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
       }
     };
 
-    const handlePointerUp = (e: React.PointerEvent) => {
-      const target = e.currentTarget as HTMLElement;
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
       try {
-        target.releasePointerCapture(e.pointerId);
+        e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         // Ignore
       }

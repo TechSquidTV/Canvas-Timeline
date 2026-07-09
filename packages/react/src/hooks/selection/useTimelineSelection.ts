@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import {
   deriveTimelineSelection,
   type TimelineSelectionState,
@@ -78,7 +78,7 @@ export interface UseTimelineSelectionResult<
 export function useTimelineSelection<TrackKind = string>(): UseTimelineSelectionResult<TrackKind> {
   const { engine, state } = useTimeline();
   const selection = useMemo(
-    () => deriveTimelineSelection(state.tracks as Track<TrackKind>[], state.clipGroups),
+    () => deriveTimelineSelection(getTimelineTracks<TrackKind>(state.tracks), state.clipGroups),
     [state.clipGroups, state.tracks]
   );
 

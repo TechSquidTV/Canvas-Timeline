@@ -125,7 +125,7 @@ interface MediabunnySourceController {
   audioSink: Mediabunny.AudioBufferSink | null;
   audioContext: AudioContext | null;
   gainNode: GainNode | null;
-  audioBufferIterator: AsyncGenerator<Mediabunny.WrappedAudioBuffer, void, unknown> | null;
+  audioBufferIterator: AsyncGenerator<Mediabunny.WrappedAudioBuffer, void, void> | null;
   queuedAudioNodes: Set<AudioBufferSourceNode>;
   timelineTimeAtStart: number;
   audioContextStartTime: number | null;

@@ -71,7 +71,7 @@ self.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
   const message = event.data;
   if (message.type === 'INIT') {
     canvas = message.canvas;
-    ctx = canvas?.getContext('2d', { alpha: false }) as OffscreenCanvasRenderingContext2D;
+    ctx = canvas.getContext('2d', { alpha: false });
     state = message.state;
     dpr = message.dpr || 1;
     keyframesRequested = message.keyframesRequested ?? Boolean(message.options?.showKeyframes);

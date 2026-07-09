@@ -9,6 +9,7 @@ import {
   type TimelineCommandResult,
 } from '#react/hooks/core/timelineCommandResult';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
 
@@ -126,7 +127,7 @@ export function useTimelineTrack<TrackKind extends string = string>(
   const revision = useTimelineGeometryRevision();
   const trackSnapshot = useMemo(() => {
     void revision;
-    const tracks = state.tracks as Track<TrackKind>[];
+    const tracks = getTimelineTracks<TrackKind>(state.tracks);
     const trackIndex = tracks.findIndex((candidate) => candidate.id === trackId);
     const track = trackIndex === -1 ? null : tracks[trackIndex];
 

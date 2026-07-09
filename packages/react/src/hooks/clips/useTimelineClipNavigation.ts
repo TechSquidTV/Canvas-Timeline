@@ -4,6 +4,7 @@ import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
 import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { getClipAccessibleDescription, getClipAccessibleName } from '#react/accessibility';
 import { useTimeline } from '#react/hooks/core/useTimeline';
+import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
 import { useTimelineClips } from '#react/hooks/clips/useTimelineClips';
 import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
 import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
@@ -220,7 +221,7 @@ export function useTimelineClipNavigation<TrackKind = string>(
       }
 
       const nextTrackIndex = activeClip.trackIndex + delta;
-      const nextTrack = (state.tracks as Track<TrackKind>[])[nextTrackIndex];
+      const nextTrack = getTimelineTracks<TrackKind>(state.tracks)[nextTrackIndex];
       if (!nextTrack || nextTrack.clips.length === 0) {
         return activeClip;
       }
@@ -283,7 +284,9 @@ export function useTimelineClipNavigation<TrackKind = string>(
         return timelineCommandFail('not-found');
       }
 
-      const nextTrack = (state.tracks as Track<TrackKind>[])[found.trackIndex + deltaTrackIndex];
+      const nextTrack = getTimelineTracks<TrackKind>(state.tracks)[
+        found.trackIndex + deltaTrackIndex
+      ];
       if (!nextTrack) {
         return timelineCommandFail('invalid-track');
       }

@@ -10,10 +10,9 @@ import { useTimeline } from '#react/hooks/core/useTimeline';
  * @see {@link useTimelineEvent}
  * @see {@link https://canvastimeline.com/docs/events-and-lifecycle | Events and lifecycle}
  */
-export type TimelineEventHandler<EventName extends keyof EngineEventMap> =
-  EngineEventMap[EventName] extends void
-    ? () => void
-    : (payload: EngineEventMap[EventName]) => void;
+export type TimelineEventHandler<EventName extends keyof EngineEventMap> = (
+  payload: EngineEventMap[EventName]
+) => void;
 
 /** Options for `useTimelineEvent`. */
 export interface TimelineEventOptions {
@@ -31,7 +30,8 @@ export interface TimelineEventOptions {
  * changes. Use it for low-level integration work such as analytics, custom
  * status panels, or imperative bridges. Prefer focused hooks such as
  * {@link useTimelinePlayheadTime} or {@link useTimelineClipDropFeedback} when a
- * public hook already exists for the state you need.
+ * public hook already exists for the state you need. Events with `void`
+ * payloads can still use zero-argument handlers.
  *
  * @param eventName - TimelineEngine event name to subscribe to.
  * @param handler - Callback invoked with the typed event payload.
@@ -73,8 +73,8 @@ export function useTimelineEvent<EventName extends keyof EngineEventMap>(
       return;
     }
 
-    return engine.on(eventName, ((payload: EngineEventMap[EventName]) => {
-      (handlerRef.current as (payload: EngineEventMap[EventName]) => void)(payload);
-    }) as (payload: EngineEventMap[EventName]) => void);
+    return engine.on(eventName, (payload) => {
+      handlerRef.current(payload);
+    });
   }, [enabled, engine, eventName]);
 }

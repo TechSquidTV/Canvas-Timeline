@@ -65,11 +65,15 @@ Last verified against repository contents on 2026-07-08.
   - [x] Add or confirm `noFallthroughCasesInSwitch: true`.
   - [ ] Keep `skipLibCheck` only if it is a deliberate toolchain tradeoff.
 - [x] Keep `typescript/no-explicit-any` enforced.
-- [ ] Review every public `unknown` use and keep only deliberate extensibility points, such as metadata or external callback payloads.
-- [ ] Review all type assertions in production code.
-  - [ ] Eliminate avoidable casts.
-  - [ ] Replace unsafe casts with narrow helper functions where useful.
-  - [ ] Keep test-only casts isolated to tests.
+- [x] Review every public `unknown` use and keep only deliberate extensibility points, such as metadata or external callback payloads.
+  - [x] Core metadata records document app-owned `Record<string, unknown>` values as intentionally opaque.
+  - [x] React scalar/range control commit details use a named `TimelineControlCommitDetails` alias for third-party event metadata that Canvas Timeline forwards but does not inspect.
+- [x] Review all type assertions in production code.
+  - [x] Eliminate avoidable casts.
+    - [x] Removed redundant React pointer-event, active-pointer array, forwarded-ref, renderer worker context, media sync active-layer, and timeline event handler assertions.
+  - [x] Replace unsafe casts with narrow helper functions where useful.
+    - [x] Centralized track-kind generic assertions behind core and React track access helpers.
+  - [x] Keep test-only casts isolated to tests.
 - [ ] Resolve or explicitly justify every lint ignore, `ts-expect-error`, and custom Knip ignore.
 - [ ] Keep `knip` in CI and review ignored files before release.
 - [x] Keep duplicate exported types and helpers out of the package graph.
