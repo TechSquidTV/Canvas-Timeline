@@ -21,10 +21,11 @@ export interface TimelineInOutRangeControlOptions {
   /** Accessible label for the out-point thumb. */
   outLabel?: string;
   /**
-   * Called after a Base UI-style value commit has settled the engine.
+   * Called after the hook applies a committed range value to the engine.
    *
-   * `eventDetails` is forwarded from the consumer's range control primitive
-   * and stays opaque to Canvas Timeline.
+   * When the underlying range control provides commit details, Canvas Timeline
+   * forwards them unchanged as the second argument and does not read their
+   * fields.
    */
   onValueCommitted?: (
     value: readonly number[],
