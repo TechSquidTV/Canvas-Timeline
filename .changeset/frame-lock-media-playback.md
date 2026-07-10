@@ -1,6 +1,4 @@
 ---
-'@techsquidtv/canvas-timeline-mediabunny-adapter': major
-'@techsquidtv/canvas-timeline-react': minor
 ---
 
 Add optional project-frame-locked media playback and switch Mediabunny video preview playback to a buffered sequential decoder.
