@@ -4,22 +4,19 @@ import { TimelineLayers } from '#full-editor/components/timeline/TimelineLayers'
 import { TimelineSourceDropTarget } from '#full-editor/components/timeline/TimelineSourceDropTarget';
 import { useEditorProject } from '#full-editor/editor/project/project-context';
 import { getProjectFrameRatePreset } from '#full-editor/project/frame-rate';
+import { getEditorRulerOptions } from '#full-editor/timeline/ruler-format';
 
 export function TimelineSurface() {
-  const { metadata } = useEditorProject();
+  const { metadata, rulerFormat } = useEditorProject();
   const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
+  const rulerOptions = getEditorRulerOptions(rulerFormat, timecodeFrameRate);
 
   return (
     <div className="timeline-editor-timeline-panel">
       <div className="timeline-editor-stage-row">
         <div className="timeline-stage timeline-editor-timeline-stage">
           <TimelineSourceDropTarget>
-            <CanvasRenderer
-              ruler={{
-                frameRate: timecodeFrameRate,
-                timecodeFormatOptions: { frameRate: timecodeFrameRate },
-              }}
-            />
+            <CanvasRenderer ruler={rulerOptions} />
             <TimelineLayers />
           </TimelineSourceDropTarget>
         </div>

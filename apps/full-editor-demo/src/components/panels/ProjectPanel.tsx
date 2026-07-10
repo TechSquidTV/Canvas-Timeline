@@ -24,11 +24,23 @@ import {
   type VideoResolutionPresetId,
   videoResolutionPresets,
 } from '#full-editor/project/video-settings';
+import {
+  editorRulerFormats,
+  formatEditorRulerFormat,
+  isEditorRulerFormat,
+  type EditorRulerFormat,
+} from '#full-editor/timeline/ruler-format';
 
 export function ProjectPanel() {
   const state = useTimelineState();
-  const { metadata, setProjectFrameRatePreset, setProjectResolutionPreset, setProjectTitle } =
-    useEditorProject();
+  const {
+    metadata,
+    rulerFormat,
+    setProjectFrameRatePreset,
+    setProjectResolutionPreset,
+    setProjectTitle,
+    setRulerFormat,
+  } = useEditorProject();
   const { clips } = useTimelineClips<EditorTrackKind>();
   const { tracks } = useTimelineTracks<EditorTrackKind>();
   const currentResolutionPresetId =
@@ -39,16 +51,19 @@ export function ProjectPanel() {
     useState<VideoResolutionPresetId>(currentResolutionPresetId);
   const [frameRateDraft, setFrameRateDraft] =
     useState<ProjectFrameRatePresetId>(currentFrameRatePresetId);
+  const [rulerFormatDraft, setRulerFormatDraft] = useState<EditorRulerFormat>(rulerFormat);
   const settingsChanged =
     titleDraft !== metadata.title ||
     resolutionDraft !== currentResolutionPresetId ||
-    frameRateDraft !== currentFrameRatePresetId;
+    frameRateDraft !== currentFrameRatePresetId ||
+    rulerFormatDraft !== rulerFormat;
 
   useEffect(() => {
     setTitleDraft(metadata.title);
     setResolutionDraft(currentResolutionPresetId);
     setFrameRateDraft(currentFrameRatePresetId);
-  }, [currentFrameRatePresetId, currentResolutionPresetId, metadata.title]);
+    setRulerFormatDraft(rulerFormat);
+  }, [currentFrameRatePresetId, currentResolutionPresetId, metadata.title, rulerFormat]);
 
   function applyProjectSettings() {
     const normalizedTitle = normalizeProjectTitle(titleDraft);
@@ -61,6 +76,9 @@ export function ProjectPanel() {
     if (frameRateDraft !== currentFrameRatePresetId) {
       setProjectFrameRatePreset(frameRateDraft);
     }
+    if (rulerFormatDraft !== rulerFormat) {
+      setRulerFormat(rulerFormatDraft);
+    }
     setTitleDraft(normalizedTitle);
   }
 
@@ -68,6 +86,7 @@ export function ProjectPanel() {
     setTitleDraft(metadata.title);
     setResolutionDraft(currentResolutionPresetId);
     setFrameRateDraft(currentFrameRatePresetId);
+    setRulerFormatDraft(rulerFormat);
   }
 
   return (
@@ -90,6 +109,10 @@ export function ProjectPanel() {
           <dd>{formatProjectFrameRate(metadata.frameRate)}</dd>
         </div>
         <div>
+          <dt>Ruler</dt>
+          <dd>{formatEditorRulerFormat(rulerFormat)}</dd>
+        </div>
+        <div>
           <dt>Tracks</dt>
           <dd>{tracks.length}</dd>
         </div>
@@ -108,6 +131,24 @@ export function ProjectPanel() {
             onChange={(event) => setTitleDraft(event.currentTarget.value)}
             value={titleDraft}
           />
+        </label>
+        <label className="editor-field">
+          <span>Ruler format</span>
+          <select
+            className="editor-input"
+            onChange={(event) => {
+              if (isEditorRulerFormat(event.currentTarget.value)) {
+                setRulerFormatDraft(event.currentTarget.value);
+              }
+            }}
+            value={rulerFormatDraft}
+          >
+            {editorRulerFormats.map((format) => (
+              <option key={format.id} value={format.id}>
+                {format.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="editor-field">
           <span>Frame rate</span>

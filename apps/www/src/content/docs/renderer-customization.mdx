@@ -99,6 +99,20 @@ automatically increases major-tick spacing when needed. This keeps frame-aware
 timecodes legible when an app changes `--timeline-font-ruler` or supplies a
 renderer font override.
 
+Omit `frameRate` for a seconds ruler, or provide it for timecode and frame-aware
+tick geometry. Use `labelFormat: 'frame-number'` when major ticks should show
+absolute frame numbers instead:
+
+```tsx
+<CanvasRenderer />
+<CanvasRenderer ruler={{ frameRate: 30 }} />
+<CanvasRenderer ruler={{ frameRate: 30, labelFormat: 'frame-number' }} />
+```
+
+Frame-aware rulers choose minor intervals that evenly divide each major
+interval, so minor ticks keep a consistent cadence on both sides of every
+major tick.
+
 Use `minimumMajorTickSpacing` when the composition needs additional breathing
 room beyond the measured label width:
 

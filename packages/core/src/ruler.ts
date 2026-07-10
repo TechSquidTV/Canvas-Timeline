@@ -87,7 +87,27 @@ function getFrameTickInterval(
 
 function getFrameSubTickInterval(frameRate: number, zoomScale: number, majorFrameInterval: number) {
   const pxPerFrame = zoomScale / frameRate;
-  return Math.min(majorFrameInterval, Math.max(1, Math.ceil(minFrameSubtickSpacing / pxPerFrame)));
+  const minimumFrameInterval = Math.min(
+    majorFrameInterval,
+    Math.max(1, Math.ceil(minFrameSubtickSpacing / pxPerFrame))
+  );
+  let subTickInterval = majorFrameInterval;
+
+  for (let divisor = 1; divisor * divisor <= majorFrameInterval; divisor++) {
+    if (majorFrameInterval % divisor !== 0) {
+      continue;
+    }
+
+    const complement = majorFrameInterval / divisor;
+    if (divisor >= minimumFrameInterval) {
+      subTickInterval = Math.min(subTickInterval, divisor);
+    }
+    if (complement >= minimumFrameInterval) {
+      subTickInterval = Math.min(subTickInterval, complement);
+    }
+  }
+
+  return subTickInterval;
 }
 
 function getSafeViewportOptions(options: TimelineRulerTickOptions) {
@@ -154,24 +174,12 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
   const maxFrame = options.duration
     ? Math.floor(toSeconds(options.duration) * frameRate)
     : Number.POSITIVE_INFINITY;
-  const firstMinorFrame = Math.max(
-    0,
-    Math.floor(startFrame / minorFrameInterval) * minorFrameInterval
-  );
-  const lastMinorFrame = Math.min(visibleEndFrame, maxFrame);
-  const firstMajorFrame = Math.max(
-    0,
-    Math.floor(startFrame / majorFrameInterval) * majorFrameInterval
-  );
-  const lastMajorFrame = Math.min(visibleEndFrame, maxFrame);
-  const ticksByFrame = new Map<number, TimelineRulerTick>();
+  const firstFrame = Math.max(0, Math.floor(startFrame / minorFrameInterval) * minorFrameInterval);
+  const lastFrame = Math.min(visibleEndFrame, maxFrame);
+  const ticks: TimelineRulerTick[] = [];
 
-  const addTick = (frame: number, kind: TimelineRulerTick['kind']) => {
-    const existing = ticksByFrame.get(frame);
-    if (existing && (existing.kind === 'major' || kind === 'minor')) {
-      return;
-    }
-
+  for (let frame = firstFrame; frame <= lastFrame; frame += minorFrameInterval) {
+    const kind: TimelineRulerTick['kind'] = frame % majorFrameInterval === 0 ? 'major' : 'minor';
     const seconds = frame / frameRate;
     const time = fromSeconds(seconds);
     const label =
@@ -184,7 +192,7 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
             })
         : undefined;
 
-    ticksByFrame.set(frame, {
+    ticks.push({
       kind,
       x: Math.floor(seconds * zoomScale - scrollLeft),
       time,
@@ -192,17 +200,9 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
       frame,
       ...(label !== undefined ? { label } : {}),
     });
-  };
-
-  for (let frame = firstMinorFrame; frame <= lastMinorFrame; frame += minorFrameInterval) {
-    addTick(frame, frame % majorFrameInterval === 0 ? 'major' : 'minor');
   }
 
-  for (let frame = firstMajorFrame; frame <= lastMajorFrame; frame += majorFrameInterval) {
-    addTick(frame, 'major');
-  }
-
-  return Array.from(ticksByFrame.values()).sort((a, b) => (a.frame ?? 0) - (b.frame ?? 0));
+  return ticks;
 }
 
 /**

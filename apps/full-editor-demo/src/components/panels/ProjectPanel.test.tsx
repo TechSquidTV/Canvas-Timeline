@@ -9,6 +9,7 @@ import {
   type ProjectContextValue,
 } from '#full-editor/editor/project/project-context';
 import { getDefaultProjectMetadata } from '#full-editor/project/project-metadata';
+import { defaultEditorRulerFormat } from '#full-editor/timeline/ruler-format';
 
 function renderProjectPanel(overrides: Partial<ProjectContextValue> = {}) {
   const engine = new TimelineEngine({
@@ -20,9 +21,11 @@ function renderProjectPanel(overrides: Partial<ProjectContextValue> = {}) {
     autosaveStatus: 'saved',
     metadata: getDefaultProjectMetadata(),
     resetProject: vi.fn(),
+    rulerFormat: defaultEditorRulerFormat,
     setProjectFrameRatePreset: vi.fn(),
     setProjectResolutionPreset: vi.fn(),
     setProjectTitle: vi.fn(),
+    setRulerFormat: vi.fn(),
     storageAvailable: true,
     ...overrides,
   } satisfies ProjectContextValue;
@@ -74,4 +77,29 @@ test('ProjectPanel does not reapply or pause for an unchanged frame rate', () =>
 
   expect(context.setProjectTitle).toHaveBeenCalledWith('Renamed Project');
   expect(context.setProjectFrameRatePreset).not.toHaveBeenCalled();
+});
+
+test('ProjectPanel applies an edited ruler format', () => {
+  const context = renderProjectPanel();
+
+  fireEvent.change(screen.getByLabelText('Ruler format'), { target: { value: 'timecode' } });
+  act(() => {
+    screen.getByRole('button', { name: 'Apply' }).click();
+  });
+
+  expect(context.setRulerFormat).toHaveBeenCalledWith('timecode');
+});
+
+test('ProjectPanel cancels a ruler-format draft without applying it', () => {
+  const context = renderProjectPanel();
+  const rulerFormatSelect = screen.getByLabelText<HTMLSelectElement>('Ruler format');
+
+  fireEvent.change(rulerFormatSelect, { target: { value: 'frame-number' } });
+  expect(rulerFormatSelect.value).toBe('frame-number');
+  act(() => {
+    screen.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  expect(rulerFormatSelect.value).toBe('seconds');
+  expect(context.setRulerFormat).not.toHaveBeenCalled();
 });

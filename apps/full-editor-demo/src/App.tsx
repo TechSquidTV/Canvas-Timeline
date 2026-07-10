@@ -29,6 +29,11 @@ import {
   type ProjectFrameRatePresetId,
 } from '#full-editor/project/frame-rate';
 import { TimelineDropModeProvider } from '#full-editor/timeline/TimelineDropModeProvider';
+import {
+  loadEditorRulerFormat,
+  saveEditorRulerFormat,
+  type EditorRulerFormat,
+} from '#full-editor/timeline/ruler-format';
 
 export function App() {
   const [bootstrapState, setBootstrapState] = useState<EditorBootstrapState | null>(null);
@@ -112,6 +117,7 @@ function LoadedEditor({
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>(
     bootstrapState.projectMetadata
   );
+  const [rulerFormat, setRulerFormatState] = useState(loadEditorRulerFormat);
   const engine = useMemo(
     () =>
       new TimelineEngine({
@@ -153,6 +159,10 @@ function LoadedEditor({
       width: preset.width,
     }));
   }, []);
+  const setRulerFormat = useCallback((format: EditorRulerFormat) => {
+    setRulerFormatState(format);
+    saveEditorRulerFormat(format);
+  }, []);
 
   return (
     <TimelineProvider engine={engine}>
@@ -160,9 +170,11 @@ function LoadedEditor({
         autosaveStatus={autosaveStatus}
         metadata={projectMetadata}
         resetProject={resetEditorProject}
+        rulerFormat={rulerFormat}
         setProjectFrameRatePreset={setProjectFrameRatePreset}
         setProjectResolutionPreset={setProjectResolutionPreset}
         setProjectTitle={setProjectTitle}
+        setRulerFormat={setRulerFormat}
         storageAvailable={bootstrapState.storageAvailable}
       >
         <ProjectAutosave

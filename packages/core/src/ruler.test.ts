@@ -56,7 +56,20 @@ describe('getTimelineRulerTicks', () => {
     });
   });
 
-  it('preserves frame labels when minor ticks do not align to major frames', () => {
+  it('aligns frame subticks to an even subdivision of each major interval', () => {
+    const ticks = getTimelineRulerTicks({
+      duration: fromSeconds(2),
+      frameRate: 30,
+      scrollLeft: 0,
+      viewportWidth: 100,
+      zoomScale: 150,
+    });
+
+    expect(ticks.map((tick) => tick.frame)).toEqual([0, 3, 6, 9, 12, 15, 18]);
+    expect(ticks.find((tick) => tick.frame === 15)).toMatchObject({ kind: 'major' });
+  });
+
+  it('preserves frame labels when subticks share the major cadence', () => {
     const ticks = getTimelineRulerTicks({
       duration: fromSeconds(20),
       frameRate: 24,
@@ -70,6 +83,7 @@ describe('getTimelineRulerTicks', () => {
       kind: 'major',
       label: '200',
     });
+    expect(ticks.map((tick) => tick.frame)).toEqual([0, 40, 80, 120, 160, 200, 240]);
   });
 
   it('returns frame-aware ruler ticks with timecode labels', () => {
