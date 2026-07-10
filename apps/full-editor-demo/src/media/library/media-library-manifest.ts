@@ -18,13 +18,14 @@ export function parseMediaLibraryManifest(text: string): MediaLibraryManifestFil
   const parsed: unknown = JSON.parse(text);
 
   if (!isJsonObject(parsed) || parsed.version !== 1 || !Array.isArray(parsed.sources)) {
-    return createEmptyMediaLibraryManifest();
+    throw new Error('Unsupported or invalid media library manifest.');
   }
 
-  return {
-    version: 1,
-    sources: parsed.sources.filter(isManifestSource),
-  };
+  if (!parsed.sources.every(isManifestSource)) {
+    throw new Error('Media library manifest contains an invalid source.');
+  }
+
+  return { version: 1, sources: parsed.sources };
 }
 
 export function createEmptyMediaLibraryManifest(): MediaLibraryManifestFile {
