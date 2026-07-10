@@ -12,6 +12,7 @@ export type ProjectAutosaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'una
 export interface ProjectContextValue {
   autosaveStatus: ProjectAutosaveStatus;
   metadata: ProjectMetadata;
+  projectRestoreError?: string;
   resetProject: (metadataOverride?: ProjectMetadataOverride) => Promise<void>;
   rulerFormat: EditorRulerFormat;
   setProjectFrameRatePreset: (presetId: ProjectFrameRatePresetId) => void;

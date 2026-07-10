@@ -11,9 +11,14 @@ interface JsonObject {
   readonly [key: string]: unknown;
 }
 
-export function parseProjectSnapshot(text: string): ProjectStorageSnapshot | null {
+export function parseProjectSnapshot(text: string): ProjectStorageSnapshot {
   const parsed: unknown = JSON.parse(text);
-  return isProjectSnapshot(parsed) ? parsed : null;
+
+  if (!isProjectSnapshot(parsed)) {
+    throw new Error('Unsupported or invalid project snapshot.');
+  }
+
+  return parsed;
 }
 
 function isProjectSnapshot(value: unknown): value is ProjectStorageSnapshot {

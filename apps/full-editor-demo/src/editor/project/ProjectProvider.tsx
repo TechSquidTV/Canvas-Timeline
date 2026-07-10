@@ -8,6 +8,7 @@ export function ProjectProvider({
   autosaveStatus,
   children,
   metadata,
+  projectRestoreError,
   resetProject,
   rulerFormat,
   setProjectFrameRatePreset,
@@ -20,6 +21,7 @@ export function ProjectProvider({
     () => ({
       autosaveStatus,
       metadata,
+      projectRestoreError,
       resetProject,
       rulerFormat,
       setProjectFrameRatePreset,
@@ -31,6 +33,7 @@ export function ProjectProvider({
     [
       autosaveStatus,
       metadata,
+      projectRestoreError,
       resetProject,
       rulerFormat,
       setProjectFrameRatePreset,

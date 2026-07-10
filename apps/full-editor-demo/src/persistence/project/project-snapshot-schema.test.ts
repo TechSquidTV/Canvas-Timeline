@@ -16,22 +16,35 @@ describe('project snapshot schema', () => {
 
   it('rejects older project snapshot versions', () => {
     const snapshot = createSnapshot();
-    const parsed = parseProjectSnapshot(
-      JSON.stringify({
-        ...snapshot,
-        version: 2,
-      })
-    );
+    expect(() =>
+      parseProjectSnapshot(
+        JSON.stringify({
+          ...snapshot,
+          version: 2,
+        })
+      )
+    ).toThrow('Unsupported or invalid project snapshot.');
+  });
 
-    expect(parsed).toBeNull();
+  it('rejects malformed timeline state instead of treating it as a missing project', () => {
+    expect(() =>
+      parseProjectSnapshot(
+        JSON.stringify({
+          ...createSnapshot(),
+          timelineState: { tracks: [] },
+        })
+      )
+    ).toThrow('Unsupported or invalid project snapshot.');
   });
 
   it('restores supported fractional rates and rejects unsupported project rates', () => {
     expect(
       parseProjectSnapshot(JSON.stringify({ ...createSnapshot(), frameRate: 30_000 / 1_001 }))
-        ?.frameRate
+        .frameRate
     ).toBe(30_000 / 1_001);
-    expect(parseProjectSnapshot(JSON.stringify({ ...createSnapshot(), frameRate: 48 }))).toBeNull();
+    expect(() =>
+      parseProjectSnapshot(JSON.stringify({ ...createSnapshot(), frameRate: 48 }))
+    ).toThrow('Unsupported or invalid project snapshot.');
   });
 
   it('defaults project metadata to a 1080p canvas', () => {

@@ -11,6 +11,7 @@ import {
 import type { PersistedTimelineState } from '#full-editor/persistence/project/types';
 
 export interface EditorBootstrapState {
+  projectRestoreError?: string;
   projectState: PersistedTimelineState;
   projectMetadata: ProjectMetadata;
   sourceRestoreError?: string;
@@ -33,6 +34,7 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
 
   let projectState = seedProjectState;
   let projectMetadata = getDefaultProjectMetadata();
+  let projectRestoreError: string | undefined;
   let sources: readonly MediaLibrarySource[] = [];
   let sourceRestoreError: string | undefined;
 
@@ -50,7 +52,8 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
             title: snapshot.title,
             width: snapshot.width,
           };
-  } catch {
+  } catch (error) {
+    projectRestoreError = errorMessage(error);
     projectState = seedProjectState;
   }
 
@@ -63,6 +66,7 @@ export async function loadEditorBootstrap(): Promise<EditorBootstrapState> {
   return {
     projectState,
     projectMetadata,
+    projectRestoreError,
     sourceRestoreError,
     sources,
     storageAvailable,
