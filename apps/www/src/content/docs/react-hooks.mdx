@@ -47,6 +47,32 @@ Mutating hook commands return `TimelineCommandResult`, so custom controls can
 branch on `ok` and machine-readable failure reasons without reading private
 engine state.
 
+## Custom ruler surfaces
+
+Use `useTimelineRulerTicks()` when rendering ruler ticks with DOM, SVG, or a
+custom drawing system. It consumes the same core geometry as `CanvasRenderer`
+and subscribes only to viewport changes. Choose the display with the explicit
+`format` discriminant:
+
+```tsx
+const ticks = useTimelineRulerTicks({
+  format: 'timecode',
+  frameRate: { numerator: 30000, denominator: 1001 },
+  minimumMajorTickSpacing: 96,
+});
+```
+
+Use `{ format: 'seconds' }` for elapsed clock labels or
+`{ format: 'frame-number', frameRate }` for absolute frame numbers. Frame-aware
+rulers derive their major intervals from the project rate and return
+`major`, `medium`, and `minor` visual weights. DOM renderers should set
+`minimumMajorTickSpacing` from their typography and handle label alignment at
+the viewport edges; the canvas renderer performs both measurements
+automatically.
+
+The [React DOM timeline demo](/demos/react-dom-timeline) provides a live format
+selector and renders all three modes from this hook.
+
 ## Edit command hooks
 
 Use `useTimelineEditCommands()` for product chrome and custom gestures that

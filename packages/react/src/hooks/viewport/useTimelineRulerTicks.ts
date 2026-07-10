@@ -1,14 +1,38 @@
 import { useMemo } from 'react';
 import {
   getTimelineRulerTicks,
+  type TimelineRulerFormatOptions,
+  type TimelineRulerGeometryOptions,
   type TimelineRulerTick,
-  type TimelineRulerTickOptions,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 
 /** Options accepted by `useTimelineRulerTicks`. */
-export type UseTimelineRulerTicksOptions = Partial<TimelineRulerTickOptions>;
+export type UseTimelineRulerTicksOptions = Partial<TimelineRulerGeometryOptions> &
+  TimelineRulerFormatOptions;
+
+function getRulerFormatOptions(
+  format: TimelineRulerFormatOptions['format'],
+  frameRate: TimelineRulerFormatOptions['frameRate'],
+  timecodeFormatOptions: TimelineRulerFormatOptions['timecodeFormatOptions']
+): TimelineRulerFormatOptions {
+  if (format === 'timecode') {
+    if (frameRate === undefined) {
+      throw new TypeError('A timecode ruler requires a frame rate.');
+    }
+    return { format, frameRate, timecodeFormatOptions };
+  }
+
+  if (format === 'frame-number') {
+    if (frameRate === undefined) {
+      throw new TypeError('A frame-number ruler requires a frame rate.');
+    }
+    return { format, frameRate };
+  }
+
+  return { format: 'seconds' };
+}
 
 /**
  * Returns shared viewport-space ruler ticks for DOM and custom timeline chrome.
@@ -20,15 +44,16 @@ export type UseTimelineRulerTicksOptions = Partial<TimelineRulerTickOptions>;
  * @returns Ruler ticks clipped to the visible viewport and optional duration.
  */
 export function useTimelineRulerTicks(
-  options: UseTimelineRulerTicksOptions = {}
+  options: UseTimelineRulerTicksOptions = { format: 'seconds' }
 ): TimelineRulerTick[] {
   const { engine } = useTimeline();
   const revision = useTimelineGeometryRevision();
   const {
     duration,
+    format,
     frameRate,
     includeLabels,
-    labelFormat,
+    minimumMajorTickSpacing,
     scrollLeft,
     timecodeFormatOptions,
     viewportWidth,
@@ -41,20 +66,20 @@ export function useTimelineRulerTicks(
 
     return getTimelineRulerTicks({
       duration: duration ?? state.duration,
-      frameRate,
       includeLabels,
-      labelFormat,
+      minimumMajorTickSpacing,
       scrollLeft: scrollLeft ?? state.scrollLeft,
-      timecodeFormatOptions,
       viewportWidth: viewportWidth ?? (state.viewportWidth || 1000),
       zoomScale: zoomScale ?? state.zoomScale,
+      ...getRulerFormatOptions(format, frameRate, timecodeFormatOptions),
     });
   }, [
     duration,
     engine,
+    format,
     frameRate,
     includeLabels,
-    labelFormat,
+    minimumMajorTickSpacing,
     revision,
     scrollLeft,
     timecodeFormatOptions,

@@ -153,6 +153,10 @@ class FakeCanvasContext {
   moveTo(x: number, y: number) {
     this.pathCommands.push({ type: 'moveTo', x, y });
   }
+  measureText(text: string) {
+    const fontSize = Number.parseFloat(this.font) || 10;
+    return { width: text.length * fontSize * 0.6 };
+  }
   rect(x: number, y: number, width: number, height: number) {
     this.rects.push({ height, width, x, y });
     this.addPathRect(x, y, width, height);
@@ -1136,12 +1140,101 @@ describe('renderTimeline', () => {
       { width: 200, height: 160 } as OffscreenCanvas,
       createState(),
       1,
-      { ruler: { frameRate: 24, labelFormat: 'frame-number' } }
+      { ruler: { format: 'frame-number', frameRate: 24 } }
     );
 
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '0' }));
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '24' }));
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '48' }));
+  });
+
+  it('spaces timecode labels using the resolved ruler font width', () => {
+    const ctx = new FakeCanvasContext();
+    const state = new TimelineEngine({
+      duration: fromSeconds(36),
+      tracks: [],
+      zoomScale: 38,
+    }).getState();
+
+    renderTimeline(
+      ctx as unknown as OffscreenCanvasRenderingContext2D,
+      { width: 500, height: 160 } as OffscreenCanvas,
+      state,
+      1,
+      {
+        ruler: { format: 'timecode', frameRate: 30 },
+        theme: { fonts: { ruler: '20px monospace' } },
+      }
+    );
+
+    const rulerLabels = ctx.texts.filter((text) => text.y === 4);
+
+    expect(rulerLabels.map((text) => text.text)).toEqual(['00:00:00:00', '00:00:10:00']);
+    expect(
+      rulerLabels.slice(1).every((label, index) => {
+        const previousLabel = rulerLabels[index];
+        return previousLabel !== undefined && label.x - previousLabel.x >= 140;
+      })
+    ).toBe(true);
+  });
+
+  it('does not let configured spacing undercut the resolved ruler font width', () => {
+    const state = new TimelineEngine({
+      duration: fromSeconds(36),
+      tracks: [],
+      zoomScale: 38,
+    }).getState();
+    const renderMajorTickXs = (minimumMajorTickSpacing?: number) => {
+      const ctx = new FakeCanvasContext();
+
+      renderTimeline(
+        ctx as unknown as OffscreenCanvasRenderingContext2D,
+        { width: 500, height: 160 } as OffscreenCanvas,
+        state,
+        1,
+        {
+          ruler: {
+            format: 'timecode',
+            frameRate: 30,
+            ...(minimumMajorTickSpacing === undefined ? {} : { minimumMajorTickSpacing }),
+          },
+          theme: { fonts: { ruler: '20px monospace' } },
+        }
+      );
+
+      return ctx.rects
+        .filter((rect) => rect.width === 1 && rect.y === 16 && rect.height === 16)
+        .map((rect) => rect.x);
+    };
+
+    const resolvedMajorTickXs = renderMajorTickXs();
+
+    expect(renderMajorTickXs(1)).toEqual(resolvedMajorTickXs);
+    expect(renderMajorTickXs(Number.NaN)).toEqual(resolvedMajorTickXs);
+  });
+
+  it('keeps ruler labels inside the viewport and suppresses edge collisions', () => {
+    const ctx = new FakeCanvasContext();
+    const state = new TimelineEngine({
+      duration: fromSeconds(20),
+      tracks: [],
+      zoomScale: 50,
+    }).getState();
+
+    renderTimeline(
+      ctx as unknown as OffscreenCanvasRenderingContext2D,
+      { width: 200, height: 160 } as OffscreenCanvas,
+      state,
+      1,
+      { ruler: { format: 'timecode', frameRate: 30 } }
+    );
+
+    const rulerLabels = ctx.texts.filter((text) => text.y === 4);
+
+    expect(rulerLabels[0]).toMatchObject({ text: '00:00:00:00', x: 0 });
+    expect(rulerLabels.every((label) => label.x + ctx.measureText(label.text).width <= 200)).toBe(
+      true
+    );
   });
 
   it('does not draw sub-frame ruler ticks at the frame-aware zoom cap', () => {
@@ -1161,7 +1254,7 @@ describe('renderTimeline', () => {
       state,
       1,
       {
-        ruler: { frameRate: 24, labelFormat: 'frame-number' },
+        ruler: { format: 'frame-number', frameRate: 24 },
         showRulerLabels: false,
       }
     );
@@ -1169,7 +1262,9 @@ describe('renderTimeline', () => {
     const tickRects = ctx.rects.filter(
       (rect) =>
         rect.width === 1 &&
-        ((rect.y === 16 && rect.height === 16) || (rect.y === 24 && rect.height === 8))
+        ((rect.y === 16 && rect.height === 16) ||
+          (rect.y === 20 && rect.height === 12) ||
+          (rect.y === 24 && rect.height === 8))
     );
 
     expect(tickRects).toHaveLength(25);

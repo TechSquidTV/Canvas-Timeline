@@ -198,7 +198,7 @@ export const demoDocs: DemoDoc[] = [
     slug: 'react-dom-timeline',
     title: 'React DOM Timeline',
     description:
-      'A timeline editor utilizing pure React and DOM elements to render tracks and clips, bypassing the canvas renderer while retaining all state, control, and interaction layers.',
+      'A timeline editor utilizing pure React and DOM elements to render tracks, clips, and a switchable seconds, timecode, or frame-number ruler while retaining all state, control, and interaction layers.',
     status: 'DOM renderer',
     difficulty: 'Beginner',
     packageFocus: ['@techsquidtv/canvas-timeline-core', '@techsquidtv/canvas-timeline-react'],

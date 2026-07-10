@@ -9,9 +9,11 @@ export function ProjectProvider({
   children,
   metadata,
   resetProject,
+  rulerFormat,
   setProjectFrameRatePreset,
   setProjectResolutionPreset,
   setProjectTitle,
+  setRulerFormat,
   storageAvailable,
 }: ProjectContextValue & { children: ReactNode }) {
   const value = useMemo(
@@ -19,18 +21,22 @@ export function ProjectProvider({
       autosaveStatus,
       metadata,
       resetProject,
+      rulerFormat,
       setProjectFrameRatePreset,
       setProjectResolutionPreset,
       setProjectTitle,
+      setRulerFormat,
       storageAvailable,
     }),
     [
       autosaveStatus,
       metadata,
       resetProject,
+      rulerFormat,
       setProjectFrameRatePreset,
       setProjectResolutionPreset,
       setProjectTitle,
+      setRulerFormat,
       storageAvailable,
     ]
   );
