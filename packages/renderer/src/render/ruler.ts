@@ -68,13 +68,13 @@ function drawRulerTicks(renderContext: RenderContext) {
   const ruler = renderContext.options.ruler ?? { format: 'seconds' as const };
   const labelLayout = getRulerLabelLayout(renderContext);
   const ticks = getTimelineRulerTicks({
+    ...ruler,
     duration: state.duration,
     includeLabels: renderContext.options.showRulerLabels,
     minimumMajorTickSpacing: labelLayout.minimumMajorTickSpacing,
     scrollLeft: state.scrollLeft,
     viewportWidth: width,
     zoomScale: state.zoomScale,
-    ...ruler,
   });
 
   ctx.fillStyle = theme.colors.ruler.tick;

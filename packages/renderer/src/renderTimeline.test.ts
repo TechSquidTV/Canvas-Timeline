@@ -1178,6 +1178,41 @@ describe('renderTimeline', () => {
     ).toBe(true);
   });
 
+  it('does not let configured spacing undercut the resolved ruler font width', () => {
+    const state = new TimelineEngine({
+      duration: fromSeconds(36),
+      tracks: [],
+      zoomScale: 38,
+    }).getState();
+    const renderMajorTickXs = (minimumMajorTickSpacing?: number) => {
+      const ctx = new FakeCanvasContext();
+
+      renderTimeline(
+        ctx as unknown as OffscreenCanvasRenderingContext2D,
+        { width: 500, height: 160 } as OffscreenCanvas,
+        state,
+        1,
+        {
+          ruler: {
+            format: 'timecode',
+            frameRate: 30,
+            ...(minimumMajorTickSpacing === undefined ? {} : { minimumMajorTickSpacing }),
+          },
+          theme: { fonts: { ruler: '20px monospace' } },
+        }
+      );
+
+      return ctx.rects
+        .filter((rect) => rect.width === 1 && rect.y === 16 && rect.height === 16)
+        .map((rect) => rect.x);
+    };
+
+    const resolvedMajorTickXs = renderMajorTickXs();
+
+    expect(renderMajorTickXs(1)).toEqual(resolvedMajorTickXs);
+    expect(renderMajorTickXs(Number.NaN)).toEqual(resolvedMajorTickXs);
+  });
+
   it('keeps ruler labels inside the viewport and suppresses edge collisions', () => {
     const ctx = new FakeCanvasContext();
     const state = new TimelineEngine({
