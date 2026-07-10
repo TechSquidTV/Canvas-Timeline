@@ -36,7 +36,7 @@ function TimelineLayers({ displayOptions }: { displayOptions: BenchmarkDisplayOp
 
   return (
     <>
-      {isDom && <RulerDOM showLabels={true} />}
+      {isDom && <RulerDOM ruler={{ format: 'seconds' }} showLabels={true} />}
       <Timeline.PlayheadArea />
       <Timeline.PlayheadGrabber />
       <Timeline.TrackList className="timeline-track-list-overlay">

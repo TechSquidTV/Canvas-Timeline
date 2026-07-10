@@ -9,6 +9,7 @@ import {
 import { clamp, compareRational, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Magnet, MapPin, Pause, Play, Scissors, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useCallback } from 'react';
+import type { ReactNode } from 'react';
 
 function PlayheadTimecodeControl() {
   const { engine, state } = useTimeline();
@@ -66,7 +67,7 @@ function CutSelectedClipButton() {
 }
 
 // Control Bar Component
-export function ControlBar() {
+export function ControlBar({ children }: { children?: ReactNode }) {
   const { engine, state } = useTimeline();
   const { pause, play, playing } = useTimelinePlayback();
 
@@ -161,6 +162,8 @@ export function ControlBar() {
       <CutSelectedClipButton />
 
       <div className="timeline-control-divider" />
+
+      {children}
 
       {/* Timeline Bounds Dropdown */}
       <div className="timeline-control-field">

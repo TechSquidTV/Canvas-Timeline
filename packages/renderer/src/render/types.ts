@@ -1,8 +1,8 @@
 import type {
   TimelineKeyframeRenderClip,
   TimelineKeyframeRenderGeometry,
-  TimelineRulerLabelFormat,
-  TimelineRulerTickOptions,
+  TimelineRulerFormatOptions,
+  TimelineRulerGeometryOptions,
   TimelineState,
 } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineRendererTheme, TimelineRendererThemeInput } from '#renderer/theme';
@@ -10,12 +10,8 @@ import type { TimelineRendererTheme, TimelineRendererThemeInput } from '#rendere
 /**
  * Optional ruler behavior for canvas-painted timeline ticks and labels.
  */
-export type TimelineRulerOptions = Pick<
-  TimelineRulerTickOptions,
-  'frameRate' | 'labelFormat' | 'minimumMajorTickSpacing' | 'timecodeFormatOptions'
->;
-
-export type { TimelineRulerLabelFormat };
+export type TimelineRulerOptions = TimelineRulerFormatOptions &
+  Pick<TimelineRulerGeometryOptions, 'minimumMajorTickSpacing'>;
 
 /**
  * Toggles optional canvas feedback overlays that may be paired with separate interactive layers.

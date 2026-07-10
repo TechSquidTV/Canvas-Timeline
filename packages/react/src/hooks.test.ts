@@ -1817,8 +1817,8 @@ test('useTimelineRulerTicks passes frame-rate label options through', () => {
   const { result } = renderHook(
     () =>
       useTimelineRulerTicks({
+        format: 'frame-number',
         frameRate: 24,
-        labelFormat: 'frame-number',
         minimumMajorTickSpacing: 100,
       }),
     {

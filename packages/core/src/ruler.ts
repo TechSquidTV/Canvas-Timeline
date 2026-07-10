@@ -5,7 +5,17 @@ import {
   resolveTimecodeFrameRate,
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineRulerTick, TimelineRulerTickOptions } from '#core/types';
+import type {
+  TimelineRulerFormatOptions,
+  TimelineRulerGeometryOptions,
+  TimelineRulerTick,
+  TimelineRulerTickOptions,
+} from '#core/types';
+
+type SecondRulerTickOptions = TimelineRulerGeometryOptions &
+  Extract<TimelineRulerFormatOptions, { format: 'seconds' }>;
+type FrameRulerTickOptions = TimelineRulerGeometryOptions &
+  Exclude<TimelineRulerFormatOptions, { format: 'seconds' }>;
 
 const defaultMajorTickSpacing = 50;
 const defaultTimecodeMajorTickSpacing = 72;
@@ -52,30 +62,17 @@ function getFrameTickInterval(
   const pxPerFrame = zoomScale / frameRate;
   const minFramesPerTick = Math.max(1, Math.ceil(minimumMajorTickSpacing / pxPerFrame));
   const nominalFrameRate = Math.max(1, Math.round(frameRate));
-  const candidates = new Set<number>([
-    1,
-    2,
-    5,
-    10,
-    12,
-    15,
-    24,
-    25,
-    30,
-    50,
-    60,
-    Math.floor(nominalFrameRate / 2),
-    nominalFrameRate,
-  ]);
+  const candidates = new Set<number>();
 
-  for (const multiplier of [2, 5, 10, 30, 60, 120]) {
-    candidates.add(nominalFrameRate * multiplier);
+  for (let interval = 1; interval * interval <= nominalFrameRate; interval++) {
+    if (nominalFrameRate % interval === 0) {
+      candidates.add(interval);
+      candidates.add(nominalFrameRate / interval);
+    }
   }
 
-  for (let interval = 100; interval <= 360000; interval *= 10) {
-    candidates.add(interval);
-    candidates.add(interval * 2);
-    candidates.add(interval * 5);
+  for (const seconds of secondTickIntervals) {
+    candidates.add(nominalFrameRate * seconds);
   }
 
   return (
@@ -83,6 +80,24 @@ function getFrameTickInterval(
       .filter((interval) => interval >= minFramesPerTick)
       .sort((a, b) => a - b)[0] ?? minFramesPerTick
   );
+}
+
+function getFrameMediumTickInterval(
+  majorFrameInterval: number,
+  minorFrameInterval: number
+): number | undefined {
+  for (const segmentCount of [2, 5, 3, 4]) {
+    const candidate = majorFrameInterval / segmentCount;
+    if (
+      Number.isInteger(candidate) &&
+      candidate > minorFrameInterval &&
+      candidate % minorFrameInterval === 0
+    ) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 function getFrameSubTickInterval(frameRate: number, zoomScale: number, majorFrameInterval: number) {
@@ -118,7 +133,7 @@ function getSafeViewportOptions(options: TimelineRulerTickOptions) {
   };
 }
 
-function getSecondRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTick[] {
+function getSecondRulerTicks(options: SecondRulerTickOptions): TimelineRulerTick[] {
   const { scrollLeft, viewportWidth, zoomScale } = getSafeViewportOptions(options);
   const includeLabels = options.includeLabels ?? true;
   const minimumMajorTickSpacing = resolveMinimumMajorTickSpacing(
@@ -140,11 +155,16 @@ function getSecondRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTi
 
   for (let tickIndex = startSubTick; tickIndex <= endSubTick; tickIndex++) {
     const isMajor = tickIndex % subTickCount === 0;
+    const isMedium =
+      !isMajor &&
+      subTickCount > 1 &&
+      subTickCount % 2 === 0 &&
+      tickIndex % (subTickCount / 2) === 0;
     const seconds = (tickIndex / subTickCount) * secondsPerTick;
     const time = fromSeconds(seconds);
 
     ticks.push({
-      kind: isMajor ? 'major' : 'minor',
+      kind: isMajor ? 'major' : isMedium ? 'medium' : 'minor',
       x: Math.floor(seconds * zoomScale - scrollLeft),
       time,
       seconds,
@@ -155,12 +175,12 @@ function getSecondRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTi
   return ticks;
 }
 
-function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTick[] {
+function getFrameRulerTicks(options: FrameRulerTickOptions): TimelineRulerTick[] {
   const { scrollLeft, viewportWidth, zoomScale } = getSafeViewportOptions(options);
   const includeLabels = options.includeLabels ?? true;
-  const frameRate = resolveTimecodeFrameRate(options.frameRate ?? 30);
+  const frameRate = resolveTimecodeFrameRate(options.frameRate);
   const defaultSpacing =
-    includeLabels && options.labelFormat !== 'frame-number'
+    includeLabels && options.format === 'timecode'
       ? defaultTimecodeMajorTickSpacing
       : defaultMajorTickSpacing;
   const minimumMajorTickSpacing = resolveMinimumMajorTickSpacing(
@@ -169,6 +189,7 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
   );
   const majorFrameInterval = getFrameTickInterval(frameRate, zoomScale, minimumMajorTickSpacing);
   const minorFrameInterval = getFrameSubTickInterval(frameRate, zoomScale, majorFrameInterval);
+  const mediumFrameInterval = getFrameMediumTickInterval(majorFrameInterval, minorFrameInterval);
   const startFrame = Math.floor((scrollLeft / zoomScale) * frameRate);
   const visibleEndFrame = Math.ceil(((scrollLeft + viewportWidth) / zoomScale) * frameRate);
   const maxFrame = options.duration
@@ -179,12 +200,17 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
   const ticks: TimelineRulerTick[] = [];
 
   for (let frame = firstFrame; frame <= lastFrame; frame += minorFrameInterval) {
-    const kind: TimelineRulerTick['kind'] = frame % majorFrameInterval === 0 ? 'major' : 'minor';
+    const kind: TimelineRulerTick['kind'] =
+      frame % majorFrameInterval === 0
+        ? 'major'
+        : mediumFrameInterval !== undefined && frame % mediumFrameInterval === 0
+          ? 'medium'
+          : 'minor';
     const seconds = frame / frameRate;
     const time = fromSeconds(seconds);
     const label =
       includeLabels && kind === 'major'
-        ? options.labelFormat === 'frame-number'
+        ? options.format === 'frame-number'
           ? String(frame)
           : formatTimecode(seconds, {
               frameRate: options.frameRate,
@@ -212,7 +238,5 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
  * @returns Ruler ticks clipped to the requested viewport and optional duration.
  */
 export function getTimelineRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTick[] {
-  return options.frameRate === undefined
-    ? getSecondRulerTicks(options)
-    : getFrameRulerTicks(options);
+  return options.format === 'seconds' ? getSecondRulerTicks(options) : getFrameRulerTicks(options);
 }

@@ -293,6 +293,14 @@
   margin-top: 2px;
 }
 
+.timeline-dom-ruler-tick-medium .timeline-dom-ruler-tick-mark {
+  height: 10px;
+}
+
+.timeline-dom-ruler-tick-major .timeline-dom-ruler-tick-mark {
+  height: 14px;
+}
+
 .timeline-dom-clip {
   top: 0;
   display: flex;

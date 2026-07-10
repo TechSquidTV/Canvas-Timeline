@@ -24,12 +24,12 @@ export function formatEditorRulerFormat(format: EditorRulerFormat) {
 export function getEditorRulerOptions(
   format: EditorRulerFormat,
   frameRate: TimecodeFrameRate
-): TimelineRulerOptions | undefined {
+): TimelineRulerOptions {
   if (format === 'seconds') {
-    return undefined;
+    return { format };
   }
 
-  return format === 'frame-number' ? { frameRate, labelFormat: 'frame-number' } : { frameRate };
+  return { format, frameRate };
 }
 
 export function loadEditorRulerFormat(): EditorRulerFormat {

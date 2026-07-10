@@ -1523,10 +1523,31 @@ export interface VisibleTimelineClip<TrackKind = string> extends TimelineClipRec
 }
 
 /** Ruler tick visual weight. */
-export type TimelineRulerTickKind = 'major' | 'minor';
+export type TimelineRulerTickKind = 'major' | 'medium' | 'minor';
 
-/** Label style used by timeline ruler ticks. */
-export type TimelineRulerLabelFormat = 'time' | 'frame-number';
+/** Display format and frame-rate requirements for a timeline ruler. */
+export type TimelineRulerFormatOptions =
+  | {
+      /** Display elapsed clock time. */
+      format: 'seconds';
+      frameRate?: never;
+      timecodeFormatOptions?: never;
+    }
+  | {
+      /** Display production timecode on a frame-aware ruler. */
+      format: 'timecode';
+      /** Project frame rate used for tick geometry and labels. */
+      frameRate: TimecodeFrameRate;
+      /** Optional drop-frame numbering. The ruler owns the frame-based output shape and rate. */
+      timecodeFormatOptions?: Pick<TimecodeFormatOptions, 'dropFrame'>;
+    }
+  | {
+      /** Display absolute project frame numbers. */
+      format: 'frame-number';
+      /** Project frame rate used for tick geometry and labels. */
+      frameRate: TimecodeFrameRate;
+      timecodeFormatOptions?: never;
+    };
 
 /** One viewport-space ruler tick for canvas, DOM, or custom rendering. */
 export interface TimelineRulerTick {
@@ -1544,8 +1565,8 @@ export interface TimelineRulerTick {
   label?: string;
 }
 
-/** Options for building shared headless timeline ruler ticks. */
-export interface TimelineRulerTickOptions {
+/** Viewport and density options for building shared headless timeline ruler ticks. */
+export interface TimelineRulerGeometryOptions {
   /** Current horizontal timeline scroll offset in pixels. */
   scrollLeft: number;
   /** Current zoom scale in pixels per second. */
@@ -1554,17 +1575,14 @@ export interface TimelineRulerTickOptions {
   viewportWidth: number;
   /** Optional explicit timeline duration used to clamp ticks. */
   duration?: RationalTime;
-  /** Optional frame rate used for frame-aware tick generation and labels. */
-  frameRate?: TimecodeFrameRate;
-  /** Numbered tick label style. Defaults to time labels. */
-  labelFormat?: TimelineRulerLabelFormat;
-  /** Timecode formatting options for time labels when a frame rate is configured. */
-  timecodeFormatOptions?: TimecodeFormatOptions;
   /** Minimum distance between major ruler ticks in CSS pixels. Cannot reduce format-safe defaults. */
   minimumMajorTickSpacing?: number;
   /** Whether major ticks should include formatted labels. Defaults to true. */
   includeLabels?: boolean;
 }
+
+/** Options for building shared headless timeline ruler ticks. */
+export type TimelineRulerTickOptions = TimelineRulerGeometryOptions & TimelineRulerFormatOptions;
 
 /**
  * Clip that is active at a timeline time, including its mapped source time.

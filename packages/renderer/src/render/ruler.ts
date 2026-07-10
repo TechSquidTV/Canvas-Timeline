@@ -26,9 +26,9 @@ function getRulerLabelMeasurementSample(renderContext: RenderContext) {
   const visibleEndSeconds = getVisibleRulerEndSeconds(renderContext);
   let label: string;
 
-  if (ruler?.frameRate === undefined) {
+  if (ruler === undefined || ruler.format === 'seconds') {
     label = formatTime(fromSeconds(visibleEndSeconds));
-  } else if (ruler.labelFormat === 'frame-number') {
+  } else if (ruler.format === 'frame-number') {
     label = String(Math.ceil(visibleEndSeconds * resolveTimecodeFrameRate(ruler.frameRate)));
   } else {
     label = formatTimecode(visibleEndSeconds, {
@@ -40,36 +40,41 @@ function getRulerLabelMeasurementSample(renderContext: RenderContext) {
   return label.replaceAll(/\d/g, '8');
 }
 
-function getRulerMinimumMajorTickSpacing(renderContext: RenderContext) {
+function getRulerLabelLayout(renderContext: RenderContext) {
   const { ctx, options, theme } = renderContext;
   const configuredSpacing = options.ruler?.minimumMajorTickSpacing;
 
   if (!options.showRulerLabels) {
-    return configuredSpacing;
+    return { labelWidth: 0, minimumMajorTickSpacing: configuredSpacing };
   }
 
   ctx.font = theme.fonts.ruler;
-  const measuredSpacing = Math.ceil(
-    ctx.measureText(getRulerLabelMeasurementSample(renderContext)).width + rulerLabelGap
+  const labelWidth = Math.ceil(
+    ctx.measureText(getRulerLabelMeasurementSample(renderContext)).width
   );
+  const measuredSpacing = labelWidth + rulerLabelGap;
 
-  return configuredSpacing === undefined || !Number.isFinite(configuredSpacing)
-    ? measuredSpacing
-    : Math.max(configuredSpacing, measuredSpacing);
+  return {
+    labelWidth,
+    minimumMajorTickSpacing:
+      configuredSpacing === undefined || !Number.isFinite(configuredSpacing)
+        ? measuredSpacing
+        : Math.max(configuredSpacing, measuredSpacing),
+  };
 }
 
 function drawRulerTicks(renderContext: RenderContext) {
   const { ctx, state, width, theme } = renderContext;
+  const ruler = renderContext.options.ruler ?? { format: 'seconds' as const };
+  const labelLayout = getRulerLabelLayout(renderContext);
   const ticks = getTimelineRulerTicks({
     duration: state.duration,
-    frameRate: renderContext.options.ruler?.frameRate,
     includeLabels: renderContext.options.showRulerLabels,
-    labelFormat: renderContext.options.ruler?.labelFormat,
-    minimumMajorTickSpacing: getRulerMinimumMajorTickSpacing(renderContext),
+    minimumMajorTickSpacing: labelLayout.minimumMajorTickSpacing,
     scrollLeft: state.scrollLeft,
-    timecodeFormatOptions: renderContext.options.ruler?.timecodeFormatOptions,
     viewportWidth: width,
     zoomScale: state.zoomScale,
+    ...ruler,
   });
 
   ctx.fillStyle = theme.colors.ruler.tick;
@@ -77,6 +82,8 @@ function drawRulerTicks(renderContext: RenderContext) {
   for (const tick of ticks) {
     if (tick.kind === 'major') {
       ctx.rect(tick.x, 16, 1, 16);
+    } else if (tick.kind === 'medium') {
+      ctx.rect(tick.x, 20, 1, 12);
     } else {
       ctx.rect(tick.x, 24, 1, 8);
     }
@@ -89,11 +96,28 @@ function drawRulerTicks(renderContext: RenderContext) {
 
   ctx.fillStyle = theme.colors.ruler.text;
   ctx.font = theme.fonts.ruler;
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
+  const labelViewportWidth = Math.min(width, getActiveWidth(renderContext));
+  if (labelLayout.labelWidth > labelViewportWidth) {
+    return;
+  }
+
+  let previousLabelRight = Number.NEGATIVE_INFINITY;
+  const maximumLabelLeft = labelViewportWidth - labelLayout.labelWidth;
+
   for (const tick of ticks) {
     if (tick.label !== undefined) {
-      ctx.fillText(tick.label, tick.x, 4);
+      const labelLeft = Math.min(
+        Math.max(0, tick.x - labelLayout.labelWidth / 2),
+        maximumLabelLeft
+      );
+      if (labelLeft < previousLabelRight + rulerLabelGap) {
+        continue;
+      }
+
+      ctx.fillText(tick.label, labelLeft, 4);
+      previousLabelRight = labelLeft + labelLayout.labelWidth;
     }
   }
 }

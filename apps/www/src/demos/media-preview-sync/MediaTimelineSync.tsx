@@ -160,7 +160,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       <div className="timeline-shell">
         <div className="timeline-stage">
           <Timeline.Root className="timeline-fill">
-            <CanvasRenderer ruler={{ frameRate: 30, timecodeFormatOptions: { frameRate: 30 } }} />
+            <CanvasRenderer ruler={{ format: 'timecode', frameRate: 30 }} />
             <TimelineLayers />
           </Timeline.Root>
         </div>
