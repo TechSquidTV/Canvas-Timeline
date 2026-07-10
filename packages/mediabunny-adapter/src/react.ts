@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState, type RefObject } from 'react';
+import { useEffect, useReducer, useState, useSyncExternalStore, type RefObject } from 'react';
 import {
   useTimelineMediaSync,
   type UseTimelineMediaSyncOptions,
@@ -47,7 +47,7 @@ export interface UseMediabunnyAdapterOptions extends Omit<
 export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = string>
   extends
     Omit<UseMediabunnyAdapterOptions, 'mediabunny'>,
-    Pick<UseTimelineMediaSyncOptions<LayerName>, 'layers' | 'onError'> {
+    Pick<UseTimelineMediaSyncOptions<LayerName>, 'frameRate' | 'layers' | 'onError'> {
   /** Mediabunny module instance or lazy browser loader. Defaults to a browser import. */
   mediabunny?: CreateMediabunnyAdapterOptions['mediabunny'];
 }
@@ -67,8 +67,6 @@ export interface UseMediabunnyTimelineMediaResult<
   status: string;
   /** Last source loading error, when one is active. */
   error: Error | null;
-  /** Timestamp of the last rendered video frame, in seconds. */
-  lastFrameTime: number | null;
   /** Loaded media duration by source id, in seconds. */
   durationBySourceId: ReadonlyMap<string, number>;
   /** Underlying low-level Mediabunny adapter. */
@@ -81,6 +79,7 @@ const noopAdapter: MediabunnyAdapter = {
   error: null,
   lastFrameTime: null,
   durationBySourceId: new Map(),
+  subscribeFrame: () => () => {},
   syncAdapter: {
     getClockTime: () => 0,
     startClock: () => false,
@@ -170,6 +169,20 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
 }
 
 /**
+ * Subscribe to the latest decoded preview frame without re-rendering ordinary media consumers.
+ *
+ * @param adapter - Mediabunny adapter whose rendered frame timestamp should be observed.
+ * @returns Timestamp of the latest rendered source frame, or `null` before a frame is available.
+ */
+export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | null {
+  return useSyncExternalStore(
+    adapter.subscribeFrame,
+    () => adapter.lastFrameTime,
+    () => adapter.lastFrameTime
+  );
+}
+
+/**
  * Create a Mediabunny adapter and bind it to timeline-synchronized playback.
  *
  * @remarks
@@ -230,6 +243,7 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     audio,
     audioTrackKinds,
     canvasRef,
+    frameRate,
     layers,
     mediabunny = loadMediabunny,
     onError,
@@ -246,6 +260,7 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
   });
   const mediaSync = useTimelineMediaSync<LayerName>({
     ready: adapter.ready,
+    frameRate,
     layers,
     adapter: adapter.syncAdapter,
     onError,
@@ -256,7 +271,6 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     ready: adapter.ready,
     status: adapter.status,
     error: adapter.error,
-    lastFrameTime: adapter.lastFrameTime,
     durationBySourceId: adapter.durationBySourceId,
     adapter,
   };

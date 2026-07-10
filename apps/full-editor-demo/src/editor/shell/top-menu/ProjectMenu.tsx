@@ -4,6 +4,12 @@ import { Separator } from '#full-editor/components/ui/separator';
 import { formatRationalTime } from '#full-editor/lib/timeline-format';
 import type { ProjectMetadata } from '#full-editor/project/project-metadata';
 import {
+  formatProjectFrameRate,
+  isProjectFrameRatePresetId,
+  projectFrameRatePresets,
+  type ProjectFrameRatePresetId,
+} from '#full-editor/project/frame-rate';
+import {
   formatVideoResolution,
   isVideoResolutionPresetId,
   type VideoResolutionPresetId,
@@ -14,10 +20,12 @@ interface ProjectMenuProps {
   confirmingNewProject: boolean;
   duration?: RationalTime;
   metadata: ProjectMetadata;
+  newProjectFrameRateDraft: ProjectFrameRatePresetId;
   newProjectResolutionDraft: VideoResolutionPresetId;
   newProjectTitleDraft: string;
   onCancelNewProject: () => void;
   onConfirmNewProject: () => void;
+  onNewProjectFrameRateDraftChange: (presetId: ProjectFrameRatePresetId) => void;
   onNewProjectResolutionDraftChange: (presetId: VideoResolutionPresetId) => void;
   onNewProjectTitleDraftChange: (title: string) => void;
   onStartNewProject: () => void;
@@ -31,10 +39,12 @@ export function ProjectMenu({
   confirmingNewProject,
   duration,
   metadata,
+  newProjectFrameRateDraft,
   newProjectResolutionDraft,
   newProjectTitleDraft,
   onCancelNewProject,
   onConfirmNewProject,
+  onNewProjectFrameRateDraftChange,
   onNewProjectResolutionDraftChange,
   onNewProjectTitleDraftChange,
   onStartNewProject,
@@ -62,7 +72,7 @@ export function ProjectMenu({
           </div>
           <div>
             <dt>Frame rate</dt>
-            <dd>{metadata.frameRate} fps</dd>
+            <dd>{formatProjectFrameRate(metadata.frameRate)}</dd>
           </div>
           <div>
             <dt>Sources</dt>
@@ -82,6 +92,24 @@ export function ProjectMenu({
                 onChange={(event) => onNewProjectTitleDraftChange(event.currentTarget.value)}
                 value={newProjectTitleDraft}
               />
+            </label>
+            <label className="editor-field">
+              <span>Frame rate</span>
+              <select
+                className="editor-input"
+                onChange={(event) => {
+                  if (isProjectFrameRatePresetId(event.currentTarget.value)) {
+                    onNewProjectFrameRateDraftChange(event.currentTarget.value);
+                  }
+                }}
+                value={newProjectFrameRateDraft}
+              >
+                {projectFrameRatePresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="editor-field">
               <span>Resolution</span>

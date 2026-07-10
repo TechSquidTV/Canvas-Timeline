@@ -85,6 +85,8 @@ export interface MediabunnyAdapter {
   readonly durationBySourceId: ReadonlyMap<string, number>;
   /** React timeline media sync adapter backed by Mediabunny clocks and sinks. */
   readonly syncAdapter: TimelineMediaSyncAdapter<string>;
+  /** Subscribe to decoded preview frame timestamp changes. */
+  subscribeFrame: (listener: () => void) => () => void;
   /** Update the canvas used for video preview rendering. */
   setCanvas: (canvas: HTMLCanvasElement | null) => void;
   /** Read the current timeline playback time from the active Mediabunny clock. */
@@ -137,6 +139,18 @@ interface MediabunnySourceController {
   asyncId: number;
   renderingFrame: boolean;
   pendingFrameRequest: PendingFrameRequest | undefined;
+  videoPlaybackGeneration: number;
+  videoPlaybackIterator: AsyncGenerator<Mediabunny.WrappedCanvas, void, unknown> | null;
+  videoPlaybackFutureFrame: Mediabunny.WrappedCanvas | null;
+  videoPlaybackProcessing: boolean;
+  videoPlaybackEnded: boolean;
+  videoPlaybackSyncKey: string | undefined;
+  videoPlaybackSourceSeconds: number | null;
+  videoPlaybackTargetSeconds: number | null;
+  videoPlaybackCanvas: HTMLCanvasElement | null;
+  videoPlaybackOnFrame: ((timestamp: number) => void) | undefined;
+  videoPlaybackOnFailure: ((error: Error) => void) | undefined;
+  lastRenderedVideoTimestamp: number | null;
 }
 
 interface PendingFrameRequest {
@@ -178,6 +192,7 @@ export function createMediabunnyAdapter(
   let clockController: MediabunnySourceController | null = null;
   let currentPlaybackRate = 1;
   let lastFrameTime: number | null = null;
+  const frameListeners = new Set<() => void>();
   const controllers = new Map<string, MediabunnySourceController>();
   const durationBySourceId = new Map<string, number>();
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
@@ -185,6 +200,17 @@ export function createMediabunnyAdapter(
 
   const notify = () => {
     options.onChange?.();
+  };
+
+  const setLastFrameTime = (timestamp: number | null) => {
+    if (Object.is(lastFrameTime, timestamp)) {
+      return;
+    }
+
+    lastFrameTime = timestamp;
+    for (const listener of frameListeners) {
+      listener();
+    }
   };
 
   const setStatus = (nextStatus: string) => {
@@ -214,16 +240,16 @@ export function createMediabunnyAdapter(
   };
 
   const clearVideo = () => {
-    if (canvas === null) {
-      return;
+    for (const sourceController of controllers.values()) {
+      void cancelVideoPlayback(sourceController);
     }
-
-    const controller = clockController ?? [...controllers.values()][0];
-    if (controller !== undefined) {
-      clearPreviewCanvas(controller, canvas);
+    if (canvas !== null) {
+      const controller = clockController ?? [...controllers.values()][0];
+      if (controller !== undefined) {
+        clearPreviewCanvas(controller, canvas);
+      }
     }
-    lastFrameTime = null;
-    notify();
+    setLastFrameTime(null);
   };
 
   const renderVideo = async (activeVideo: ActiveClip, _timelineTime: RationalTime) => {
@@ -234,8 +260,8 @@ export function createMediabunnyAdapter(
 
     clockController = controller;
     await renderActiveVideoFrame(controller, canvas, activeVideo, (timestamp) => {
-      lastFrameTime = timestamp;
-      notify();
+      controller.lastRenderedVideoTimestamp = timestamp;
+      setLastFrameTime(timestamp);
     });
   };
 
@@ -284,7 +310,31 @@ export function createMediabunnyAdapter(
     const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
 
     if (activeVisual !== undefined) {
-      await renderVideo(activeVisual, timelineTime);
+      const controller = getController(activeVisual);
+      if (
+        controller !== undefined &&
+        canvas !== null &&
+        (reason === 'play' || reason === 'tick' || reason === 'rate')
+      ) {
+        clockController = controller;
+        syncActiveVideoPlaybackFrame(
+          controller,
+          canvas,
+          activeVisual,
+          (timestamp) => {
+            setLastFrameTime(timestamp);
+          },
+          (playbackError) => {
+            stopMediaClock(controller);
+            setError(playbackError);
+          }
+        );
+      } else {
+        if (controller !== undefined) {
+          await cancelVideoPlayback(controller);
+        }
+        await renderVideo(activeVisual, timelineTime);
+      }
     } else {
       clearVideo();
     }
@@ -330,7 +380,18 @@ export function createMediabunnyAdapter(
         },
       };
     },
+    subscribeFrame: (listener) => {
+      frameListeners.add(listener);
+      return () => {
+        frameListeners.delete(listener);
+      };
+    },
     setCanvas: (nextCanvas) => {
+      if (canvas !== nextCanvas) {
+        for (const controller of controllers.values()) {
+          void cancelVideoPlayback(controller);
+        }
+      }
       canvas = nextCanvas;
     },
     getClockTime: () => {
@@ -349,6 +410,7 @@ export function createMediabunnyAdapter(
     stopClock: () => {
       for (const controller of controllers.values()) {
         controller.playing = false;
+        void cancelVideoPlayback(controller);
       }
     },
     resumeClock: async (playbackRate) => {
@@ -376,6 +438,7 @@ export function createMediabunnyAdapter(
       const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
       const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
 
+      await Promise.all([...controllers.values()].map(cancelVideoPlayback));
       setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
       if (activeVisual !== undefined) {
         await adapter.renderVideo(activeVisual, timelineTime);
@@ -422,6 +485,7 @@ export function createMediabunnyAdapter(
       }
       controllers.clear();
       durationBySourceId.clear();
+      frameListeners.clear();
     },
   };
 
@@ -510,6 +574,18 @@ function createController(sourceId: string): MediabunnySourceController {
     asyncId: 0,
     renderingFrame: false,
     pendingFrameRequest: undefined,
+    videoPlaybackGeneration: 0,
+    videoPlaybackIterator: null,
+    videoPlaybackFutureFrame: null,
+    videoPlaybackProcessing: false,
+    videoPlaybackEnded: false,
+    videoPlaybackSyncKey: undefined,
+    videoPlaybackSourceSeconds: null,
+    videoPlaybackTargetSeconds: null,
+    videoPlaybackCanvas: null,
+    videoPlaybackOnFrame: undefined,
+    videoPlaybackOnFailure: undefined,
+    lastRenderedVideoTimestamp: null,
   };
 }
 
@@ -662,9 +738,178 @@ async function renderActiveVideoFrame(
   await renderFrameAt(controller, canvas, toSeconds(video.sourceTime), onFrame);
 }
 
+const VIDEO_TIMESTAMP_EPSILON = 1e-9;
+
+async function cancelVideoPlayback(controller: MediabunnySourceController) {
+  const iterator = resetVideoPlayback(controller);
+
+  if (iterator !== null) {
+    try {
+      await iterator.return();
+    } catch {
+      // Cancellation should not surface decoder teardown errors.
+    }
+  }
+}
+
+function resetVideoPlayback(controller: MediabunnySourceController) {
+  const iterator = controller.videoPlaybackIterator;
+  controller.videoPlaybackGeneration += 1;
+  controller.videoPlaybackIterator = null;
+  controller.videoPlaybackFutureFrame = null;
+  controller.videoPlaybackProcessing = false;
+  controller.videoPlaybackEnded = false;
+  controller.videoPlaybackSyncKey = undefined;
+  controller.videoPlaybackSourceSeconds = null;
+  controller.videoPlaybackTargetSeconds = null;
+  controller.videoPlaybackCanvas = null;
+  controller.videoPlaybackOnFrame = undefined;
+  controller.videoPlaybackOnFailure = undefined;
+  return iterator;
+}
+
+async function processVideoPlayback(controller: MediabunnySourceController, generation: number) {
+  if (
+    controller.videoPlaybackProcessing ||
+    controller.videoPlaybackEnded ||
+    controller.videoPlaybackIterator === null
+  ) {
+    return;
+  }
+
+  controller.videoPlaybackProcessing = true;
+  try {
+    while (controller.videoPlaybackGeneration === generation) {
+      const targetSeconds = controller.videoPlaybackTargetSeconds;
+      const canvas = controller.videoPlaybackCanvas;
+      if (targetSeconds === null || canvas === null) {
+        return;
+      }
+
+      let newestDueFrame: Mediabunny.WrappedCanvas | null = null;
+      while (controller.videoPlaybackGeneration === generation) {
+        if (controller.videoPlaybackFutureFrame === null) {
+          const iterator = controller.videoPlaybackIterator;
+          if (iterator === null || controller.videoPlaybackEnded) {
+            break;
+          }
+
+          const result = await iterator.next();
+          if (controller.videoPlaybackGeneration !== generation) {
+            return;
+          }
+          if (result.done) {
+            controller.videoPlaybackEnded = true;
+            break;
+          }
+          controller.videoPlaybackFutureFrame = result.value;
+        }
+
+        const latestTargetSeconds = controller.videoPlaybackTargetSeconds ?? targetSeconds;
+        if (
+          controller.videoPlaybackFutureFrame.timestamp >
+          latestTargetSeconds + VIDEO_TIMESTAMP_EPSILON
+        ) {
+          break;
+        }
+
+        newestDueFrame = controller.videoPlaybackFutureFrame;
+        controller.videoPlaybackFutureFrame = null;
+      }
+
+      if (
+        newestDueFrame !== null &&
+        !Object.is(newestDueFrame.timestamp, controller.lastRenderedVideoTimestamp) &&
+        paintWrappedCanvas(canvas, newestDueFrame)
+      ) {
+        controller.lastRenderedVideoTimestamp = newestDueFrame.timestamp;
+        controller.videoPlaybackOnFrame?.(newestDueFrame.timestamp);
+      }
+
+      if (Object.is(targetSeconds, controller.videoPlaybackTargetSeconds)) {
+        return;
+      }
+    }
+  } catch (decoderError) {
+    if (controller.videoPlaybackGeneration === generation) {
+      controller.videoPlaybackEnded = true;
+      const error = decoderError instanceof Error ? decoderError : new Error(String(decoderError));
+      controller.videoPlaybackOnFailure?.(error);
+    }
+  } finally {
+    if (controller.videoPlaybackGeneration === generation) {
+      controller.videoPlaybackProcessing = false;
+    }
+  }
+}
+
+async function startVideoPlayback(
+  controller: MediabunnySourceController,
+  canvas: HTMLCanvasElement,
+  activeVideo: ActiveClip,
+  onFrame?: (timestamp: number) => void,
+  onFailure?: (error: Error) => void
+) {
+  const iterator = resetVideoPlayback(controller);
+  const generation = controller.videoPlaybackGeneration;
+  if (iterator !== null) {
+    try {
+      await iterator.return();
+    } catch {
+      // A new playback stream can still be created after teardown fails.
+    }
+  }
+  if (controller.videoPlaybackGeneration !== generation) {
+    return;
+  }
+  if (controller.videoSink === null) {
+    return;
+  }
+
+  const sourceSeconds = toSeconds(activeVideo.sourceTime);
+  controller.videoPlaybackIterator = controller.videoSink.canvases(
+    sourceSeconds,
+    toSeconds(activeVideo.sourceRange.end)
+  );
+  controller.videoPlaybackSyncKey = activeVideo.syncKey;
+  controller.videoPlaybackSourceSeconds = sourceSeconds;
+  controller.videoPlaybackTargetSeconds = sourceSeconds;
+  controller.videoPlaybackCanvas = canvas;
+  controller.videoPlaybackOnFrame = onFrame;
+  controller.videoPlaybackOnFailure = onFailure;
+  void processVideoPlayback(controller, generation);
+}
+
+function syncActiveVideoPlaybackFrame(
+  controller: MediabunnySourceController,
+  canvas: HTMLCanvasElement,
+  activeVideo: ActiveClip,
+  onFrame?: (timestamp: number) => void,
+  onFailure?: (error: Error) => void
+) {
+  const sourceSeconds = toSeconds(activeVideo.sourceTime);
+  if (
+    controller.videoPlaybackIterator === null ||
+    controller.videoPlaybackSyncKey !== activeVideo.syncKey ||
+    (controller.videoPlaybackSourceSeconds !== null &&
+      sourceSeconds + VIDEO_TIMESTAMP_EPSILON < controller.videoPlaybackSourceSeconds)
+  ) {
+    void startVideoPlayback(controller, canvas, activeVideo, onFrame, onFailure);
+    return;
+  }
+
+  controller.videoPlaybackSourceSeconds = sourceSeconds;
+  controller.videoPlaybackTargetSeconds = sourceSeconds;
+  controller.videoPlaybackCanvas = canvas;
+  controller.videoPlaybackOnFrame = onFrame;
+  controller.videoPlaybackOnFailure = onFailure;
+  void processVideoPlayback(controller, controller.videoPlaybackGeneration);
+}
+
 function clearPreviewCanvas(controller: MediabunnySourceController, canvas: HTMLCanvasElement) {
   controller.asyncId += 1;
   controller.pendingFrameRequest = undefined;
+  controller.lastRenderedVideoTimestamp = null;
 
   const context = canvas.getContext('2d');
   if (context !== null) {
@@ -701,6 +946,7 @@ function stopMediaClock(controller: MediabunnySourceController) {
   controller.wallClockStartTime = null;
   controller.activeAudioSyncKey = undefined;
 
+  void cancelVideoPlayback(controller);
   stopAudioIterator(controller);
   stopQueuedAudio(controller);
 }
@@ -827,26 +1073,31 @@ async function renderFrameAt(
         continue;
       }
 
-      const context = request.canvas.getContext('2d');
-      if (context === null) {
-        request = controller.pendingFrameRequest;
-        continue;
+      if (paintWrappedCanvas(request.canvas, wrappedCanvas)) {
+        request.onFrame?.(wrappedCanvas.timestamp);
       }
-
-      if (
-        request.canvas.width !== wrappedCanvas.canvas.width ||
-        request.canvas.height !== wrappedCanvas.canvas.height
-      ) {
-        request.canvas.width = wrappedCanvas.canvas.width;
-        request.canvas.height = wrappedCanvas.canvas.height;
-      }
-
-      context.clearRect(0, 0, request.canvas.width, request.canvas.height);
-      context.drawImage(wrappedCanvas.canvas, 0, 0);
-      request.onFrame?.(wrappedCanvas.timestamp);
       request = controller.pendingFrameRequest;
     }
   } finally {
     controller.renderingFrame = false;
   }
+}
+
+function paintWrappedCanvas(canvas: HTMLCanvasElement, wrappedCanvas: Mediabunny.WrappedCanvas) {
+  const context = canvas.getContext('2d');
+  if (context === null) {
+    return false;
+  }
+
+  if (
+    canvas.width !== wrappedCanvas.canvas.width ||
+    canvas.height !== wrappedCanvas.canvas.height
+  ) {
+    canvas.width = wrappedCanvas.canvas.width;
+    canvas.height = wrappedCanvas.canvas.height;
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(wrappedCanvas.canvas, 0, 0);
+  return true;
 }

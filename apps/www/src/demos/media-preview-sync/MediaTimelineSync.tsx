@@ -6,7 +6,10 @@ import {
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
 import { formatMediabunnyTime } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+import {
+  useMediabunnyFrameTime,
+  useMediabunnyTimelineMedia,
+} from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -58,18 +61,9 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
 
   // The source id joins app-owned media descriptors to timeline clips without storing media in timeline state.
   const sources = useMemo(() => [sampleMediaSource], []);
-  const {
-    ready,
-    status,
-    durationBySourceId,
-    lastFrameTime,
-    playing,
-    playbackRate,
-    play,
-    pause,
-    setPlaybackRate,
-  } = useMediabunnyTimelineMedia({
+  const media = useMediabunnyTimelineMedia({
     canvasRef,
+    frameRate: 30,
     sources,
     layers: previewLayerSelectors,
     onError: (message) => {
@@ -81,6 +75,9 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       setPlaybackError(message);
     },
   });
+  const lastFrameTime = useMediabunnyFrameTime(media.adapter);
+  const { ready, status, durationBySourceId, playing, playbackRate, play, pause, setPlaybackRate } =
+    media;
 
   useEffect(() => {
     if (!ready || decodeMetricReportedRef.current) {
@@ -163,7 +160,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       <div className="timeline-shell">
         <div className="timeline-stage">
           <Timeline.Root className="timeline-fill">
-            <CanvasRenderer />
+            <CanvasRenderer ruler={{ frameRate: 30, timecodeFormatOptions: { frameRate: 30 } }} />
             <TimelineLayers />
           </Timeline.Root>
         </div>

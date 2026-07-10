@@ -73,7 +73,7 @@ describe('demo code examples', () => {
     ).toEqual(['formatMediabunnyTime']);
     expect(
       namedImportsFrom(mediaSyncSource, '@techsquidtv/canvas-timeline-mediabunny-adapter/react')
-    ).toEqual(['useMediabunnyTimelineMedia']);
+    ).toEqual(['useMediabunnyFrameTime', 'useMediabunnyTimelineMedia']);
 
     expect(namedImportsFrom(htmlMediaSyncSource, publicPackageName)).toEqual([
       'TimelineEngine',

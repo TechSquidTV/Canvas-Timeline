@@ -97,7 +97,7 @@ describe('timeline export planning', () => {
   it('uses project video settings for the default export profile', () => {
     const projectMetadata = {
       ...getDefaultProjectMetadata(),
-      frameRate: 24,
+      frameRate: 24_000 / 1_001,
       height: 2160,
       width: 3840,
     };
@@ -107,7 +107,7 @@ describe('timeline export planning', () => {
       resolutionId: 'project',
     });
 
-    expect(projectProfile.frameRate).toBe(24);
+    expect(projectProfile.frameRate).toBe(24_000 / 1_001);
     expect(projectProfile.resolution).toMatchObject({
       height: 2160,
       id: 'project',

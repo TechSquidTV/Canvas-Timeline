@@ -66,6 +66,7 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}) {
     error: null,
     lastFrameTime: null,
     durationBySourceId: new Map([['source-1', 4]]),
+    subscribeFrame: () => () => {},
     syncAdapter: {
       getClockTime: vi.fn(() => 0),
       startClock: vi.fn(() => true),
@@ -233,7 +234,7 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
   expect(result.current.adapter).toBe(adapter);
   expect(result.current.ready).toBe(true);
   expect(result.current.status).toBe('Ready. Mediabunny can drive timeline video and audio.');
-  expect(result.current.lastFrameTime).toBe(1.25);
+  expect('lastFrameTime' in result.current).toBe(false);
   expect(result.current.durationBySourceId.get('source-1')).toBe(4);
 
   await act(async () => {
@@ -242,6 +243,33 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
 
   expect(adapter.syncAdapter.seek).toHaveBeenCalled();
   expect(adapter.syncAdapter.startClock).toHaveBeenCalledWith(fromSeconds(0), 1);
+});
+
+test('useMediabunnyFrameTime updates only focused frame subscribers', async () => {
+  let lastFrameTime: number | null = null;
+  let frameListener: (() => void) | undefined;
+  const adapter = createTestAdapter();
+  Object.defineProperty(adapter, 'lastFrameTime', {
+    get: () => lastFrameTime,
+  });
+  adapter.subscribeFrame = (listener) => {
+    frameListener = listener;
+    return () => {
+      frameListener = undefined;
+    };
+  };
+  const { useMediabunnyFrameTime } = await import('#mediabunny-adapter/react');
+  const { result, unmount } = renderHook(() => useMediabunnyFrameTime(adapter));
+
+  expect(result.current).toBeNull();
+  act(() => {
+    lastFrameTime = 1.25;
+    frameListener?.();
+  });
+  expect(result.current).toBe(1.25);
+
+  unmount();
+  expect(frameListener).toBeUndefined();
 });
 
 test('useMediabunnyTimelineMedia accepts an explicit Mediabunny loader', async () => {

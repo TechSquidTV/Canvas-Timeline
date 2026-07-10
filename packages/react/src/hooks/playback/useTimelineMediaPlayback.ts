@@ -3,8 +3,17 @@ import type {
   ActiveLayerSelector,
   MaybePromise,
 } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import {
+  fromSeconds,
+  fromTimecodeFrameNumber,
+  rationalEquals,
+  resolveTimecodeFrameRate,
+  toSeconds,
+  type RationalTime,
+  type TimecodeFrameRate,
+} from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
@@ -69,6 +78,8 @@ export interface TimelineLayerSyncDetails<LayerName extends string = string> {
 export interface UseTimelineMediaPlaybackOptions<LayerName extends string = string> {
   /** Returns current timeline seconds from the external media clock. */
   getClockTime: () => number;
+  /** Optional sequence frame rate used to quantize playback updates to project frames. */
+  frameRate?: TimecodeFrameRate;
   /** Stops the external media clock when timeline playback pauses or leaves active content. */
   stopClock?: () => void;
   /** Named active layer selectors used by the external media surface. */
@@ -77,6 +88,17 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   syncLayers?: (details: TimelineLayerSyncDetails<LayerName>) => MaybePromise<void>;
   /** Receives high-level playback status changes. */
   onStatus?: (status: TimelineContentPlaybackStatus) => void;
+}
+
+interface PlaybackFrameCursor {
+  frameNumber: number;
+  frameRate: number;
+}
+
+function getPlaybackFrameNumber(seconds: number, frameRate: TimecodeFrameRate) {
+  const resolvedFrameRate = resolveTimecodeFrameRate(frameRate);
+  const frameNumber = Math.max(0, Math.floor(Math.max(0, seconds) * resolvedFrameRate + 1e-9));
+  return { frameNumber, frameRate: resolvedFrameRate };
 }
 
 /**
@@ -181,6 +203,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
   const pausingRef = useRef(false);
+  const playbackFrameCursorRef = useRef<PlaybackFrameCursor | null>(null);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -239,6 +262,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
 
       pausingRef.current = true;
       cancelTick();
+      playbackFrameCursorRef.current = null;
       try {
         const timelineTime = engine.getTime();
         const currentOptions = optionsRef.current;
@@ -265,7 +289,16 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   }, [pause]);
 
   const play = useCallback(() => {
-    const startTime = engine.getTime();
+    const currentOptions = optionsRef.current;
+    const currentTime = engine.getTime();
+    const startTime = quantizeTimelineTimeToFrame(currentTime, currentOptions.frameRate);
+    if (!rationalEquals(currentTime, startTime)) {
+      engine.setTime(startTime);
+    }
+    playbackFrameCursorRef.current =
+      currentOptions.frameRate === undefined
+        ? null
+        : getPlaybackFrameNumber(toSeconds(startTime), currentOptions.frameRate);
     const activeLayers = synchronizeLayers(startTime, 'play');
     if (!activeLayers.hasActiveClips) {
       pause('content-gap');
@@ -286,7 +319,31 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       }
 
       const currentOptions = optionsRef.current;
-      const timelineTime = fromSeconds(currentOptions.getClockTime(), engine.getTime().r);
+      const clockSeconds = currentOptions.getClockTime();
+      let timelineTime: RationalTime;
+
+      if (currentOptions.frameRate === undefined) {
+        playbackFrameCursorRef.current = null;
+        timelineTime = fromSeconds(clockSeconds, engine.getTime().r);
+      } else {
+        const nextCursor = getPlaybackFrameNumber(clockSeconds, currentOptions.frameRate);
+        const currentCursor = playbackFrameCursorRef.current;
+        if (
+          currentCursor?.frameNumber === nextCursor.frameNumber &&
+          currentCursor.frameRate === nextCursor.frameRate
+        ) {
+          animationFrameRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        playbackFrameCursorRef.current = nextCursor;
+        timelineTime = fromTimecodeFrameNumber(
+          nextCursor.frameNumber,
+          currentOptions.frameRate,
+          engine.getTime().r
+        );
+      }
+
       engine.setTime(timelineTime);
 
       const nextActiveLayers = synchronizeLayers(timelineTime, 'tick');

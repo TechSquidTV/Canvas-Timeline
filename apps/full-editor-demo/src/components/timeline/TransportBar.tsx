@@ -16,6 +16,7 @@ import { Button } from '#full-editor/components/ui/button';
 import { Separator } from '#full-editor/components/ui/separator';
 import { useEditorProject } from '#full-editor/editor/project/project-context';
 import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { getProjectFrameRatePreset } from '#full-editor/project/frame-rate';
 
 interface TimelineBoundedClip {
   timelineEnd: RationalTime;
@@ -31,11 +32,15 @@ function containsTimelineTime(clip: TimelineBoundedClip, time: RationalTime) {
 function PlayheadTimecodeControl() {
   const playheadControl = useTimelinePlayheadControl();
   const playheadTime = useTimelinePlayheadTime();
+  const { metadata } = useEditorProject();
+  const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
 
   return (
     <TimecodeField.Root
       ariaLabel="Playhead timecode"
+      formatOptions={{ frameRate: timecodeFrameRate }}
       onCommit={playheadControl.commit}
+      parseOptions={{ frameRate: timecodeFrameRate }}
       value={playheadTime}
     >
       <TimecodeField.Trigger className="timeline-timecode-control-button" />
@@ -85,7 +90,7 @@ export function TransportBar() {
   const playheadControl = useTimelinePlayheadControl();
   const snapping = useTimelineSnapping();
   const hasInOutRange = playback.inPoint !== undefined || playback.outPoint !== undefined;
-  const frameStepSeconds = 1 / metadata.frameRate;
+  const frameStepSeconds = 1 / getProjectFrameRatePreset(metadata.frameRate).value;
 
   return (
     <div className="timeline-control-bar full-editor-transport">

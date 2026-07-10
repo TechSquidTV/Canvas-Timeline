@@ -9,6 +9,11 @@ import {
 } from '#full-editor/editor/project/project-context';
 import { normalizeProjectTitle } from '#full-editor/project/project-metadata';
 import {
+  defaultProjectFrameRatePresetId,
+  findProjectFrameRatePreset,
+  type ProjectFrameRatePresetId,
+} from '#full-editor/project/frame-rate';
+import {
   defaultVideoResolutionPresetId,
   findVideoResolutionPreset,
   getVideoResolutionPresetId,
@@ -28,6 +33,8 @@ export function TopMenuBar() {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [confirmingNewProject, setConfirmingNewProject] = useState(false);
   const [newProjectTitleDraft, setNewProjectTitleDraft] = useState<string>(demoProject.title);
+  const [newProjectFrameRateDraft, setNewProjectFrameRateDraft] =
+    useState<ProjectFrameRatePresetId>(defaultProjectFrameRatePresetId);
   const [newProjectResolutionDraft, setNewProjectResolutionDraft] =
     useState<VideoResolutionPresetId>(
       getVideoResolutionPresetId(metadata) ?? defaultVideoResolutionPresetId
@@ -45,6 +52,7 @@ export function TopMenuBar() {
 
     setNewProjectTitleDraft(demoProject.title);
     setNewProjectResolutionDraft(currentResolutionPresetId);
+    setNewProjectFrameRateDraft(defaultProjectFrameRatePresetId);
     setConfirmingNewProject(false);
     setResetError(null);
   }, [currentResolutionPresetId, openMenu]);
@@ -55,11 +63,13 @@ export function TopMenuBar() {
     }
 
     const preset = findVideoResolutionPreset(newProjectResolutionDraft);
+    const frameRatePreset = findProjectFrameRatePreset(newProjectFrameRateDraft);
     setResetting(true);
     setResetError(null);
     try {
       await resetProject({
         height: preset.height,
+        frameRate: frameRatePreset.value,
         title: normalizeProjectTitle(newProjectTitleDraft),
         width: preset.width,
       });
@@ -103,6 +113,7 @@ export function TopMenuBar() {
               confirmingNewProject={confirmingNewProject}
               duration={state.duration}
               metadata={metadata}
+              newProjectFrameRateDraft={newProjectFrameRateDraft}
               newProjectResolutionDraft={newProjectResolutionDraft}
               newProjectTitleDraft={newProjectTitleDraft}
               onCancelNewProject={() => {
@@ -110,8 +121,10 @@ export function TopMenuBar() {
                 setResetError(null);
                 setNewProjectTitleDraft(demoProject.title);
                 setNewProjectResolutionDraft(currentResolutionPresetId);
+                setNewProjectFrameRateDraft(defaultProjectFrameRatePresetId);
               }}
               onConfirmNewProject={() => void confirmNewProject()}
+              onNewProjectFrameRateDraftChange={setNewProjectFrameRateDraft}
               onNewProjectResolutionDraftChange={setNewProjectResolutionDraft}
               onNewProjectTitleDraftChange={setNewProjectTitleDraft}
               onStartNewProject={() => setConfirmingNewProject(true)}

@@ -7,6 +7,8 @@ import {
   type EditorMediaSyncContextValue,
   type PreviewLayerName,
 } from '#full-editor/editor/shell/media-sync-context';
+import { useEditorProject } from '#full-editor/editor/project/project-context';
+import { getProjectFrameRatePreset } from '#full-editor/project/frame-rate';
 
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual' },
@@ -39,9 +41,12 @@ function ActiveMediaSyncProvider({
   sources: readonly MediabunnySource[];
 }) {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const { metadata } = useEditorProject();
+  const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
   const { durationBySourceId, pause, play, playing, ready, status } =
     useMediabunnyTimelineMedia<PreviewLayerName>({
       canvasRef,
+      frameRate: timecodeFrameRate,
       sources,
       layers: previewLayerSelectors,
       onError: setPlaybackError,
