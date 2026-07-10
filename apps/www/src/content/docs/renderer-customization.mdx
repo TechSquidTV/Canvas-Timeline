@@ -92,6 +92,28 @@ import { CanvasRenderer, Timeline } from '@techsquidtv/canvas-timeline';
 Use a stable primitive such as `'light'`, `'dark'`, a brand id, or a numeric
 revision. Do not change `themeKey` on every frame.
 
+## Ruler label spacing
+
+`CanvasRenderer` measures ruler labels against the resolved ruler font and
+automatically increases major-tick spacing when needed. This keeps frame-aware
+timecodes legible when an app changes `--timeline-font-ruler` or supplies a
+renderer font override.
+
+Use `minimumMajorTickSpacing` when the composition needs additional breathing
+room beyond the measured label width:
+
+```tsx
+<CanvasRenderer
+  ruler={{
+    frameRate: 30,
+    minimumMajorTickSpacing: 96,
+  }}
+/>
+```
+
+The value is a minimum in CSS pixels; it cannot reduce the library's
+format-safe spacing.
+
 ## Clip colors
 
 Clip fill color is canvas-painted. The renderer uses this order:

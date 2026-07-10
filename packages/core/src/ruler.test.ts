@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { getTimelineRulerTicks } from '#core/ruler';
+import { expectDefined } from '#test-utils/assertions';
 
 describe('getTimelineRulerTicks', () => {
   it('returns second ruler ticks with major labels and minor subdivisions', () => {
@@ -81,6 +82,66 @@ describe('getTimelineRulerTicks', () => {
     });
 
     expect(ticks.find((tick) => tick.kind === 'major')?.label).toBe('00:00:00:00');
+  });
+
+  it('keeps full timecode labels spaced apart at the full editor default zoom', () => {
+    const ticks = getTimelineRulerTicks({
+      duration: fromSeconds(36),
+      frameRate: 30,
+      scrollLeft: 0,
+      viewportWidth: 500,
+      zoomScale: 38,
+    });
+    const majorTicks = ticks.filter((tick) => tick.kind === 'major');
+
+    expect(majorTicks.map((tick) => tick.label).slice(0, 3)).toEqual([
+      '00:00:00:00',
+      '00:00:02:00',
+      '00:00:04:00',
+    ]);
+    expect(
+      majorTicks
+        .slice(1)
+        .every(
+          (tick, index) => tick.x - expectDefined(majorTicks[index], `major tick ${index}`).x >= 72
+        )
+    ).toBe(true);
+  });
+
+  it('honors a custom minimum major tick spacing', () => {
+    const ticks = getTimelineRulerTicks({
+      duration: fromSeconds(15),
+      frameRate: 24,
+      labelFormat: 'frame-number',
+      minimumMajorTickSpacing: 100,
+      scrollLeft: 0,
+      viewportWidth: 200,
+      zoomScale: 50,
+    });
+
+    expect(
+      ticks
+        .filter((tick) => tick.kind === 'major')
+        .map((tick) => tick.label)
+        .slice(0, 2)
+    ).toEqual(['0', '48']);
+  });
+
+  it('applies custom minimum spacing to second-based rulers', () => {
+    const ticks = getTimelineRulerTicks({
+      duration: fromSeconds(15),
+      minimumMajorTickSpacing: 120,
+      scrollLeft: 0,
+      viewportWidth: 500,
+      zoomScale: 50,
+    });
+
+    expect(
+      ticks
+        .filter((tick) => tick.kind === 'major')
+        .map((tick) => tick.label)
+        .slice(0, 2)
+    ).toEqual(['00:00', '00:05']);
   });
 
   it('can omit labels while preserving tick geometry', () => {

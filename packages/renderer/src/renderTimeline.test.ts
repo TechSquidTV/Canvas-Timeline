@@ -153,6 +153,10 @@ class FakeCanvasContext {
   moveTo(x: number, y: number) {
     this.pathCommands.push({ type: 'moveTo', x, y });
   }
+  measureText(text: string) {
+    const fontSize = Number.parseFloat(this.font) || 10;
+    return { width: text.length * fontSize * 0.6 };
+  }
   rect(x: number, y: number, width: number, height: number) {
     this.rects.push({ height, width, x, y });
     this.addPathRect(x, y, width, height);
@@ -1142,6 +1146,40 @@ describe('renderTimeline', () => {
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '0' }));
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '24' }));
     expect(ctx.texts).toContainEqual(expect.objectContaining({ text: '48' }));
+  });
+
+  it('spaces timecode labels using the resolved ruler font width', () => {
+    const ctx = new FakeCanvasContext();
+    const state = new TimelineEngine({
+      duration: fromSeconds(36),
+      tracks: [],
+      zoomScale: 38,
+    }).getState();
+
+    renderTimeline(
+      ctx as unknown as OffscreenCanvasRenderingContext2D,
+      { width: 500, height: 160 } as OffscreenCanvas,
+      state,
+      1,
+      {
+        ruler: { frameRate: 30 },
+        theme: { fonts: { ruler: '20px monospace' } },
+      }
+    );
+
+    const rulerLabels = ctx.texts.filter((text) => text.y === 4);
+
+    expect(rulerLabels.map((text) => text.text).slice(0, 3)).toEqual([
+      '00:00:00:00',
+      '00:00:05:00',
+      '00:00:10:00',
+    ]);
+    expect(
+      rulerLabels.slice(1).every((label, index) => {
+        const previousLabel = rulerLabels[index];
+        return previousLabel !== undefined && label.x - previousLabel.x >= 140;
+      })
+    ).toBe(true);
   });
 
   it('does not draw sub-frame ruler ticks at the frame-aware zoom cap', () => {

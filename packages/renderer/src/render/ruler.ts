@@ -1,7 +1,62 @@
 import { getTimelineRulerTicks, type Marker } from '@techsquidtv/canvas-timeline-core';
-import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import {
+  formatTime,
+  formatTimecode,
+  fromSeconds,
+  resolveTimecodeFrameRate,
+  toSeconds,
+} from '@techsquidtv/canvas-timeline-utils';
 import { getActiveWidth, secondsToX } from '#renderer/render/geometry';
 import type { RenderContext } from '#renderer/render/types';
+
+const rulerLabelGap = 8;
+
+function getVisibleRulerEndSeconds(renderContext: RenderContext) {
+  const { state, width } = renderContext;
+  const zoomScale = Math.max(state.zoomScale || 0, 0.1);
+  const visibleEndSeconds = (Math.max(0, state.scrollLeft) + width) / zoomScale;
+
+  return state.duration
+    ? Math.min(visibleEndSeconds, Math.max(0, toSeconds(state.duration)))
+    : visibleEndSeconds;
+}
+
+function getRulerLabelMeasurementSample(renderContext: RenderContext) {
+  const ruler = renderContext.options.ruler;
+  const visibleEndSeconds = getVisibleRulerEndSeconds(renderContext);
+  let label: string;
+
+  if (ruler?.frameRate === undefined) {
+    label = formatTime(fromSeconds(visibleEndSeconds));
+  } else if (ruler.labelFormat === 'frame-number') {
+    label = String(Math.ceil(visibleEndSeconds * resolveTimecodeFrameRate(ruler.frameRate)));
+  } else {
+    label = formatTimecode(visibleEndSeconds, {
+      frameRate: ruler.frameRate,
+      ...ruler.timecodeFormatOptions,
+    });
+  }
+
+  return label.replaceAll(/\d/g, '8');
+}
+
+function getRulerMinimumMajorTickSpacing(renderContext: RenderContext) {
+  const { ctx, options, theme } = renderContext;
+  const configuredSpacing = options.ruler?.minimumMajorTickSpacing;
+
+  if (!options.showRulerLabels) {
+    return configuredSpacing;
+  }
+
+  ctx.font = theme.fonts.ruler;
+  const measuredSpacing = Math.ceil(
+    ctx.measureText(getRulerLabelMeasurementSample(renderContext)).width + rulerLabelGap
+  );
+
+  return configuredSpacing === undefined || !Number.isFinite(configuredSpacing)
+    ? measuredSpacing
+    : Math.max(configuredSpacing, measuredSpacing);
+}
 
 function drawRulerTicks(renderContext: RenderContext) {
   const { ctx, state, width, theme } = renderContext;
@@ -10,6 +65,7 @@ function drawRulerTicks(renderContext: RenderContext) {
     frameRate: renderContext.options.ruler?.frameRate,
     includeLabels: renderContext.options.showRulerLabels,
     labelFormat: renderContext.options.ruler?.labelFormat,
+    minimumMajorTickSpacing: getRulerMinimumMajorTickSpacing(renderContext),
     scrollLeft: state.scrollLeft,
     timecodeFormatOptions: renderContext.options.ruler?.timecodeFormatOptions,
     viewportWidth: width,

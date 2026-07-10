@@ -1560,6 +1560,8 @@ export interface TimelineRulerTickOptions {
   labelFormat?: TimelineRulerLabelFormat;
   /** Timecode formatting options for time labels when a frame rate is configured. */
   timecodeFormatOptions?: TimecodeFormatOptions;
+  /** Minimum distance between major ruler ticks in CSS pixels. Cannot reduce format-safe defaults. */
+  minimumMajorTickSpacing?: number;
   /** Whether major ticks should include formatted labels. Defaults to true. */
   includeLabels?: boolean;
 }

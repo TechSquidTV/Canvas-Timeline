@@ -12,7 +12,7 @@ import type { TimelineRendererTheme, TimelineRendererThemeInput } from '#rendere
  */
 export type TimelineRulerOptions = Pick<
   TimelineRulerTickOptions,
-  'frameRate' | 'labelFormat' | 'timecodeFormatOptions'
+  'frameRate' | 'labelFormat' | 'minimumMajorTickSpacing' | 'timecodeFormatOptions'
 >;
 
 export type { TimelineRulerLabelFormat };

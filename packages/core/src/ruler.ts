@@ -7,13 +7,23 @@ import {
 } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineRulerTick, TimelineRulerTickOptions } from '#core/types';
 
-const minMajorTickSpacing = 50;
+const defaultMajorTickSpacing = 50;
+const defaultTimecodeMajorTickSpacing = 72;
 const minFrameSubtickSpacing = 8;
 const secondTickIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
 
-function getSecondTickInterval(zoomScale: number) {
+function resolveMinimumMajorTickSpacing(
+  minimumMajorTickSpacing: number | undefined,
+  fallback: number
+) {
+  return minimumMajorTickSpacing === undefined || !Number.isFinite(minimumMajorTickSpacing)
+    ? fallback
+    : Math.max(fallback, minimumMajorTickSpacing);
+}
+
+function getSecondTickInterval(zoomScale: number, minimumMajorTickSpacing: number) {
   for (const interval of secondTickIntervals) {
-    if (interval * zoomScale >= minMajorTickSpacing) {
+    if (interval * zoomScale >= minimumMajorTickSpacing) {
       return interval;
     }
   }
@@ -34,9 +44,13 @@ function getSecondSubTickCount(pxPerTick: number) {
   return 1;
 }
 
-function getFrameTickInterval(frameRate: number, zoomScale: number) {
+function getFrameTickInterval(
+  frameRate: number,
+  zoomScale: number,
+  minimumMajorTickSpacing: number
+) {
   const pxPerFrame = zoomScale / frameRate;
-  const minFramesPerTick = Math.max(1, Math.ceil(minMajorTickSpacing / pxPerFrame));
+  const minFramesPerTick = Math.max(1, Math.ceil(minimumMajorTickSpacing / pxPerFrame));
   const nominalFrameRate = Math.max(1, Math.round(frameRate));
   const candidates = new Set<number>([
     1,
@@ -87,7 +101,11 @@ function getSafeViewportOptions(options: TimelineRulerTickOptions) {
 function getSecondRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTick[] {
   const { scrollLeft, viewportWidth, zoomScale } = getSafeViewportOptions(options);
   const includeLabels = options.includeLabels ?? true;
-  const secondsPerTick = getSecondTickInterval(zoomScale);
+  const minimumMajorTickSpacing = resolveMinimumMajorTickSpacing(
+    options.minimumMajorTickSpacing,
+    defaultMajorTickSpacing
+  );
+  const secondsPerTick = getSecondTickInterval(zoomScale, minimumMajorTickSpacing);
   const pxPerTick = secondsPerTick * zoomScale;
   const subTickCount = getSecondSubTickCount(pxPerTick);
   const startSubTick = Math.floor(scrollLeft / (pxPerTick / subTickCount));
@@ -121,7 +139,15 @@ function getFrameRulerTicks(options: TimelineRulerTickOptions): TimelineRulerTic
   const { scrollLeft, viewportWidth, zoomScale } = getSafeViewportOptions(options);
   const includeLabels = options.includeLabels ?? true;
   const frameRate = resolveTimecodeFrameRate(options.frameRate ?? 30);
-  const majorFrameInterval = getFrameTickInterval(frameRate, zoomScale);
+  const defaultSpacing =
+    includeLabels && options.labelFormat !== 'frame-number'
+      ? defaultTimecodeMajorTickSpacing
+      : defaultMajorTickSpacing;
+  const minimumMajorTickSpacing = resolveMinimumMajorTickSpacing(
+    options.minimumMajorTickSpacing,
+    defaultSpacing
+  );
+  const majorFrameInterval = getFrameTickInterval(frameRate, zoomScale, minimumMajorTickSpacing);
   const minorFrameInterval = getFrameSubTickInterval(frameRate, zoomScale, majorFrameInterval);
   const startFrame = Math.floor((scrollLeft / zoomScale) * frameRate);
   const visibleEndFrame = Math.ceil(((scrollLeft + viewportWidth) / zoomScale) * frameRate);

@@ -1815,7 +1815,12 @@ test('useTimelineRulerTicks passes frame-rate label options through', () => {
   engine.setZoomScale(50);
 
   const { result } = renderHook(
-    () => useTimelineRulerTicks({ frameRate: 24, labelFormat: 'frame-number' }),
+    () =>
+      useTimelineRulerTicks({
+        frameRate: 24,
+        labelFormat: 'frame-number',
+        minimumMajorTickSpacing: 100,
+      }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
     }
@@ -1826,7 +1831,7 @@ test('useTimelineRulerTicks passes frame-rate label options through', () => {
       .filter((tick) => tick.kind === 'major')
       .map((tick) => tick.label)
       .slice(0, 5)
-  ).toEqual(['0', '24', '48', '72', '96']);
+  ).toEqual(['0', '48', '96']);
 });
 
 test('useTimelineClipboard exposes reactive clipboard state and command results', () => {
