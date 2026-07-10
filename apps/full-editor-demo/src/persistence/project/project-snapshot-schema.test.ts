@@ -26,6 +26,14 @@ describe('project snapshot schema', () => {
     expect(parsed).toBeNull();
   });
 
+  it('restores supported fractional rates and rejects unsupported project rates', () => {
+    expect(
+      parseProjectSnapshot(JSON.stringify({ ...createSnapshot(), frameRate: 30_000 / 1_001 }))
+        ?.frameRate
+    ).toBe(30_000 / 1_001);
+    expect(parseProjectSnapshot(JSON.stringify({ ...createSnapshot(), frameRate: 48 }))).toBeNull();
+  });
+
   it('defaults project metadata to a 1080p canvas', () => {
     expect(getDefaultProjectMetadata()).toMatchObject({
       frameRate: 30,

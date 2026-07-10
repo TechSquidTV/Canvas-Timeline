@@ -24,6 +24,10 @@ import {
   findVideoResolutionPreset,
   type VideoResolutionPresetId,
 } from '#full-editor/project/video-settings';
+import {
+  findProjectFrameRatePreset,
+  type ProjectFrameRatePresetId,
+} from '#full-editor/project/frame-rate';
 import { TimelineDropModeProvider } from '#full-editor/timeline/TimelineDropModeProvider';
 
 export function App() {
@@ -130,6 +134,17 @@ function LoadedEditor({
       title,
     }));
   }, []);
+  const setProjectFrameRatePreset = useCallback(
+    (presetId: ProjectFrameRatePresetId) => {
+      engine.pause();
+      const preset = findProjectFrameRatePreset(presetId);
+      setProjectMetadata((currentMetadata) => ({
+        ...currentMetadata,
+        frameRate: preset.value,
+      }));
+    },
+    [engine]
+  );
   const setProjectResolutionPreset = useCallback((presetId: VideoResolutionPresetId) => {
     const preset = findVideoResolutionPreset(presetId);
     setProjectMetadata((currentMetadata) => ({
@@ -145,6 +160,7 @@ function LoadedEditor({
         autosaveStatus={autosaveStatus}
         metadata={projectMetadata}
         resetProject={resetEditorProject}
+        setProjectFrameRatePreset={setProjectFrameRatePreset}
         setProjectResolutionPreset={setProjectResolutionPreset}
         setProjectTitle={setProjectTitle}
         storageAvailable={bootstrapState.storageAvailable}

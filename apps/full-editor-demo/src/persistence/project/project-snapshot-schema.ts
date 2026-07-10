@@ -1,6 +1,7 @@
 import type { Clip, Marker, TimelineClipGroup, Track } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { EditorTrackKind } from '#full-editor/data/demo-project';
+import { isProjectFrameRate } from '#full-editor/project/frame-rate';
 import type {
   PersistedTimelineState,
   ProjectStorageSnapshot,
@@ -26,6 +27,7 @@ function isProjectSnapshot(value: unknown): value is ProjectStorageSnapshot {
     typeof value.title === 'string' &&
     typeof value.description === 'string' &&
     typeof value.frameRate === 'number' &&
+    isProjectFrameRate(value.frameRate) &&
     isPositiveFiniteNumber(value.height) &&
     isPositiveFiniteNumber(value.width) &&
     typeof value.savedAt === 'string' &&

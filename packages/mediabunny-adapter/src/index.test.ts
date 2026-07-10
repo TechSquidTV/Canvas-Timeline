@@ -59,6 +59,21 @@ type MockCanvasSink = {
       ) => Promise<{ canvas: HTMLCanvasElement; timestamp: number; duration: number } | null>
     >
   >;
+  canvases: ReturnType<
+    typeof vi.fn<
+      (
+        start?: number,
+        end?: number
+      ) => AsyncGenerator<
+        {
+          canvas: HTMLCanvasElement;
+          timestamp: number;
+          duration: number;
+        },
+        void
+      >
+    >
+  >;
 };
 
 type MockAudioSink = {
@@ -249,6 +264,7 @@ function createSinkFactory(
         timestamp,
         duration: 1 / 30,
       })),
+      canvases: vi.fn(async function* () {}),
     } satisfies MockCanvasSink);
   const audioSink =
     options.audioSink ??
@@ -316,7 +332,7 @@ function createActiveClip(
       end: fromSeconds((trackKind === 'audio' ? 20 : 10) + 5),
       duration: fromSeconds(5),
     },
-    syncKey: `${trackKind}:${sourceId}:${timelineSeconds}`,
+    syncKey: `${trackKind}:${sourceId}:${clip.id}`,
   };
 }
 
@@ -456,6 +472,7 @@ test('createMediabunnyAdapter maps active layers to video frames and audio range
       timestamp,
       duration: 1 / 30,
     })),
+    canvases: vi.fn(async function* () {}),
   };
   const audioSink: MockAudioSink = {
     buffers: vi.fn(async function* (start: number, end: number) {
@@ -510,6 +527,79 @@ test('createMediabunnyAdapter maps active layers to video frames and audio range
   expect(adapter.lastFrameTime).toBeNull();
 });
 
+test('createMediabunnyAdapter samples sequential 24 fps frames on 30 fps playback ticks', async () => {
+  const input = createMockInput();
+  const targetCanvas = document.createElement('canvas');
+  const drawImage = vi.fn();
+  vi.spyOn(targetCanvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage,
+  } as unknown as CanvasRenderingContext2D);
+  let iteratorClosed = false;
+  const sourceFrame = (timestamp: number) => ({
+    canvas: document.createElement('canvas'),
+    timestamp,
+    duration: 1 / 24,
+  });
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async (timestamp) => sourceFrame(Math.floor(timestamp * 24) / 24)),
+    canvases: vi.fn(async function* (start = 0, end = Number.POSITIVE_INFINITY) {
+      try {
+        for (let frame = Math.ceil(start * 24 - 1e-9); frame / 24 < end; frame += 1) {
+          yield sourceFrame(frame / 24);
+        }
+      } finally {
+        iteratorClosed = true;
+      }
+    }),
+  };
+  const adapter = createMediabunnyAdapter({
+    audio: { context: createMockAudioContext() as unknown as AudioContext },
+    canvas: targetCanvas,
+    mediabunny: createMockMediabunny([input], { canvasSink }).module,
+    sources: [{ id: 'source-1', url: 'https://media.example/video.mp4' }],
+  });
+  const renderedTimestamps: number[] = [];
+  const unsubscribe = adapter.subscribeFrame(() => {
+    if (adapter.lastFrameTime !== null) {
+      renderedTimestamps.push(adapter.lastFrameTime);
+    }
+  });
+
+  await waitForAdapterLoad(adapter);
+  const initialClip = createActiveClip('visual', 'source-1', 1);
+  await adapter.seek(fromSeconds(1), createActiveLayers([initialClip], 1));
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(1),
+    reason: 'play',
+    activeLayers: createActiveLayers([initialClip], 1),
+  });
+  await vi.waitFor(() => {
+    expect(canvasSink.canvases).toHaveBeenCalledWith(11, 15);
+  });
+
+  for (let projectFrame = 1; projectFrame <= 5; projectFrame += 1) {
+    const timelineSeconds = 1 + projectFrame / 30;
+    const visualClip = createActiveClip('visual', 'source-1', timelineSeconds);
+    await adapter.syncLayers({
+      timelineTime: fromSeconds(timelineSeconds),
+      reason: 'tick',
+      activeLayers: createActiveLayers([visualClip], timelineSeconds),
+    });
+    await Promise.resolve();
+  }
+
+  expect(canvasSink.getCanvas).toHaveBeenCalledTimes(1);
+  expect(renderedTimestamps).toEqual([11, 11 + 1 / 24, 11 + 2 / 24, 11 + 3 / 24, 11 + 4 / 24]);
+  expect(drawImage).toHaveBeenCalledTimes(5);
+
+  adapter.stopClock();
+  await vi.waitFor(() => {
+    expect(iteratorClosed).toBe(true);
+  });
+  unsubscribe();
+});
+
 test('createMediabunnyAdapter handles audio-only content and missing render surfaces', async () => {
   const input = createMockInput({
     videoTrack: null,
@@ -544,6 +634,7 @@ test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts
       timestamp,
       duration: 1 / 30,
     })),
+    canvases: vi.fn(async function* () {}),
   };
   const adapter = createMediabunnyAdapter({
     audio: { context: audioContext as unknown as AudioContext },
@@ -596,6 +687,7 @@ test('createMediabunnyAdapter handles null decoded frames and late audio schedul
   });
   const canvasSink: MockCanvasSink = {
     getCanvas: vi.fn(async () => null),
+    canvases: vi.fn(async function* () {}),
   };
   const audioSink: MockAudioSink = {
     buffers: vi.fn(async function* (start: number) {

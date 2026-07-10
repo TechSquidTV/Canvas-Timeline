@@ -9,7 +9,9 @@ export interface ProjectMetadata {
   width: number;
 }
 
-export type ProjectMetadataOverride = Partial<Pick<ProjectMetadata, 'height' | 'title' | 'width'>>;
+export type ProjectMetadataOverride = Partial<
+  Pick<ProjectMetadata, 'frameRate' | 'height' | 'title' | 'width'>
+>;
 
 export function getDefaultProjectMetadata(): ProjectMetadata {
   return {

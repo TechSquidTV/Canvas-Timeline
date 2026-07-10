@@ -6,6 +6,7 @@ import type {
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
+import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import {
   useTimelineMediaPlayback,
   type TimelineLayerSyncDetails,
@@ -65,6 +66,8 @@ export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
 export interface UseTimelineMediaSyncOptions<LayerName extends string = string> {
   /** Whether the external media adapter is loaded and ready to play. */
   ready?: boolean;
+  /** Optional sequence frame rate used to lock media playback to project frames. */
+  frameRate?: UseTimelineMediaPlaybackOptions<LayerName>['frameRate'];
   /** Named active layer selectors used by the external media surface. */
   layers: Record<LayerName, ActiveLayerSelector>;
   /** External media adapter callbacks. */
@@ -236,7 +239,7 @@ function createPlayFailure(
 export function useTimelineMediaSync<LayerName extends string = string>(
   options: UseTimelineMediaSyncOptions<LayerName>
 ): UseTimelineMediaSyncResult<LayerName> {
-  const { adapter, layers, onError, ready = true } = options;
+  const { adapter, frameRate, layers, onError, ready = true } = options;
   const adapterSeek = adapter.seek;
   const { engine } = useTimeline();
   const activeLayers = useActiveLayers<LayerName>({ layers });
@@ -248,6 +251,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const onErrorRef = useRef(onError);
 
   const syncPlayback = useTimelineMediaPlayback<LayerName>({
+    frameRate,
     getClockTime: adapter.getClockTime,
     stopClock: adapter.stopClock,
     layers,
@@ -341,7 +345,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       return createPlayFailure('not-ready', 'Media adapter is not ready.', onError);
     }
 
-    let timelineTime = engine.getTime();
+    let timelineTime = quantizeTimelineTimeToFrame(engine.getTime(), frameRate);
+    engine.setTime(timelineTime);
     let timelineLayers = engine.getActiveLayers({
       time: timelineTime,
       layers,
@@ -353,8 +358,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return createPlayFailure('no-content', 'No timeline content is available.', onError);
       }
 
-      engine.setTime(firstContentTime);
-      timelineTime = firstContentTime;
+      timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
+      engine.setTime(timelineTime);
       timelineLayers = engine.getActiveLayers({
         time: timelineTime,
         layers,
@@ -405,7 +410,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     return { ok: true, time: timelineTime };
-  }, [adapter, engine, layers, onError, ready, syncPlayback]);
+  }, [adapter, engine, frameRate, layers, onError, ready, syncPlayback]);
 
   const setPlaybackRate = useCallback(
     (playbackRate: number) => {

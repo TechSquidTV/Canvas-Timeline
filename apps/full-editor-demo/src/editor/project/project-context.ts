@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { VideoResolutionPresetId } from '#full-editor/project/video-settings';
+import type { ProjectFrameRatePresetId } from '#full-editor/project/frame-rate';
 import type {
   ProjectMetadata,
   ProjectMetadataOverride,
@@ -11,6 +12,7 @@ export interface ProjectContextValue {
   autosaveStatus: ProjectAutosaveStatus;
   metadata: ProjectMetadata;
   resetProject: (metadataOverride?: ProjectMetadataOverride) => Promise<void>;
+  setProjectFrameRatePreset: (presetId: ProjectFrameRatePresetId) => void;
   setProjectResolutionPreset: (presetId: VideoResolutionPresetId) => void;
   setProjectTitle: (title: string) => void;
   storageAvailable: boolean;

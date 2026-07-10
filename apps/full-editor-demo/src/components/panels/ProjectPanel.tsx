@@ -10,6 +10,13 @@ import { useEditorProject } from '#full-editor/editor/project/project-context';
 import { formatRationalTime } from '#full-editor/lib/timeline-format';
 import { normalizeProjectTitle } from '#full-editor/project/project-metadata';
 import {
+  formatProjectFrameRate,
+  getProjectFrameRatePresetId,
+  isProjectFrameRatePresetId,
+  projectFrameRatePresets,
+  type ProjectFrameRatePresetId,
+} from '#full-editor/project/frame-rate';
+import {
   defaultVideoResolutionPresetId,
   formatVideoResolution,
   getVideoResolutionPresetId,
@@ -20,30 +27,47 @@ import {
 
 export function ProjectPanel() {
   const state = useTimelineState();
-  const { metadata, setProjectResolutionPreset, setProjectTitle } = useEditorProject();
+  const { metadata, setProjectFrameRatePreset, setProjectResolutionPreset, setProjectTitle } =
+    useEditorProject();
   const { clips } = useTimelineClips<EditorTrackKind>();
   const { tracks } = useTimelineTracks<EditorTrackKind>();
   const currentResolutionPresetId =
     getVideoResolutionPresetId(metadata) ?? defaultVideoResolutionPresetId;
+  const currentFrameRatePresetId = getProjectFrameRatePresetId(metadata.frameRate);
   const [titleDraft, setTitleDraft] = useState(metadata.title);
   const [resolutionDraft, setResolutionDraft] =
     useState<VideoResolutionPresetId>(currentResolutionPresetId);
+  const [frameRateDraft, setFrameRateDraft] =
+    useState<ProjectFrameRatePresetId>(currentFrameRatePresetId);
   const settingsChanged =
-    titleDraft !== metadata.title || resolutionDraft !== currentResolutionPresetId;
+    titleDraft !== metadata.title ||
+    resolutionDraft !== currentResolutionPresetId ||
+    frameRateDraft !== currentFrameRatePresetId;
 
   useEffect(() => {
     setTitleDraft(metadata.title);
     setResolutionDraft(currentResolutionPresetId);
-  }, [currentResolutionPresetId, metadata.title]);
+    setFrameRateDraft(currentFrameRatePresetId);
+  }, [currentFrameRatePresetId, currentResolutionPresetId, metadata.title]);
 
   function applyProjectSettings() {
-    setProjectTitle(normalizeProjectTitle(titleDraft));
-    setProjectResolutionPreset(resolutionDraft);
+    const normalizedTitle = normalizeProjectTitle(titleDraft);
+    if (normalizedTitle !== metadata.title) {
+      setProjectTitle(normalizedTitle);
+    }
+    if (resolutionDraft !== currentResolutionPresetId) {
+      setProjectResolutionPreset(resolutionDraft);
+    }
+    if (frameRateDraft !== currentFrameRatePresetId) {
+      setProjectFrameRatePreset(frameRateDraft);
+    }
+    setTitleDraft(normalizedTitle);
   }
 
   function cancelProjectSettings() {
     setTitleDraft(metadata.title);
     setResolutionDraft(currentResolutionPresetId);
+    setFrameRateDraft(currentFrameRatePresetId);
   }
 
   return (
@@ -63,7 +87,7 @@ export function ProjectPanel() {
         </div>
         <div>
           <dt>Frame rate</dt>
-          <dd>{metadata.frameRate} fps</dd>
+          <dd>{formatProjectFrameRate(metadata.frameRate)}</dd>
         </div>
         <div>
           <dt>Tracks</dt>
@@ -84,6 +108,24 @@ export function ProjectPanel() {
             onChange={(event) => setTitleDraft(event.currentTarget.value)}
             value={titleDraft}
           />
+        </label>
+        <label className="editor-field">
+          <span>Frame rate</span>
+          <select
+            className="editor-input"
+            onChange={(event) => {
+              if (isProjectFrameRatePresetId(event.currentTarget.value)) {
+                setFrameRateDraft(event.currentTarget.value);
+              }
+            }}
+            value={frameRateDraft}
+          >
+            {projectFrameRatePresets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="editor-field">
           <span>Resolution</span>
