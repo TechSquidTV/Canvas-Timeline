@@ -1,33 +1,18 @@
 import {
   TimecodeField,
-  useTimeline,
-  useTimelineClips,
-  useTimelineEditCommands,
   useTimelineMarkers,
   useTimelinePlayback,
   useTimelinePlayheadControl,
   useTimelinePlayheadTime,
   useTimelineSnapping,
 } from '@techsquidtv/canvas-timeline-react';
-import { compareRational, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { Magnet, MapPin, Pause, Play, Scissors, StepBack, StepForward, X } from 'lucide-react';
+import { Magnet, MapPin, Pause, Play, StepBack, StepForward, X } from 'lucide-react';
 import { useEditorMediaSync } from '#full-editor/editor/shell/media-sync-context';
 import { Button } from '#full-editor/components/ui/button';
 import { Separator } from '#full-editor/components/ui/separator';
 import { useEditorProject } from '#full-editor/editor/project/project-context';
-import type { EditorTrackKind } from '#full-editor/data/demo-project';
 import { getProjectFrameRatePreset } from '#full-editor/project/frame-rate';
-
-interface TimelineBoundedClip {
-  timelineEnd: RationalTime;
-  timelineStart: RationalTime;
-}
-
-function containsTimelineTime(clip: TimelineBoundedClip, time: RationalTime) {
-  return (
-    compareRational(time, clip.timelineStart) > 0 && compareRational(time, clip.timelineEnd) < 0
-  );
-}
+import { CutSelectedClipButton } from '#full-editor/components/timeline/CutSelectedClipButton';
 
 function PlayheadTimecodeControl() {
   const playheadControl = useTimelinePlayheadControl();
@@ -46,39 +31,6 @@ function PlayheadTimecodeControl() {
       <TimecodeField.Trigger className="timeline-timecode-control-button" />
       <TimecodeField.Input className="timeline-timecode-control-input" />
     </TimecodeField.Root>
-  );
-}
-
-function CutSelectedClipButton() {
-  const { engine } = useTimeline();
-  const { selectedClip } = useTimelineClips<EditorTrackKind>();
-  const { splitClip } = useTimelineEditCommands();
-  const playheadTime = engine.getTime();
-  const canCutSelectedClip =
-    selectedClip !== null && containsTimelineTime(selectedClip, playheadTime);
-
-  return (
-    <Button
-      aria-label="Cut selected clip at playhead"
-      disabled={!canCutSelectedClip}
-      iconOnly
-      onClick={() => {
-        const currentPlayheadTime = engine.getTime();
-        if (selectedClip !== null) {
-          if (containsTimelineTime(selectedClip, currentPlayheadTime)) {
-            splitClip(selectedClip.id, currentPlayheadTime);
-          }
-        }
-      }}
-      title={
-        canCutSelectedClip
-          ? 'Cut selected clip at playhead'
-          : 'Select a clip and place the playhead inside it'
-      }
-      variant="ghost"
-    >
-      <Scissors aria-hidden="true" />
-    </Button>
   );
 }
 
@@ -170,7 +122,7 @@ export function TransportBar() {
       >
         <MapPin aria-hidden="true" />
       </Button>
-      <CutSelectedClipButton />
+      <CutSelectedClipButton playheadSeconds={playheadControl.value} />
     </div>
   );
 }
