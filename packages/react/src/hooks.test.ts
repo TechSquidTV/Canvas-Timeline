@@ -3250,6 +3250,45 @@ test('useTimelineMediaSync seeks to first media and starts an external adapter c
   cancelSpy.mockRestore();
 });
 
+test.each([
+  ['time-continuous', undefined],
+  ['frame-locked', 30],
+] as const)(
+  'useTimelineMediaSync does not emit a redundant scrub at the current playback time (%s)',
+  async (_mode, frameRate) => {
+    const engine = createMediaSyncEngine();
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    const playheadScrub = vi.fn();
+    const unsubscribe = engine.on('playhead:scrub', playheadScrub);
+
+    const { result } = renderHook(
+      () =>
+        useTimelineMediaSync({
+          frameRate,
+          layers: mediaSyncLayers,
+          adapter: {
+            getClockTime: () => 1,
+            startClock: () => true,
+          },
+        }),
+      {
+        wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+      }
+    );
+
+    await act(async () => {
+      await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(1) });
+    });
+
+    expect(playheadScrub).not.toHaveBeenCalled();
+
+    unsubscribe();
+    rafSpy.mockRestore();
+    cancelSpy.mockRestore();
+  }
+);
+
 test('useTimelineMediaSync stops the adapter clock when paused', async () => {
   const engine = createMediaSyncEngine();
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);

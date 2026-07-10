@@ -3,7 +3,7 @@ import type {
   ActiveLayerResult,
   MaybePromise,
 } from '@techsquidtv/canvas-timeline-core';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { rationalEquals, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
@@ -345,8 +345,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       return createPlayFailure('not-ready', 'Media adapter is not ready.', onError);
     }
 
-    let timelineTime = quantizeTimelineTimeToFrame(engine.getTime(), frameRate);
-    engine.setTime(timelineTime);
+    const currentTime = engine.getTime();
+    let timelineTime = quantizeTimelineTimeToFrame(currentTime, frameRate);
+    if (!rationalEquals(currentTime, timelineTime)) {
+      engine.setTime(timelineTime);
+    }
     let timelineLayers = engine.getActiveLayers({
       time: timelineTime,
       layers,
