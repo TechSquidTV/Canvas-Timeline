@@ -35,7 +35,7 @@
       "ignoreDependencies": ["@fontsource-variable/outfit", "tailwindcss", "typedoc", "workerd"]
     },
     "apps/full-editor-demo": {
-      "entry": ["public/sw.js", "src/timeline/source-clip-factory.ts"],
+      "entry": ["public/sw.js", "src/features/timeline/source-clip-factory.ts"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["tailwindcss"]
     },
@@ -87,7 +87,6 @@
     "packages/react/src/timecodeField/TimecodeField.tsx": ["exports"],
     "packages/react/src/hooks/core/timelineScalarControlProps.ts": ["types"],
     "packages/renderer/src/render/geometry.ts": ["exports"],
-    "packages/renderer/src/render/types.ts": ["types"],
-    "apps/full-editor-demo/src/persistence/project/project-store.ts": ["exports"]
+    "packages/renderer/src/render/types.ts": ["types"]
   }
 }

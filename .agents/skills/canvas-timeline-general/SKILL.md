@@ -65,7 +65,7 @@ To maintain a responsive 60fps editor, rendering and interaction are split stric
 
 - [apps/www](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www): Astro docs site, source-backed demos, blog/docs content, API reference generation, React registry snippets, Open Graph images, and the primary QA playground.
 - [apps/www/src/demos](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/demos): executable demo sources. Use [manage-live-demos](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills/manage-live-demos/SKILL.md) for demo or registry work.
-- [.github](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.github): contributor docs, release checklist docs, Dependabot, and GitHub Actions workflows.
+- [.github](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.github): contributor docs, Dependabot, and GitHub Actions workflows.
 - [.agents/skills](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills): repo-local Codex skills. Keep maps and validation commands synchronized with source moves.
 
 ### Repository Tooling
@@ -102,7 +102,7 @@ into `packages/core` or `packages/renderer`.
 Run unit tests relative to your change, then verify overall status with `vp run repo:check`.
 
 - **Core Engine**: [engine.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/core/src/engine.test.ts)
-- **Hooks**: [hooks.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks.test.ts)
+- **Hooks**: [integration tests](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks/integration) are split into editing, keyframe, media, and state suites with shared typed fixtures.
 - **Interactions**: [ClipInteractionLayer.test.tsx](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/components/interactions/ClipInteractionLayer.test.tsx) | [tapBehavior.test.tsx](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/components/playhead/tapBehavior.test.tsx)
 - **Scrollbars**: [ViewportScrollbar.test.tsx](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/components/scrollbars/ViewportScrollbar.test.tsx) | [RangeScrollbar.test.tsx](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/rangeScrollbar/RangeScrollbar.test.tsx)
 - **Renderer & Theme**: [CanvasRenderer.test.tsx](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/renderer/src/CanvasRenderer.test.tsx) | [renderTimeline.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/renderer/src/renderTimeline.test.ts) | [theme.test.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/renderer/src/theme.test.ts)
