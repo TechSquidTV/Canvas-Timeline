@@ -29,7 +29,7 @@ import {
   createTimelineDragEvent,
   createTrack,
   wrapper,
-} from '#react/hooks/integration/test-helpers';
+} from '#react/hooks/integration/testHelpers';
 
 test('useTimelinePlayback', () => {
   const engine = new TimelineEngine({ tracks: [] });

@@ -17,7 +17,7 @@ import {
   createTrack,
   levelKeyframeProperty,
   opacityKeyframeProperty,
-} from '#react/hooks/integration/test-helpers';
+} from '#react/hooks/integration/testHelpers';
 
 test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands', () => {
   const engine = new TimelineEngine({

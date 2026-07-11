@@ -31,7 +31,7 @@ import {
   createMediaSyncEngine,
   createTrack,
   wrapper,
-} from '#react/hooks/integration/test-helpers';
+} from '#react/hooks/integration/testHelpers';
 
 test('useTimelineVisibleClips filters the viewport and returns clipped source ranges', () => {
   const engine = new TimelineEngine({

@@ -6,7 +6,7 @@ import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import { useTimelineMediaSync, useTimelineMediaPlayback } from '#react/hooks';
 
-import { createMediaSyncEngine } from '#react/hooks/integration/test-helpers';
+import { createMediaSyncEngine } from '#react/hooks/integration/testHelpers';
 
 const mediaSyncLayers = {
   visuals: { trackKind: 'visual', sourceId: 'source-1' },
