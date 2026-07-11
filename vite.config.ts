@@ -634,8 +634,14 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost:3000/',
+      },
+    },
     globals: true,
     include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./test-utils/browser-storage.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

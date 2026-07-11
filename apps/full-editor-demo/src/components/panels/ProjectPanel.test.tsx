@@ -103,3 +103,12 @@ test('ProjectPanel cancels a ruler-format draft without applying it', () => {
   expect(rulerFormatSelect.value).toBe('seconds');
   expect(context.setRulerFormat).not.toHaveBeenCalled();
 });
+
+test('ProjectPanel reports when project recovery disables autosave', () => {
+  renderProjectPanel({ projectRestoreError: 'Snapshot is invalid.' });
+
+  const recoveryMessage = screen.getByText(/Saved project restore failed: Snapshot is invalid\./);
+  expect(recoveryMessage.textContent).toContain(
+    'Autosave is disabled until a new project is created.'
+  );
+});

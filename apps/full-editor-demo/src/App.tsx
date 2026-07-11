@@ -111,8 +111,14 @@ function LoadedEditor({
   bootstrapState: EditorBootstrapState;
   resetEditorProject: (metadataOverride?: ProjectMetadataOverride) => Promise<void>;
 }) {
+  const persistenceWritable =
+    bootstrapState.storageAvailable && bootstrapState.projectRestoreError === undefined;
   const [autosaveStatus, setAutosaveStatus] = useState<ProjectAutosaveStatus>(
-    bootstrapState.storageAvailable ? 'saved' : 'unavailable'
+    bootstrapState.projectRestoreError === undefined
+      ? bootstrapState.storageAvailable
+        ? 'saved'
+        : 'unavailable'
+      : 'error'
   );
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>(
     bootstrapState.projectMetadata
@@ -169,6 +175,7 @@ function LoadedEditor({
       <ProjectProvider
         autosaveStatus={autosaveStatus}
         metadata={projectMetadata}
+        projectRestoreError={bootstrapState.projectRestoreError}
         resetProject={resetEditorProject}
         rulerFormat={rulerFormat}
         setProjectFrameRatePreset={setProjectFrameRatePreset}
@@ -178,7 +185,10 @@ function LoadedEditor({
         storageAvailable={bootstrapState.storageAvailable}
       >
         <ProjectAutosave
-          enabled={bootstrapState.storageAvailable}
+          disabledStatus={
+            bootstrapState.projectRestoreError === undefined ? 'unavailable' : 'error'
+          }
+          enabled={persistenceWritable}
           metadata={projectMetadata}
           onStatusChange={setAutosaveStatus}
         />

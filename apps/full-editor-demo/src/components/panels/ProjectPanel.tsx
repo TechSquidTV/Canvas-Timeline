@@ -35,6 +35,7 @@ export function ProjectPanel() {
   const state = useTimelineState();
   const {
     metadata,
+    projectRestoreError,
     rulerFormat,
     setProjectFrameRatePreset,
     setProjectResolutionPreset,
@@ -121,6 +122,13 @@ export function ProjectPanel() {
           <dd>{clips.length}</dd>
         </div>
       </dl>
+
+      {projectRestoreError === undefined ? null : (
+        <p className="editor-menu-error">
+          Saved project restore failed: {projectRestoreError} Autosave is disabled until a new
+          project is created.
+        </p>
+      )}
 
       <section className="project-panel-settings">
         <h3 className="project-panel-heading">Project Settings</h3>
