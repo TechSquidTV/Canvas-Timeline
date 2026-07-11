@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource-variable/lexend/wght.css';
-import { App } from '#full-editor/App';
-import { registerServiceWorker } from '#full-editor/pwa/register-service-worker';
+import { App } from '#full-editor/app/App';
+import { registerServiceWorker } from '#full-editor/infrastructure/pwa/register-service-worker';
 import '#full-editor/styles.css';
 
 const rootElement = document.getElementById('root');
