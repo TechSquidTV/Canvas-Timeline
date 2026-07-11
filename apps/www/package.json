@@ -59,11 +59,11 @@
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
     "tailwindcss": "^4.3.2",
-    "tsx": "^4.22.4",
-    "typedoc": "^0.28.19",
+    "tsx": "^4.23.0",
+    "typedoc": "^0.28.20",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
-    "workerd": "^1.20260702.1",
+    "workerd": "^1.20260711.1",
     "wrangler": "^4.107.0"
   }
 }
