@@ -65,7 +65,7 @@ To maintain a responsive 60fps editor, rendering and interaction are split stric
 
 - [apps/www](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www): Astro docs site, source-backed demos, blog/docs content, API reference generation, React registry snippets, Open Graph images, and the primary QA playground.
 - [apps/www/src/demos](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/demos): executable demo sources. Use [manage-live-demos](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills/manage-live-demos/SKILL.md) for demo or registry work.
-- [.github](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.github): contributor docs, release checklist docs, Dependabot, and GitHub Actions workflows.
+- [.github](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.github): contributor docs, Dependabot, and GitHub Actions workflows.
 - [.agents/skills](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills): repo-local Codex skills. Keep maps and validation commands synchronized with source moves.
 
 ### Repository Tooling

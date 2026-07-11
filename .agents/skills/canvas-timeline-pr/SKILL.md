@@ -1,6 +1,6 @@
 ---
 name: canvas-timeline-pr
-description: Prepare Canvas Timeline pull requests with release-readiness context. Use when creating, reviewing, updating, or drafting a PR for this repo, especially when changes may affect public packages, API shape, docs demos, release automation, package metadata, CI, or the first public release checklist.
+description: Prepare Canvas Timeline pull requests with release-readiness context. Use when creating, reviewing, updating, or drafting a PR for this repo, especially when changes may affect public packages, API shape, docs demos, release automation, package metadata, CI, or publishing.
 ---
 
 # Canvas Timeline PR
@@ -8,8 +8,8 @@ description: Prepare Canvas Timeline pull requests with release-readiness contex
 ## Core Rule
 
 Create PRs that are easy to merge and easy to audit against the public release
-bar. Do not duplicate the release checklist in the PR body. Instead, read and
-reference [.github/docs/public-release-checklist.md](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.github/docs/public-release-checklist.md) when package/API, release, CI, publishing, docs, governance, or observability risk matters.
+bar. Keep the release-impact analysis in the PR body concise, concrete, and tied
+to the files that changed.
 
 Use [git-workflow](file:///Users/techsquidtv/.codex/skills/git-workflow/SKILL.md)
 for generic Git mechanics: status inspection, staging, commit naming, pushing,
@@ -25,8 +25,8 @@ and avoiding duplicate PRs.
      changed files.
    - Commitlint or repository commit-scope configuration before choosing a PR
      title or commit message scope.
-2. Identify release-relevant impact by reading only the relevant sections of
-   `.github/docs/public-release-checklist.md`.
+2. Identify release-relevant impact for package/API, docs/demo, CI, publishing,
+   governance, and compatibility changes.
 3. Confirm the PR has the right release artifact:
    - Package/API changes: add or verify a Changeset.
    - Non-package changes: add an empty Changeset whenever the Changeset status
@@ -36,26 +36,30 @@ and avoiding duplicate PRs.
 4. Run validation proportional to impact. Prefer already-documented Vite+ gates.
 5. For stacked cleanup PRs, base later PRs on the smallest earlier branch that
    provides required CI/config fixes instead of duplicating those commits.
-6. Draft a concise PR title and body that names impact, validation, and release
-   checklist areas reviewed.
+6. Draft a concise PR title and body that names impact, validation, and any
+   release-relevant risk.
 7. After opening the PR, run `gh pr checks <number>` or inspect the check
    rollup. If a required check fails, inspect the failing log before declaring
    the PR ready.
 
-## Checklist Routing
+## Release Impact Routing
 
-Use the checklist as a routing map:
+Use the changed files as a routing map:
 
-- Public exports or package boundaries: read sections 1, 2, 5, 8, and 10.
-- React interactions, renderer, styling, demos, or accessibility: read sections
-  3, 4, 8, and 10.
-- CI, Changesets, branch protection, or publishing: read sections 5 and 6.
-- Community files, templates, security, or governance: read sections 6 and 7.
-- Docs site, Sentry, demos infrastructure, or analytics: read sections 8 and 9.
-- Compatibility claims, peer dependencies, Node/package-manager support, or
-  browser support: read sections 5 and 11.
+- Public exports or package boundaries: inspect exported types, package entrypoints,
+  Changesets, and docs/API examples.
+- React interactions, renderer, styling, demos, or accessibility: inspect DOM/canvas
+  split, keyboard/pointer behavior, hit targets, visual regressions, and demo usage.
+- CI, Changesets, branch protection, or publishing: inspect workflows, package
+  metadata, release artifacts, and package validation output.
+- Community files, templates, security, or governance: inspect policy files and
+  public contributor-facing docs.
+- Docs site, demos infrastructure, analytics, or observability: inspect docs build,
+  source-backed demos, generated metadata, and runtime configuration.
+- Compatibility claims, peer dependencies, Node/package-manager support, or browser
+  support: inspect package metadata, build targets, and documented support claims.
 
-If none of these apply, still skim sections 0 and 3 before opening the PR.
+If none of these apply, state that release impact is not applicable.
 
 ## Validation Guidance
 
@@ -109,7 +113,7 @@ Keep the body short and reviewer-oriented:
 - Packages/API:
 - Docs/demos:
 - Breaking changes:
-- Checklist areas reviewed:
+- Release risk:
 
 ## Validation
 
@@ -129,5 +133,5 @@ Pause and resolve before opening or marking ready for review when:
 - Docs examples or demos import private workspace paths instead of public package
   entrypoints.
 - Package metadata changed without running package or docs registry checks.
-- The PR claims release readiness without referencing the checklist areas that
-  were reviewed.
+- The PR claims release readiness without naming the package, docs, CI, or
+  publishing areas that were reviewed.
