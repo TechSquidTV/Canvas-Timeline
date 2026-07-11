@@ -1,7 +1,7 @@
 ---
 ---
 
-Harden the public package surface.
+Harden the public package surface before the first public release.
 
 This is a breaking API cleanup: React timecode input no longer re-exports
 timecode parsing, formatting, or option aliases. Use the canonical helpers and
