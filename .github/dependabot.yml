@@ -14,8 +14,40 @@ updates:
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+    versioning-strategy: increase-if-necessary
     groups:
-      production-dependencies:
-        dependency-type: 'production'
-      development-dependencies:
-        dependency-type: 'development'
+      astro-cloudflare:
+        patterns:
+          - 'astro'
+          - 'astro-*'
+          - '@astrojs/*'
+          - '@cloudflare/*'
+          - 'wrangler'
+          - 'workerd'
+        update-types:
+          - 'patch'
+          - 'minor'
+      sentry:
+        patterns:
+          - '@sentry/*'
+        update-types:
+          - 'patch'
+          - 'minor'
+      mediabunny:
+        patterns:
+          - 'mediabunny'
+          - '@mediabunny/*'
+        update-types:
+          - 'patch'
+          - 'minor'
+      vite-tooling:
+        patterns:
+          - 'vite-plus'
+          - '@voidzero-dev/*'
+          - 'vitest'
+          - '@vitest/*'
+        update-types:
+          - 'patch'
+          - 'minor'

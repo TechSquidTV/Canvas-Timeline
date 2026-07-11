@@ -180,6 +180,17 @@ jobs:
       - name: Enable pnpm
         run: corepack enable
 
+      - name: Resolve Wrangler version
+        id: wrangler-version
+        working-directory: apps/www
+        run: |
+          version="$(node -p 'require("./package.json").devDependencies.wrangler.replace(/^[^0-9]*/, "")')"
+          if [ -z "$version" ]; then
+            echo "Failed to resolve wrangler version from apps/www/package.json" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
       - name: Deploy production docs to Cloudflare Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
         id: deploy-production
@@ -187,7 +198,7 @@ jobs:
         with:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.107.0'
+          wranglerVersion: ${{ steps.wrangler-version.outputs.version }}
           packageManager: pnpm
           workingDirectory: apps/www
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
@@ -199,7 +210,7 @@ jobs:
         with:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.107.0'
+          wranglerVersion: ${{ steps.wrangler-version.outputs.version }}
           packageManager: pnpm
           workingDirectory: apps/www
           command: pages deploy dist/client --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.head_ref }}
