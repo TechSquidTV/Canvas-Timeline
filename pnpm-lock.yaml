@@ -92,7 +92,7 @@ importers:
         version: 5.2.11
       '@mediabunny/aac-encoder':
         specifier: ^1.50.3
-        version: 1.50.6(mediabunny@1.50.3)
+        version: 1.50.6(mediabunny@1.50.6)
       '@techsquidtv/canvas-timeline-core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -113,7 +113,7 @@ importers:
         version: 1.23.0(react@19.2.7)
       mediabunny:
         specifier: ^1.50.3
-        version: 1.50.3
+        version: 1.50.6
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -207,7 +207,7 @@ importers:
         version: 1.23.0(react@19.2.7)
       mediabunny:
         specifier: ^1.50.3
-        version: 1.50.3
+        version: 1.50.6
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -306,7 +306,7 @@ importers:
     devDependencies:
       mediabunny:
         specifier: ^1.50.3
-        version: 1.50.3
+        version: 1.50.6
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -2568,8 +2568,8 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
-  '@types/dom-mediacapture-transform@0.1.11':
-    resolution: {integrity: sha512-Y2p+nGf1bF2XMttBnsVPHUWzRRZzqUoJAKmiP10b5umnO6DDrWI0BrGDJy1pOHoOULVmGSfFNkQrAlC5dcj6nQ==}
+  '@types/dom-mediacapture-transform@0.1.12':
+    resolution: {integrity: sha512-d7/QsLRwF864A5mgIM/YrfiglHoYn7zgCcAoJgW404r+2DwnNr7EBbLnCWpmOMgH8y0te73L1AV6H1bmauaWFw==}
 
   '@types/dom-webcodecs@0.1.13':
     resolution: {integrity: sha512-O5hkiFIcjjszPIYyUSyvScyvrBoV3NOEEZx/pMlsu44TKzWNkLVBBxnxJz42in5n3QIolYOcBYFCPZZ0h8SkwQ==}
@@ -3937,8 +3937,8 @@ packages:
   mdurl@2.0.0:
     resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
 
-  mediabunny@1.50.3:
-    resolution: {integrity: sha512-lw6NjC6++/p6MzHC3u7RbkpM0dnukEQcAAXzZwXlmmx9y8n6132DXUMer2WaNn8RPuGgUpnemi/QIVNpEnONhQ==}
+  mediabunny@1.50.6:
+    resolution: {integrity: sha512-ktHEuGFZ1lqXx16CQiViawxg8Kn2cBcpudjjko7dMuDHMT8W/UrQ0ojhfrXL69/nUrbVFGMwmu58pFz9d0MyOQ==}
 
   meow@13.2.0:
     resolution: {integrity: sha512-pxQJQzB6djGPXh08dacEloMFopsOqGVRKFPYvPOt9XDZ1HasbgDZA74CJGreSU4G3Ak7EFJGoiH2auq+yXISgA==}
@@ -6447,9 +6447,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mediabunny/aac-encoder@1.50.6(mediabunny@1.50.3)':
+  '@mediabunny/aac-encoder@1.50.6(mediabunny@1.50.6)':
     dependencies:
-      mediabunny: 1.50.3
+      mediabunny: 1.50.6
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)':
     dependencies:
@@ -7188,7 +7188,7 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
-  '@types/dom-mediacapture-transform@0.1.11':
+  '@types/dom-mediacapture-transform@0.1.12':
     dependencies:
       '@types/dom-webcodecs': 0.1.13
 
@@ -8774,9 +8774,9 @@ snapshots:
 
   mdurl@2.0.0: {}
 
-  mediabunny@1.50.3:
+  mediabunny@1.50.6:
     dependencies:
-      '@types/dom-mediacapture-transform': 0.1.11
+      '@types/dom-mediacapture-transform': 0.1.12
       '@types/dom-webcodecs': 0.1.13
 
   meow@13.2.0: {}
