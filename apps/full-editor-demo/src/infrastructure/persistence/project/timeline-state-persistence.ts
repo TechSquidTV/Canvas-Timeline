@@ -1,30 +1,7 @@
-import type {
-  Clip,
-  Marker,
-  TimelineClipGroup,
-  TimelineState,
-  Track,
-} from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Marker, TimelineClipGroup, Track } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
 import type { PersistedTimelineState } from '#full-editor/infrastructure/persistence/project/types';
-
-export function sanitizeTimelineState(state: TimelineState): PersistedTimelineState {
-  return sanitizePersistedTimelineState({
-    clipGroups: state.clipGroups,
-    duration: state.duration,
-    inPoint: state.inPoint,
-    markers: state.markers ?? [],
-    outPoint: state.outPoint,
-    playheadTime: state.playheadTime,
-    scrollLeft: state.scrollLeft,
-    scrollTop: state.scrollTop,
-    snapEnabled: state.snapEnabled,
-    snapThresholdPixels: state.snapThresholdPixels,
-    tracks: state.tracks as Track<EditorTrackKind>[],
-    zoomScale: state.zoomScale,
-  });
-}
 
 export function sanitizePersistedTimelineState(
   state: PersistedTimelineState

@@ -1,4 +1,3 @@
-import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
 import {
   getAppStorageRoot,
   getDirectoryFromPath,
@@ -12,7 +11,6 @@ import {
   type ProjectMetadata,
 } from '#full-editor/features/project/project-metadata';
 import { parseProjectSnapshot } from '#full-editor/infrastructure/persistence/project/project-snapshot-schema';
-import { sanitizeTimelineState } from '#full-editor/infrastructure/persistence/project/timeline-state-persistence';
 import type {
   PersistedTimelineState,
   ProjectStorageSnapshot,
@@ -37,10 +35,6 @@ export async function loadProjectSnapshot(): Promise<ProjectStorageSnapshot | nu
 
     throw error;
   }
-}
-
-export async function saveProjectSnapshot(state: TimelineState) {
-  await savePersistedProjectState(sanitizeTimelineState(state));
 }
 
 export async function savePersistedProjectState(
