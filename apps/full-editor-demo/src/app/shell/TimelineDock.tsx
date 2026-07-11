@@ -18,7 +18,7 @@ export function TimelineDock({ compact = false }: { compact?: boolean }) {
       <ResizablePanelGroup
         className="timeline-editor-body-with-headers"
         orientation="horizontal"
-        resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+        resizeTargetMinimumSize={{ coarse: 44, fine: 8 }}
       >
         <ResizablePanel
           className="editor-shell-panel editor-track-header-shell-panel"

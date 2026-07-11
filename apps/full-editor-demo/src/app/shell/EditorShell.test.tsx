@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { beforeEach, expect, test, vi } from 'vite-plus/test';
 
 vi.mock('#full-editor/features/media/PreviewMonitor', () => ({
   PreviewMonitor: function PreviewMonitor() {
-    return <div>Program workspace</div>;
+    return <canvas aria-label="Program workspace" />;
   },
 }));
 
@@ -16,7 +16,15 @@ vi.mock('#full-editor/app/shell/TimelineDock', () => ({
 
 vi.mock('#full-editor/app/shell/ToolPanelStack', () => ({
   ToolPanelStack: function ToolPanelStack() {
-    return <div>Inspector workspace</div>;
+    const [draftCount, setDraftCount] = useState(0);
+    return (
+      <div>
+        Inspector workspace
+        <button onClick={() => setDraftCount((count) => count + 1)} type="button">
+          Draft {draftCount}
+        </button>
+      </div>
+    );
   },
 }));
 
@@ -47,7 +55,7 @@ beforeEach(() => {
 test('EditorShell renders the resizable desktop workspace at supported widths', () => {
   render(<EditorShell />);
 
-  expect(screen.getByText('Program workspace')).not.toBeNull();
+  expect(screen.getByLabelText('Program workspace')).not.toBeNull();
   expect(screen.getByText('Timeline workspace')).not.toBeNull();
   expect(screen.getByText('Inspector workspace')).not.toBeNull();
   expect(screen.queryByRole('tablist')).toBeNull();
@@ -60,11 +68,16 @@ test('EditorShell exposes compact workspaces as accessible tabs', () => {
   const timelineTab = screen.getByRole('tab', { name: 'Timeline' });
   expect(timelineTab.getAttribute('aria-selected')).toBe('true');
   expect(screen.getByRole('tabpanel').textContent).toContain('Timeline workspace');
+  expect(document.getElementById('compact-editor-panel-timeline')).not.toBeNull();
+  expect(document.getElementById('compact-editor-panel-program')).not.toBeNull();
+  expect(document.getElementById('compact-editor-panel-inspector')).not.toBeNull();
+  expect(screen.getByLabelText('Program workspace')).not.toBeNull();
 
   fireEvent.click(screen.getByRole('tab', { name: 'Program' }));
 
   expect(screen.getByRole('tab', { name: 'Program' }).getAttribute('aria-selected')).toBe('true');
-  expect(screen.getByRole('tabpanel').textContent).toContain('Program workspace');
+  expect(document.getElementById('compact-editor-panel-program')?.hidden).toBe(false);
+  expect(screen.getByLabelText('Program workspace')).not.toBeNull();
 
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Program' }), { key: 'ArrowRight' });
 
@@ -72,6 +85,12 @@ test('EditorShell exposes compact workspaces as accessible tabs', () => {
   expect(inspectorTab.getAttribute('aria-selected')).toBe('true');
   expect(document.activeElement).toBe(inspectorTab);
   expect(screen.getByRole('tabpanel').textContent).toContain('Inspector workspace');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Draft 0' }));
+  fireEvent.click(timelineTab);
+  fireEvent.click(inspectorTab);
+
+  expect(screen.getByRole('button', { name: 'Draft 1' })).not.toBeNull();
 });
 
 function setCompactViewport(matches: boolean) {

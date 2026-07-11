@@ -22,7 +22,7 @@ function DesktopEditorShell() {
       <ResizablePanelGroup
         className="full-editor-layout"
         orientation="vertical"
-        resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+        resizeTargetMinimumSize={{ coarse: 44, fine: 8 }}
       >
         <ResizablePanel
           className="editor-shell-panel editor-top-panel"
@@ -32,7 +32,7 @@ function DesktopEditorShell() {
           <ResizablePanelGroup
             className="full-editor-top-row"
             orientation="horizontal"
-            resizeTargetMinimumSize={{ coarse: 28, fine: 8 }}
+            resizeTargetMinimumSize={{ coarse: 44, fine: 8 }}
           >
             <ResizablePanel
               className="editor-shell-panel editor-monitor-panel"
@@ -105,16 +105,20 @@ function CompactEditorShell() {
             </button>
           ))}
         </div>
-        <section
-          aria-labelledby={`compact-editor-tab-${activeView}`}
-          className="compact-editor-panel"
-          id={`compact-editor-panel-${activeView}`}
-          role="tabpanel"
-        >
-          {activeView === 'timeline' ? <TimelineDock compact /> : null}
-          {activeView === 'program' ? <PreviewMonitor /> : null}
-          {activeView === 'inspector' ? <ToolPanelStack /> : null}
-        </section>
+        {compactEditorViews.map((view) => (
+          <section
+            aria-labelledby={`compact-editor-tab-${view.id}`}
+            className="compact-editor-panel"
+            hidden={activeView !== view.id}
+            id={`compact-editor-panel-${view.id}`}
+            key={view.id}
+            role="tabpanel"
+          >
+            {view.id === 'timeline' ? <TimelineDock compact /> : null}
+            {view.id === 'program' ? <PreviewMonitor /> : null}
+            {view.id === 'inspector' ? <ToolPanelStack /> : null}
+          </section>
+        ))}
       </div>
     </main>
   );
