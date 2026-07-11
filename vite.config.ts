@@ -649,7 +649,6 @@ export default defineConfig({
       exclude: [
         'apps/**/.generated/**',
         'apps/**/vite-env.d.ts',
-        'apps/**/src/components/**/*.{ts,tsx}',
         'apps/**/src/data/blog.ts',
         'apps/**/src/data/*.generated.ts',
         'apps/**/src/data/react-registry.ts',
