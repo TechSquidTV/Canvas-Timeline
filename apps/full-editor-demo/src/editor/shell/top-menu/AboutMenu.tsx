@@ -23,25 +23,23 @@ const aboutLinks = [
 
 export function AboutMenu({ onNavigate }: { onNavigate: () => void }) {
   return (
-    <div className="editor-menu-popover editor-about-menu">
-      <section className="editor-menu-section">
-        <h2 className="editor-menu-section-title">About Canvas Timeline</h2>
-        <div className="editor-menu-link-list">
-          {aboutLinks.map((link) => (
-            <a
-              className="editor-menu-link"
-              href={link.href}
-              key={link.href}
-              onClick={onNavigate}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <span>{link.label}</span>
-              <small>{link.description}</small>
-            </a>
-          ))}
-        </div>
-      </section>
-    </div>
+    <section className="editor-menu-section">
+      <h2 className="editor-menu-section-title">About Canvas Timeline</h2>
+      <div className="editor-menu-link-list">
+        {aboutLinks.map((link) => (
+          <a
+            className="editor-menu-link"
+            href={link.href}
+            key={link.href}
+            onClick={onNavigate}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span>{link.label}</span>
+            <small>{link.description}</small>
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }

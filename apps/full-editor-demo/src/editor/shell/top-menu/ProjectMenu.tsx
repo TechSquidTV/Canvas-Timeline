@@ -54,7 +54,7 @@ export function ProjectMenu({
   storageAvailable,
 }: ProjectMenuProps) {
   return (
-    <div className="editor-menu-popover editor-project-menu">
+    <>
       <section className="editor-menu-section">
         <h2 className="editor-menu-section-title">Current Project</h2>
         <dl className="panel-readout">
@@ -153,6 +153,6 @@ export function ProjectMenu({
           </Button>
         )}
       </section>
-    </div>
+    </>
   );
 }

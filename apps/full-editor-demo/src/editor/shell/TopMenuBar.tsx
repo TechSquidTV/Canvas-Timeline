@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTimelineState } from '@techsquidtv/canvas-timeline-react';
-import { Button } from '#full-editor/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '#full-editor/components/ui/popover';
 import { useSourceBin } from '#full-editor/components/source-bin/source-bin-context';
 import { demoProject } from '#full-editor/data/demo-project';
 import {
@@ -96,77 +96,82 @@ export function TopMenuBar() {
       </div>
 
       <nav className="editor-top-menu-actions" aria-label="Application actions">
-        <div className="editor-menu-popover-root">
-          <Button
-            aria-expanded={openMenu === 'project'}
-            aria-haspopup="menu"
-            className={`editor-menu-trigger${openMenu === 'project' ? ' is-active' : ''}`}
-            onClick={() => {
-              setOpenMenu((currentMenu) => (currentMenu === 'project' ? null : 'project'));
-            }}
-            variant="ghost"
+        <Popover
+          onOpenChange={(open) => setOpenMenu(open ? 'project' : null)}
+          open={openMenu === 'project'}
+        >
+          <PopoverTrigger
+            className={`editor-button editor-button-ghost editor-menu-trigger${
+              openMenu === 'project' ? ' is-active' : ''
+            }`}
           >
             Project
-          </Button>
+          </PopoverTrigger>
           {openMenu === 'project' ? (
-            <ProjectMenu
-              confirmingNewProject={confirmingNewProject}
-              duration={state.duration}
-              metadata={metadata}
-              newProjectFrameRateDraft={newProjectFrameRateDraft}
-              newProjectResolutionDraft={newProjectResolutionDraft}
-              newProjectTitleDraft={newProjectTitleDraft}
-              onCancelNewProject={() => {
-                setConfirmingNewProject(false);
-                setResetError(null);
-                setNewProjectTitleDraft(demoProject.title);
-                setNewProjectResolutionDraft(currentResolutionPresetId);
-                setNewProjectFrameRateDraft(defaultProjectFrameRatePresetId);
-              }}
-              onConfirmNewProject={() => void confirmNewProject()}
-              onNewProjectFrameRateDraftChange={setNewProjectFrameRateDraft}
-              onNewProjectResolutionDraftChange={setNewProjectResolutionDraft}
-              onNewProjectTitleDraftChange={setNewProjectTitleDraft}
-              onStartNewProject={() => setConfirmingNewProject(true)}
-              resetError={resetError}
-              resetting={resetting}
-              sourcesCount={sources.length}
-              storageAvailable={storageAvailable}
-            />
+            <PopoverContent aria-label="Project settings" className="editor-project-menu">
+              <ProjectMenu
+                confirmingNewProject={confirmingNewProject}
+                duration={state.duration}
+                metadata={metadata}
+                newProjectFrameRateDraft={newProjectFrameRateDraft}
+                newProjectResolutionDraft={newProjectResolutionDraft}
+                newProjectTitleDraft={newProjectTitleDraft}
+                onCancelNewProject={() => {
+                  setConfirmingNewProject(false);
+                  setResetError(null);
+                  setNewProjectTitleDraft(demoProject.title);
+                  setNewProjectResolutionDraft(currentResolutionPresetId);
+                  setNewProjectFrameRateDraft(defaultProjectFrameRatePresetId);
+                }}
+                onConfirmNewProject={() => void confirmNewProject()}
+                onNewProjectFrameRateDraftChange={setNewProjectFrameRateDraft}
+                onNewProjectResolutionDraftChange={setNewProjectResolutionDraft}
+                onNewProjectTitleDraftChange={setNewProjectTitleDraft}
+                onStartNewProject={() => setConfirmingNewProject(true)}
+                resetError={resetError}
+                resetting={resetting}
+                sourcesCount={sources.length}
+                storageAvailable={storageAvailable}
+              />
+            </PopoverContent>
           ) : null}
-        </div>
+        </Popover>
 
-        <div className="editor-menu-popover-root">
-          <Button
-            aria-expanded={openMenu === 'export'}
-            aria-haspopup="menu"
-            className={`editor-menu-trigger${openMenu === 'export' ? ' is-active' : ''}`}
-            onClick={() => {
-              setOpenMenu((currentMenu) => (currentMenu === 'export' ? null : 'export'));
-            }}
-            variant="ghost"
+        <Popover
+          onOpenChange={(open) => setOpenMenu(open ? 'export' : null)}
+          open={openMenu === 'export'}
+        >
+          <PopoverTrigger
+            className={`editor-button editor-button-ghost editor-menu-trigger${
+              openMenu === 'export' ? ' is-active' : ''
+            }`}
           >
             Export
-          </Button>
+          </PopoverTrigger>
           {openMenu === 'export' ? (
-            <ExportMenu status={exportStatus} onStatusChange={setExportStatus} />
+            <PopoverContent aria-label="Export project" className="editor-export-menu">
+              <ExportMenu status={exportStatus} onStatusChange={setExportStatus} />
+            </PopoverContent>
           ) : null}
-        </div>
+        </Popover>
 
-        <div className="editor-menu-popover-root">
-          <Button
-            aria-expanded={openMenu === 'about'}
-            aria-haspopup="menu"
-            className={`editor-menu-trigger${openMenu === 'about' ? ' is-active' : ''}`}
-            onClick={() => {
-              setOpenMenu((currentMenu) => (currentMenu === 'about' ? null : 'about'));
-            }}
-            variant="ghost"
+        <Popover
+          onOpenChange={(open) => setOpenMenu(open ? 'about' : null)}
+          open={openMenu === 'about'}
+        >
+          <PopoverTrigger
+            className={`editor-button editor-button-ghost editor-menu-trigger${
+              openMenu === 'about' ? ' is-active' : ''
+            }`}
           >
             About
-          </Button>
-          {openMenu === 'about' ? <AboutMenu onNavigate={() => setOpenMenu(null)} /> : null}
-        </div>
+          </PopoverTrigger>
+          {openMenu === 'about' ? (
+            <PopoverContent aria-label="About Canvas Timeline" className="editor-about-menu">
+              <AboutMenu onNavigate={() => setOpenMenu(null)} />
+            </PopoverContent>
+          ) : null}
+        </Popover>
       </nav>
 
       <div className="editor-autosave-status">{getAutosaveLabel(autosaveStatus)}</div>

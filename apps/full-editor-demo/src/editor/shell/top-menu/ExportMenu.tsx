@@ -7,9 +7,5 @@ interface ExportMenuProps {
 }
 
 export function ExportMenu({ onStatusChange, status }: ExportMenuProps) {
-  return (
-    <div className="editor-menu-popover editor-export-menu">
-      <ExportPanel status={status} onStatusChange={onStatusChange} />
-    </div>
-  );
+  return <ExportPanel status={status} onStatusChange={onStatusChange} />;
 }
