@@ -201,7 +201,7 @@
   .source-bin-usage,
   .source-bin-error,
   .source-bin-warning {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     line-height: 1.45;
   }
 
@@ -232,10 +232,10 @@
     position: absolute;
     top: 0.25rem;
     right: 0.25rem;
-    width: 1.5rem;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    min-height: 1.5rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
     border: 1px solid var(--editor-border);
     border-radius: 0;
     background: var(--editor-panel);
@@ -250,10 +250,10 @@
   }
 
   .source-bin-remove-button.editor-button {
-    width: 1.5rem;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    min-height: 1.5rem;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
     padding: 0;
   }
 
