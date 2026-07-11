@@ -3,7 +3,7 @@ import { createLibraryPackConfig } from '@techsquidtv/canvas-timeline-scripts/vi
 
 export default defineConfig({
   pack: createLibraryPackConfig({
-    entry: ['src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}'],
+    entry: ['src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}', '!src/hooks/integration/**/*.{ts,tsx}'],
     neverBundle: [/^@techsquidtv\//, 'react', 'react/jsx-runtime'],
   }),
 });
