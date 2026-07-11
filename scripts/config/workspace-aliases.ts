@@ -1,6 +1,46 @@
 import path from 'node:path';
 
-const internalAliasTargets = [
+export type AliasRule = {
+  find: RegExp;
+  replacement: string;
+};
+
+type InternalAliasName =
+  | 'core'
+  | 'full-editor'
+  | 'html-media-adapter'
+  | 'mediabunny-adapter'
+  | 'react'
+  | 'renderer'
+  | 'test-utils'
+  | 'timeline'
+  | 'utils'
+  | 'www'
+  | 'www-generated';
+
+type PackageAliasName =
+  | 'core'
+  | 'html-media-adapter'
+  | 'mediabunny-adapter'
+  | 'react'
+  | 'renderer'
+  | 'timeline'
+  | 'utils';
+
+export type WorkspaceAliasOptions = {
+  workspaceRoot: string;
+  internalAliasOverrides?: Partial<Record<InternalAliasName, string>>;
+  packageAliases?: ReadonlyArray<PackageAliasName>;
+};
+
+type PackageAliasTarget = {
+  packageName: string;
+  root: string;
+  entry: string;
+  subpaths: Readonly<Record<string, string>>;
+};
+
+const internalAliasTargets: ReadonlyArray<readonly [InternalAliasName, string]> = [
   ['full-editor', 'apps/full-editor-demo/src'],
   ['core', 'packages/core/src'],
   ['html-media-adapter', 'packages/html-media-adapter/src'],
@@ -14,7 +54,7 @@ const internalAliasTargets = [
   ['www-generated', 'apps/www/.generated'],
 ];
 
-const packageAliasTargets = {
+const packageAliasTargets: Readonly<Record<PackageAliasName, PackageAliasTarget>> = {
   core: {
     packageName: '@techsquidtv/canvas-timeline-core',
     root: 'packages/core/src',
@@ -63,13 +103,13 @@ const packageAliasTargets = {
   },
 };
 
-const allPackageAliases = Object.keys(packageAliasTargets);
+const allPackageAliases = Object.keys(packageAliasTargets) as PackageAliasName[];
 
 export function createWorkspaceAliases({
   workspaceRoot,
   internalAliasOverrides = {},
   packageAliases = allPackageAliases,
-}) {
+}: WorkspaceAliasOptions): AliasRule[] {
   return [
     ...internalAliasTargets.map(([name, target]) =>
       createSubpathAlias(
@@ -95,24 +135,24 @@ export function createWorkspaceAliases({
   ];
 }
 
-function createExactAlias(specifier, replacement) {
+function createExactAlias(specifier: string, replacement: string): AliasRule {
   return {
     find: new RegExp(`^${escapeRegExp(specifier)}$`),
     replacement,
   };
 }
 
-function createSubpathAlias(specifier, replacement) {
+function createSubpathAlias(specifier: string, replacement: string): AliasRule {
   return {
     find: new RegExp(`^${escapeRegExp(specifier)}\\/(.*)$`),
     replacement,
   };
 }
 
-function resolveAliasTarget(workspaceRoot, target, subpath) {
+function resolveAliasTarget(workspaceRoot: string, target: string, subpath: string): string {
   return path.resolve(workspaceRoot, target, subpath);
 }
 
-function escapeRegExp(value) {
+function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

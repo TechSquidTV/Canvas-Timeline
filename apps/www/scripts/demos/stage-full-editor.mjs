@@ -2,7 +2,7 @@ import { cp, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 
-const appRoot = fileURLToPath(new URL('../', import.meta.url));
+const appRoot = fileURLToPath(new URL('../../', import.meta.url));
 const sourceDir = join(appRoot, '../full-editor-demo/dist');
 const outputDir = join(appRoot, 'public/demos/full-editor-demo');
 const legacyOutputDir = join(appRoot, 'public/full-editor-demo');

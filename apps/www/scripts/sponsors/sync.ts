@@ -21,7 +21,7 @@ const pageSize = 100;
 const sponsorsToken = process.env.GITHUB_SPONSORS_TOKEN;
 const outputPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../src/data/sponsors.generated.ts'
+  '../../src/data/sponsors.generated.ts'
 );
 
 const query = `#graphql

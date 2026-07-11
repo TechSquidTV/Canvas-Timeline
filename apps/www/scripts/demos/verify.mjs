@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(scriptDir, '..');
+const appDir = resolve(scriptDir, '../..');
 const demosPath = resolve(appDir, 'src/data/demos.ts');
 const registryPath = resolve(appDir, 'src/data/demo-code.ts');
 const componentRegistryPath = resolve(appDir, 'src/data/demo-components.ts');

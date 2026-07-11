@@ -3,19 +3,22 @@
   "private": true,
   "type": "module",
   "files": [
-    "vite-plus-pack-config.mjs",
-    "vite-plus-pack-config.ts",
-    "workspace-aliases.d.ts",
-    "workspace-aliases.mjs"
+    "config/library-pack.ts",
+    "config/workspace-aliases.ts",
+    "lib/repository.ts"
   ],
   "exports": {
-    "./vite-plus-pack-config": {
-      "types": "./vite-plus-pack-config.ts",
-      "import": "./vite-plus-pack-config.mjs"
+    "./library-pack": {
+      "types": "./config/library-pack.ts",
+      "import": "./config/library-pack.ts"
     },
     "./workspace-aliases": {
-      "types": "./workspace-aliases.d.ts",
-      "import": "./workspace-aliases.mjs"
+      "types": "./config/workspace-aliases.ts",
+      "import": "./config/workspace-aliases.ts"
+    },
+    "./repository": {
+      "types": "./lib/repository.ts",
+      "import": "./lib/repository.ts"
     },
     "./package.json": "./package.json"
   }

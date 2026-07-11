@@ -8,7 +8,7 @@ import { unified } from 'unified';
 import { visit } from 'unist-util-visit';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(scriptDir, '..');
+const appDir = resolve(scriptDir, '../..');
 const workspaceDir = resolve(appDir, '..', '..');
 const srcDir = resolve(appDir, 'src');
 const contentDir = resolve(appDir, 'src/content');

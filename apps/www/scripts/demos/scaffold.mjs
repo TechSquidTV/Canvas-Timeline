@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(scriptDir, '..');
+const appDir = resolve(scriptDir, '../..');
 
 const [slug, liveDemoId, componentName, ...titleParts] = process.argv.slice(2);
 const title = titleParts.join(' ') || slugToTitle(slug ?? '');
@@ -185,7 +185,7 @@ async function insertDemoDocEntry() {
 
 function printUsage() {
   console.error(
-    'Usage: node scripts/scaffold-demo.mjs <slug> <liveDemoId> <ComponentName> [Title]'
+    'Usage: node scripts/demos/scaffold.mjs <slug> <liveDemoId> <ComponentName> [Title]'
   );
 }
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
-const appRoot = resolve(import.meta.dirname, '..');
+const appRoot = resolve(import.meta.dirname, '../..');
 const distRoot = join(appRoot, 'dist/client');
 const demoRoute = '/demos/full-editor-demo/';
 const demoIndexPath = join(distRoot, 'demos/full-editor-demo/index.html');

@@ -1,10 +1,14 @@
-import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
+import {
+  discoverPublishablePackages,
+  readJson,
+} from '@techsquidtv/canvas-timeline-scripts/repository';
 
-const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const workspaceRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const packagesRoot = join(workspaceRoot, 'packages');
 
 const run = (command, args, options = {}) =>
@@ -26,30 +30,6 @@ const run = (command, args, options = {}) =>
       rejectRun(new Error(`${command} ${args.join(' ')} exited with ${reason}`));
     });
   });
-
-const readJson = async (filePath) => JSON.parse(await readFile(filePath, 'utf8'));
-
-const getPublishablePackageDirs = async () => {
-  const entries = await readdir(packagesRoot, { withFileTypes: true });
-  const packageDirs = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const directory = join(packagesRoot, entry.name);
-    const manifest = await readJson(join(directory, 'package.json'));
-
-    if (!manifest.private && manifest.name) {
-      packageDirs.push({ directory, manifest });
-    }
-  }
-
-  return packageDirs.sort((left, right) =>
-    basename(left.directory).localeCompare(basename(right.directory))
-  );
-};
 
 const packPackage = async (packageDir, packDir) => {
   const before = new Set(await readdir(packDir));
@@ -210,7 +190,7 @@ if (toSeconds(engine.getState().duration) !== 3) {
   );
 };
 
-const packageDirs = await getPublishablePackageDirs();
+const packageDirs = await discoverPublishablePackages(packagesRoot);
 const rootManifest = await readJson(join(workspaceRoot, 'package.json'));
 const tempDir = await mkdtemp(join(tmpdir(), 'canvas-timeline-consumer-smoke-'));
 

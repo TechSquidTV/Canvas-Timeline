@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath, URL } from 'node:url';
 
-const workspaceRoot = process.cwd();
+const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 const coveragePath = path.join(workspaceRoot, 'coverage', 'coverage-final.json');
 const packageRoot = path.join(workspaceRoot, 'packages');
 const minimumLineCoverage = Number(process.env.PACKAGE_LINE_COVERAGE_MINIMUM ?? 80);
