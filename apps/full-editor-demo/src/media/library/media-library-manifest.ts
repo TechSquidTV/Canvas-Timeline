@@ -21,11 +21,14 @@ export function parseMediaLibraryManifest(text: string): MediaLibraryManifestFil
     throw new Error('Unsupported or invalid media library manifest.');
   }
 
-  if (!parsed.sources.every(isManifestSource)) {
+  const rawSources: unknown[] = parsed.sources;
+  const sources = rawSources.filter(isManifestSource);
+
+  if (sources.length !== rawSources.length) {
     throw new Error('Media library manifest contains an invalid source.');
   }
 
-  return { version: 1, sources: parsed.sources };
+  return { version: 1, sources };
 }
 
 export function createEmptyMediaLibraryManifest(): MediaLibraryManifestFile {
