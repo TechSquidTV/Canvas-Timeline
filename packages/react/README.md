@@ -66,7 +66,3 @@ import '@techsquidtv/canvas-timeline-react/theme.css';
 - [React registry](https://canvastimeline.com/packages/react/registry/)
 - [Demos](https://canvastimeline.com/demos/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react)
-
-## Release Status
-
-`0.0.1` is alpha software. Breaking changes may happen before `0.1.0`, and Canvas Timeline does not keep backwards-compatibility aliases or fallback APIs during this period.

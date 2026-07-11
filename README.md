@@ -58,21 +58,6 @@ export function EditorTimeline() {
 }
 ```
 
-## Status
-
-Canvas Timeline is alpha software. The first planned public release is `0.0.1`.
-Breaking changes are acceptable before the API reaches `0.1.0`, and this project
-does not keep backwards-compatibility aliases or fallback APIs during that
-period.
-
-## Release Stage & Versioning
-
-The first public release target is `0.0.1`. Until Canvas Timeline reaches
-`0.1.0`, public APIs may change without compatibility aliases, deprecated
-fallbacks, or duplicate export paths. Package release notes are managed through
-Changesets and GitHub Releases, with [CHANGELOG.md](./CHANGELOG.md) as the
-stable changelog entry point.
-
 ## Compatibility
 
 Canvas Timeline currently targets Node `>=24`, React `^19.2.7`, and modern

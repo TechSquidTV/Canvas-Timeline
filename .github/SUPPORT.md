@@ -1,7 +1,6 @@
 # Support
 
-Canvas Timeline is alpha software. The project currently supports community
-questions and bug reports through GitHub issues.
+The project supports community questions and bug reports through GitHub issues.
 
 ## Where To Ask
 

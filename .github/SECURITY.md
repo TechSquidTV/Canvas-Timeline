@@ -2,9 +2,8 @@
 
 ## Supported Versions
 
-Canvas Timeline is pre-`1.0.0` alpha software. Security fixes target the latest
-published release and the `main` branch unless a maintainer explicitly documents
-additional supported versions.
+Security fixes target the latest published release and the `main` branch unless
+a maintainer explicitly documents additional supported versions.
 
 ## Reporting A Vulnerability
 
