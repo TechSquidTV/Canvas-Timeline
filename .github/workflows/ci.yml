@@ -184,7 +184,11 @@ jobs:
         id: wrangler-version
         working-directory: apps/www
         run: |
-          version="$(node -p "require('./package.json').devDependencies.wrangler.replace(/^[^0-9]*/, '')")"
+          version="$(node -p 'require("./package.json").devDependencies.wrangler.replace(/^[^0-9]*/, "")')"
+          if [ -z "$version" ]; then
+            echo "Failed to resolve wrangler version from apps/www/package.json" >&2
+            exit 1
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy production docs to Cloudflare Pages
