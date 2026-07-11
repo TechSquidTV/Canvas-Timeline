@@ -8,7 +8,7 @@ import { TimelineSurface } from '#full-editor/features/timeline/TimelineSurface'
 import { TrackHeaderColumn } from '#full-editor/features/timeline/TrackHeaderColumn';
 import { TransportBar } from '#full-editor/features/timeline/TransportBar';
 
-export function TimelineDock() {
+export function TimelineDock({ compact = false }: { compact?: boolean }) {
   return (
     <section className="full-editor-timeline-dock" aria-label="Timeline editor">
       <div className="timeline-editor-command-strip">
@@ -22,10 +22,10 @@ export function TimelineDock() {
       >
         <ResizablePanel
           className="editor-shell-panel editor-track-header-shell-panel"
-          defaultSize="13rem"
+          defaultSize={compact ? '7.5rem' : '13rem'}
           groupResizeBehavior="preserve-pixel-size"
-          maxSize="22rem"
-          minSize="10rem"
+          maxSize={compact ? '9rem' : '22rem'}
+          minSize={compact ? '7.5rem' : '10rem'}
         >
           <div className="timeline-editor-header-panel">
             <div className="timeline-stage timeline-editor-header-stage">

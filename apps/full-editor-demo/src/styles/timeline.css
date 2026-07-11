@@ -210,3 +210,21 @@
     place-items: center;
   }
 }
+
+@media (max-width: 47.999rem) {
+  .full-editor-timeline-dock {
+    grid-template-rows: 7.5rem minmax(0, 1fr);
+  }
+
+  .timeline-editor-command-strip {
+    display: grid;
+    grid-template-rows: 3.75rem 3.75rem;
+  }
+
+  .full-editor-transport,
+  .timeline-command-bar {
+    width: 100%;
+    max-width: none;
+    border-right: 0;
+  }
+}

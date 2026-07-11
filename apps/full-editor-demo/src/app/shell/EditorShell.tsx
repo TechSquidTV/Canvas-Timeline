@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { PreviewMonitor } from '#full-editor/features/media/PreviewMonitor';
 import { TimelineDock } from '#full-editor/app/shell/TimelineDock';
 import { ToolPanelStack } from '#full-editor/app/shell/ToolPanelStack';
@@ -9,6 +10,12 @@ import {
 } from '#full-editor/shared/ui/resizable';
 
 export function EditorShell() {
+  const compact = useCompactEditorLayout();
+
+  return compact ? <CompactEditorShell /> : <DesktopEditorShell />;
+}
+
+function DesktopEditorShell() {
   return (
     <main className="full-editor-app">
       <TopMenuBar />
@@ -56,4 +63,104 @@ export function EditorShell() {
       </ResizablePanelGroup>
     </main>
   );
+}
+
+type CompactEditorView = 'inspector' | 'program' | 'timeline';
+
+const compactEditorViews = [
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'program', label: 'Program' },
+  { id: 'inspector', label: 'Inspector' },
+] as const satisfies readonly { id: CompactEditorView; label: string }[];
+
+function CompactEditorShell() {
+  const [activeView, setActiveView] = useState<CompactEditorView>('timeline');
+
+  return (
+    <main className="full-editor-app full-editor-app-compact">
+      <TopMenuBar />
+      <div className="compact-editor-workspace">
+        <div aria-label="Editor workspace" className="compact-editor-tabs" role="tablist">
+          {compactEditorViews.map((view) => (
+            <button
+              aria-controls={`compact-editor-panel-${view.id}`}
+              aria-selected={activeView === view.id}
+              className="editor-button editor-button-ghost compact-editor-tab"
+              id={`compact-editor-tab-${view.id}`}
+              key={view.id}
+              onClick={() => setActiveView(view.id)}
+              onKeyDown={(event) => {
+                const nextView = getNextCompactEditorView(view.id, event.key);
+                if (nextView !== null) {
+                  event.preventDefault();
+                  setActiveView(nextView);
+                  document.getElementById(`compact-editor-tab-${nextView}`)?.focus();
+                }
+              }}
+              role="tab"
+              tabIndex={activeView === view.id ? 0 : -1}
+              type="button"
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+        <section
+          aria-labelledby={`compact-editor-tab-${activeView}`}
+          className="compact-editor-panel"
+          id={`compact-editor-panel-${activeView}`}
+          role="tabpanel"
+        >
+          {activeView === 'timeline' ? <TimelineDock compact /> : null}
+          {activeView === 'program' ? <PreviewMonitor /> : null}
+          {activeView === 'inspector' ? <ToolPanelStack /> : null}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function useCompactEditorLayout() {
+  const [compact, setCompact] = useState(() => matchCompactEditorLayout());
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const query = window.matchMedia('(max-width: 47.999rem)');
+    const update = () => setCompact(query.matches);
+    query.addEventListener('change', update);
+    update();
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return compact;
+}
+
+function matchCompactEditorLayout() {
+  return typeof window.matchMedia === 'function'
+    ? window.matchMedia('(max-width: 47.999rem)').matches
+    : false;
+}
+
+function getNextCompactEditorView(
+  currentView: CompactEditorView,
+  key: string
+): CompactEditorView | null {
+  const currentIndex = compactEditorViews.findIndex((view) => view.id === currentView);
+  switch (key) {
+    case 'ArrowLeft':
+      return compactEditorViews[
+        (currentIndex - 1 + compactEditorViews.length) % compactEditorViews.length
+      ].id;
+    case 'ArrowRight':
+      return compactEditorViews[(currentIndex + 1) % compactEditorViews.length].id;
+    case 'Home':
+      return compactEditorViews[0].id;
+    case 'End':
+      return compactEditorViews[compactEditorViews.length - 1].id;
+    default:
+      return null;
+  }
 }
