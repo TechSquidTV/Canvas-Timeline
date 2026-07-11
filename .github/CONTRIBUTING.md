@@ -1,11 +1,5 @@
 # Contributing
 
-Canvas Timeline is in alpha. The first planned public release is `0.0.1`.
-Breaking changes are acceptable before `1.0.0`, but call them out clearly in
-changesets and pull request descriptions. Do not add backwards-compatibility
-aliases, deprecated fallbacks, or duplicate API surfaces while changing public
-package shape.
-
 ## Setup
 
 Install dependencies with Vite+ before working:

@@ -8,5 +8,5 @@
 '@techsquidtv/canvas-timeline-utils': patch
 ---
 
-Add public-release package metadata, consumer smoke validation, release workflow
-guards, and community governance files.
+Add package metadata, consumer smoke validation, release workflow guards, and
+community governance files.

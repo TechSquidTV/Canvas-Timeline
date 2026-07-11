@@ -31,7 +31,7 @@ and avoiding duplicate PRs.
    - Package/API changes: add or verify a Changeset.
    - Non-package changes: add an empty Changeset whenever the Changeset status
      workflow is required for PRs.
-   - Breaking changes before public release: call them out clearly; do not add
+   - Breaking public API changes: call them out clearly; do not add
      backwards-compatibility aliases or fallback exports.
 4. Run validation proportional to impact. Prefer already-documented Vite+ gates.
 5. For stacked cleanup PRs, base later PRs on the smallest earlier branch that
@@ -129,7 +129,7 @@ Pause and resolve before opening or marking ready for review when:
 
 - Public package exports changed but there is no Changeset decision.
 - A PR adds compatibility aliases, deprecated fallbacks, or duplicate public
-  APIs during pre-release hardening.
+  APIs.
 - Docs examples or demos import private workspace paths instead of public package
   entrypoints.
 - Package metadata changed without running package or docs registry checks.

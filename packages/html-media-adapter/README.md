@@ -59,7 +59,3 @@ import { createHTMLMediaAdapter } from '@techsquidtv/canvas-timeline-html-media-
 - [HTML media sync demo](https://canvastimeline.com/demos/html-media-sync)
 - [Demos](https://canvastimeline.com/demos/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/html-media-adapter)
-
-## Release Status
-
-`0.0.1` is alpha software. Breaking changes may happen before `0.1.0`, and Canvas Timeline does not keep backwards-compatibility aliases or fallback APIs during this period.

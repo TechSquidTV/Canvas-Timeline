@@ -77,7 +77,3 @@ Each item in `sources` uses an `id` that matches timeline clip `sourceId` values
 - [Demos](https://canvastimeline.com/demos/)
 - [Mediabunny docs](https://mediabunny.dev/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/mediabunny-adapter)
-
-## Release Status
-
-`0.0.1` is alpha software. Breaking changes may happen before `0.1.0`, and Canvas Timeline does not keep backwards-compatibility aliases or fallback APIs during this period.
