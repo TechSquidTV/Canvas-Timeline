@@ -37,8 +37,8 @@ importers:
         specifier: ^21.2.0
         version: 21.2.0
       '@techsquidtv/canvas-timeline-scripts':
-        specifier: file:scripts
-        version: file:scripts
+        specifier: workspace:*
+        version: link:scripts
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -129,7 +129,7 @@ importers:
         version: 4.3.2(@voidzero-dev/vite-plus-core@0.2.2(@arethetypeswrong/core@0.18.4)(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)(yaml@2.9.0))
       '@techsquidtv/canvas-timeline-scripts':
         specifier: file:../../scripts
-        version: file:scripts
+        version: link:../../scripts
       '@vitejs/plugin-react':
         specifier: ^6.0.3
         version: 6.0.3(@voidzero-dev/vite-plus-core@0.2.2(@arethetypeswrong/core@0.18.4)(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)(yaml@2.9.0))
@@ -225,8 +225,8 @@ importers:
         specifier: ^4.3.2
         version: 4.3.2(@voidzero-dev/vite-plus-core@0.2.2(@arethetypeswrong/core@0.18.4)(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)(yaml@2.9.0))
       '@techsquidtv/canvas-timeline-scripts':
-        specifier: file:../../scripts
-        version: file:scripts
+        specifier: workspace:*
+        version: link:../../scripts
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -366,6 +366,8 @@ importers:
         version: 19.2.7
 
   packages/utils: {}
+
+  scripts: {}
 
 packages:
 
@@ -2513,9 +2515,6 @@ packages:
     resolution: {integrity: sha512-eHpMeX4JXfVNJDEcsouTeCBubJBTcTLigeaw/NTUW6PB5ATKKXdyonnXgTBX2VuRbjz1hjfz6C5XAhr52ImQXA==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
-
-  '@techsquidtv/canvas-timeline-scripts@file:scripts':
-    resolution: {directory: scripts, type: directory}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -7124,8 +7123,6 @@ snapshots:
       '@tailwindcss/oxide': 4.3.2
       tailwindcss: 4.3.2
       vite: '@voidzero-dev/vite-plus-core@0.2.2(@arethetypeswrong/core@0.18.4)(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)(yaml@2.9.0)'
-
-  '@techsquidtv/canvas-timeline-scripts@file:scripts': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:

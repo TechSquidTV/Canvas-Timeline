@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { generateOpenGraphImage } from 'astro-og-canvas';
 import { getOpenGraphPages } from '#www/lib/open-graph-pages';
 
-const appRoot = fileURLToPath(new URL('../', import.meta.url));
+const appRoot = fileURLToPath(new URL('../../', import.meta.url));
 const outputRoot = join(appRoot, 'public/open-graph');
 
 process.chdir(appRoot);

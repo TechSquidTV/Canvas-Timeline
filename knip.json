@@ -19,16 +19,18 @@
   },
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/check-package-coverage.mjs",
-        "scripts/check-publishable-packages.mjs",
-        "scripts/check-consumer-smoke.mjs",
-        "scripts/check-vite-plus-custom-rules.mjs",
-        "scripts/vite-plus-pack-config.mjs",
-        "scripts/workspace-aliases.mjs"
-      ],
-      "project": ["*.{js,ts}", "scripts/**/*.mjs", "test-utils/**/*.ts"],
+      "entry": ["tools/oxlint-plugin/index.mjs"],
+      "project": ["*.{js,ts}", "test-utils/**/*.ts", "tools/**/*.mjs"],
       "ignoreDependencies": ["@arethetypeswrong/cli"]
+    },
+    "scripts": {
+      "entry": [
+        "checks/package-coverage.mjs",
+        "checks/publishable-packages.mjs",
+        "checks/consumer-smoke.mjs",
+        "checks/repository-policy.mjs"
+      ],
+      "project": ["**/*.{mjs,ts}"]
     },
     "apps/www": {
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,astro,mdx,mjs}"],

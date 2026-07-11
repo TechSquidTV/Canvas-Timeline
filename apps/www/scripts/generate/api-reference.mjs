@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const appDir = resolve(scriptDir, '..');
+const appDir = resolve(scriptDir, '../..');
 const rootDir = resolve(appDir, '../..');
 const generatedDir = resolve(appDir, '.generated');
 const outputPath = resolve(generatedDir, 'api-reference.json');

@@ -138,17 +138,17 @@ export default defineConfig({
         input: [
           'apps/www/dist/client/demos/full-editor-demo/index.html',
           'apps/www/dist/client/demos/full-editor-demo/assets/**',
-          'apps/www/scripts/verify-full-editor-demo-build.mjs',
+          'apps/www/scripts/demos/verify-full-editor-build.mjs',
         ],
         output: [],
       },
       'coverage:package': {
-        command: 'node scripts/check-package-coverage.mjs',
-        input: ['coverage/coverage-final.json', 'scripts/check-package-coverage.mjs'],
+        command: 'node scripts/checks/package-coverage.mjs',
+        input: ['coverage/coverage-final.json', 'scripts/checks/package-coverage.mjs'],
         output: [],
       },
       'custom:rules': {
-        command: 'node scripts/check-vite-plus-custom-rules.mjs',
+        command: 'node scripts/checks/repository-policy.mjs',
         input: [
           '.github/**',
           'apps/www/src/**/*.astro',
@@ -158,7 +158,7 @@ export default defineConfig({
           'packages/core/src/**',
           'packages/react/package.json',
           'packages/react/src/**',
-          'scripts/check-vite-plus-custom-rules.mjs',
+          'scripts/checks/repository-policy.mjs',
           'tools/**',
           'tsconfig*.json',
         ],
@@ -197,11 +197,11 @@ export default defineConfig({
         cache: false,
       },
       'docs:api': {
-        command: 'node scripts/generate-api-reference.mjs',
+        command: 'node scripts/generate/api-reference.mjs',
         cwd: 'apps/www',
         input: [
           'apps/www/package.json',
-          'apps/www/scripts/generate-api-reference.mjs',
+          'apps/www/scripts/generate/api-reference.mjs',
           'package.json',
           'packages/*/package.json',
           'packages/*/src/**',
@@ -214,10 +214,10 @@ export default defineConfig({
         ],
       },
       'docs:demos': {
-        command: 'node scripts/verify-demos.mjs',
+        command: 'node scripts/demos/verify.mjs',
         cwd: 'apps/www',
         input: [
-          'apps/www/scripts/verify-demos.mjs',
+          'apps/www/scripts/demos/verify.mjs',
           'apps/www/src/data/demo-code.ts',
           'apps/www/src/data/demo-components.ts',
           'apps/www/src/data/demos.ts',
@@ -226,17 +226,17 @@ export default defineConfig({
         output: [],
       },
       'docs:editor': {
-        command: 'node scripts/stage-full-editor-demo.mjs',
+        command: 'node scripts/demos/stage-full-editor.mjs',
         cwd: 'apps/www',
         dependsOn: ['build:full-editor-demo'],
-        input: ['apps/full-editor-demo/dist/**', 'apps/www/scripts/stage-full-editor-demo.mjs'],
+        input: ['apps/full-editor-demo/dist/**', 'apps/www/scripts/demos/stage-full-editor.mjs'],
         output: [
           'apps/www/public/demos/full-editor-demo/**',
           'apps/www/public/full-editor-demo/**',
         ],
       },
       'docs:links': {
-        command: 'node scripts/verify-links.mjs',
+        command: 'node scripts/verify/links.mjs',
         cwd: 'apps/www',
         dependsOn: ['docs:api'],
         input: [
@@ -244,7 +244,7 @@ export default defineConfig({
           'apps/www/public/demo-media/**',
           'apps/www/public/favicon.svg',
           'apps/www/public/logo.svg',
-          'apps/www/scripts/verify-links.mjs',
+          'apps/www/scripts/verify/links.mjs',
           'apps/www/src/**/*.astro',
           'apps/www/src/content/**',
           'apps/www/src/data/**',
@@ -253,13 +253,13 @@ export default defineConfig({
         output: [],
       },
       'docs:og': {
-        command: 'tsx scripts/generate-open-graph.ts',
+        command: 'tsx scripts/generate/open-graph.ts',
         cwd: 'apps/www',
         dependsOn: ['docs:api', 'docs:registry'],
         input: [
           'apps/www/package.json',
           'apps/www/public/logo.svg',
-          'apps/www/scripts/generate-open-graph.ts',
+          'apps/www/scripts/generate/open-graph.ts',
           'apps/www/src/assets/og-background.webp',
           'apps/www/src/content/**',
           'apps/www/src/data/**',
@@ -271,20 +271,20 @@ export default defineConfig({
         output: ['apps/www/public/open-graph/**'],
       },
       'docs:registry': {
-        command: 'node scripts/verify-react-registry.mjs',
+        command: 'node scripts/checks/react-registry.mjs',
         input: [
           'apps/www/src/data/react-hook-metadata.ts',
           'apps/www/src/data/react-registry.ts',
           'package.json',
           'packages/react/package.json',
           'packages/react/src/**',
-          'scripts/verify-react-registry.mjs',
+          'scripts/checks/react-registry.mjs',
           'tsconfig*.json',
         ],
         output: ['apps/www/.generated/react-registry-snippets/**'],
       },
       'docs:sponsors': {
-        command: 'vp exec tsx scripts/sync-sponsors.ts',
+        command: 'vp exec tsx scripts/sponsors/sync.ts',
         cache: false,
         cwd: 'apps/www',
       },
@@ -312,8 +312,8 @@ export default defineConfig({
         'vp run repo:package:validate',
       ],
       'repo:package:validate': [
-        'node scripts/check-publishable-packages.mjs',
-        'node scripts/check-consumer-smoke.mjs',
+        'node scripts/checks/publishable-packages.mjs',
+        'node scripts/checks/consumer-smoke.mjs',
       ],
       'repo:preview': {
         command: 'vp run --filter @techsquidtv/canvas-timeline-www preview',
@@ -617,7 +617,7 @@ export default defineConfig({
       },
       {
         name: 'canvas-timeline',
-        specifier: './tools/oxlint-plugin-canvas-timeline.mjs',
+        specifier: './tools/oxlint-plugin/index.mjs',
       },
     ],
   },
@@ -641,7 +641,7 @@ export default defineConfig({
     },
     globals: true,
     include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}'],
-    setupFiles: ['./test-utils/browser-storage.ts'],
+    setupFiles: ['./test-utils/setup/browser-storage.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

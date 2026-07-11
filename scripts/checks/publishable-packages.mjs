@@ -1,10 +1,14 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
+import {
+  discoverPublishablePackages,
+  readJson,
+} from '@techsquidtv/canvas-timeline-scripts/repository';
 
-const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const workspaceRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const packagesRoot = join(workspaceRoot, 'packages');
 const defaultConcurrency = 3;
 const binExtension = process.platform === 'win32' ? '.cmd' : '';
@@ -41,30 +45,7 @@ const run = (command, args, options = {}) =>
     });
   });
 
-const readManifest = async (directory) => {
-  const contents = await readFile(join(directory, 'package.json'), 'utf8');
-  return JSON.parse(contents);
-};
-
-const getPublishablePackageDirs = async () => {
-  const entries = await readdir(packagesRoot, { withFileTypes: true });
-  const packageDirs = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const directory = join(packagesRoot, entry.name);
-    const manifest = await readManifest(directory);
-
-    if (!manifest.private && manifest.name) {
-      packageDirs.push(directory);
-    }
-  }
-
-  return packageDirs.sort((left, right) => basename(left).localeCompare(basename(right)));
-};
+const readManifest = (directory) => readJson(join(directory, 'package.json'));
 
 const packPackage = async (packageDir, packageName) => {
   const packDir = await mkdtemp(join(tmpdir(), 'canvas-timeline-pack-'));
@@ -172,6 +153,8 @@ const checkPackages = async (packageDirs) => {
   );
 };
 
-const packageDirs = await getPublishablePackageDirs();
+const packageDirs = (await discoverPublishablePackages(packagesRoot)).map(
+  ({ directory }) => directory
+);
 
 await checkPackages(packageDirs);

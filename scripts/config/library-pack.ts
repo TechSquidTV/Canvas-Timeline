@@ -1,6 +1,6 @@
 import type { PackUserConfig } from 'vite-plus/pack';
 
-type LibraryPackConfigOptions = {
+export type LibraryPackConfigOptions = {
   entry: string[];
   neverBundle?: Array<RegExp | string>;
   sourcemap?: boolean;

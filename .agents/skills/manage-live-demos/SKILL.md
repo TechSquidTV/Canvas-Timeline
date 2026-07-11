@@ -80,7 +80,7 @@ When adding a new demo, prefer the scaffold:
 vp run --filter @techsquidtv/canvas-timeline-www docs:demo:new <demo-slug> <liveDemoId> <DemoComponent> [Title]
 ```
 
-If the script interface has changed, inspect `apps/www/scripts/scaffold-demo.mjs` before running it.
+If the script interface has changed, inspect `apps/www/scripts/demos/scaffold.mjs` before running it.
 
 After scaffolding:
 
