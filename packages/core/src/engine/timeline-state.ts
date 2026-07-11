@@ -91,14 +91,28 @@ export abstract class TimelineEngineState extends TimelineEngineGeometry {
    * @param updates - Marker fields to merge into the existing marker.
    * @returns The updated marker, or `null` when no marker was found.
    */
-  updateMarker(id: string, updates: Partial<Marker>) {
+  updateMarker(id: string, updates: Partial<Omit<Marker, 'id'>>) {
     if (updates.time !== undefined) {
       assertValidRationalTime(updates.time, 'updates.time');
     }
     if (this.state.markers) {
       const marker = this.state.markers.find((m) => m.id === id);
       if (marker) {
-        Object.assign(marker, updates);
+        if (updates.time !== undefined) {
+          marker.time = updates.time;
+        }
+        if (Object.hasOwn(updates, 'label')) {
+          marker.label = updates.label;
+        }
+        if (Object.hasOwn(updates, 'color')) {
+          marker.color = updates.color;
+        }
+        if (Object.hasOwn(updates, 'description')) {
+          marker.description = updates.description;
+        }
+        if (Object.hasOwn(updates, 'snap')) {
+          marker.snap = updates.snap;
+        }
         this.snapshot();
         this.emit('marker:update', { marker });
         this.emit('state:settled');
@@ -195,6 +209,7 @@ export abstract class TimelineEngineState extends TimelineEngineGeometry {
     const track = this.state.tracks.find((t) => t.id === trackId);
     if (track) {
       track.locked = locked !== undefined ? locked : !track.locked;
+      this.snapshot();
       this.emit('track:lock', { trackId: track.id, locked: track.locked });
       this.emit('state:settled');
       this.emit('render');
@@ -411,9 +426,6 @@ export abstract class TimelineEngineState extends TimelineEngineGeometry {
     } else {
       this.setScrollLeft(this.state.scrollLeft); // re-clamp scroll if just removing duration
     }
-
-    this.emit('render');
-    this.emit('state:settled');
   }
 
   /**

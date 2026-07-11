@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test';
 import { TimelineEngine } from '#core/engine';
 import { createTimelineScalarKeyframeProperty } from '#core/keyframes';
-import type { Clip, Track } from '#core/types';
+import type { Clip, Marker, Track } from '#core/types';
 import type {
   ClipCreatedEvent,
   ClipMoveEvent,
@@ -185,6 +185,26 @@ describe('TimelineEngine', () => {
   });
 
   describe('Zoom constraints', () => {
+    it('emits one settled render cycle when duration changes', () => {
+      const render = vi.fn();
+      const settled = vi.fn();
+      engine.on('render', render);
+      engine.on('state:settled', settled);
+
+      engine.setDuration(fromSeconds(10));
+
+      expect(render).toHaveBeenCalledTimes(1);
+      expect(settled).toHaveBeenCalledTimes(1);
+
+      render.mockClear();
+      settled.mockClear();
+
+      engine.setDuration(undefined);
+
+      expect(render).toHaveBeenCalledTimes(1);
+      expect(settled).toHaveBeenCalledTimes(1);
+    });
+
     it('caps zoom-in density by configured frame rate', () => {
       const constrainedEngine = new TimelineEngine({
         duration: fromSeconds(20),
@@ -1072,6 +1092,32 @@ describe('TimelineEngine', () => {
       // Redo restores the state with selection
       const redoneClip = engine.getState().tracks[0].clips[0];
       expect(redoneClip.selected).toBe(true);
+    });
+
+    it('captures track lock changes in undo history', () => {
+      engine.toggleLockTrack('track1', true);
+
+      expect(engine.tracks[0].locked).toBe(true);
+      expect(engine.canUndo).toBe(true);
+
+      engine.undo();
+      expect(engine.tracks[0].locked).toBe(false);
+
+      engine.redo();
+      expect(engine.tracks[0].locked).toBe(true);
+    });
+  });
+
+  describe('Markers', () => {
+    it('keeps marker ids stable when untyped callers include an id update', () => {
+      const marker = engine.addMarker(fromSeconds(1), 'Original');
+      const unsafeUpdates: Partial<Marker> = { id: 'replacement-id', label: 'Updated' };
+
+      const updated = engine.updateMarker(marker.id, unsafeUpdates);
+
+      expect(updated?.id).toBe(marker.id);
+      expect(updated?.label).toBe('Updated');
+      expect(engine.markers[0].id).toBe(marker.id);
     });
   });
 
