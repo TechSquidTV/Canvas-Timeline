@@ -95,8 +95,8 @@ contents or release notes.
 
 ## Release Publishing
 
-Releases are managed by Changesets and GitHub Actions. When changes land on
-`main`, the Release workflow runs validation and then invokes
+Releases are managed by Changesets and GitHub Actions. A maintainer manually
+dispatches the Release workflow from `main`; it runs validation and then invokes
 `changesets/action`.
 
 TechSquidTV is the release owner and fallback owner for npm, GitHub, docs, and
@@ -116,6 +116,41 @@ The action has two outcomes:
 `vp run release:publish` runs `vp run repo:package:check` before
 `changeset publish`. That means release publishing builds packages, validates
 their publishable shape, and only then publishes.
+
+### First public release
+
+The `0.1.0` release is intentionally published from a clean local checkout after
+the version PR merges. Do not enable `ENABLE_PACKAGE_PUBLISH` or dispatch the
+stable Release workflow for this one-time bootstrap release.
+
+1. Check out and pull `main`, then verify that the worktree is clean and every
+   publishable package is versioned at `0.1.0`.
+2. Authenticate npm as a release owner. Local publishing does not use GitHub's
+   trusted-publishing OIDC identity, so the local npm session must be authorized
+   to publish every package in the `@techsquidtv` scope.
+3. Run `vp run release:publish`. The task performs a clean package build,
+   validates the packed artifacts, publishes all unpublished packages with the
+   default `latest` dist-tag, and creates package-specific local Git tags.
+4. Verify all seven package versions and the `latest` dist-tag on npm before
+   pushing tags.
+5. Push the package tags with `git push origin --follow-tags`.
+6. Create one GitHub release from each package tag, using the matching package
+   changelog entry as its notes.
+
+The expected tags are:
+
+```text
+@techsquidtv/canvas-timeline@0.1.0
+@techsquidtv/canvas-timeline-core@0.1.0
+@techsquidtv/canvas-timeline-html-media-adapter@0.1.0
+@techsquidtv/canvas-timeline-mediabunny-adapter@0.1.0
+@techsquidtv/canvas-timeline-react@0.1.0
+@techsquidtv/canvas-timeline-renderer@0.1.0
+@techsquidtv/canvas-timeline-utils@0.1.0
+```
+
+After this bootstrap release, use the GitHub Release workflow for normal stable
+publishing and keep local publishing only as the documented fallback.
 
 Manual snapshot publishes are available from the Release workflow. They run
 Changesets snapshot versioning and publish with the requested npm dist-tag,
