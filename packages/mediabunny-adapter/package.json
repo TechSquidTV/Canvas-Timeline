@@ -64,7 +64,7 @@
     "react": "^19.2.7"
   },
   "devDependencies": {
-    "mediabunny": "^1.50.3",
+    "mediabunny": "^1.50.8",
     "react": "^19.2.7"
   }
 }
