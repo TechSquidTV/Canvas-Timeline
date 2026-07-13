@@ -79,7 +79,6 @@ export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTM
 ): UseHTMLMediaAdapterResult {
   const { ref, sources } = options;
   const sourcesRef = useRef(sources);
-  sourcesRef.current = sources;
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [element, setElement] = useState<HTMLMediaElement | null>(null);
 
@@ -97,7 +96,9 @@ export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTM
   useEffect(() => adapter.dispose, [adapter]);
   useEffect(() => adapter.setSources(sources), [adapter, sources]);
 
-  return useMemo(() => ({ ready: element !== null, adapter }), [adapter, element]);
+  const result = useMemo(() => ({ ready: element !== null, adapter }), [adapter, element]);
+  sourcesRef.current = sources;
+  return result;
 }
 
 /**
