@@ -576,6 +576,36 @@ describe('TimelineEngine', () => {
 
       rafSpy.mockRestore();
     });
+
+    it('applies in/out boundaries to externally clocked playback', () => {
+      engine.setInPoint(fromSeconds(2), false);
+      engine.setOutPoint(fromSeconds(4), false);
+      engine.setTime(fromSeconds(3));
+
+      expect(engine.play({ clock: 'external', respectInOut: true })).toBe(true);
+      expect(engine.updateExternalPlaybackTime(fromSeconds(4.5))).toMatchObject({
+        action: 'pause',
+        reason: 'in-out',
+      });
+      expect(toSeconds(engine.getTime())).toBe(4);
+      expect(engine.getState().playing).toBe(false);
+    });
+
+    it('loops external playback and resets playback started at the out point', () => {
+      engine.setInPoint(fromSeconds(2), false);
+      engine.setOutPoint(fromSeconds(4), false);
+      engine.setTime(fromSeconds(4));
+
+      expect(engine.getPlaybackStartTime({ respectInOut: true })).toEqual(fromSeconds(2));
+      expect(engine.play({ clock: 'external', respectInOut: true, loop: true })).toBe(true);
+      expect(toSeconds(engine.getTime())).toBe(2);
+      expect(engine.updateExternalPlaybackTime(fromSeconds(4.25))).toMatchObject({
+        action: 'loop',
+        reason: 'in-out',
+      });
+      expect(toSeconds(engine.getTime())).toBe(2);
+      expect(engine.getState().playing).toBe(true);
+    });
   });
 
   describe('Snapping', () => {
