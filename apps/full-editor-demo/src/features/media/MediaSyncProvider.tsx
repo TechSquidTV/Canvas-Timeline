@@ -43,14 +43,13 @@ function ActiveMediaSyncProvider({
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const { metadata } = useEditorProject();
   const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
-  const { durationBySourceId, pause, play, playing, ready, status } =
-    useMediabunnyTimelineMedia<PreviewLayerName>({
-      canvasRef,
-      frameRate: timecodeFrameRate,
-      sources,
-      layers: previewLayerSelectors,
-      onError: setPlaybackError,
-    });
+  const { pause, play, playing, ready, status } = useMediabunnyTimelineMedia<PreviewLayerName>({
+    canvasRef,
+    frameRate: timecodeFrameRate,
+    sources,
+    layers: previewLayerSelectors,
+    onError: setPlaybackError,
+  });
 
   const clearPlaybackError = useCallback(() => {
     setPlaybackError(null);
@@ -71,7 +70,6 @@ function ActiveMediaSyncProvider({
     () => ({
       canvasRef,
       clearPlaybackError,
-      durationBySourceId,
       hasMediaSources: true,
       pause,
       play,
@@ -81,18 +79,7 @@ function ActiveMediaSyncProvider({
       status,
       togglePlay,
     }),
-    [
-      canvasRef,
-      clearPlaybackError,
-      durationBySourceId,
-      pause,
-      play,
-      playing,
-      playbackError,
-      ready,
-      status,
-      togglePlay,
-    ]
+    [canvasRef, clearPlaybackError, pause, play, playing, playbackError, ready, status, togglePlay]
   );
 
   return (
@@ -126,7 +113,6 @@ function IdleMediaSyncProvider({
     () => ({
       canvasRef,
       clearPlaybackError,
-      durationBySourceId: new Map(),
       hasMediaSources: false,
       pause,
       play,

@@ -6,6 +6,7 @@ import {
   createMediabunnyAdapter,
   formatMediabunnyTime,
   type MediabunnyModule,
+  type MediabunnySource,
 } from '#mediabunny-adapter/index';
 
 const originalAudioContext = window.AudioContext;
@@ -34,6 +35,10 @@ type MockVideoTrack = {
   getCodec: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
   canDecode: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
   canBeTransparent: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
+  getDisplayWidth: ReturnType<typeof vi.fn<() => Promise<number>>>;
+  getDisplayHeight: ReturnType<typeof vi.fn<() => Promise<number>>>;
+  getRotation: ReturnType<typeof vi.fn<() => Promise<0>>>;
+  computePacketStats: ReturnType<typeof vi.fn<() => Promise<{ averagePacketRate: number }>>>;
 };
 
 type MockAudioTrack = {
@@ -45,6 +50,8 @@ type MockAudioTrack = {
 type MockInput = {
   getPrimaryVideoTrack: ReturnType<typeof vi.fn<() => Promise<MockVideoTrack | null>>>;
   getPrimaryAudioTrack: ReturnType<typeof vi.fn<() => Promise<MockAudioTrack | null>>>;
+  getVideoTracks: ReturnType<typeof vi.fn<() => Promise<MockVideoTrack[]>>>;
+  getAudioTracks: ReturnType<typeof vi.fn<() => Promise<MockAudioTrack[]>>>;
   getFirstTimestamp: ReturnType<typeof vi.fn<() => Promise<number>>>;
   getDurationFromMetadata: ReturnType<typeof vi.fn<() => Promise<number | null>>>;
   computeDuration: ReturnType<typeof vi.fn<() => Promise<number>>>;
@@ -110,6 +117,10 @@ function createMockVideoTrack(): MockVideoTrack {
     getCodec: vi.fn(async () => 'vp09'),
     canDecode: vi.fn(async () => true),
     canBeTransparent: vi.fn(async () => false),
+    getDisplayWidth: vi.fn(async () => 1920),
+    getDisplayHeight: vi.fn(async () => 1080),
+    getRotation: vi.fn(async () => 0 as const),
+    computePacketStats: vi.fn(async () => ({ averagePacketRate: 30 })),
   };
 }
 
@@ -141,6 +152,12 @@ function createMockInput(
   return {
     getPrimaryVideoTrack: vi.fn(async () => videoTrack ?? null),
     getPrimaryAudioTrack: vi.fn(async () => audioTrack ?? null),
+    getVideoTracks: vi.fn(async () =>
+      videoTrack === null || videoTrack === undefined ? [] : [videoTrack]
+    ),
+    getAudioTracks: vi.fn(async () =>
+      audioTrack === null || audioTrack === undefined ? [] : [audioTrack]
+    ),
     getFirstTimestamp: vi.fn(async () => options.firstTimestamp ?? 0),
     getDurationFromMetadata: vi.fn(async () => metadataDuration ?? null),
     computeDuration: vi.fn(async () => options.computedDuration ?? 6),
@@ -152,6 +169,7 @@ function createMockAudioContext(): MockAudioContext {
   const gainNode = {
     gain: { value: 1 },
     connect: vi.fn(),
+    disconnect: vi.fn(),
   } as unknown as GainNode;
   const context: MockAudioContext = {
     currentTime: 10,
@@ -176,6 +194,10 @@ function createMockAudioContext(): MockAudioContext {
     }),
   };
   return context;
+}
+
+function urlSource(sourceId: string, url: string): MediabunnySource {
+  return { sourceId, input: { kind: 'url', url } };
 }
 
 function createActiveLayerResult(activeClips: ActiveClip[], time = 1): ActiveLayerResult<string> {
@@ -356,14 +378,23 @@ test('createMediabunnyAdapter loads url, blob, input, and createInput sources', 
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: mockMediabunny.module,
     sources: [
-      { id: 'url-source', url: 'https://media.example/video.mp4' },
-      { id: 'blob-source', blob },
-      { id: 'input-source', input: providedInput as unknown as RealMediabunny.Input },
+      urlSource('url-source', 'https://media.example/video.mp4'),
+      { sourceId: 'blob-source', input: { kind: 'blob', blob } },
       {
-        id: 'created-source',
-        createInput: (mediabunny) => {
-          expect(mediabunny).toBe(mockMediabunny.module);
-          return createdInput as unknown as RealMediabunny.Input;
+        sourceId: 'input-source',
+        input: {
+          kind: 'input',
+          input: providedInput as unknown as RealMediabunny.Input,
+        },
+      },
+      {
+        sourceId: 'created-source',
+        input: {
+          kind: 'input-factory',
+          createInput: (mediabunny) => {
+            expect(mediabunny).toBe(mockMediabunny.module);
+            return createdInput as unknown as RealMediabunny.Input;
+          },
         },
       },
     ],
@@ -373,10 +404,10 @@ test('createMediabunnyAdapter loads url, blob, input, and createInput sources', 
 
   expect(adapter.ready).toBe(true);
   expect(adapter.status).toBe('Ready. Mediabunny can drive timeline video and audio.');
-  expect(adapter.durationBySourceId.get('url-source')).toBe(4);
-  expect(adapter.durationBySourceId.get('blob-source')).toBe(5);
-  expect(adapter.durationBySourceId.get('input-source')).toBe(6);
-  expect(adapter.durationBySourceId.get('created-source')).toBe(7);
+  expect(adapter.sourceStateById.get('url-source')?.metadata?.durationSeconds).toBe(4);
+  expect(adapter.sourceStateById.get('blob-source')?.metadata?.durationSeconds).toBe(5);
+  expect(adapter.sourceStateById.get('input-source')?.metadata?.durationSeconds).toBe(6);
+  expect(adapter.sourceStateById.get('created-source')?.metadata?.durationSeconds).toBe(7);
   expect(mockMediabunny.createdUrlSources).toEqual(['https://media.example/video.mp4']);
   expect(mockMediabunny.createdBlobSources).toEqual([blob]);
 
@@ -387,7 +418,7 @@ test('createMediabunnyAdapter loads url, blob, input, and createInput sources', 
   expect(createdInput.dispose).toHaveBeenCalled();
 });
 
-test('createMediabunnyAdapter ignores duplicate source ids and surfaces load failures', async () => {
+test('createMediabunnyAdapter selects input fallbacks and surfaces load failures', async () => {
   const firstInput = createMockInput({ metadataDuration: 4 });
   const duplicateInput = createMockInput({ metadataDuration: 9 });
   const mockMediabunny = createMockMediabunny([firstInput, duplicateInput]);
@@ -395,14 +426,18 @@ test('createMediabunnyAdapter ignores duplicate source ids and surfaces load fai
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: mockMediabunny.module,
     sources: [
-      { id: 'same-source', url: 'https://media.example/first.mp4' },
-      { id: 'same-source', url: 'https://media.example/second.mp4' },
+      {
+        sourceId: 'same-source',
+        input: { kind: 'url', url: 'https://media.example/first.mp4' },
+        fallbacks: [{ kind: 'url', url: 'https://media.example/second.mp4' }],
+      },
     ],
   });
 
   await waitForAdapterLoad(adapter);
 
-  expect(adapter.durationBySourceId.get('same-source')).toBe(4);
+  expect(adapter.sourceStateById.get('same-source')?.metadata?.durationSeconds).toBe(4);
+  expect(adapter.sourceStateById.get('same-source')?.selectedInputIndex).toBe(0);
   expect(mockMediabunny.createdUrlSources).toEqual(['https://media.example/first.mp4']);
   expect(duplicateInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
 
@@ -410,7 +445,7 @@ test('createMediabunnyAdapter ignores duplicate source ids and surfaces load fai
   const failingAdapter = createMediabunnyAdapter({
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: createMockMediabunny([failedInput]).module,
-    sources: [{ id: 'empty-source', url: 'https://media.example/empty.mp4' }],
+    sources: [urlSource('empty-source', 'https://media.example/empty.mp4')],
   });
 
   await waitForAdapterLoad(failingAdapter);
@@ -432,6 +467,49 @@ test('createMediabunnyAdapter ignores duplicate source ids and surfaces load fai
   expect(emptyAdapter.status).toBe('No Mediabunny source could be loaded.');
 });
 
+test('createMediabunnyAdapter selects proxies independently and maps their timestamps', async () => {
+  const originalInput = createMockInput({ metadataDuration: 20 });
+  const proxyInput = createMockInput({ firstTimestamp: 0, metadataDuration: 10 });
+  const mockMediabunny = createMockMediabunny([originalInput, proxyInput]);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: { kind: 'url', url: 'https://media.example/original.mp4' },
+        proxies: [
+          {
+            proxyId: 'edit-540p',
+            input: { kind: 'url', url: 'https://media.example/proxy.mp4' },
+            timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
+          },
+        ],
+      },
+    ],
+  });
+
+  await waitForAdapterLoad(adapter);
+  await expect(
+    adapter.setRepresentation('source-1', { kind: 'proxy', proxyId: 'edit-540p' })
+  ).resolves.toMatchObject({
+    ok: true,
+    representation: { kind: 'proxy', proxyId: 'edit-540p' },
+    inputIndex: 0,
+  });
+
+  const frame = await adapter.getFrame(createActiveClip('visual', 'source-1', 1));
+  expect(mockMediabunny.canvasSink.getCanvas).toHaveBeenCalledWith(1);
+  expect(frame?.timestamp).toBe(11);
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    selectedRepresentation: { kind: 'proxy', proxyId: 'edit-540p' },
+    selectedInputIndex: 0,
+    metadata: {
+      sourceFirstTimestampSeconds: 10,
+      sourceEndTimestampSeconds: 20,
+    },
+  });
+});
+
 test('createMediabunnyAdapter ignores async load completion after disposal', async () => {
   let resolveInput: (input: RealMediabunny.Input) => void = () => {};
   const inputPromise = new Promise<RealMediabunny.Input>((resolve) => {
@@ -440,7 +518,12 @@ test('createMediabunnyAdapter ignores async load completion after disposal', asy
   const adapter = createMediabunnyAdapter({
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: createMockMediabunny([]).module,
-    sources: [{ id: 'slow-source', createInput: () => inputPromise }],
+    sources: [
+      {
+        sourceId: 'slow-source',
+        input: { kind: 'input-factory', createInput: () => inputPromise },
+      },
+    ],
   });
 
   adapter.dispose();
@@ -449,7 +532,7 @@ test('createMediabunnyAdapter ignores async load completion after disposal', asy
 
   expect(adapter.ready).toBe(false);
   expect(adapter.status).toBe('Loading Mediabunny sources...');
-  expect(adapter.durationBySourceId.size).toBe(0);
+  expect(adapter.sourceStateById.size).toBe(0);
 });
 
 test('createMediabunnyAdapter maps active layers to video frames and audio ranges', async () => {
@@ -488,7 +571,7 @@ test('createMediabunnyAdapter maps active layers to video frames and audio range
     audio: { context: audioContext as unknown as AudioContext },
     canvas: targetCanvas,
     mediabunny: mockMediabunny.module,
-    sources: [{ id: 'source-1', url: 'https://media.example/video.mp4' }],
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
   });
   const visualClip = createActiveClip('visual', 'source-1', 1.5);
   const audioClip = createActiveClip('audio', 'source-1', 1.5);
@@ -557,7 +640,7 @@ test('createMediabunnyAdapter samples sequential 24 fps frames on 30 fps playbac
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     canvas: targetCanvas,
     mediabunny: createMockMediabunny([input], { canvasSink }).module,
-    sources: [{ id: 'source-1', url: 'https://media.example/video.mp4' }],
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
   });
   const renderedTimestamps: number[] = [];
   const unsubscribe = adapter.subscribeFrame(() => {
@@ -611,7 +694,7 @@ test('createMediabunnyAdapter handles audio-only content and missing render surf
   const adapter = createMediabunnyAdapter({
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: createMockMediabunny([input], { audioSink }).module,
-    sources: [{ id: 'audio-source', url: 'https://media.example/audio.webm' }],
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
   });
   const audioClip = createActiveClip('audio', 'audio-source', 2);
 
@@ -639,7 +722,7 @@ test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts
   const adapter = createMediabunnyAdapter({
     audio: { context: audioContext as unknown as AudioContext },
     mediabunny: createMockMediabunny([input], { canvasSink }).module,
-    sources: [{ id: 'source-1', url: 'https://media.example/video.mp4' }],
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
   });
   const visualClip = createActiveClip('visual', 'source-1', 2);
 
@@ -647,7 +730,8 @@ test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts
 
   expect(adapter.startClock(fromSeconds(2), 2)).toBe(true);
   expect(adapter.getClockTime()).toBeCloseTo(2, 1);
-  await adapter.resumeClock(2);
+  adapter.requestClockActivation(2);
+  await Promise.resolve();
   expect(audioContext.resume).toHaveBeenCalled();
   adapter.setClockRate(0.5);
   adapter.stopClock();
@@ -701,7 +785,7 @@ test('createMediabunnyAdapter handles null decoded frames and late audio schedul
   const adapter = createMediabunnyAdapter({
     audio: { context: audioContext as unknown as AudioContext },
     mediabunny: createMockMediabunny([input], { audioSink, canvasSink }).module,
-    sources: [{ id: 'source-1', url: 'https://media.example/video.mp4' }],
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
   });
   const visualClip = createActiveClip('visual', 'source-1', 1);
   const audioClip = createActiveClip('audio', 'source-1', 1);
@@ -718,7 +802,7 @@ test('createMediabunnyAdapter handles null decoded frames and late audio schedul
   expect(startedNodeStartMocks[0]).toHaveBeenCalledWith(30, 20);
 });
 
-test('createMediabunnyAdapter rejects undecodable video and missing AudioContext', async () => {
+test('createMediabunnyAdapter rejects undecodable video and permits video without AudioContext', async () => {
   const undecodableInput = createMockInput({
     videoTrack: {
       ...createMockVideoTrack(),
@@ -728,7 +812,7 @@ test('createMediabunnyAdapter rejects undecodable video and missing AudioContext
   const undecodableAdapter = createMediabunnyAdapter({
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: createMockMediabunny([undecodableInput]).module,
-    sources: [{ id: 'bad-video', url: 'https://media.example/bad.mp4' }],
+    sources: [urlSource('bad-video', 'https://media.example/bad.mp4')],
   });
 
   await waitForAdapterLoad(undecodableAdapter);
@@ -744,12 +828,15 @@ test('createMediabunnyAdapter rejects undecodable video and missing AudioContext
   (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext =
     undefined;
   const noAudioContextAdapter = createMediabunnyAdapter({
-    mediabunny: createMockMediabunny([createMockInput()]).module,
-    sources: [{ id: 'no-audio-context', url: 'https://media.example/video.mp4' }],
+    mediabunny: createMockMediabunny([createMockInput({ audioTrack: createMockAudioTrack() })])
+      .module,
+    sources: [urlSource('no-audio-context', 'https://media.example/video.mp4')],
   });
 
   await waitForAdapterLoad(noAudioContextAdapter);
-  expect(noAudioContextAdapter.error?.message).toBe('This browser does not expose AudioContext.');
+  expect(noAudioContextAdapter.ready).toBe(true);
+  expect(noAudioContextAdapter.error).toBeNull();
+  expect(noAudioContextAdapter.audioStatus).toMatchObject({ state: 'degraded' });
   window.AudioContext = previousAudioContext;
   (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext =
     previousWebkitAudioContext;
@@ -760,11 +847,151 @@ test('createMediabunnyAdapter rejects undecodable video and missing AudioContext
   } as unknown as MediabunnyModule;
   const missingBlobSourceAdapter = createMediabunnyAdapter({
     mediabunny: moduleWithoutBlobSource,
-    sources: [{ id: 'local-file', blob: new Blob(['sample']) }],
+    sources: [
+      {
+        sourceId: 'local-file',
+        input: { kind: 'blob', blob: new Blob(['sample']) },
+      },
+    ],
   });
 
   await waitForAdapterLoad(missingBlobSourceAdapter);
   expect(missingBlobSourceAdapter.error?.message).toBe(
     'This Mediabunny version does not expose BlobSource for local files.'
   );
+});
+
+test('createMediabunnyAdapter exposes selected-track metadata and runtime audio controls', async () => {
+  const videoTrack = createMockVideoTrack();
+  const audioTrack = createMockAudioTrack();
+  const input = createMockInput({
+    videoTrack,
+    audioTrack,
+    firstTimestamp: 12,
+    metadataDuration: 20,
+  });
+  const audioContext = createMockAudioContext();
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext, volume: 0.5 },
+    mediabunny: createMockMediabunny([input]).module,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+    selectTracks: ({ videoTracks, audioTracks }) => ({
+      videoTrack: videoTracks[0] ?? null,
+      audioTrack: audioTracks[0] ?? null,
+    }),
+  });
+
+  await waitForAdapterLoad(adapter);
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    selectedRepresentation: { kind: 'original' },
+    selectedInputIndex: 0,
+    metadata: {
+      firstTimestampSeconds: 12,
+      presentationStartTimestampSeconds: 12,
+      endTimestampSeconds: 20,
+      durationSeconds: 8,
+      video: { displayWidth: 1920, displayHeight: 1080, detectedFrameRate: 30 },
+      audio: { sampleRate: 48_000 },
+    },
+  });
+
+  const gainNode = audioContext.createGain.mock.results[0]?.value;
+  expect(gainNode?.gain.value).toBe(0.5);
+  adapter.setMuted(true);
+  expect(gainNode?.gain.value).toBe(0);
+  adapter.setVolume(0.25);
+  adapter.setMuted(false);
+  expect(gainNode?.gain.value).toBe(0.25);
+  adapter.dispose();
+  expect(audioContext.close).not.toHaveBeenCalled();
+});
+
+test('createMediabunnyAdapter reports pending audio activation without blocking playback', async () => {
+  vi.useFakeTimers();
+  const input = createMockInput({ audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext();
+  audioContext.state = 'suspended';
+  audioContext.resume = vi.fn(() => new Promise<void>(() => {}));
+  const adapter = createMediabunnyAdapter({
+    audio: {
+      context: audioContext as unknown as AudioContext,
+      activationTimeoutMs: 25,
+    },
+    mediabunny: createMockMediabunny([input]).module,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+
+  await waitForAdapterLoad(adapter);
+  adapter.requestClockActivation(1);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(true);
+  await vi.advanceTimersByTimeAsync(25);
+  expect(adapter.audioStatus).toEqual({ state: 'degraded', error: null });
+  adapter.dispose();
+  vi.useRealTimers();
+});
+
+test('createMediabunnyAdapter closes only an adapter-owned audio context', async () => {
+  const ownedContext = createMockAudioContext();
+  class OwnedAudioContextConstructor {
+    constructor() {
+      return ownedContext;
+    }
+  }
+  window.AudioContext = OwnedAudioContextConstructor as unknown as typeof AudioContext;
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([createMockInput({ audioTrack: createMockAudioTrack() })])
+      .module,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+
+  await waitForAdapterLoad(adapter);
+  adapter.dispose();
+  expect(ownedContext.close).toHaveBeenCalledTimes(1);
+});
+
+test('createMediabunnyAdapter falls back after a runtime video iterator failure', async () => {
+  const firstInput = createMockInput();
+  const fallbackInput = createMockInput();
+  let iteratorCount = 0;
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async (timestamp) => ({
+      canvas: document.createElement('canvas'),
+      timestamp,
+      duration: 1 / 30,
+    })),
+    canvases: vi.fn(async function* () {
+      iteratorCount += 1;
+      if (iteratorCount === 1) {
+        throw new Error('decoder failed');
+      }
+      yield {
+        canvas: document.createElement('canvas'),
+        timestamp: 1,
+        duration: 1 / 30,
+      };
+    }),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: document.createElement('canvas'),
+    mediabunny: createMockMediabunny([firstInput, fallbackInput], { canvasSink }).module,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: { kind: 'url', url: 'https://media.example/primary.mp4' },
+        fallbacks: [{ kind: 'url', url: 'https://media.example/fallback.mp4' }],
+      },
+    ],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  await waitForAdapterLoad(adapter);
+  adapter.startClock(fromSeconds(1), 1);
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(1),
+    reason: 'play',
+    activeLayers: createActiveLayers([visualClip], 1),
+  });
+  await vi.waitFor(() => {
+    expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(1);
+  });
 });

@@ -6,7 +6,7 @@ type MediaSyncState = UseMediabunnyTimelineMediaResult<PreviewLayerName>;
 
 export interface EditorMediaSyncContextValue extends Pick<
   MediaSyncState,
-  'durationBySourceId' | 'pause' | 'play' | 'playing' | 'ready' | 'status'
+  'pause' | 'play' | 'playing' | 'ready' | 'status'
 > {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   clearPlaybackError: () => void;

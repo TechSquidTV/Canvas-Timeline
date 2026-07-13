@@ -59,13 +59,45 @@ function createMediaSyncEngine() {
   });
 }
 
-function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}) {
+function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): MediabunnyAdapter {
   return {
     ready: true,
     status: 'Ready.',
     error: null,
     lastFrameTime: null,
-    durationBySourceId: new Map([['source-1', 4]]),
+    sourceStateById: new Map([
+      [
+        'source-1',
+        {
+          sourceId: 'source-1',
+          status: 'ready',
+          selectedRepresentation: { kind: 'original' },
+          selectedInputIndex: 0,
+          attempts: [
+            {
+              representation: { kind: 'original' },
+              inputIndex: 0,
+              status: 'ready',
+              error: null,
+            },
+          ],
+          metadata: {
+            firstTimestampSeconds: 0,
+            sourceFirstTimestampSeconds: 0,
+            presentationStartTimestampSeconds: 0,
+            endTimestampSeconds: 4,
+            sourceEndTimestampSeconds: 4,
+            durationSeconds: 4,
+            video: null,
+            audio: null,
+          },
+          error: null,
+        },
+      ],
+    ]),
+    volume: 0.7,
+    muted: false,
+    audioStatus: { state: 'unavailable' },
     subscribeFrame: () => () => {},
     syncAdapter: {
       getClockTime: vi.fn(() => 0),
@@ -78,7 +110,15 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}) {
     getClockTime: () => 0,
     startClock: () => true,
     stopClock: () => {},
-    resumeClock: () => Promise.resolve(),
+    requestClockActivation: () => {},
+    setVolume: () => {},
+    setMuted: () => {},
+    setRepresentation: (sourceId) =>
+      Promise.resolve({ ok: false, sourceId, error: new Error('Unavailable in test.') }),
+    retrySource: (sourceId: string) =>
+      Promise.resolve({ ok: false, sourceId, error: new Error('unavailable') }),
+    replaceSource: (source) =>
+      Promise.resolve({ ok: false, sourceId: source.sourceId, error: new Error('unavailable') }),
     setClockRate: () => {},
     seek: () => Promise.resolve(),
     renderVideo: () => Promise.resolve(),
@@ -160,7 +200,7 @@ test('useMediabunnyAdapter returns noop behavior when window is unavailable', as
   expect(adapter.getClockTime()).toBe(0);
   expect(adapter.startClock(fromSeconds(0), 1)).toBe(false);
   adapter.stopClock();
-  await adapter.resumeClock(1);
+  adapter.requestClockActivation(1);
   adapter.setClockRate(1);
   await adapter.seek(fromSeconds(0), {
     time: fromSeconds(0),
@@ -216,7 +256,12 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
     () =>
       useMediabunnyTimelineMedia({
         canvasRef: { current: canvas },
-        sources: [{ id: 'source-1', url: '/sample.mp4' }],
+        sources: [
+          {
+            sourceId: 'source-1',
+            input: { kind: 'url', url: '/sample.mp4' },
+          },
+        ],
         layers,
       }),
     {
@@ -227,7 +272,12 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
   expect(createMediabunnyAdapter).toHaveBeenCalledWith(
     expect.objectContaining({
       mediabunny: expect.any(Function),
-      sources: [{ id: 'source-1', url: '/sample.mp4' }],
+      sources: [
+        {
+          sourceId: 'source-1',
+          input: { kind: 'url', url: '/sample.mp4' },
+        },
+      ],
       onChange: expect.any(Function),
     })
   );
@@ -235,7 +285,7 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
   expect(result.current.ready).toBe(true);
   expect(result.current.status).toBe('Ready. Mediabunny can drive timeline video and audio.');
   expect('lastFrameTime' in result.current).toBe(false);
-  expect(result.current.durationBySourceId.get('source-1')).toBe(4);
+  expect(result.current.sourceStateById.get('source-1')?.metadata?.durationSeconds).toBe(4);
 
   await act(async () => {
     await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(0) });
