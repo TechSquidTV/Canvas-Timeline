@@ -162,7 +162,11 @@ Drop down to `useTimelineMediaPlayback()` only for direct external-clock
 coordination. At that level, `playbackOptions` contains range policy but not a
 loop boolean. Supply `loop(timelineTime, activeLayers)` to enable looping and
 realign the clock; requiring the callback prevents an external clock from
-looping without a seek/restart implementation.
+looping without a seek/restart implementation. Supply `onError(error)` to
+observe synchronous or asynchronous layer synchronization failures; the hook
+stops the external clock and pauses the timeline before reporting them. The
+higher-level sync hook wraps these as `TimelineMediaError` values with the
+`sync-failed` reason.
 
 Read [Media adapters](/docs/media-adapters) for source ownership, proxy versus
 fallback semantics, readiness, lazy loading, timing, track selection, audio,

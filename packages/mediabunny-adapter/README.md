@@ -18,7 +18,7 @@ pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 ## Choosing an API
 
 - Start with `useMediabunnyTimelineMedia` in React apps. It creates the adapter, connects it to timeline playback, and returns play/pause/rate controls plus decoded-frame status.
-- Use `useMediabunnyAdapter` only when you want React lifecycle management but will wire `adapter.syncAdapter` into `useTimelineMediaSync` yourself.
+- Use `useMediabunnyAdapter` only when you want React lifecycle management but will wire the returned adapter into `useTimelineMediaSync` yourself.
 - Use `createMediabunnyAdapter` outside React or when custom infrastructure owns canvas assignment, transport wiring, and disposal.
 - Use the HTML media adapter instead when one native `<video>` or `<audio>` element is enough.
 
@@ -80,7 +80,9 @@ Sources load on demand when their clips become active. Use `preloadSource(source
 
 `ready` means at least one source is registered, not that every project asset is decoded. Read `sourceStateById` for each source's lazy lifecycle and `audioStatus` for browser activation degradation. Caller-supplied `AudioContext` and destination nodes remain caller-owned; the adapter creates an audio graph only for a selected decodable audio track. Runtime `setVolume()` and `setMuted()` changes do not reload sources.
 
-High-level React playback applies Core in/out and loop policy to the external clock. `onError` receives a `TimelineMediaError` with a stable `reason`; audio activation is requested without blocking visual transport.
+The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock is independent of loaded source controllers, so lazy source changes and runtime fallback recovery preserve timeline time. Lazy module-loader failures are observable operation failures and `retrySource()` invokes the loader again.
+
+High-level React playback applies Core in/out and loop policy to the external clock. `onError` receives a `TimelineMediaError` with a stable `reason`, including `sync-failed` for rendering or scheduling failures. Audio activation is requested without blocking visual transport, retained until a decodable audio track loads, and never resumes a supplied context for video-only media.
 
 ## Documentation
 

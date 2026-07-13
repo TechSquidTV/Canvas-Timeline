@@ -143,6 +143,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
   let timelineTimeAtStart = 0;
   let playbackRate = 1;
   let shouldPlay = false;
+  let clockStartPending = false;
   let lastError: Error | null = null;
   const notify = () => options.onChange?.();
 
@@ -303,10 +304,20 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       return false;
     }
 
+    const sourceId = activeClip.clip.sourceId;
+    const inputIndex = selectedInputIndexBySourceId.get(sourceId) ?? 0;
     try {
       await element.play();
       return true;
     } catch (playError: unknown) {
+      const currentSourceId = activeClip?.clip.sourceId;
+      const currentInputIndex =
+        currentSourceId === undefined
+          ? null
+          : (selectedInputIndexBySourceId.get(currentSourceId) ?? 0);
+      if (shouldPlay && currentSourceId === sourceId && currentInputIndex !== inputIndex) {
+        return playElement();
+      }
       lastError = playError instanceof Error ? playError : new Error(String(playError));
       shouldPlay = false;
       throw lastError;
@@ -378,7 +389,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     });
     const clip = activeClip;
     loadClip(clip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true, status: 'recovering' });
-    if (shouldPlay) {
+    if (shouldPlay && !clockStartPending) {
       void playElement().catch(() => undefined);
     }
   };
@@ -487,10 +498,16 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       shouldPlay = true;
       element.playbackRate = rate;
 
-      return playElement();
+      clockStartPending = true;
+      try {
+        return await playElement();
+      } finally {
+        clockStartPending = false;
+      }
     },
     stopClock: () => {
       shouldPlay = false;
+      clockStartPending = false;
       element.pause();
     },
     setClockRate: (rate) => {
@@ -585,6 +602,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     },
     dispose: () => {
       shouldPlay = false;
+      clockStartPending = false;
       element.pause();
       element.removeEventListener('loadedmetadata', handleLoadedMetadata);
       element.removeEventListener('error', handleElementError);

@@ -18,6 +18,7 @@ import {
 } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
+import { toMediaError } from '#react/hooks/playback/mediaError';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
@@ -69,11 +70,18 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   ) => MaybePromise<void>;
   /** Receives high-level playback status changes. */
   onStatus?: (status: TimelineContentPlaybackStatus) => void;
+  /** Receives external rendering or scheduling failures before playback is paused. */
+  onError?: (error: Error) => void;
 }
 
 interface PlaybackFrameCursor {
   frameNumber: number;
   frameRate: number;
+}
+
+interface LayerSynchronizationResult<LayerName extends string> {
+  activeLayers: ActiveLayerResult<LayerName>;
+  error?: Error;
 }
 
 function getPlaybackFrameNumber(seconds: number, frameRate: TimecodeFrameRate) {
@@ -208,34 +216,14 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     [engine]
   );
 
-  const synchronizeLayers = useCallback(
-    (timelineTime: RationalTime, reason: TimelineMediaSyncReason) => {
-      const currentOptions = optionsRef.current;
-      const activeLayers = getActiveLayers(timelineTime);
-
-      const syncResult = currentOptions.syncLayers?.({
-        activeLayers,
-        timelineTime,
-        reason,
-      });
-      if (isPromiseLike(syncResult)) {
-        void Promise.resolve(syncResult).catch(() => {
-          currentOptions.stopClock?.();
-          if (engine.getState().playing) {
-            engine.pause();
-          }
-          currentOptions.onStatus?.('paused');
-        });
-      }
-
-      return activeLayers;
-    },
-    [engine, getActiveLayers]
-  );
-
   const pause = useCallback(
-    (status: TimelineContentPlaybackStatus = 'paused') => {
-      if (status === 'paused' && animationFrameRef.current === null && !engine.getState().playing) {
+    (status: TimelineContentPlaybackStatus = 'paused', force = false) => {
+      if (
+        !force &&
+        status === 'paused' &&
+        animationFrameRef.current === null &&
+        !engine.getState().playing
+      ) {
         return;
       }
       if (pausingRef.current) {
@@ -266,6 +254,42 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     [cancelTick, engine, getActiveLayers]
   );
 
+  const handleSyncFailure = useCallback(
+    (cause: unknown) => {
+      const syncError = toMediaError(cause);
+      pause('paused', true);
+      optionsRef.current.onError?.(syncError);
+      return syncError;
+    },
+    [pause]
+  );
+
+  const synchronizeLayers = useCallback(
+    (
+      timelineTime: RationalTime,
+      reason: TimelineMediaSyncReason
+    ): LayerSynchronizationResult<LayerName> => {
+      const currentOptions = optionsRef.current;
+      const activeLayers = getActiveLayers(timelineTime);
+
+      try {
+        const syncResult = currentOptions.syncLayers?.({
+          activeLayers,
+          timelineTime,
+          reason,
+        });
+        if (isPromiseLike(syncResult)) {
+          void Promise.resolve(syncResult).catch(handleSyncFailure);
+        }
+      } catch (syncError: unknown) {
+        return { activeLayers, error: handleSyncFailure(syncError) };
+      }
+
+      return { activeLayers };
+    },
+    [getActiveLayers, handleSyncFailure]
+  );
+
   const pausePlayback = useCallback(() => {
     pause('paused');
     return timelineCommandOk();
@@ -288,7 +312,15 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       currentOptions.frameRate === undefined
         ? null
         : getPlaybackFrameNumber(toSeconds(startTime), currentOptions.frameRate);
-    const activeLayers = synchronizeLayers(startTime, 'play');
+    const synchronization = synchronizeLayers(startTime, 'play');
+    const { activeLayers } = synchronization;
+    if (synchronization.error !== undefined) {
+      return timelineCommandFail(
+        'sync-failed',
+        'External media synchronization failed.',
+        synchronization.error
+      );
+    }
     if (!activeLayers.hasActiveClips) {
       pause('content-gap');
       return timelineCommandFail('content-gap');
@@ -334,7 +366,11 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       }
 
       const update = engine.updateExternalPlaybackTime(timelineTime);
-      const nextActiveLayers = synchronizeLayers(update.time, 'tick');
+      const synchronization = synchronizeLayers(update.time, 'tick');
+      const { activeLayers: nextActiveLayers } = synchronization;
+      if (synchronization.error !== undefined) {
+        return;
+      }
       if (update.action !== 'loop') {
         loopTransitionRef.current = null;
       } else if (loopTransitionRef.current === null) {
@@ -375,7 +411,14 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   const setPlaybackRate = useCallback(
     (rate: number) => {
       engine.setPlaybackRate(rate);
-      synchronizeLayers(engine.getTime(), 'rate');
+      const synchronization = synchronizeLayers(engine.getTime(), 'rate');
+      if (synchronization.error !== undefined) {
+        return timelineCommandFail(
+          'sync-failed',
+          'External media synchronization failed.',
+          synchronization.error
+        );
+      }
       return timelineCommandOk();
     },
     [engine, synchronizeLayers]

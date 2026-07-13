@@ -93,10 +93,6 @@ const noopAdapter: MediabunnyAdapter = {
   muted: false,
   audioStatus: { state: 'unavailable' },
   subscribeFrame: () => () => {},
-  syncAdapter: {
-    getClockTime: () => 0,
-    startClock: () => false,
-  },
   setCanvas: () => {},
   getClockTime: () => 0,
   startClock: () => false,
@@ -132,6 +128,7 @@ const noopAdapter: MediabunnyAdapter = {
   renderVideo: () => Promise.resolve(),
   syncAudio: () => {},
   syncLayers: () => Promise.resolve(),
+  onStatus: () => {},
   clearVideo: () => {},
   getFrame: () => Promise.resolve(null),
   dispose: () => {},
@@ -368,7 +365,7 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     ready: adapter.ready,
     frameRate,
     layers,
-    adapter: adapter.syncAdapter,
+    adapter,
     onError,
     playbackOptions,
   });

@@ -192,7 +192,7 @@ export interface MediabunnyFrame {
 /**
  * Adapter that connects Canvas Timeline playback and frame rendering to Mediabunny.
  */
-export interface MediabunnyAdapter {
+export interface MediabunnyAdapter extends TimelineMediaSyncAdapter<string> {
   /** Whether the adapter has at least one configured source available for lazy loading. */
   readonly ready: boolean;
   /** Human-readable loading, playback, or error status. */
@@ -209,8 +209,6 @@ export interface MediabunnyAdapter {
   readonly muted: boolean;
   /** Current optional Web Audio graph and browser activation state. */
   readonly audioStatus: MediabunnyAudioStatus;
-  /** Framework-neutral synchronization contract backed by Mediabunny clocks and sinks. */
-  readonly syncAdapter: TimelineMediaSyncAdapter<string>;
   /** Subscribe to decoded preview frame timestamp changes. */
   subscribeFrame: (listener: () => void) => () => void;
   /** Update the canvas used for video preview rendering. */
@@ -254,6 +252,8 @@ export interface MediabunnyAdapter {
   ) => void;
   /** Synchronize Mediabunny sinks from active timeline layers. */
   syncLayers: (details: TimelineLayerSyncDetails<string>) => Promise<void>;
+  /** Update the adapter's human-readable status from synchronized playback state. */
+  onStatus: (status: TimelineContentPlaybackStatus) => void;
   /** Clear the preview canvas and reset last-frame state. */
   clearVideo: () => void;
   /** Decode and return a frame for an active video clip without painting it. */
@@ -471,6 +471,11 @@ export function createMediabunnyAdapter(
   let disposed = false;
   let clockController: MediabunnySourceController | null = null;
   let currentPlaybackRate = 1;
+  let transportTimelineTimeAtStart = 0;
+  let transportAudioContextStartTime: number | null = null;
+  let transportAudioClockReady = false;
+  let transportWallClockStartTime: number | null = null;
+  let transportPlaying = false;
   let lastFrameTime: number | null = null;
   const frameListeners = new Set<() => void>();
   const controllers = new Map<string, MediabunnySourceController>();
@@ -499,6 +504,7 @@ export function createMediabunnyAdapter(
   let audioStatus: MediabunnyAudioStatus = { state: 'unavailable' };
   let activationGeneration = 0;
   let activationTimer: number | null = null;
+  let pendingAudioActivationRate: number | null = null;
 
   const notify = () => {
     options.onChange?.();
@@ -537,6 +543,40 @@ export function createMediabunnyAdapter(
     if (masterGainNode !== null) {
       masterGainNode.gain.value = muted ? 0 : volume;
     }
+  };
+
+  const getTransportClockTime = () => {
+    if (
+      transportPlaying &&
+      audioContext !== null &&
+      transportAudioContextStartTime !== null &&
+      transportAudioClockReady &&
+      audioContext.state === 'running'
+    ) {
+      return (
+        transportTimelineTimeAtStart +
+        (audioContext.currentTime - transportAudioContextStartTime) * currentPlaybackRate
+      );
+    }
+
+    if (transportPlaying && transportWallClockStartTime !== null) {
+      return (
+        transportTimelineTimeAtStart +
+        (performance.now() / 1000 - transportWallClockStartTime) * currentPlaybackRate
+      );
+    }
+
+    return transportTimelineTimeAtStart;
+  };
+
+  const setTransportClock = (timelineSeconds: number, playbackRate: number, playing: boolean) => {
+    transportTimelineTimeAtStart = timelineSeconds;
+    transportAudioContextStartTime =
+      masterGainNode !== null ? (audioContext?.currentTime ?? null) : null;
+    transportAudioClockReady = masterGainNode !== null && audioContext?.state === 'running';
+    transportWallClockStartTime = playing ? performance.now() / 1000 : null;
+    transportPlaying = playing;
+    currentPlaybackRate = playbackRate;
   };
 
   const ensureAudioRuntime = () => {
@@ -579,6 +619,78 @@ export function createMediabunnyAdapter(
       setTimelineClock(controller, timelineSeconds, playbackRate);
       controller.playing = playing;
     }
+  };
+
+  const activatePendingAudioClock = () => {
+    const playbackRate = pendingAudioActivationRate;
+    if (playbackRate === null || masterGainNode === null || audioContext === null) {
+      return;
+    }
+    if (audioContext.state === 'running') {
+      const timelineSeconds = getTransportClockTime();
+      pendingAudioActivationRate = null;
+      setTransportClock(timelineSeconds, playbackRate, transportPlaying);
+      setAllClocks(timelineSeconds, playbackRate, transportPlaying);
+      audioStatus = { state: 'running' };
+      notify();
+      return;
+    }
+    if (audioContext.state !== 'suspended') {
+      pendingAudioActivationRate = null;
+      audioStatus = {
+        state: 'degraded',
+        error: new Error(`AudioContext cannot be activated from state "${audioContext.state}".`),
+      };
+      notify();
+      return;
+    }
+
+    const context = audioContext;
+    const generation = ++activationGeneration;
+    if (activationTimer !== null) {
+      window.clearTimeout(activationTimer);
+    }
+    activationTimer = window.setTimeout(() => {
+      if (generation !== activationGeneration || context.state === 'running') {
+        return;
+      }
+      pendingAudioActivationRate = null;
+      audioStatus = { state: 'degraded', error: null };
+      notify();
+    }, options.audio?.activationTimeoutMs ?? 1000);
+    void context.resume().then(
+      () => {
+        if (generation !== activationGeneration || disposed) {
+          return;
+        }
+        if (activationTimer !== null) {
+          window.clearTimeout(activationTimer);
+        }
+        activationTimer = null;
+        pendingAudioActivationRate = null;
+        const timelineSeconds = getTransportClockTime();
+        setTransportClock(timelineSeconds, playbackRate, transportPlaying);
+        setAllClocks(timelineSeconds, playbackRate, transportPlaying);
+        audioStatus = { state: 'running' };
+        notify();
+      },
+      (activationError: unknown) => {
+        if (generation !== activationGeneration || disposed) {
+          return;
+        }
+        if (activationTimer !== null) {
+          window.clearTimeout(activationTimer);
+        }
+        activationTimer = null;
+        pendingAudioActivationRate = null;
+        audioStatus = {
+          state: 'degraded',
+          error:
+            activationError instanceof Error ? activationError : new Error(String(activationError)),
+        };
+        notify();
+      }
+    );
   };
 
   const clearVideo = () => {
@@ -669,7 +781,34 @@ export function createMediabunnyAdapter(
       error: null,
     });
 
-    const mediabunny = await getMediabunny();
+    const modulePromise = getMediabunny();
+    let mediabunny: MediabunnyModule;
+    try {
+      mediabunny = await modulePromise;
+    } catch (moduleError: unknown) {
+      if (mediabunnyPromise === modulePromise) {
+        mediabunnyPromise = null;
+      }
+      const loadError = moduleError instanceof Error ? moduleError : new Error(String(moduleError));
+      if (!disposed && loadGenerations.get(source.sourceId) === generation) {
+        error = loadError;
+        status = loadError.message;
+        setSourceState({
+          sourceId: source.sourceId,
+          status: 'failed',
+          selectedInputIndex: null,
+          attempts: previousAttempts,
+          metadata: null,
+          error: loadError,
+        });
+      }
+      return {
+        ok: false,
+        sourceId: source.sourceId,
+        reason: 'load-failed',
+        error: loadError,
+      };
+    }
     const attempts = [...previousAttempts];
     let finalError = new Error(
       `No remaining inputs are available for source "${source.sourceId}".`
@@ -702,8 +841,7 @@ export function createMediabunnyAdapter(
 
         attempts.push({ inputIndex, status: 'ready', error: null });
         const previous = controllers.get(source.sourceId);
-        const wasPlaying = previous?.playing ?? false;
-        const timelineSeconds = previous === undefined ? 0 : getTimelinePlaybackSeconds(previous);
+        const timelineSeconds = getTransportClockTime();
         if (previous !== undefined) {
           if (clockController === previous) {
             clockController = candidate;
@@ -711,10 +849,11 @@ export function createMediabunnyAdapter(
           disposeController(previous);
         }
         controllers.set(source.sourceId, candidate);
-        if (wasPlaying) {
-          setTimelineClock(candidate, timelineSeconds, currentPlaybackRate);
+        setTimelineClock(candidate, timelineSeconds, currentPlaybackRate);
+        candidate.playing = transportPlaying;
+        if (candidate.audioSink !== null) {
+          activatePendingAudioClock();
         }
-        candidate.playing = wasPlaying;
         error = null;
         status = 'Ready. Mediabunny can drive timeline video and audio.';
         setSourceState({
@@ -746,6 +885,8 @@ export function createMediabunnyAdapter(
       disposeController(previous);
       controllers.delete(source.sourceId);
     }
+    error = finalError;
+    status = finalError.message;
     setSourceState({
       sourceId: source.sourceId,
       status: 'failed',
@@ -754,8 +895,6 @@ export function createMediabunnyAdapter(
       metadata: null,
       error: finalError,
     });
-    error = finalError;
-    status = finalError.message;
     return {
       ok: false,
       sourceId: source.sourceId,
@@ -986,26 +1125,6 @@ export function createMediabunnyAdapter(
     get audioStatus() {
       return audioStatus;
     },
-    get syncAdapter() {
-      return {
-        getClockTime: adapter.getClockTime,
-        startClock: adapter.startClock,
-        stopClock: adapter.stopClock,
-        requestClockActivation: adapter.requestClockActivation,
-        setClockRate: adapter.setClockRate,
-        seek: adapter.seek,
-        syncLayers: adapter.syncLayers,
-        onStatus: (playbackStatus: TimelineContentPlaybackStatus) => {
-          if (playbackStatus === 'playing') {
-            setStatus('Mediabunny is driving timeline media playback.');
-          } else if (playbackStatus === 'content-gap') {
-            setStatus('Reached the next content gap.');
-          } else if (playbackStatus === 'paused') {
-            setStatus('Paused. Timeline edits seek Mediabunny frames.');
-          }
-        },
-      };
-    },
     subscribeFrame: (listener) => {
       frameListeners.add(listener);
       return () => {
@@ -1020,10 +1139,7 @@ export function createMediabunnyAdapter(
       }
       canvas = nextCanvas;
     },
-    getClockTime: () => {
-      const controller = clockController ?? [...controllers.values()][0];
-      return controller === undefined ? 0 : getTimelinePlaybackSeconds(controller);
-    },
+    getClockTime: getTransportClockTime,
     startClock: (timelineTime, playbackRate) => {
       if (
         !ready ||
@@ -1033,64 +1149,26 @@ export function createMediabunnyAdapter(
         return false;
       }
 
-      currentPlaybackRate = playbackRate;
+      setTransportClock(toSeconds(timelineTime), playbackRate, true);
       setAllClocks(toSeconds(timelineTime), playbackRate, true);
       return true;
     },
     stopClock: () => {
+      const timelineSeconds = getTransportClockTime();
+      setTransportClock(timelineSeconds, currentPlaybackRate, false);
+      pendingAudioActivationRate = null;
+      activationGeneration += 1;
+      if (activationTimer !== null) {
+        window.clearTimeout(activationTimer);
+        activationTimer = null;
+      }
       for (const controller of controllers.values()) {
-        controller.playing = false;
-        void cancelVideoPlayback(controller);
+        stopMediaClock(controller);
       }
     },
     requestClockActivation: (playbackRate) => {
-      if (audioContext?.state !== 'suspended') {
-        return;
-      }
-      const generation = ++activationGeneration;
-      if (activationTimer !== null) {
-        window.clearTimeout(activationTimer);
-      }
-      activationTimer = window.setTimeout(() => {
-        if (generation !== activationGeneration || audioContext?.state === 'running') {
-          return;
-        }
-        audioStatus = { state: 'degraded', error: null };
-        notify();
-      }, options.audio?.activationTimeoutMs ?? 1000);
-      void audioContext.resume().then(
-        () => {
-          if (generation !== activationGeneration || disposed) {
-            return;
-          }
-          if (activationTimer !== null) {
-            window.clearTimeout(activationTimer);
-          }
-          activationTimer = null;
-          audioStatus = { state: 'running' };
-          const timelineSeconds = adapter.getClockTime();
-          const playing = [...controllers.values()].some((controller) => controller.playing);
-          setAllClocks(timelineSeconds, playbackRate, playing);
-          notify();
-        },
-        (activationError: unknown) => {
-          if (generation !== activationGeneration || disposed) {
-            return;
-          }
-          if (activationTimer !== null) {
-            window.clearTimeout(activationTimer);
-          }
-          activationTimer = null;
-          audioStatus = {
-            state: 'degraded',
-            error:
-              activationError instanceof Error
-                ? activationError
-                : new Error(String(activationError)),
-          };
-          notify();
-        }
-      );
+      pendingAudioActivationRate = playbackRate;
+      activatePendingAudioClock();
     },
     setVolume: (nextVolume) => {
       if (!Number.isFinite(nextVolume) || nextVolume < 0 || nextVolume > 1) {
@@ -1155,10 +1233,9 @@ export function createMediabunnyAdapter(
       return result;
     },
     setClockRate: (playbackRate) => {
-      const timelineSeconds = adapter.getClockTime();
-      const playing = [...controllers.values()].some((controller) => controller.playing);
-      currentPlaybackRate = playbackRate;
-      setAllClocks(timelineSeconds, playbackRate, playing);
+      const timelineSeconds = getTransportClockTime();
+      setTransportClock(timelineSeconds, playbackRate, transportPlaying);
+      setAllClocks(timelineSeconds, playbackRate, transportPlaying);
     },
     seek: async (timelineTime, activeLayers) => {
       if (!ready) {
@@ -1171,6 +1248,7 @@ export function createMediabunnyAdapter(
       await ensureActiveSources(activeVisual, activeAudio);
 
       await Promise.all([...controllers.values()].map(cancelVideoPlayback));
+      setTransportClock(toSeconds(timelineTime), currentPlaybackRate, false);
       setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
       if (activeVisual !== undefined) {
         await adapter.renderVideo(activeVisual, timelineTime);
@@ -1193,6 +1271,15 @@ export function createMediabunnyAdapter(
     renderVideo,
     syncAudio,
     syncLayers,
+    onStatus: (playbackStatus) => {
+      if (playbackStatus === 'playing') {
+        setStatus('Mediabunny is driving timeline media playback.');
+      } else if (playbackStatus === 'content-gap') {
+        setStatus('Reached the next content gap.');
+      } else if (playbackStatus === 'paused') {
+        setStatus('Paused. Timeline edits seek Mediabunny frames.');
+      }
+    },
     clearVideo,
     getFrame: async (activeVideo) => {
       const controller = getController(activeVideo);
@@ -1224,6 +1311,7 @@ export function createMediabunnyAdapter(
       ready = false;
       status = 'Mediabunny adapter disposed.';
       activationGeneration += 1;
+      pendingAudioActivationRate = null;
       if (activationTimer !== null) {
         window.clearTimeout(activationTimer);
       }
@@ -1344,11 +1432,13 @@ async function loadMediabunnySourceController(
     });
   }
 
-  if (
-    audioTrack !== null &&
-    (await audioTrack.getCodec()) !== null &&
-    (await audioTrack.canDecode())
-  ) {
+  const audioDecodable =
+    audioTrack !== null && (await audioTrack.getCodec()) !== null && (await audioTrack.canDecode());
+  if (audioTrack !== null && videoTrack === null && !audioDecodable) {
+    throw new Error(`The browser cannot decode the audio track for source "${source.sourceId}".`);
+  }
+
+  if (audioTrack !== null && audioDecodable) {
     const audioRuntime = ensureAudioRuntime();
     if (audioRuntime !== null) {
       controller.audioContext = audioRuntime.context;
@@ -1371,7 +1461,9 @@ async function loadMediabunnySourceController(
           rotation,
           detectedFrameRate: packetStats?.averagePacketRate || null,
         })),
-    audioTrack === null ? null : audioTrack.getSampleRate().then((sampleRate) => ({ sampleRate })),
+    audioTrack === null || !audioDecodable
+      ? null
+      : audioTrack.getSampleRate().then((sampleRate) => ({ sampleRate })),
   ]);
 
   return {

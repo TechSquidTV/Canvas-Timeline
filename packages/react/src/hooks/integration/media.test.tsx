@@ -56,6 +56,46 @@ test('useTimelineMediaPlayback starts external playback and advances from clock 
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaPlayback reports async synchronization failures and pauses', async () => {
+  const engine = createMediaSyncEngine();
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const syncError = new Error('decoder iterator failed');
+  const onError = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => clockTime,
+        layers: mediaSyncLayers,
+        syncLayers: ({ reason }) =>
+          reason === 'tick' ? Promise.reject(syncError) : Promise.resolve(),
+        onError,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  act(() => {
+    expect(result.current.play()).toEqual({ ok: true });
+  });
+  clockTime = 1.5;
+  act(() => {
+    tick?.(16);
+  });
+
+  await waitFor(() => {
+    expect(onError).toHaveBeenCalledWith(syncError);
+    expect(engine.getState().playing).toBe(false);
+  });
+});
+
 test('useTimelineMediaPlayback invokes one loop transition until the clock re-enters range', () => {
   const engine = createMediaSyncEngine();
   engine.setInPoint(fromSeconds(1), false);
@@ -813,8 +853,8 @@ test('useTimelineMediaSync converts timeline sync exceptions into a play result'
   await act(async () => {
     await expect(result.current.play()).resolves.toEqual({
       ok: false,
-      reason: 'timeline-failed',
-      message: 'Timeline playback could not start. render failed',
+      reason: 'sync-failed',
+      message: 'Media synchronization failed. render failed',
       cause: expect.any(Error),
     });
   });
@@ -824,8 +864,8 @@ test('useTimelineMediaSync converts timeline sync exceptions into a play result'
   expect(engine.getState().playing).toBe(false);
   expect(onError).toHaveBeenCalledWith(
     expect.objectContaining({
-      reason: 'timeline-failed',
-      message: 'Timeline playback could not start. render failed',
+      reason: 'sync-failed',
+      message: 'Media synchronization failed. render failed',
     })
   );
 });

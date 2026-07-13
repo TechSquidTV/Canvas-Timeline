@@ -141,6 +141,9 @@ media.adapter.unloadSource(previousSourceId);
 `preloadSource` warms a registered source without changing proxy/original
 policy. `unloadSource` releases its decoder and audio resources but keeps the
 definition registered; the source returns to `idle` and reloads when needed.
+Module-loader failures use the same discriminated operation result and failed
+source state as input failures. A later `retrySource()` call invokes the lazy
+module loader again.
 
 `sourceStateById` snapshots are referentially new when observable state changes.
 Each state includes the selected input index, ordered attempts, and terminal
@@ -153,7 +156,7 @@ sample rate.
 Mediabunny uses the primary video and audio tracks by default. Supply
 `selectTracks(context)` when the editor needs an alternate camera angle,
 language, commentary mix, or another explicit track. The context contains all
-decodable tracks plus the logical source and selected preferred/fallback input.
+available tracks plus the logical source and selected preferred/fallback input.
 
 The adapter creates an audio graph only after loading a source with a decodable
 audio track. A supplied `AudioContext` and destination remain caller-owned;
@@ -167,7 +170,14 @@ Browser audio activation is separate from visual transport. The high-level
 sync hook starts activation without awaiting it, so suspended audio cannot
 prevent video playback. Observe `adapter.audioStatus` for `suspended`,
 `running`, or `degraded` state. Imperative integrations can call
-`requestClockActivation()` directly.
+`requestClockActivation()` directly. An activation requested before lazy media
+loading is retained until a selected decodable audio track creates the graph;
+video-only media never resumes a caller's suspended context.
+
+The Mediabunny adapter itself implements `TimelineMediaSyncAdapter`, so pass the
+adapter directly to `useTimelineMediaSync()`. Its transport clock is independent
+of individual loaded source controllers: lazy source transitions, unloads, and
+runtime input recovery do not reset timeline time.
 
 ## Apply playback ranges and errors
 
@@ -192,7 +202,9 @@ enabled by supplying the `loop(timelineTime, activeLayers)` realignment callback
 instead of a boolean; this prevents a clock from looping without a way to seek.
 
 `onError` receives `TimelineMediaError`. Use its stable `reason` for program
-flow and `message` for logs or UI. Play commands also return a discriminated
+flow and `message` for logs or UI. Rendering and scheduling failures report
+`sync-failed` and pause both clocks, including asynchronous iterator failures.
+Play commands also return a discriminated
 `TimelineMediaPlayResult`, so callers can handle failures without parsing error
 text.
 

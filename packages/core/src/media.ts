@@ -144,14 +144,14 @@ export type TimelineMediaPlayFailureReason =
   | 'no-content'
   | 'no-active-content'
   | 'clock-failed'
+  | 'sync-failed'
   | 'timeline-failed';
 
 /** Machine-readable category for a media transport or synchronization failure. */
 export type TimelineMediaErrorReason =
   | TimelineMediaPlayFailureReason
   | 'seek-failed'
-  | 'loop-failed'
-  | 'sync-failed';
+  | 'loop-failed';
 
 /**
  * Structured media error delivered to application error handlers.

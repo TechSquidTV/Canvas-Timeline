@@ -247,6 +247,50 @@ test('createHTMLMediaAdapter reports rejected native playback', async () => {
   await expect(adapter.startClock(fromSeconds(1), 1)).rejects.toThrow('gesture required');
 });
 
+test('createHTMLMediaAdapter keeps initial playback attached across an input fallback', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  let rejectPreferredInput: (error: Error) => void = () => {};
+  const preferredPlay = new Promise<void>((_resolve, reject) => {
+    rejectPreferredInput = reject;
+  });
+  const play = vi
+    .spyOn(element, 'play')
+    .mockImplementationOnce(() => preferredPlay)
+    .mockResolvedValueOnce(undefined);
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'load').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/preferred.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: {
+      visuals: { trackKind: 'visual', sourceId: 'source-1' },
+    },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  const startPromise = adapter.startClock(fromSeconds(1), 1);
+  element.dispatchEvent(new Event('error'));
+  rejectPreferredInput(new Error('preferred input failed'));
+
+  await expect(startPromise).resolves.toBe(true);
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(element.src).toBe('http://localhost:3000/fallback.mp4');
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'recovering',
+    selectedInputIndex: 1,
+  });
+});
+
 test('createHTMLMediaAdapter clears the element for missing sources and content gaps', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');

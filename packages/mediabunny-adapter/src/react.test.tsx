@@ -97,17 +97,10 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): Mediabun
     muted: false,
     audioStatus: { state: 'unavailable' },
     subscribeFrame: () => () => {},
-    syncAdapter: {
-      getClockTime: vi.fn(() => 0),
-      startClock: vi.fn(() => true),
-      stopClock: vi.fn(),
-      seek: vi.fn(),
-      syncLayers: vi.fn(),
-    },
     setCanvas: vi.fn(),
-    getClockTime: () => 0,
-    startClock: () => true,
-    stopClock: () => {},
+    getClockTime: vi.fn(() => 0),
+    startClock: vi.fn(() => true),
+    stopClock: vi.fn(),
     requestClockActivation: () => {},
     setVolume: () => {},
     setMuted: () => {},
@@ -129,10 +122,11 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): Mediabun
         error: new Error('unavailable'),
       }),
     setClockRate: () => {},
-    seek: () => Promise.resolve(),
+    seek: vi.fn(() => Promise.resolve()),
     renderVideo: () => Promise.resolve(),
     syncAudio: () => {},
-    syncLayers: () => Promise.resolve(),
+    syncLayers: vi.fn(() => Promise.resolve()),
+    onStatus: vi.fn(),
     clearVideo: () => {},
     getFrame: () => Promise.resolve(null),
     dispose: vi.fn(),
@@ -252,7 +246,6 @@ test('useMediabunnyAdapter returns noop behavior when window is unavailable', as
   adapter.clearVideo();
   await expect(adapter.getFrame({} as ActiveClip)).resolves.toBeNull();
   adapter.dispose();
-  expect(adapter.syncAdapter.startClock(fromSeconds(0), 1)).toBe(false);
   expect(useEffect).toHaveBeenCalled();
 });
 
@@ -316,8 +309,8 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
     await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(0) });
   });
 
-  expect(adapter.syncAdapter.seek).toHaveBeenCalled();
-  expect(adapter.syncAdapter.startClock).toHaveBeenCalledWith(fromSeconds(0), 1);
+  expect(adapter.seek).toHaveBeenCalled();
+  expect(adapter.startClock).toHaveBeenCalledWith(fromSeconds(0), 1);
 });
 
 test('useMediabunnyFrameTime updates only focused frame subscribers', async () => {

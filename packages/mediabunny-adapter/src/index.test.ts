@@ -536,6 +536,35 @@ test('createMediabunnyAdapter selects input fallbacks and surfaces load failures
   expect(emptyAdapter.status).toBe('No Mediabunny sources are configured.');
 });
 
+test('createMediabunnyAdapter reports module loader failures and retries the loader', async () => {
+  const input = createMockInput();
+  const mockMediabunny = createMockMediabunny([input]);
+  const loadMediabunny = vi
+    .fn<() => Promise<MediabunnyModule>>()
+    .mockRejectedValueOnce(new Error('module download failed'))
+    .mockResolvedValueOnce(mockMediabunny.module);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: loadMediabunny,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+
+  await expect(adapter.preloadSource('source-1')).resolves.toMatchObject({
+    ok: false,
+    reason: 'load-failed',
+    error: expect.objectContaining({ message: 'module download failed' }),
+  });
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'failed',
+    error: expect.objectContaining({ message: 'module download failed' }),
+  });
+
+  await expect(adapter.retrySource('source-1')).resolves.toMatchObject({
+    ok: true,
+    state: 'ready',
+  });
+  expect(loadMediabunny).toHaveBeenCalledTimes(2);
+});
+
 test('createMediabunnyAdapter replaces an app-resolved proxy and maps its timestamps', async () => {
   const originalInput = createMockInput({ metadataDuration: 20 });
   const proxyInput = createMockInput({ firstTimestamp: 0, metadataDuration: 10 });
@@ -779,6 +808,30 @@ test('createMediabunnyAdapter handles audio-only content and missing render surf
   await expect(adapter.getFrame(createActiveClip('visual', 'audio-source', 2))).resolves.toBeNull();
 });
 
+test('createMediabunnyAdapter rejects audio-only sources the browser cannot decode', async () => {
+  const undecodableAudio = {
+    ...createMockAudioTrack(),
+    canDecode: vi.fn(async () => false),
+  };
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([
+      createMockInput({ videoTrack: null, audioTrack: undecodableAudio }),
+    ]).module,
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
+  });
+
+  await expect(adapter.preloadSource('audio-source')).resolves.toMatchObject({
+    ok: false,
+    reason: 'load-failed',
+  });
+  expect(adapter.sourceStateById.get('audio-source')).toMatchObject({
+    status: 'failed',
+    error: expect.objectContaining({
+      message: 'The browser cannot decode the audio track for source "audio-source".',
+    }),
+  });
+});
+
 test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts', async () => {
   const input = createMockInput({ audioTrack: createMockAudioTrack() });
   const audioContext = createMockAudioContext();
@@ -816,11 +869,11 @@ test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts
     adapter.getFrame(createActiveClip('visual', 'missing-source', 2))
   ).resolves.toBeNull();
 
-  adapter.syncAdapter.onStatus?.('playing');
+  adapter.onStatus('playing');
   expect(adapter.status).toBe('Mediabunny is driving timeline media playback.');
-  adapter.syncAdapter.onStatus?.('content-gap');
+  adapter.onStatus('content-gap');
   expect(adapter.status).toBe('Reached the next content gap.');
-  adapter.syncAdapter.onStatus?.('paused');
+  adapter.onStatus('paused');
   expect(adapter.status).toBe('Paused. Timeline edits seek Mediabunny frames.');
 });
 
@@ -1008,6 +1061,78 @@ test('createMediabunnyAdapter reports pending audio activation without blocking 
   vi.useRealTimers();
 });
 
+test('createMediabunnyAdapter defers audio activation until an audio track loads', async () => {
+  const audioContext = createMockAudioContext();
+  audioContext.state = 'suspended';
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([
+      createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() }),
+    ]).module,
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
+  });
+
+  adapter.requestClockActivation(1);
+  expect(audioContext.resume).not.toHaveBeenCalled();
+  await adapter.preloadSource('audio-source');
+  await Promise.resolve();
+
+  expect(audioContext.resume).toHaveBeenCalledTimes(1);
+  expect(adapter.audioStatus).toEqual({ state: 'running' });
+});
+
+test('createMediabunnyAdapter does not activate caller audio for video-only media', async () => {
+  const audioContext = createMockAudioContext();
+  audioContext.state = 'suspended';
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([createMockInput({ audioTrack: null })]).module,
+    sources: [urlSource('video-source', 'https://media.example/video.mp4')],
+  });
+
+  adapter.requestClockActivation(1);
+  await adapter.preloadSource('video-source');
+  await Promise.resolve();
+
+  expect(audioContext.resume).not.toHaveBeenCalled();
+  expect(adapter.audioStatus).toEqual({ state: 'unavailable' });
+});
+
+test('createMediabunnyAdapter keeps transport time continuous across lazy source loads', async () => {
+  let nowMilliseconds = 1_000;
+  vi.spyOn(performance, 'now').mockImplementation(() => nowMilliseconds);
+  const canvas = document.createElement('canvas');
+  vi.spyOn(canvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage: vi.fn(),
+  } as unknown as CanvasRenderingContext2D);
+  const adapter = createMediabunnyAdapter({
+    canvas,
+    mediabunny: createMockMediabunny([createMockInput(), createMockInput()]).module,
+    sources: [
+      urlSource('source-1', 'https://media.example/one.mp4'),
+      urlSource('source-2', 'https://media.example/two.mp4'),
+    ],
+  });
+  const firstClip = createActiveClip('visual', 'source-1', 5);
+  await adapter.seek(fromSeconds(5), createActiveLayers([firstClip], 5));
+  expect(adapter.startClock(fromSeconds(5), 1)).toBe(true);
+
+  nowMilliseconds = 2_000;
+  expect(adapter.getClockTime()).toBe(6);
+  const secondClip = createActiveClip('visual', 'source-2', 6);
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(6),
+    reason: 'tick',
+    activeLayers: createActiveLayers([secondClip], 6),
+  });
+  expect(adapter.sourceStateById.get('source-2')?.status).toBe('ready');
+  expect(adapter.getClockTime()).toBe(6);
+
+  nowMilliseconds = 2_500;
+  expect(adapter.getClockTime()).toBe(6.5);
+});
+
 test('createMediabunnyAdapter closes only an adapter-owned audio context', async () => {
   const ownedContext = createMockAudioContext();
   class OwnedAudioContextConstructor {
@@ -1028,6 +1153,8 @@ test('createMediabunnyAdapter closes only an adapter-owned audio context', async
 });
 
 test('createMediabunnyAdapter falls back after a runtime video iterator failure', async () => {
+  let nowMilliseconds = 1_000;
+  vi.spyOn(performance, 'now').mockImplementation(() => nowMilliseconds);
   const firstInput = createMockInput();
   const fallbackInput = createMockInput();
   let iteratorCount = 0;
@@ -1063,7 +1190,8 @@ test('createMediabunnyAdapter falls back after a runtime video iterator failure'
   const visualClip = createActiveClip('visual', 'source-1', 1);
 
   await waitForAdapterLoad(adapter);
-  adapter.startClock(fromSeconds(1), 1);
+  await adapter.seek(fromSeconds(1), createActiveLayers([visualClip], 1));
+  expect(adapter.startClock(fromSeconds(1), 1)).toBe(true);
   await adapter.syncLayers({
     timelineTime: fromSeconds(1),
     reason: 'play',
@@ -1072,4 +1200,6 @@ test('createMediabunnyAdapter falls back after a runtime video iterator failure'
   await vi.waitFor(() => {
     expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(1);
   });
+  nowMilliseconds = 2_000;
+  expect(adapter.getClockTime()).toBe(2);
 });

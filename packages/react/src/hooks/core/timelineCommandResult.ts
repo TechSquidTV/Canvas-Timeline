@@ -17,6 +17,7 @@ export type TimelineCommandFailureReason =
   | 'out-of-bounds'
   | 'policy-rejected'
   | 'source-bounds'
+  | 'sync-failed'
   | 'unsupported';
 
 /**

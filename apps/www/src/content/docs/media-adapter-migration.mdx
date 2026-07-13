@@ -168,7 +168,15 @@ changes; neither operation reloads sources.
 
 Caller-supplied `AudioContext` instances remain caller-owned. The Mediabunny
 adapter closes only contexts it creates, and it does not create an audio graph
-for sources without a decodable audio track.
+for sources without a decodable audio track. Audio activation requests made
+before lazy loading are deferred until a selected decodable audio track exists;
+video-only sources do not resume a supplied context.
+
+`MediabunnyAdapter` now implements `TimelineMediaSyncAdapter` directly. Pass the
+adapter itself to `useTimelineMediaSync()`; the former nested `syncAdapter`
+facade is removed without an alias. The adapter transport clock is no longer
+owned by an active source controller, so lazy source changes and runtime input
+recovery preserve the running timeline position.
 
 Error handlers now receive `TimelineMediaError` with a stable `reason` and a
 human-readable `message`:
@@ -182,7 +190,14 @@ useMediabunnyTimelineMedia({
 ```
 
 This replaces string-only `onError` callbacks. Play still returns a
-discriminated `TimelineMediaPlayResult` for command-local handling.
+discriminated `TimelineMediaPlayResult` for command-local handling. External
+rendering and scheduling failures use `sync-failed`, including rejected async
+iterator work, and pause both the media clock and timeline.
+
+Native HTML startup now keeps one play command attached to equivalent input
+fallbacks. When the preferred input fails during initial `play()`, the command
+resolves from the selected fallback instead of failing while fallback playback
+continues in a detached callback.
 
 At the low-level `useTimelineMediaPlayback` boundary, provide `loop` as the
 clock-realignment callback. Its presence enables looping, so an external clock

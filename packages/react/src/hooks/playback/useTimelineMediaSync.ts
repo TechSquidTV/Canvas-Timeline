@@ -10,6 +10,7 @@ import { rationalEquals, type RationalTime } from '@techsquidtv/canvas-timeline-
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
+import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
 import {
   useTimelineMediaPlayback,
   type UseTimelineMediaPlaybackOptions,
@@ -67,26 +68,6 @@ export type TimelineMediaPlayResult =
       cause?: Error;
     };
 
-function toError(cause: unknown): Error | undefined {
-  if (cause instanceof Error) {
-    return cause;
-  }
-  if (cause === undefined || cause === null) {
-    return undefined;
-  }
-  if (typeof cause === 'string') {
-    return new Error(cause);
-  }
-  if (typeof cause === 'number' || typeof cause === 'boolean' || typeof cause === 'bigint') {
-    return new Error(cause.toString());
-  }
-  return new Error('Unknown media adapter error.');
-}
-
-function withCauseMessage(message: string, cause: Error | undefined) {
-  return cause?.message ? `${message} ${cause.message}` : message;
-}
-
 /**
  * Result returned by `useTimelineMediaSync`.
  *
@@ -120,7 +101,7 @@ function createPlayFailure(
   onError: UseTimelineMediaSyncOptions['onError'],
   cause?: Error
 ): TimelineMediaPlayResult {
-  const error = new TimelineMediaError(reason, withCauseMessage(message, cause), { cause });
+  const error = new TimelineMediaError(reason, withMediaCauseMessage(message, cause), { cause });
   const result = {
     ok: false,
     reason,
@@ -221,6 +202,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     layers,
     syncLayers: adapter.syncLayers,
     onStatus: adapter.onStatus,
+    onError: (syncError) => {
+      onErrorRef.current?.(
+        new TimelineMediaError(
+          'sync-failed',
+          withMediaCauseMessage('Media synchronization failed.', syncError),
+          { cause: syncError }
+        )
+      );
+    },
     ...(shouldLoop && {
       loop: async (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
         let restarted: boolean;
@@ -228,10 +218,10 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           await adapter.seek?.(timelineTime, loopLayers);
           restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
         } catch (loopError: unknown) {
-          const cause = toError(loopError);
+          const cause = toMediaError(loopError);
           const error = new TimelineMediaError(
             'loop-failed',
-            withCauseMessage('Media clock could not restart after looping.', cause),
+            withMediaCauseMessage('Media clock could not restart after looping.', cause),
             { cause }
           );
           onErrorRef.current?.(error);
@@ -287,11 +277,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       });
       void Promise.resolve(currentAdapter.seek(timelineTime, currentActiveLayers)).catch(
         (seekError: unknown) => {
-          const cause = toError(seekError);
+          const cause = toMediaError(seekError);
           onErrorRef.current?.(
-            new TimelineMediaError('seek-failed', withCauseMessage('Media seek failed.', cause), {
-              cause,
-            })
+            new TimelineMediaError(
+              'seek-failed',
+              withMediaCauseMessage('Media seek failed.', cause),
+              {
+                cause,
+              }
+            )
           );
         }
       );
@@ -385,20 +379,29 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         'clock-failed',
         'Media clock could not start.',
         onError,
-        toError(clockError)
+        toMediaError(clockError)
       );
     }
 
     let timelineStarted = false;
     try {
-      timelineStarted = syncPlayback.play().ok;
+      const timelineResult = syncPlayback.play();
+      if (!timelineResult.ok && timelineResult.reason === 'sync-failed') {
+        return {
+          ok: false,
+          reason: 'sync-failed',
+          message: withMediaCauseMessage('Media synchronization failed.', timelineResult.cause),
+          ...(timelineResult.cause !== undefined ? { cause: timelineResult.cause } : {}),
+        };
+      }
+      timelineStarted = timelineResult.ok;
     } catch (timelineError: unknown) {
       adapter.stopClock?.();
       return createPlayFailure(
         'timeline-failed',
         'Timeline playback could not start.',
         onError,
-        toError(timelineError)
+        toMediaError(timelineError)
       );
     }
 

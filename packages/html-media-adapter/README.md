@@ -61,6 +61,8 @@ The React hook reconciles ordinary URL descriptors by value, so callers may pass
 
 `media.ready` means the native element ref resolved. Read `sourceStateById` for `idle`, `loading`, `recovering`, `ready`, or `failed` source state and ordered input attempts. `retrySource(...)` and `replaceSource(...)` return discriminated operation results. `onError` receives a `TimelineMediaError` with a stable `reason` and human-readable `message`.
 
+Initial playback remains one coordinated operation across equivalent input fallbacks: if the preferred input fails while `play()` is pending, the command waits for the selected fallback instead of reporting a detached startup failure.
+
 This adapter intentionally drives one native element and therefore one active media choice at a time. Use the Mediabunny adapter for decoded canvas frames, separate visual/audio scheduling, custom track selection, or larger lazy-loaded source registries.
 
 ```ts
