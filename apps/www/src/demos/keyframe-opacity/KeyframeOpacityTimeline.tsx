@@ -221,9 +221,12 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const sources = useMemo(
-    () => ({
-      [sampleSourceId]: sampleMediaUrl,
-    }),
+    () => [
+      {
+        sourceId: sampleSourceId,
+        input: sampleMediaUrl,
+      },
+    ],
     []
   );
   const keyframes = useTimelineKeyframes({
