@@ -91,8 +91,8 @@ export interface UseTimelineMediaSyncResult<LayerName extends string = string> {
   play: () => Promise<TimelineMediaPlayResult>;
   /** Stops synchronized timeline/media playback and pauses external media state. */
   pause: () => TimelineCommandResult;
-  /** Updates both the external clock rate and the timeline playback rate. */
-  setPlaybackRate: (playbackRate: number) => TimelineCommandResult;
+  /** Updates both clock rates and resolves after active layers resynchronize. */
+  setPlaybackRate: (playbackRate: number) => Promise<TimelineCommandResult>;
 }
 
 function createPlayFailure(
@@ -188,7 +188,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
   const layersRef = useRef(layers);
-  const initialSeekScheduledRef = useRef(false);
+  const primedSeekRef = useRef<TimelineMediaSyncAdapter<LayerName>['seek'] | null>(null);
   const previewSeekFrameRef = useRef<number | null>(null);
   const readyRef = useRef(ready);
   const onErrorRef = useRef(onError);
@@ -199,6 +199,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     playbackOptions: externalPlaybackOptions,
     getClockTime: adapter.getClockTime,
     stopClock: adapter.stopClock,
+    setClockRate: adapter.setClockRate,
     layers,
     syncLayers: adapter.syncLayers,
     onStatus: adapter.onStatus,
@@ -316,15 +317,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   useEffect(() => {
     if (!ready || adapterSeek === undefined) {
-      initialSeekScheduledRef.current = false;
+      primedSeekRef.current = null;
       return;
     }
 
-    if (initialSeekScheduledRef.current) {
+    if (primedSeekRef.current === adapterSeek) {
       return;
     }
 
-    initialSeekScheduledRef.current = true;
+    primedSeekRef.current = adapterSeek;
     schedulePausedPreviewSeek();
   }, [adapterSeek, ready, schedulePausedPreviewSeek]);
 
@@ -385,7 +386,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
     let timelineStarted = false;
     try {
-      const timelineResult = syncPlayback.play();
+      const timelineResult = await syncPlayback.play();
       if (!timelineResult.ok && timelineResult.reason === 'sync-failed') {
         return {
           ok: false,
@@ -414,11 +415,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, [adapter, engine, frameRate, layers, onError, playbackOptions, ready, syncPlayback]);
 
   const setPlaybackRate = useCallback(
-    (playbackRate: number) => {
-      adapter.setClockRate?.(playbackRate);
-      return syncPlayback.setPlaybackRate(playbackRate);
-    },
-    [adapter, syncPlayback]
+    (playbackRate: number) => syncPlayback.setPlaybackRate(playbackRate),
+    [syncPlayback]
   );
 
   return useMemo(

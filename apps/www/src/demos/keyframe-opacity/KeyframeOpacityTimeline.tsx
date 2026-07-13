@@ -16,7 +16,7 @@ import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-ad
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Diamond, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ChangeEvent, ComponentProps } from 'react';
 import {
   Group as ResizablePanelGroup,
@@ -219,7 +219,6 @@ function formatSeconds(seconds: number) {
 function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const { engine } = useTimeline();
   const playheadTime = useTimelinePlayheadTime();
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const keyframes = useTimelineKeyframes({
     clipId: opacityClipId,
@@ -239,8 +238,7 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         selectedKeyframe.outgoing?.interpolation ?? selectedKeyframe.incoming?.interpolation
       )
     : null;
-  const { playing, play, pause, ready } = useHTMLTimelineMedia({
-    ref: videoRef,
+  const { mediaRef, playing, play, pause, ready } = useHTMLTimelineMedia({
     sources,
     layers: previewLayerSelectors,
     onError: (error) => {
@@ -378,7 +376,7 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
       <div className="media-sync-preview keyframe-opacity-preview">
         <div className="media-sync-monitor keyframe-opacity-monitor">
           <video
-            ref={videoRef}
+            ref={mediaRef}
             className="media-sync-video keyframe-opacity-video"
             preload="metadata"
             playsInline

@@ -1,10 +1,11 @@
 import {
+  useCallback,
   useEffect,
   useReducer,
   useRef,
   useState,
   useSyncExternalStore,
-  type RefObject,
+  type RefCallback,
 } from 'react';
 import {
   useTimelineMediaSync,
@@ -32,8 +33,8 @@ export interface UseMediabunnyAdapterOptions extends Omit<
   CreateMediabunnyAdapterOptions,
   'canvas' | 'onChange'
 > {
-  /** Canvas ref that receives decoded visual frames. */
-  canvasRef?: RefObject<HTMLCanvasElement | null>;
+  /** Resolved canvas element that receives decoded visual frames. */
+  canvas?: HTMLCanvasElement | null;
 }
 
 /**
@@ -41,8 +42,9 @@ export interface UseMediabunnyAdapterOptions extends Omit<
  *
  * @remarks
  *
- * Provide timeline sources, a canvas ref for visual frames, and named active
- * layer selectors. The hook creates a {@link MediabunnyAdapter}, uses
+ * Provide timeline sources and named active layer selectors; the hook returns
+ * the callback ref used to connect a canvas for visual frames. It creates a
+ * {@link MediabunnyAdapter}, uses
  * {@link useTimelineMediaSync} for external-clock playback, and keeps decoded
  * frames and audio scheduling aligned with the timeline playhead.
  *
@@ -53,7 +55,7 @@ export interface UseMediabunnyAdapterOptions extends Omit<
  */
 export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = string>
   extends
-    Omit<UseMediabunnyAdapterOptions, 'mediabunny'>,
+    Omit<UseMediabunnyAdapterOptions, 'canvas' | 'mediabunny'>,
     Pick<
       UseTimelineMediaSyncOptions<LayerName>,
       'frameRate' | 'layers' | 'onError' | 'playbackOptions'
@@ -71,6 +73,10 @@ export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = st
 export interface UseMediabunnyTimelineMediaResult<
   LayerName extends string = string,
 > extends UseTimelineMediaSyncResult<LayerName> {
+  /** Stable callback ref that connects the preview canvas to the adapter. */
+  canvasRef: RefCallback<HTMLCanvasElement>;
+  /** Currently connected preview canvas. */
+  canvas: HTMLCanvasElement | null;
   /** Whether at least one Mediabunny source is registered for lazy loading. */
   ready: boolean;
   /** Human-readable loading, playback, or error status. */
@@ -160,14 +166,16 @@ function useStableStringArray(values: readonly string[] | undefined) {
  * one adapter across custom preview controls. For a ready-made transport hook,
  * use {@link useMediabunnyTimelineMedia}. Ordinary URL source arrays are
  * reconciled by value; keep factories, track selectors, and custom option
- * objects stable because their identity represents executable policy.
+ * objects stable because their identity represents executable policy. Pass the
+ * currently resolved canvas element; changing it updates the adapter without
+ * recreating source inputs.
  *
- * @param options - Mediabunny sources, optional canvas ref, audio options, and module loader.
+ * @param options - Mediabunny sources, optional resolved canvas, audio options, and module loader.
  * @returns The current Mediabunny adapter, including readiness, status, decoded frame state, and sync callbacks.
  *
  * @example
  * ```tsx
- * import { useRef } from 'react';
+ * import { useState } from 'react';
  * import { useMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
  *
  * const sources = [{
@@ -176,16 +184,16 @@ function useStableStringArray(values: readonly string[] | undefined) {
  * }];
  *
  * export function DecoderStatus() {
- *   const canvasRef = useRef<HTMLCanvasElement>(null);
+ *   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
  *   const adapter = useMediabunnyAdapter({
- *     canvasRef,
+ *     canvas,
  *     sources,
  *     mediabunny: () => import('mediabunny'),
  *   });
  *
  *   return (
  *     <>
- *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <canvas ref={setCanvas} width={1280} height={720} />
  *       <p>{adapter.status}</p>
  *     </>
  *   );
@@ -196,7 +204,7 @@ function useStableStringArray(values: readonly string[] | undefined) {
  * @see {@link useMediabunnyTimelineMedia}
  */
 export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): MediabunnyAdapter {
-  const { audio, audioTrackKinds, canvasRef, mediabunny, selectTracks, sources, visualTrackKinds } =
+  const { audio, audioTrackKinds, canvas, mediabunny, selectTracks, sources, visualTrackKinds } =
     options;
   const stableAudioTrackKinds = useStableStringArray(audioTrackKinds);
   const stableVisualTrackKinds = useStableStringArray(visualTrackKinds);
@@ -255,8 +263,8 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
   }, [adapter, audio?.muted]);
 
   useEffect(() => {
-    adapter.setCanvas(canvasRef?.current ?? null);
-  }, [adapter, canvasRef]);
+    adapter.setCanvas(canvas ?? null);
+  }, [adapter, canvas]);
 
   sourcesRef.current = sources;
   runtimeValuesRef.current = { volume: audio?.volume, muted: audio?.muted };
@@ -290,14 +298,13 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  * `setPlaybackRate` commands. `ready` means at least one source is registered;
  * inspect `sourceStateById` for per-source idle, loading, and ready state.
  *
- * @param options - Mediabunny sources, active layers, optional canvas ref, and sync options.
+ * @param options - Mediabunny sources, active layers, and sync options.
  * @template LayerName - Named media layer keys inferred from `options.layers`,
  * such as `"visuals" | "audio"`.
  * @returns Timeline transport state, active layer data, source diagnostics, and the low-level adapter.
  *
  * @example
  * ```tsx
- * import { useRef } from 'react';
  * import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
  *
  * type PreviewLayerName = 'visuals' | 'audio';
@@ -312,9 +319,7 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  * }];
  *
  * export function DecodedPreview() {
- *   const canvasRef = useRef<HTMLCanvasElement>(null);
  *   const media = useMediabunnyTimelineMedia<PreviewLayerName>({
- *     canvasRef,
  *     sources,
  *     layers: previewLayers,
  *     onError: (error) => console.error(error.reason, error.message),
@@ -322,7 +327,7 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  *
  *   return (
  *     <>
- *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <canvas ref={media.canvasRef} width={1280} height={720} />
  *       <button type="button" disabled={!media.ready} onClick={() => void media.play()}>
  *         {media.playing ? 'Playing' : 'Play'}
  *       </button>
@@ -342,7 +347,6 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
   const {
     audio,
     audioTrackKinds,
-    canvasRef,
     frameRate,
     layers,
     mediabunny = loadMediabunny,
@@ -352,10 +356,14 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     sources,
     visualTrackKinds,
   } = options;
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const canvasRef = useCallback<RefCallback<HTMLCanvasElement>>((nextCanvas) => {
+    setCanvas(nextCanvas);
+  }, []);
   const adapter = useMediabunnyAdapter({
     audio,
     audioTrackKinds,
-    canvasRef,
+    canvas,
     mediabunny,
     selectTracks,
     sources,
@@ -372,6 +380,8 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
 
   return {
     ...mediaSync,
+    canvasRef,
+    canvas,
     ready: adapter.ready,
     status: adapter.status,
     error: adapter.error,

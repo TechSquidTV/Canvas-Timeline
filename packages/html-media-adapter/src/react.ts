@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type RefCallback,
+} from 'react';
 import {
   useTimelineMediaSync,
   type UseTimelineMediaSyncOptions,
@@ -11,41 +19,40 @@ import {
 } from '#html-media-adapter/index';
 
 /**
- * Options for creating an HTML media adapter from a React ref.
- *
- * @template TMediaElement - Native video or audio element held by `ref`.
+ * Options for creating an HTML media adapter from React.
  */
-export interface UseHTMLMediaAdapterOptions<
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
-> {
-  /** Ref whose mounted native element should be synchronized. */
-  ref: RefObject<TMediaElement | null>;
+export interface UseHTMLMediaAdapterOptions {
   /** Complete app-resolved source registry keyed by timeline clip `sourceId`. */
   sources: readonly HTMLMediaSource[];
 }
 
 /** React hook result for native HTML media timeline synchronization. */
 export interface UseHTMLMediaAdapterResult {
-  /** Whether the media element ref has resolved and an imperative adapter exists. */
+  /** Stable callback ref that connects the native media element to the adapter. */
+  mediaRef: RefCallback<HTMLMediaElement>;
+  /** Currently connected native media element. */
+  element: HTMLMediaElement | null;
+  /** Whether a native media element is connected and an imperative adapter exists. */
   ready: boolean;
   /** Imperative adapter managed for the mounted media element. */
   adapter: HTMLMediaAdapter;
 }
 
 /** Options for wiring one native media element directly to timeline playback. */
-export interface UseHTMLTimelineMediaOptions<
-  LayerName extends string = string,
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
->
+export interface UseHTMLTimelineMediaOptions<LayerName extends string = string>
   extends
-    UseHTMLMediaAdapterOptions<TMediaElement>,
+    UseHTMLMediaAdapterOptions,
     Pick<UseTimelineMediaSyncOptions<LayerName>, 'layers' | 'onError' | 'playbackOptions'> {}
 
 /** Timeline transport state plus the underlying native media adapter. */
 export interface UseHTMLTimelineMediaResult<
   LayerName extends string = string,
 > extends UseTimelineMediaSyncResult<LayerName> {
-  /** Whether the media element ref has resolved; inspect source state for native loading. */
+  /** Stable callback ref that connects the native media element to the adapter. */
+  mediaRef: RefCallback<HTMLMediaElement>;
+  /** Currently connected native media element. */
+  element: HTMLMediaElement | null;
+  /** Whether a native media element is connected; inspect source state for native loading. */
   ready: boolean;
   /** Immutable native loading, fallback-attempt, and failure snapshot by source id. */
   sourceStateById: HTMLMediaAdapter['sourceStateById'];
@@ -86,26 +93,27 @@ const noopAdapter: HTMLMediaAdapter = {
  *
  * The hook preserves the adapter while ordinary URL source descriptors remain
  * semantically equal, then reconciles changed definitions through `setSources`.
- * `ready` reports that the element ref resolved; use `adapter.sourceStateById`
+ * The returned callback ref owns element mount, replacement, and removal
+ * transitions without requiring consumers to coordinate object refs.
+ * `ready` reports that the element is connected; use `adapter.sourceStateById`
  * to distinguish idle, loading, recovering, ready, and failed native inputs.
  *
- * @param options - Media element ref and complete resolved source registry.
+ * @param options - Complete resolved source registry.
  * @returns Adapter readiness and the current imperative adapter.
  *
  * @see {@link useHTMLTimelineMedia}
  * @see {@link https://canvastimeline.com/docs/media-adapters | Media adapter guide}
  */
-export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTMLMediaElement>(
-  options: UseHTMLMediaAdapterOptions<TMediaElement>
+export function useHTMLMediaAdapter(
+  options: UseHTMLMediaAdapterOptions
 ): UseHTMLMediaAdapterResult {
-  const { ref, sources } = options;
+  const { sources } = options;
   const sourcesRef = useRef(sources);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [element, setElement] = useState<HTMLMediaElement | null>(null);
-
-  useEffect(() => {
-    setElement(ref.current);
-  }, [ref]);
+  const mediaRef = useCallback<RefCallback<HTMLMediaElement>>((nextElement) => {
+    setElement(nextElement);
+  }, []);
 
   const adapter = useMemo(() => {
     if (element === null) {
@@ -117,7 +125,10 @@ export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTM
   useEffect(() => adapter.dispose, [adapter]);
   useEffect(() => adapter.setSources(sources), [adapter, sources]);
 
-  const result = useMemo(() => ({ ready: element !== null, adapter }), [adapter, element]);
+  const result = useMemo(
+    () => ({ mediaRef, element, ready: element !== null, adapter }),
+    [adapter, element, mediaRef]
+  );
   sourcesRef.current = sources;
   return result;
 }
@@ -132,14 +143,12 @@ export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTM
  * and exposes media-aware timeline transport commands. Keep original/proxy
  * policy in application state and pass the currently resolved source choice.
  *
- * @param options - Media element ref, sources, layer selectors, and playback policy.
+ * @param options - Sources, layer selectors, and playback policy.
  * @template LayerName - Named media layer keys inferred from `options.layers`.
- * @template TMediaElement - Native video or audio element held by `options.ref`.
  * @returns Media-aware transport state and the underlying imperative adapter.
  *
  * @example
  * ```tsx
- * import { useRef } from 'react';
  * import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
  *
  * const layers = {
@@ -147,29 +156,24 @@ export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTM
  * } as const;
  *
  * export function NativePreview() {
- *   const ref = useRef<HTMLVideoElement>(null);
  *   const media = useHTMLTimelineMedia({
- *     ref,
  *     layers,
  *     sources: [{ sourceId: 'source-1', input: '/media/interview.mp4' }],
  *     onError: (error) => console.error(error.reason, error.message),
  *   });
  *
- *   return <video ref={ref} playsInline onClick={() => void media.play()} />;
+ *   return <video ref={media.mediaRef} playsInline onClick={() => void media.play()} />;
  * }
  * ```
  *
  * @see {@link useHTMLMediaAdapter}
  * @see {@link https://canvastimeline.com/demos/html-media-sync | HTML media sync demo}
  */
-export function useHTMLTimelineMedia<
-  LayerName extends string = string,
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
->(
-  options: UseHTMLTimelineMediaOptions<LayerName, TMediaElement>
+export function useHTMLTimelineMedia<LayerName extends string = string>(
+  options: UseHTMLTimelineMediaOptions<LayerName>
 ): UseHTMLTimelineMediaResult<LayerName> {
-  const { layers, onError, playbackOptions, ref, sources } = options;
-  const htmlMedia = useHTMLMediaAdapter({ ref, sources });
+  const { layers, onError, playbackOptions, sources } = options;
+  const htmlMedia = useHTMLMediaAdapter({ sources });
   const mediaSync = useTimelineMediaSync<LayerName>({
     ready: htmlMedia.ready,
     layers,
@@ -180,6 +184,8 @@ export function useHTMLTimelineMedia<
 
   return {
     ...mediaSync,
+    mediaRef: htmlMedia.mediaRef,
+    element: htmlMedia.element,
     ready: htmlMedia.ready,
     sourceStateById: htmlMedia.adapter.sourceStateById,
     adapter: htmlMedia.adapter,

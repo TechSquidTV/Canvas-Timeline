@@ -30,7 +30,6 @@ import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-ad
 ## Quick Start
 
 ```tsx
-import { useRef } from 'react';
 import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 
 const sources = [
@@ -44,14 +43,12 @@ const previewLayers = {
 } as const;
 
 export function NativePreview() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const media = useHTMLTimelineMedia({
-    ref: videoRef,
     sources,
     layers: previewLayers,
   });
 
-  return <video ref={videoRef} playsInline onClick={() => void media.play()} />;
+  return <video ref={media.mediaRef} playsInline onClick={() => void media.play()} />;
 }
 ```
 
@@ -59,7 +56,7 @@ Each source describes one media choice already resolved by your application. Use
 
 The React hook reconciles ordinary URL descriptors by value, so callers may pass an inline source array without causing adapter disposal or media reload. Imperative consumers can update the complete registry with `setSources(...)`.
 
-`media.ready` means the native element ref resolved. Read `sourceStateById` for `idle`, `loading`, `recovering`, `ready`, or `failed` source state and ordered input attempts. `retrySource(...)` and `replaceSource(...)` return discriminated operation results. `onError` receives a `TimelineMediaError` with a stable `reason` and human-readable `message`.
+`media.ready` means the returned callback ref connected a native element. Read `sourceStateById` for `idle`, `loading`, `recovering`, `ready`, or `failed` source state and ordered input attempts. `retrySource(...)` and `replaceSource(...)` return discriminated operation results. `onError` receives a `TimelineMediaError` with a stable `reason` and human-readable `message`.
 
 Initial playback remains one coordinated operation across equivalent input fallbacks: if the preferred input fails while `play()` is pending, the command waits for the selected fallback instead of reporting a detached startup failure.
 

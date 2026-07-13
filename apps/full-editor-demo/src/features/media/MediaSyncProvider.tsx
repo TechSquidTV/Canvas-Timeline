@@ -1,6 +1,6 @@
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useSourceBinMedia } from '#full-editor/features/source-bin/source-bin-context';
 import {
   EditorMediaSyncContext,
@@ -16,40 +16,33 @@ const previewLayerSelectors = {
 } as const;
 
 export function MediaSyncProvider({ children }: { children: ReactNode }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toMediabunnySources } = useSourceBinMedia();
   const sources = useMemo(() => toMediabunnySources(), [toMediabunnySources]);
 
   if (sources.length === 0) {
-    return <IdleMediaSyncProvider canvasRef={canvasRef}>{children}</IdleMediaSyncProvider>;
+    return <IdleMediaSyncProvider>{children}</IdleMediaSyncProvider>;
   }
 
-  return (
-    <ActiveMediaSyncProvider canvasRef={canvasRef} sources={sources}>
-      {children}
-    </ActiveMediaSyncProvider>
-  );
+  return <ActiveMediaSyncProvider sources={sources}>{children}</ActiveMediaSyncProvider>;
 }
 
 function ActiveMediaSyncProvider({
-  canvasRef,
   children,
   sources,
 }: {
-  canvasRef: RefObject<HTMLCanvasElement | null>;
   children: ReactNode;
   sources: readonly MediabunnySource[];
 }) {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const { metadata } = useEditorProject();
   const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
-  const { pause, play, playing, ready, status } = useMediabunnyTimelineMedia<PreviewLayerName>({
-    canvasRef,
-    frameRate: timecodeFrameRate,
-    sources,
-    layers: previewLayerSelectors,
-    onError: (error) => setPlaybackError(error.message),
-  });
+  const { canvasRef, pause, play, playing, ready, status } =
+    useMediabunnyTimelineMedia<PreviewLayerName>({
+      frameRate: timecodeFrameRate,
+      sources,
+      layers: previewLayerSelectors,
+      onError: (error) => setPlaybackError(error.message),
+    });
 
   const clearPlaybackError = useCallback(() => {
     setPlaybackError(null);
@@ -87,13 +80,8 @@ function ActiveMediaSyncProvider({
   );
 }
 
-function IdleMediaSyncProvider({
-  canvasRef,
-  children,
-}: {
-  canvasRef: RefObject<HTMLCanvasElement | null>;
-  children: ReactNode;
-}) {
+function IdleMediaSyncProvider({ children }: { children: ReactNode }) {
+  const canvasRef = useCallback(() => {}, []);
   const clearPlaybackError = useCallback(() => {}, []);
   const pause = useCallback(
     () => ({ ok: false, reason: 'disabled' as const, message: 'No media loaded.' }),

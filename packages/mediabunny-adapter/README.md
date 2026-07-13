@@ -37,7 +37,6 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 ## Quick Start
 
 ```tsx
-import { useRef } from 'react';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
@@ -63,14 +62,14 @@ export function DecodedPreviewApp({ engine }: { engine: TimelineEngine }) {
 }
 
 function DecodedPreview() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     sources,
     layers: previewLayers,
   });
 
-  return <canvas ref={canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
+  return (
+    <canvas ref={media.canvasRef} width={1280} height={720} onClick={() => void media.play()} />
+  );
 }
 ```
 

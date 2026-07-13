@@ -1,5 +1,5 @@
 import type { UseMediabunnyTimelineMediaResult } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
-import { createContext, useContext, type RefObject } from 'react';
+import { createContext, useContext, type RefCallback } from 'react';
 
 export type PreviewLayerName = 'audio' | 'visuals';
 type MediaSyncState = UseMediabunnyTimelineMediaResult<PreviewLayerName>;
@@ -8,7 +8,7 @@ export interface EditorMediaSyncContextValue extends Pick<
   MediaSyncState,
   'pause' | 'play' | 'playing' | 'ready' | 'status'
 > {
-  canvasRef: RefObject<HTMLCanvasElement | null>;
+  canvasRef: RefCallback<HTMLCanvasElement>;
   clearPlaybackError: () => void;
   hasMediaSources: boolean;
   playbackError: string | null;

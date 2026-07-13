@@ -83,6 +83,15 @@ export interface CreateHTMLMediaAdapterOptions {
   onChange?: () => void;
 }
 
+type HTMLMediaInputFailureOutcome = 'advanced' | 'terminal';
+
+interface HTMLMediaElementLoad {
+  generation: number;
+  sourceId: string;
+  inputIndex: number;
+  url: string;
+}
+
 /**
  * Create an adapter that maps active timeline clips to one HTMLMediaElement.
  *
@@ -145,7 +154,46 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
   let shouldPlay = false;
   let clockStartPending = false;
   let lastError: Error | null = null;
+  let loadGeneration = 0;
+  let activeLoad: HTMLMediaElementLoad | undefined;
+  const inputFailureOutcomes = new Map<number, HTMLMediaInputFailureOutcome>();
+  const inputFailureWaiters = new Map<
+    number,
+    Set<(outcome: HTMLMediaInputFailureOutcome) => void>
+  >();
   const notify = () => options.onChange?.();
+
+  const settleInputFailure = (generation: number, outcome: HTMLMediaInputFailureOutcome) => {
+    const waiters = inputFailureWaiters.get(generation);
+    if (waiters === undefined) {
+      if (clockStartPending) {
+        inputFailureOutcomes.set(generation, outcome);
+      }
+      return;
+    }
+
+    inputFailureWaiters.delete(generation);
+    for (const resolve of waiters) {
+      resolve(outcome);
+    }
+  };
+
+  const waitForInputFailure = (generation: number) => {
+    const settledOutcome = inputFailureOutcomes.get(generation);
+    if (settledOutcome !== undefined) {
+      inputFailureOutcomes.delete(generation);
+      return Promise.resolve(settledOutcome);
+    }
+
+    return new Promise<HTMLMediaInputFailureOutcome>((resolve) => {
+      const waiters = inputFailureWaiters.get(generation);
+      if (waiters === undefined) {
+        inputFailureWaiters.set(generation, new Set([resolve]));
+      } else {
+        waiters.add(resolve);
+      }
+    });
+  };
 
   const setSourceState = (state: HTMLMediaSourceState) => {
     const nextSnapshot = new Map(sourceStateSnapshot);
@@ -184,6 +232,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       setSourceIdle(activeClip.clip.sourceId);
     }
     activeClip = undefined;
+    activeLoad = undefined;
     element.pause();
     element.removeAttribute('src');
     element.load();
@@ -262,6 +311,21 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     timelineTimeAtStart = toSeconds(timelineTime);
     element.playbackRate = playbackRate;
 
+    if (
+      sourceChanged ||
+      urlChanged ||
+      loadOptions.forceReload === true ||
+      activeLoad === undefined
+    ) {
+      loadGeneration += 1;
+      activeLoad = {
+        generation: loadGeneration,
+        sourceId: clip.clip.sourceId,
+        inputIndex,
+        url: nextUrl,
+      };
+    }
+
     if (urlChanged) {
       element.src = nextUrl;
     } else if (loadOptions.forceReload === true) {
@@ -306,10 +370,22 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
 
     const sourceId = activeClip.clip.sourceId;
     const inputIndex = selectedInputIndexBySourceId.get(sourceId) ?? 0;
+    const load = activeLoad;
     try {
       await element.play();
       return true;
     } catch (playError: unknown) {
+      if (load !== undefined) {
+        const settledOutcome = inputFailureOutcomes.get(load.generation);
+        if (settledOutcome !== undefined) {
+          inputFailureOutcomes.delete(load.generation);
+          if (settledOutcome === 'advanced' && shouldPlay) {
+            return playElement();
+          }
+          throw lastError ?? new Error(`HTML media input failed for source "${sourceId}".`);
+        }
+      }
+
       const currentSourceId = activeClip?.clip.sourceId;
       const currentInputIndex =
         currentSourceId === undefined
@@ -317,6 +393,17 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
           : (selectedInputIndexBySourceId.get(currentSourceId) ?? 0);
       if (shouldPlay && currentSourceId === sourceId && currentInputIndex !== inputIndex) {
         return playElement();
+      }
+      const hasFallback = getSourceInputs(sourceId)?.inputs[inputIndex + 1] !== undefined;
+      const isPlaybackPolicyError =
+        playError instanceof DOMException &&
+        (playError.name === 'NotAllowedError' || playError.name === 'AbortError');
+      if (load !== undefined && element.error !== null && hasFallback && !isPlaybackPolicyError) {
+        const failureOutcome = await waitForInputFailure(load.generation);
+        if (failureOutcome === 'advanced' && shouldPlay) {
+          return playElement();
+        }
+        throw lastError ?? new Error(`HTML media input failed for source "${sourceId}".`);
       }
       lastError = playError instanceof Error ? playError : new Error(String(playError));
       shouldPlay = false;
@@ -348,12 +435,24 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
   };
 
   const handleElementError = () => {
-    if (activeClip === undefined) {
+    const failedLoad = activeLoad;
+    if (activeClip === undefined || failedLoad === undefined) {
       return;
     }
-    const sourceId = activeClip.clip.sourceId;
+    const currentUrl = element.currentSrc || element.src;
+    if (
+      activeClip.clip.sourceId !== failedLoad.sourceId ||
+      (currentUrl.length > 0 && currentUrl !== failedLoad.url)
+    ) {
+      return;
+    }
+
+    const sourceId = failedLoad.sourceId;
     const sourceInputs = getSourceInputs(sourceId);
-    const failedInputIndex = selectedInputIndexBySourceId.get(sourceId) ?? 0;
+    const failedInputIndex = failedLoad.inputIndex;
+    if ((selectedInputIndexBySourceId.get(sourceId) ?? 0) !== failedInputIndex) {
+      return;
+    }
     const nextIndex = failedInputIndex + 1;
     const nativeMessage = element.error?.message;
     const inputError = new Error(
@@ -377,6 +476,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       });
       shouldPlay = false;
       element.pause();
+      settleInputFailure(failedLoad.generation, 'terminal');
       return;
     }
     selectedInputIndexBySourceId.set(sourceId, nextIndex);
@@ -389,6 +489,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     });
     const clip = activeClip;
     loadClip(clip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true, status: 'recovering' });
+    settleInputFailure(failedLoad.generation, 'advanced');
     if (shouldPlay && !clockStartPending) {
       void playElement().catch(() => undefined);
     }
@@ -603,12 +704,20 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     dispose: () => {
       shouldPlay = false;
       clockStartPending = false;
+      activeLoad = undefined;
       element.pause();
       element.removeEventListener('loadedmetadata', handleLoadedMetadata);
       element.removeEventListener('error', handleElementError);
       for (const sourceId of objectUrlsBySourceId.keys()) {
         revokeSourceObjectUrls(sourceId);
       }
+      for (const waiters of inputFailureWaiters.values()) {
+        for (const resolve of waiters) {
+          resolve('terminal');
+        }
+      }
+      inputFailureWaiters.clear();
+      inputFailureOutcomes.clear();
     },
   };
 }

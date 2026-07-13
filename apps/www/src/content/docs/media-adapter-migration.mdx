@@ -48,10 +48,11 @@ const sources = [
 ];
 
 const media = useHTMLTimelineMedia({
-  ref: mediaRef,
   sources,
   layers,
 });
+
+return <video ref={media.mediaRef} />;
 ```
 
 Read `sourceStateById` to inspect lifecycle status, `selectedInputIndex`, and
@@ -60,7 +61,9 @@ ordered attempts. Use `media.adapter.retrySource(sourceId)` to retry inputs or
 recreating the adapter. Both commands return an explicit `configured` or
 `ready` success state instead of a boolean.
 
-`useHTMLTimelineMedia().ready` now means the native element ref resolved. It
+`useHTMLTimelineMedia().ready` now means its returned `mediaRef` connected a
+native element. The hook owns that callback ref; passing an object ref in its
+options is no longer supported. It
 does not claim that active source metadata has loaded; inspect
 `sourceStateById.get(sourceId)?.status` for that lifecycle.
 
@@ -69,6 +72,16 @@ URL descriptors no longer disposes and recreates the adapter on every render.
 Keep `Blob` and `File` objects stable when they represent the same local media.
 
 ## Migrate Mediabunny sources
+
+The high-level hook now owns and returns `canvasRef`; attach it directly to the
+preview canvas. The low-level `useMediabunnyAdapter` accepts the resolved
+`canvas` element instead of an object ref.
+
+```tsx
+const media = useMediabunnyTimelineMedia({ sources, layers });
+
+return <canvas ref={media.canvasRef} />;
+```
 
 Pass a normal URL string, `URL`, `Request`, `Blob`, or `File` directly as
 `input`. Use an object descriptor when you need formats, `UrlSource` options, a
@@ -193,6 +206,12 @@ This replaces string-only `onError` callbacks. Play still returns a
 discriminated `TimelineMediaPlayResult` for command-local handling. External
 rendering and scheduling failures use `sync-failed`, including rejected async
 iterator work, and pause both the media clock and timeline.
+
+Low-level media `play()` and media-aware `setPlaybackRate()` commands are now
+asynchronous because the adapter synchronization contract permits promises.
+Await their command results when product UI needs to surface startup, decoder,
+or scheduling failures. External ticks and loop realignment are serialized, so
+an older adapter operation cannot race a newer timeline position.
 
 Native HTML startup now keeps one play command attached to equivalent input
 fallbacks. When the preferred input fails during initial `play()`, the command

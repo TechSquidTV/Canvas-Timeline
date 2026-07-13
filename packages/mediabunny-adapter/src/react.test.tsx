@@ -136,6 +136,7 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): Mediabun
 
 test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', () => {
   const canvas = document.createElement('canvas');
+  const replacementCanvas = document.createElement('canvas');
   const dispose = vi.fn();
   const setCanvas = vi.fn();
   const setSources = vi.fn();
@@ -149,17 +150,15 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
 
   return import('#mediabunny-adapter/react').then(
     async ({ useMediabunnyAdapter: useMockedMediabunnyAdapter }) => {
-      const canvasRef = { current: canvas };
       const { result, rerender, unmount } = renderHook(
-        ({ renderCount }: { renderCount: number }) => {
-          expect(renderCount).toBeGreaterThan(0);
+        ({ currentCanvas }: { currentCanvas: HTMLCanvasElement }) => {
           return useMockedMediabunnyAdapter({
-            canvasRef,
+            canvas: currentCanvas,
             mediabunny,
             sources: [{ sourceId: 'source-1', input: '/sample.mp4' }],
           });
         },
-        { initialProps: { renderCount: 1 } }
+        { initialProps: { currentCanvas: canvas } }
       );
 
       await waitFor(() => {
@@ -178,10 +177,14 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
       );
       expect(setCanvas).toHaveBeenCalledWith(canvas);
       const firstAdapter = result.current;
-      rerender({ renderCount: 2 });
+      rerender({ currentCanvas: canvas });
       expect(result.current).toBe(firstAdapter);
       expect(createMediabunnyAdapter).toHaveBeenCalledTimes(1);
       expect(setSources).toHaveBeenCalled();
+
+      rerender({ currentCanvas: replacementCanvas });
+      expect(setCanvas).toHaveBeenLastCalledWith(replacementCanvas);
+      expect(result.current).toBe(firstAdapter);
 
       unmount();
       expect(dispose).toHaveBeenCalled();
@@ -196,6 +199,7 @@ test('useMediabunnyAdapter returns noop behavior when window is unavailable', as
   const useState = <T,>(value: T) => [value, vi.fn()] as const;
 
   vi.doMock('react', async () => ({
+    useCallback: <T,>(callback: T) => callback,
     useEffect,
     useReducer: () => [0, vi.fn()],
     useRef: <T,>(value: T) => ({ current: value }),
@@ -273,7 +277,6 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
   const { result } = renderHook(
     () =>
       useMediabunnyTimelineMedia({
-        canvasRef: { current: canvas },
         sources: [
           {
             sourceId: 'source-1',
@@ -287,6 +290,8 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
     }
   );
 
+  void act(() => result.current.canvasRef(canvas));
+  await waitFor(() => expect(adapter.setCanvas).toHaveBeenCalledWith(canvas));
   expect(createMediabunnyAdapter).toHaveBeenCalledWith(
     expect.objectContaining({
       mediabunny: expect.any(Function),

@@ -288,16 +288,15 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
         'Give each media clip a stable `sourceId`.',
         'Create a `sources` array of `{ sourceId, input }` descriptors, one per logical source.',
         'Resolve originals or proxies in your media library, then pass equivalent load `fallbacks` only when needed.',
-        'Attach a ref to one `<video>` or `<audio>` element.',
-        'Pass the ref, sources, and layer selector to `useHTMLTimelineMedia` inside a `TimelineProvider`.',
-        'Treat `ready` as element-ref readiness and inspect `sourceStateById` for native source loading or recovery.',
+        'Create the hook with sources and a layer selector inside a `TimelineProvider`.',
+        'Attach the returned `mediaRef` to one `<video>` or `<audio>` element.',
+        'Treat `ready` as element-connection readiness and inspect `sourceStateById` for native source loading or recovery.',
       ],
     },
     example: {
       title: 'Native video preview',
       lang: 'tsx',
-      code: `import { useRef } from 'react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+      code: `import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 
 const sources = [
   {
@@ -310,15 +309,13 @@ const layers = {
 } as const;
 
 export function NativePreview() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const media = useHTMLTimelineMedia({
-    ref: videoRef,
     sources,
     layers,
     onError: (error) => console.error(error.reason, error.message),
   });
 
-  return <video ref={videoRef} playsInline onClick={() => void media.play()} />;
+  return <video ref={media.mediaRef} playsInline onClick={() => void media.play()} />;
 }`,
     },
     linkGroups: [
@@ -358,8 +355,8 @@ export function NativePreview() {
         'Give each media clip a stable `sourceId`.',
         'Create a `sources` array where each logical source has a matching `sourceId` and app-resolved `input`.',
         'Resolve originals or proxies in app state and use `fallbacks` only for equivalent transport failover.',
-        'Attach a canvas ref for decoded video frames.',
-        'Pass the canvas ref, sources, and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
+        'Pass sources and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
+        'Attach the returned `canvasRef` to the canvas that receives decoded video frames.',
         'Use `sourceStateById` for lazy loading and source metadata; preload likely next clips and unload resources no longer needed.',
         'Use the returned transport helpers for playback and `useMediabunnyFrameTime` only for UI that needs live decoded-frame timestamps.',
       ],
@@ -367,8 +364,7 @@ export function NativePreview() {
     example: {
       title: 'Decoded canvas preview',
       lang: 'tsx',
-      code: `import { useRef } from 'react';
-import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+      code: `import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
 const sourceId = 'clip-source-main';
 const sources = [{
@@ -381,15 +377,13 @@ const layers = {
 } as const;
 
 export function DecodedPreview() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     sources,
     layers,
     onError: (error) => console.error(error.reason, error.message),
   });
 
-  return <canvas ref={canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
+  return <canvas ref={media.canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
 }`,
     },
     linkGroups: [

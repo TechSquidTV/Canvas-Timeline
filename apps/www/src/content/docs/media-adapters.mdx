@@ -119,7 +119,7 @@ state or a machine-readable failure reason.
 
 HTML and Mediabunny have intentionally different readiness boundaries:
 
-- `useHTMLTimelineMedia().ready` means the React ref resolved to a native media
+- `useHTMLTimelineMedia().ready` means its returned callback ref connected a native media
   element. Read `sourceStateById` to determine whether a source is `idle`,
   `loading`, `recovering`, `ready`, or `failed`.
 - `useMediabunnyTimelineMedia().ready` means at least one source is registered
@@ -204,9 +204,11 @@ instead of a boolean; this prevents a clock from looping without a way to seek.
 `onError` receives `TimelineMediaError`. Use its stable `reason` for program
 flow and `message` for logs or UI. Rendering and scheduling failures report
 `sync-failed` and pause both clocks, including asynchronous iterator failures.
-Play commands also return a discriminated
-`TimelineMediaPlayResult`, so callers can handle failures without parsing error
-text.
+Play commands await startup synchronization before returning a discriminated
+`TimelineMediaPlayResult`, and media-aware playback-rate commands likewise
+resolve only after the external clock and active layers are synchronized. This
+lets callers handle failures without parsing error text or receiving a stale
+success result.
 
 ## Continue reading
 

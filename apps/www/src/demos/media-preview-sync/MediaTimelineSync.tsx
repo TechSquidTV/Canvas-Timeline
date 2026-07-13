@@ -55,14 +55,12 @@ function TimelineLayers() {
 
 function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const playheadTime = useTimelinePlayheadTime();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaLoadStartedAtRef = useRef(performance.now());
   const decodeMetricReportedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   // The source id joins app-owned media descriptors to timeline clips without storing media in timeline state.
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     frameRate: 30,
     sources,
     layers: previewLayerSelectors,
@@ -120,7 +118,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
     <div className="media-sync-demo">
       <div className="media-sync-preview">
         <div className="media-sync-monitor">
-          <canvas ref={canvasRef} className="media-sync-canvas" width={1280} height={720} />
+          <canvas ref={media.canvasRef} className="media-sync-canvas" width={1280} height={720} />
           <button
             type="button"
             className="media-sync-button media-sync-play-button"
@@ -149,7 +147,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
                 className={`media-sync-button${
                   playbackRate === rate ? ' media-sync-button-active' : ''
                 }`}
-                onClick={() => setPlaybackRate(rate)}
+                onClick={() => void setPlaybackRate(rate)}
                 disabled={!ready}
               >
                 {rate}x

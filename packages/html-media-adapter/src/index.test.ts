@@ -291,6 +291,55 @@ test('createHTMLMediaAdapter keeps initial playback attached across an input fal
   });
 });
 
+test('createHTMLMediaAdapter keeps startup pending when play rejects before the error event', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  let rejectPreferredInput: (error: Error) => void = () => {};
+  const preferredPlay = new Promise<void>((_resolve, reject) => {
+    rejectPreferredInput = reject;
+  });
+  const play = vi
+    .spyOn(element, 'play')
+    .mockImplementationOnce(() => preferredPlay)
+    .mockResolvedValueOnce(undefined);
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'load').mockImplementation(() => {});
+  Object.defineProperty(element, 'error', {
+    configurable: true,
+    get: () =>
+      ({
+        code: 4,
+        message: 'preferred input failed',
+      }) as MediaError,
+  });
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/preferred.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: {
+      visuals: { trackKind: 'visual', sourceId: 'source-1' },
+    },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  const startPromise = adapter.startClock(fromSeconds(1), 1);
+  rejectPreferredInput(new Error('preferred input failed'));
+  await Promise.resolve();
+  element.dispatchEvent(new Event('error'));
+
+  await expect(startPromise).resolves.toBe(true);
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(element.src).toBe('http://localhost:3000/fallback.mp4');
+});
+
 test('createHTMLMediaAdapter clears the element for missing sources and content gaps', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');
@@ -400,35 +449,45 @@ test('createHTMLMediaAdapter pauses and clears play intent on non-playing status
   expect(play).toHaveBeenCalledTimes(1);
 });
 
-test('useHTMLMediaAdapter exposes a noop until the ref connects and disposes on unmount', async () => {
-  const ref = { current: null as HTMLMediaElement | null };
-  const initial = renderHook(() =>
-    useHTMLMediaAdapter({
-      ref,
-      sources: htmlSources(),
-    })
-  );
-
-  expect(initial.result.current.ready).toBe(false);
-  expect(initial.result.current.adapter.startClock(fromSeconds(1), 1)).toBe(false);
-  initial.unmount();
-
+test('useHTMLMediaAdapter exposes a noop until its callback ref connects and disposes', async () => {
   const element = document.createElement('video');
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
-  ref.current = element;
   const connected = renderHook(() =>
     useHTMLMediaAdapter({
-      ref,
       sources: htmlSources(),
     })
   );
 
+  expect(connected.result.current.ready).toBe(false);
+  expect(connected.result.current.adapter.startClock(fromSeconds(1), 1)).toBe(false);
+  void act(() => connected.result.current.mediaRef(element));
   await waitFor(() => {
     expect(connected.result.current.ready).toBe(true);
   });
+  expect(connected.result.current.element).toBe(element);
   connected.unmount();
 
   expect(pause).toHaveBeenCalled();
+});
+
+test('useHTMLMediaAdapter follows callback ref replacement and removal', async () => {
+  const firstElement = document.createElement('video');
+  const secondElement = document.createElement('video');
+  const firstPause = vi.spyOn(firstElement, 'pause').mockImplementation(() => {});
+  const secondPause = vi.spyOn(secondElement, 'pause').mockImplementation(() => {});
+  const { result } = renderHook(() => useHTMLMediaAdapter({ sources: htmlSources() }));
+
+  void act(() => result.current.mediaRef(firstElement));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  const firstAdapter = result.current.adapter;
+
+  void act(() => result.current.mediaRef(secondElement));
+  await waitFor(() => expect(result.current.adapter).not.toBe(firstAdapter));
+  expect(firstPause).toHaveBeenCalled();
+
+  void act(() => result.current.mediaRef(null));
+  await waitFor(() => expect(result.current.ready).toBe(false));
+  expect(secondPause).toHaveBeenCalled();
 });
 
 test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport', async () => {
@@ -437,7 +496,6 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
   const element = document.createElement('video');
   const play = vi.spyOn(element, 'play').mockResolvedValue(undefined);
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
-  const ref = { current: element };
   const sources = htmlSources();
   const layers = {
     visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -446,7 +504,6 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
   const { result } = renderHook(
     () =>
       useHTMLTimelineMedia({
-        ref,
         sources,
         layers,
       }),
@@ -455,6 +512,7 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
     }
   );
 
+  void act(() => result.current.mediaRef(element));
   await waitFor(() => {
     expect(result.current.ready).toBe(true);
   });
@@ -475,8 +533,8 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
   expect(result.current.sourceStateById).not.toBe(loadingSourceStateById);
   expect(result.current.sourceStateById.get('source-1')?.status).toBe('ready');
 
-  act(() => {
-    expect(result.current.setPlaybackRate(1.5)).toEqual({ ok: true });
+  await act(async () => {
+    await expect(result.current.setPlaybackRate(1.5)).resolves.toEqual({ ok: true });
   });
   expect(element.playbackRate).toBe(1.5);
 
@@ -489,18 +547,17 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
 test('useHTMLMediaAdapter preserves adapter identity for inline-equivalent sources', async () => {
   const element = document.createElement('video');
   vi.spyOn(element, 'pause').mockImplementation(() => {});
-  const ref = { current: element };
   const { result, rerender } = renderHook(
     ({ renderCount }: { renderCount: number }) => {
       expect(renderCount).toBeGreaterThan(0);
       return useHTMLMediaAdapter({
-        ref,
         sources: [{ sourceId: 'source-1', input: '/sample.mp4' }],
       });
     },
     { initialProps: { renderCount: 1 } }
   );
 
+  void act(() => result.current.mediaRef(element));
   await waitFor(() => expect(result.current.ready).toBe(true));
   const adapter = result.current.adapter;
   rerender({ renderCount: 2 });
