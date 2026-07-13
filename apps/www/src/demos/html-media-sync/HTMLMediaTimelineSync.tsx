@@ -69,9 +69,12 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
 
   // Adapter setup
   const sources = useMemo(
-    () => ({
-      [sampleSourceId]: sampleMediaUrl,
-    }),
+    () => [
+      {
+        sourceId: sampleSourceId,
+        input: sampleMediaUrl,
+      },
+    ],
     []
   );
   const { playing, playbackRate, play, pause, setPlaybackRate, ready } = useHTMLTimelineMedia({

@@ -10,6 +10,15 @@ import {
   useHTMLTimelineMedia,
 } from '#html-media-adapter/index';
 
+function htmlSources(source: string | Blob | File = '/sample.mp4') {
+  return [
+    {
+      sourceId: 'source-1',
+      input: source,
+    },
+  ] as const;
+}
+
 function createMediaSyncEngine() {
   return new TimelineEngine({
     duration: fromSeconds(12),
@@ -62,9 +71,7 @@ test('createHTMLMediaAdapter maps active clip source time to a media element', a
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': '/sample.mp4',
-    },
+    sources: htmlSources(),
   });
   const activeVideo = engine.getActiveClip({
     time: fromSeconds(1.25),
@@ -109,9 +116,7 @@ test('createHTMLMediaAdapter normalizes relative sources without reassigning mat
   });
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': 'sample.mp4',
-    },
+    sources: htmlSources('sample.mp4'),
   });
   const activeLayers = engine.getActiveLayers({
     time: fromSeconds(1),
@@ -135,9 +140,7 @@ test('createHTMLMediaAdapter disposes object URLs for blob sources', async () =>
   const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': new Blob(['sample']),
-    },
+    sources: htmlSources(new Blob(['sample'])),
   });
 
   await adapter.seek?.(
@@ -165,9 +168,7 @@ test('createHTMLMediaAdapter switches rates and stops playback', async () => {
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': '/sample.mp4',
-    },
+    sources: htmlSources(),
   });
 
   await adapter.seek?.(
@@ -194,9 +195,7 @@ test('createHTMLMediaAdapter reports rejected native playback', async () => {
   vi.spyOn(element, 'pause').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': '/sample.mp4',
-    },
+    sources: htmlSources(),
   });
 
   await adapter.seek?.(
@@ -219,7 +218,7 @@ test('createHTMLMediaAdapter clears the element for missing sources and content 
   const load = vi.spyOn(element, 'load').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {},
+    sources: [],
   });
 
   element.src = 'http://localhost:3000/previous.mp4';
@@ -261,9 +260,7 @@ test('createHTMLMediaAdapter replays synced clips only while play intent is acti
   vi.spyOn(element, 'pause').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': '/sample.mp4',
-    },
+    sources: htmlSources(),
   });
   const activeLayers = engine.getActiveLayers({
     time: fromSeconds(1),
@@ -301,9 +298,7 @@ test('createHTMLMediaAdapter pauses and clears play intent on non-playing status
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
   const adapter = createHTMLMediaAdapter({
     element,
-    sources: {
-      'source-1': '/sample.mp4',
-    },
+    sources: htmlSources(),
   });
   const activeLayers = engine.getActiveLayers({
     time: fromSeconds(1),
@@ -330,9 +325,7 @@ test('useHTMLMediaAdapter exposes a noop until the ref connects and disposes on 
   const initial = renderHook(() =>
     useHTMLMediaAdapter({
       ref,
-      sources: {
-        'source-1': '/sample.mp4',
-      },
+      sources: htmlSources(),
     })
   );
 
@@ -346,9 +339,7 @@ test('useHTMLMediaAdapter exposes a noop until the ref connects and disposes on 
   const connected = renderHook(() =>
     useHTMLMediaAdapter({
       ref,
-      sources: {
-        'source-1': '/sample.mp4',
-      },
+      sources: htmlSources(),
     })
   );
 
@@ -375,9 +366,7 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
     () =>
       useHTMLTimelineMedia({
         ref,
-        sources: {
-          'source-1': '/sample.mp4',
-        },
+        sources: htmlSources(),
         layers,
       }),
     {
@@ -406,4 +395,137 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
     expect(result.current.pause()).toEqual({ ok: true });
   });
   expect(pause).toHaveBeenCalled();
+});
+
+test('createHTMLMediaAdapter advances input fallbacks and exposes media controls', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'play').mockResolvedValue(undefined);
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/primary.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(0);
+  element.dispatchEvent(new Event('error'));
+  expect(element.src).toBe('http://localhost:3000/fallback.mp4');
+  expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(1);
+
+  adapter.setVolume(0.4);
+  adapter.setMuted(true);
+  expect(adapter.volume).toBe(0.4);
+  expect(adapter.muted).toBe(true);
+});
+
+test('createHTMLMediaAdapter retries failed sources from their preferred input', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/primary.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  element.dispatchEvent(new Event('error'));
+  element.dispatchEvent(new Event('error'));
+
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('failed');
+  expect(adapter.retrySource('missing-source')).toBe(false);
+  expect(adapter.retrySource('source-1')).toBe(true);
+  expect(element.src).toBe('http://localhost:3000/primary.mp4');
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    selectedInputIndex: 0,
+  });
+});
+
+test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const createObjectURL = vi
+    .spyOn(URL, 'createObjectURL')
+    .mockReturnValueOnce('blob:first')
+    .mockReturnValueOnce('blob:second');
+  const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: htmlSources(new Blob(['first'])),
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  expect(element.src).toBe('blob:first');
+
+  expect(adapter.replaceSource({ sourceId: 'source-1', input: new Blob(['second']) })).toBe(true);
+
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:first');
+  expect(createObjectURL).toHaveBeenCalledTimes(2);
+  expect(element.src).toBe('blob:second');
+
+  adapter.dispose();
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:second');
+});
+
+test('createHTMLMediaAdapter selects proxies independently from input fallback', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/original.mp4',
+        proxies: [
+          {
+            proxyId: 'edit-540p',
+            input: '/proxy.mp4',
+            timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
+          },
+        ],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  expect(adapter.setRepresentation('source-1', { kind: 'proxy', proxyId: 'edit-540p' })).toBe(true);
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+
+  expect(element.src).toBe('http://localhost:3000/proxy.mp4');
+  expect(element.currentTime).toBe(1);
+  expect(adapter.getClockTime()).toBe(1);
+  expect(adapter.sourceStateById.get('source-1')?.selectedRepresentation).toEqual({
+    kind: 'proxy',
+    proxyId: 'edit-540p',
+  });
 });
