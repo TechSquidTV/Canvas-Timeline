@@ -784,14 +784,15 @@ export function useHTMLTimelineMedia<
     adapter: htmlMedia.adapter,
     onError,
   });
+  const sourceStateById = htmlMedia.adapter.sourceStateById;
 
   return useMemo(
     () => ({
       ...mediaSync,
       ready: htmlMedia.ready,
-      sourceStateById: htmlMedia.adapter.sourceStateById,
+      sourceStateById,
       adapter: htmlMedia.adapter,
     }),
-    [htmlMedia.adapter, htmlMedia.ready, mediaSync]
+    [htmlMedia.adapter, htmlMedia.ready, mediaSync, sourceStateById]
   );
 }

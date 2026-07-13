@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
@@ -107,6 +107,56 @@ test('useTimelineMediaPlayback invokes one loop transition until the clock re-en
     tick?.(64);
   });
   expect(onLoop).toHaveBeenCalledTimes(2);
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
+test('useTimelineMediaSync reports loop clock restart failures', async () => {
+  const engine = createMediaSyncEngine();
+  engine.setInPoint(fromSeconds(1), false);
+  engine.setOutPoint(fromSeconds(4), false);
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const startClock = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false);
+  const onError = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        ready: true,
+        layers: mediaSyncLayers,
+        playbackOptions: { loop: true, respectInOut: true },
+        adapter: {
+          getClockTime: () => clockTime,
+          startClock,
+        },
+        onError,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+
+  clockTime = 4.25;
+  act(() => {
+    tick?.(16);
+  });
+
+  await waitFor(() => {
+    expect(onError).toHaveBeenCalledOnce();
+  });
+  expect(onError).toHaveBeenCalledWith('Media clock could not restart after looping.');
+  expect(engine.getState().playing).toBe(false);
 
   rafSpy.mockRestore();
   cancelSpy.mockRestore();

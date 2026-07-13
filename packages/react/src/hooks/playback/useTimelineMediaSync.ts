@@ -299,9 +299,21 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     syncLayers: adapter.syncLayers,
     onStatus: adapter.onStatus,
     onLoop: async (timelineTime, loopLayers) => {
-      await adapter.seek?.(timelineTime, loopLayers);
-      if (!(await adapter.startClock(timelineTime, engine.getPlaybackRate()))) {
-        throw new Error('Media clock could not restart after looping.');
+      let restarted: boolean;
+      try {
+        await adapter.seek?.(timelineTime, loopLayers);
+        restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
+      } catch (loopError: unknown) {
+        const cause = toError(loopError);
+        onErrorRef.current?.(
+          withCauseMessage('Media clock could not restart after looping.', cause)
+        );
+        throw cause ?? new Error('Media clock could not restart after looping.');
+      }
+      if (!restarted) {
+        const error = new Error('Media clock could not restart after looping.');
+        onErrorRef.current?.(error.message);
+        throw error;
       }
     },
   });

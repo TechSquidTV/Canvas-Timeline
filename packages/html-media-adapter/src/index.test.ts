@@ -397,6 +397,7 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
   const play = vi.spyOn(element, 'play').mockResolvedValue(undefined);
   const pause = vi.spyOn(element, 'pause').mockImplementation(() => {});
   const ref = { current: element };
+  const sources = htmlSources();
   const layers = {
     visuals: { trackKind: 'visual', sourceId: 'source-1' },
   } as const;
@@ -405,7 +406,7 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
     () =>
       useHTMLTimelineMedia({
         ref,
-        sources: htmlSources(),
+        sources,
         layers,
       }),
     {
@@ -424,6 +425,14 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
 
   expect(play).toHaveBeenCalled();
   expect(result.current.adapter.getClockTime()).toBe(0);
+  const loadingSourceStateById = result.current.sourceStateById;
+  expect(loadingSourceStateById.get('source-1')?.status).toBe('loading');
+
+  act(() => {
+    element.dispatchEvent(new Event('loadedmetadata'));
+  });
+  expect(result.current.sourceStateById).not.toBe(loadingSourceStateById);
+  expect(result.current.sourceStateById.get('source-1')?.status).toBe('ready');
 
   act(() => {
     expect(result.current.setPlaybackRate(1.5)).toEqual({ ok: true });
