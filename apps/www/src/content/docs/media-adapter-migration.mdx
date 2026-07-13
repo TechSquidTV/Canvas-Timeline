@@ -1,0 +1,125 @@
+---
+title: Media adapter migration
+description: Migrate HTML and Mediabunny integrations to source representations, input fallbacks, shared playback ranges, and runtime diagnostics.
+section: packages
+order: 35
+---
+
+## Breaking change warning
+
+The media adapters now distinguish a logical timeline source, its deliberately
+selected original or proxy representation, and the inputs that can load that
+representation. The old flat descriptors, duplicate `sourceId` fallback
+convention, `durationBySourceId`, and blocking `resumeClock()` contract have
+been removed. There are no compatibility aliases.
+
+The common case stays concise: `{ sourceId, input }`. Use `fallbacks` only for
+load failover and `proxies` only for editing representations that an application
+selects intentionally.
+
+## Migrate HTML media sources
+
+Replace the source record with an array of logical sources. Put the normal URL,
+blob, or file in `input` and optional load failovers in `fallbacks`.
+
+```tsx
+const sources = [
+  {
+    sourceId: 'intro',
+    input: cdnUrl,
+    fallbacks: [fallbackFile],
+  },
+];
+
+const media = useHTMLTimelineMedia({
+  ref: mediaRef,
+  sources,
+  layers,
+});
+```
+
+Read `sourceStateById` to inspect `selectedRepresentation` and
+`selectedInputIndex`. Use `media.adapter.retrySource(sourceId)` to retry inputs
+for the selected representation or `media.adapter.replaceSource(source)` to
+replace the logical source without recreating the controller.
+
+## Migrate Mediabunny sources
+
+Wrap the normal URL, blob, supplied input, or input factory in `input`. Configure
+formats and `UrlSource` options on URL inputs, including `HLS_FORMATS` for HLS
+manifests. Put direct-media failover in `fallbacks`.
+
+```tsx
+const sources = [
+  {
+    sourceId: 'camera-a',
+    input: {
+      kind: 'url',
+      url: manifestUrl,
+      formats: HLS_FORMATS,
+      urlSourceOptions: { maxCacheSize: 32 * 1024 * 1024 },
+    },
+    fallbacks: [
+      {
+        kind: 'url',
+        url: mp4Url,
+      },
+    ],
+  },
+];
+```
+
+Use `selectTracks` when primary tracks are not the desired video or audio
+tracks. Source state now includes detected timing, dimensions, frame rate, and
+audio metadata alongside representation and input-attempt diagnostics.
+
+## Add editing proxies
+
+A proxy is not a fallback. It is selected deliberately for preview or scrubbing
+while the original remains available for conform and export. Each proxy has its
+own preferred input and optional fallbacks.
+
+```tsx
+const sources = [
+  {
+    sourceId: 'camera-a',
+    input: { kind: 'url', url: originalUrl },
+    proxies: [
+      {
+        proxyId: 'edit-540p',
+        input: { kind: 'url', url: proxyUrl },
+        fallbacks: [{ kind: 'blob', blob: cachedProxy }],
+        timing: {
+          sourceTimeSeconds: cameraTimestamp,
+          mediaTimeSeconds: 0,
+        },
+      },
+    ],
+  },
+];
+
+await media.adapter.setRepresentation('camera-a', {
+  kind: 'proxy',
+  proxyId: 'edit-540p',
+});
+```
+
+The `timing` anchor maps logical source time to the representation's media time.
+It is required only when a proxy or transcode uses a different container
+timestamp origin. Switch back with `{ kind: 'original' }`; timeline clips keep
+the same `sourceId` throughout.
+
+## Update transport and audio controls
+
+Pass the same `playbackOptions` used by engine playback when an external media
+clock drives the timeline. External ticks now enforce in/out boundaries and
+looping through the engine's shared playback policy.
+
+Clock activation is intentionally non-blocking. Call `requestClockActivation()`
+when transport starts and observe audio activation state separately from video
+transport. Use `setVolume()` and `setMuted()` for runtime gain changes; neither
+operation reloads sources.
+
+Caller-supplied `AudioContext` instances remain caller-owned. The Mediabunny
+adapter closes only contexts it creates, and it does not create an audio graph
+for sources without a decodable audio track.
