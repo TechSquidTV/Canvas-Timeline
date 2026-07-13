@@ -31,7 +31,12 @@ import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-ad
 import { useRef } from 'react';
 import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
 
-const sources = { 'clip-source-main': '/media/preview.mp4' };
+const sources = [
+  {
+    sourceId: 'clip-source-main',
+    input: '/media/preview.mp4',
+  },
+] as const;
 const previewLayers = {
   visuals: { trackKind: 'visual', sourceId: 'clip-source-main' },
 } as const;
@@ -47,6 +52,8 @@ export function NativePreview() {
   return <video ref={videoRef} playsInline onClick={() => void media.play()} />;
 }
 ```
+
+Use `fallbacks` for alternate ways to load the currently selected representation. Use `proxies` for deliberately selectable editing media, and switch with `media.adapter.setRepresentation(...)`. A proxy can define its own fallbacks and a `timing` anchor when its container timestamps differ from the logical source.
 
 ```ts
 import { createHTMLMediaAdapter } from '@techsquidtv/canvas-timeline-html-media-adapter';

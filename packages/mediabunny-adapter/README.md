@@ -41,7 +41,12 @@ import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
 const sourceId = 'clip-source-main';
-const sources = [{ id: sourceId, url: '/media/preview.mp4' }] as const;
+const sources = [
+  {
+    sourceId,
+    input: { kind: 'url', url: '/media/preview.mp4' },
+  },
+] as const;
 const previewLayers = {
   visuals: { trackKind: 'visual', sourceId },
   audio: { trackKind: 'audio', sourceId },
@@ -67,7 +72,7 @@ function DecodedPreview() {
 }
 ```
 
-Each item in `sources` uses an `id` that matches timeline clip `sourceId` values. For local files or custom Mediabunny setup, replace the URL descriptor with a `blob`, `input`, or `createInput` descriptor that keeps the same join key.
+Each item in `sources` uses a `sourceId` matching timeline clips and one concise original `input`. Add `fallbacks` for alternate ways to load that representation. Add `proxies` for editing representations that can be selected independently with `setRepresentation`; every proxy can have its own fallbacks and a `timing` anchor when its timestamps differ from logical source time. Inputs can use URLs, blobs, supplied inputs, or input factories. The adapter exposes the selected representation, input attempts, timing, dimensions, and frame-rate metadata through `sourceStateById`.
 
 ## Documentation
 

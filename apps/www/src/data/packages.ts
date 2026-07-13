@@ -281,7 +281,8 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
       body: 'Use `useHTMLTimelineMedia` for the normal React path. It creates the adapter, wires it to timeline playback, and returns transport helpers for play, pause, and rate controls.',
       steps: [
         'Give each media clip a stable `sourceId`.',
-        'Create a `sources` record where each key is a source id and each value is a URL, `Blob`, or `File`.',
+        'Create a `sources` array of `{ sourceId, input }` descriptors, one per logical source.',
+        'Add per-representation `fallbacks` or selectable editing `proxies` only when needed.',
         'Attach a ref to one `<video>` or `<audio>` element.',
         'Pass the ref, sources, and layer selector to `useHTMLTimelineMedia` inside a `TimelineProvider`.',
       ],
@@ -292,7 +293,12 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
       code: `import { useRef } from 'react';
 import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
 
-const sources = { 'clip-source-main': '/media/preview.mp4' };
+const sources = [
+  {
+    sourceId: 'clip-source-main',
+    input: '/media/preview.mp4',
+  },
+] as const;
 const layers = {
   visuals: { trackKind: 'visual', sourceId: 'clip-source-main' },
 } as const;
@@ -341,7 +347,8 @@ export function NativePreview() {
       body: 'Timeline clips keep lightweight `sourceId` values. Your app keeps the actual files, URLs, or Mediabunny inputs outside the timeline and passes matching source descriptors to the adapter.',
       steps: [
         'Give each media clip a stable `sourceId`.',
-        'Create a `sources` array where each descriptor has an `id` matching a clip source id.',
+        'Create a `sources` array where each logical source has a matching `sourceId` and original `input`.',
+        'Add `fallbacks` for load failover and `proxies` for deliberately selectable editing media.',
         'Attach a canvas ref for decoded video frames.',
         'Pass the canvas ref, sources, and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
         'Use the returned transport helpers for playback and the returned duration/frame state for preview UI.',
@@ -354,7 +361,10 @@ export function NativePreview() {
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
 const sourceId = 'clip-source-main';
-const sources = [{ id: sourceId, url: '/media/preview.mp4' }] as const;
+const sources = [{
+  sourceId,
+  input: { kind: 'url', url: '/media/preview.mp4' },
+}] as const;
 const layers = {
   visuals: { trackKind: 'visual', sourceId },
   audio: { trackKind: 'audio', sourceId },
