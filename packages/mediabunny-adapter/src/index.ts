@@ -3,15 +3,16 @@ import type {
   ActiveLayerResult,
   Clip,
   MaybePromise,
-} from '@techsquidtv/canvas-timeline-core';
-import type {
-  TimelineMediaSyncAdapter,
+  TimelineContentPlaybackStatus,
+  TimelineLayerSyncDetails,
+  TimelineMediaSource,
+  TimelineMediaSourceAttempt,
   TimelineMediaSourceOperationResult,
   TimelineMediaSourceStatus,
-  TimelineContentPlaybackStatus,
+  TimelineMediaSourceTiming,
+  TimelineMediaSyncAdapter,
   TimelineMediaSyncReason,
-  TimelineLayerSyncDetails,
-} from '@techsquidtv/canvas-timeline-react';
+} from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type * as Mediabunny from 'mediabunny';
 
@@ -41,19 +42,8 @@ export type MediabunnySourceInput =
       createInput: (mediabunny: MediabunnyModule) => MaybePromise<Mediabunny.Input>;
     };
 
-/** Maps a logical source timestamp to the corresponding resolved media timestamp. */
-export interface MediabunnySourceTiming {
-  sourceTimeSeconds: number;
-  mediaTimeSeconds: number;
-}
-
 /** One app-resolved media choice for a logical timeline source. */
-export interface MediabunnySource {
-  sourceId: string;
-  input: MediabunnySourceInput;
-  fallbacks?: readonly MediabunnySourceInput[];
-  timing?: MediabunnySourceTiming;
-}
+export type MediabunnySource = TimelineMediaSource<MediabunnySourceInput>;
 
 /** Tracks selected from a loaded resolved source input. */
 export interface MediabunnyTrackSelection {
@@ -98,19 +88,12 @@ export interface MediabunnySourceMetadata {
   audio: MediabunnyAudioMetadata | null;
 }
 
-/** One preferred/fallback input attempt for the resolved source. */
-export interface MediabunnySourceAttempt {
-  inputIndex: number;
-  status: 'ready' | 'failed';
-  error: Error | null;
-}
-
 /** Observable loading and recovery state for a logical source. */
 export interface MediabunnySourceState {
   sourceId: string;
   status: TimelineMediaSourceStatus;
   selectedInputIndex: number | null;
-  attempts: readonly MediabunnySourceAttempt[];
+  attempts: readonly TimelineMediaSourceAttempt[];
   metadata: MediabunnySourceMetadata | null;
   error: Error | null;
 }
@@ -176,7 +159,7 @@ export interface MediabunnyFrame {
  * Adapter that connects Canvas Timeline playback and frame rendering to Mediabunny.
  */
 export interface MediabunnyAdapter {
-  /** Whether at least one source is loaded and ready for playback. */
+  /** Whether the adapter has at least one configured source available for lazy loading. */
   readonly ready: boolean;
   /** Human-readable loading, playback, or error status. */
   readonly status: string;
@@ -210,6 +193,12 @@ export interface MediabunnyAdapter {
   setVolume: (volume: number) => void;
   /** Update master mute state without reloading sources. */
   setMuted: (muted: boolean) => void;
+  /** Reconcile the complete logical source registry without recreating the adapter. */
+  setSources: (sources: readonly MediabunnySource[]) => void;
+  /** Load one source ahead of playback without making it an app-level media choice. */
+  preloadSource: (sourceId: string) => Promise<TimelineMediaSourceOperationResult>;
+  /** Release one loaded source while keeping its definition registered. */
+  unloadSource: (sourceId: string) => boolean;
   /** Retry the configured inputs for one resolved source. */
   retrySource: (sourceId: string) => Promise<TimelineMediaSourceOperationResult>;
   /** Replace one logical source with another app-resolved media choice. */
@@ -309,13 +298,94 @@ function validateSources(sources: readonly MediabunnySource[]) {
   }
 }
 
-function validateMediabunnyTiming(sourceId: string, timing: MediabunnySourceTiming | undefined) {
+function validateMediabunnyTiming(sourceId: string, timing: TimelineMediaSourceTiming | undefined) {
   if (
     timing !== undefined &&
     (!Number.isFinite(timing.sourceTimeSeconds) || !Number.isFinite(timing.mediaTimeSeconds))
   ) {
     throw new Error(`Source "${sourceId}" timing values must be finite.`);
   }
+}
+
+function createIdleSourceState(sourceId: string): MediabunnySourceState {
+  return {
+    sourceId,
+    status: 'idle',
+    selectedInputIndex: null,
+    attempts: [],
+    metadata: null,
+    error: null,
+  };
+}
+
+function areMediabunnySourcesEqual(left: MediabunnySource, right: MediabunnySource) {
+  const leftFallbacks = left.fallbacks ?? [];
+  const rightFallbacks = right.fallbacks ?? [];
+  return (
+    left.sourceId === right.sourceId &&
+    areMediabunnySourceInputsEqual(left.input, right.input) &&
+    leftFallbacks.length === rightFallbacks.length &&
+    leftFallbacks.every((input, index) => {
+      const rightInput = rightFallbacks[index];
+      return rightInput !== undefined && areMediabunnySourceInputsEqual(input, rightInput);
+    }) &&
+    left.timing?.sourceTimeSeconds === right.timing?.sourceTimeSeconds &&
+    left.timing?.mediaTimeSeconds === right.timing?.mediaTimeSeconds
+  );
+}
+
+function areMediabunnySourceInputsEqual(
+  left: MediabunnySourceInput,
+  right: MediabunnySourceInput
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left instanceof URL && right instanceof URL) {
+    return left.href === right.href;
+  }
+  if (
+    typeof left !== 'object' ||
+    left === null ||
+    typeof right !== 'object' ||
+    right === null ||
+    !('kind' in left) ||
+    !('kind' in right) ||
+    left.kind !== right.kind
+  ) {
+    return false;
+  }
+  if (left.kind === 'url' && right.kind === 'url') {
+    const leftFormats = left.formats ?? [];
+    const rightFormats = right.formats ?? [];
+    return (
+      areMediabunnyUrlsEqual(left.url, right.url) &&
+      leftFormats.length === rightFormats.length &&
+      leftFormats.every((format, index) => format === rightFormats[index]) &&
+      left.urlSourceOptions === right.urlSourceOptions
+    );
+  }
+  if (left.kind === 'input' && right.kind === 'input') {
+    return left.input === right.input;
+  }
+  return (
+    left.kind === 'input-factory' &&
+    right.kind === 'input-factory' &&
+    left.createInput === right.createInput
+  );
+}
+
+function areMediabunnyUrlsEqual(left: string | URL | Request, right: string | URL | Request) {
+  if (left === right) {
+    return true;
+  }
+  if (typeof left === 'string' && typeof right === 'string') {
+    return left === right;
+  }
+  if (left instanceof URL && right instanceof URL) {
+    return left.href === right.href;
+  }
+  return false;
 }
 
 /**
@@ -330,8 +400,10 @@ export function createMediabunnyAdapter(
   if (options.audio?.destination !== undefined && options.audio.context === undefined) {
     throw new Error('An audio context is required when an audio destination is provided.');
   }
-  let ready = false;
-  let status = 'Loading Mediabunny sources...';
+  let ready = options.sources.length > 0;
+  let status = ready
+    ? 'Sources registered. Mediabunny loads active media on demand.'
+    : 'No Mediabunny sources are configured.';
   let error: Error | null = null;
   let canvas = options.canvas ?? null;
   let disposed = false;
@@ -341,14 +413,22 @@ export function createMediabunnyAdapter(
   const frameListeners = new Set<() => void>();
   const controllers = new Map<string, MediabunnySourceController>();
   const sourceDefinitions = new Map(options.sources.map((source) => [source.sourceId, source]));
-  let sourceStateSnapshot: ReadonlyMap<string, MediabunnySourceState> = new Map();
+  let sourceStateSnapshot: ReadonlyMap<string, MediabunnySourceState> = new Map(
+    options.sources.map((source) => [source.sourceId, createIdleSourceState(source.sourceId)])
+  );
   const loadGenerations = new Map<string, number>();
+  const sourceLoadPromises = new Map<string, Promise<TimelineMediaSourceOperationResult>>();
   const recoveringSources = new Set<string>();
+  const activeSourceIds = new Set<string>();
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
-  const mediabunnyPromise = Promise.resolve(
-    typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny
-  );
+  let mediabunnyPromise: Promise<MediabunnyModule> | null = null;
+  const getMediabunny = () => {
+    mediabunnyPromise ??= Promise.resolve(
+      typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny
+    );
+    return mediabunnyPromise;
+  };
   let audioContext: AudioContext | null = options.audio?.context ?? null;
   let ownsAudioContext = false;
   let masterGainNode: GainNode | null = null;
@@ -513,7 +593,7 @@ export function createMediabunnyAdapter(
     source: MediabunnySource,
     loadStatus: 'loading' | 'recovering',
     startIndex = 0,
-    previousAttempts: readonly MediabunnySourceAttempt[] = []
+    previousAttempts: readonly TimelineMediaSourceAttempt[] = []
   ): Promise<TimelineMediaSourceOperationResult> => {
     const inputs = [source.input, ...(source.fallbacks ?? [])];
     const generation = (loadGenerations.get(source.sourceId) ?? 0) + 1;
@@ -527,7 +607,7 @@ export function createMediabunnyAdapter(
       error: null,
     });
 
-    const mediabunny = await mediabunnyPromise;
+    const mediabunny = await getMediabunny();
     const attempts = [...previousAttempts];
     let finalError = new Error(
       `No remaining inputs are available for source "${source.sourceId}".`
@@ -573,7 +653,6 @@ export function createMediabunnyAdapter(
           setTimelineClock(candidate, timelineSeconds, currentPlaybackRate);
         }
         candidate.playing = wasPlaying;
-        ready = controllers.size > 0;
         error = null;
         status = 'Ready. Mediabunny can drive timeline video and audio.';
         setSourceState({
@@ -605,7 +684,6 @@ export function createMediabunnyAdapter(
       disposeController(previous);
       controllers.delete(source.sourceId);
     }
-    ready = controllers.size > 0;
     setSourceState({
       sourceId: source.sourceId,
       status: 'failed',
@@ -614,12 +692,59 @@ export function createMediabunnyAdapter(
       metadata: null,
       error: finalError,
     });
+    error = finalError;
+    status = finalError.message;
     return {
       ok: false,
       sourceId: source.sourceId,
       reason: 'load-failed',
       error: finalError,
     };
+  };
+
+  const ensureSource = (sourceId: string): Promise<TimelineMediaSourceOperationResult> => {
+    const source = sourceDefinitions.get(sourceId);
+    if (source === undefined) {
+      return Promise.resolve({
+        ok: false,
+        sourceId,
+        reason: 'unknown-source',
+        error: new Error(`Unknown source "${sourceId}".`),
+      });
+    }
+    if (controllers.has(sourceId)) {
+      return Promise.resolve({ ok: true, sourceId, state: 'ready' });
+    }
+    const existingPromise = sourceLoadPromises.get(sourceId);
+    if (existingPromise !== undefined) {
+      return existingPromise;
+    }
+
+    const loadPromise = loadSource(source, 'loading').finally(() => {
+      if (sourceLoadPromises.get(sourceId) === loadPromise) {
+        sourceLoadPromises.delete(sourceId);
+      }
+    });
+    sourceLoadPromises.set(sourceId, loadPromise);
+    return loadPromise;
+  };
+
+  const ensureActiveSources = async (
+    activeVisual: ActiveClip | undefined,
+    activeAudio: ActiveClip | undefined
+  ) => {
+    activeSourceIds.clear();
+    for (const activeClip of [activeVisual, activeAudio]) {
+      if (activeClip !== undefined) {
+        activeSourceIds.add(activeClip.clip.sourceId);
+      }
+    }
+
+    const results = await Promise.all([...activeSourceIds].map(ensureSource));
+    const failedResult = results.find((result) => !result.ok);
+    if (failedResult !== undefined && !failedResult.ok) {
+      throw failedResult.error;
+    }
   };
 
   const recoverSource = async (
@@ -666,6 +791,8 @@ export function createMediabunnyAdapter(
     const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
     const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
 
+    await ensureActiveSources(activeVisual, activeAudio);
+
     for (const activeClip of [activeVisual, activeAudio]) {
       if (activeClip === undefined) {
         continue;
@@ -708,6 +835,68 @@ export function createMediabunnyAdapter(
     if (shouldSyncAudio(reason, activeAudio)) {
       syncAudio(activeAudio);
     }
+  };
+
+  const releaseSource = (sourceId: string) => {
+    loadGenerations.set(sourceId, (loadGenerations.get(sourceId) ?? 0) + 1);
+    recoveringSources.delete(sourceId);
+    const controller = controllers.get(sourceId);
+    if (controller !== undefined) {
+      if (activeSourceIds.has(sourceId) && canvas !== null) {
+        clearPreviewCanvas(controller, canvas);
+        setLastFrameTime(null);
+      }
+      if (clockController === controller) {
+        clockController = null;
+      }
+      disposeController(controller);
+      controllers.delete(sourceId);
+    }
+  };
+
+  const reconcileSources = (nextSources: readonly MediabunnySource[]) => {
+    validateSources(nextSources);
+    const nextDefinitions = new Map(nextSources.map((source) => [source.sourceId, source]));
+    const changedSourceIds = new Set<string>();
+    for (const [sourceId, source] of sourceDefinitions) {
+      const nextSource = nextDefinitions.get(sourceId);
+      if (nextSource === undefined || !areMediabunnySourcesEqual(source, nextSource)) {
+        changedSourceIds.add(sourceId);
+      }
+    }
+    for (const sourceId of nextDefinitions.keys()) {
+      if (!sourceDefinitions.has(sourceId)) {
+        changedSourceIds.add(sourceId);
+      }
+    }
+    if (changedSourceIds.size === 0 && sourceDefinitions.size === nextDefinitions.size) {
+      return;
+    }
+
+    for (const sourceId of changedSourceIds) {
+      releaseSource(sourceId);
+    }
+    sourceDefinitions.clear();
+    for (const [sourceId, source] of nextDefinitions) {
+      sourceDefinitions.set(sourceId, source);
+    }
+    sourceStateSnapshot = new Map(
+      nextSources.map((source) => {
+        const previousState = sourceStateSnapshot.get(source.sourceId);
+        return [
+          source.sourceId,
+          previousState !== undefined && !changedSourceIds.has(source.sourceId)
+            ? previousState
+            : createIdleSourceState(source.sourceId),
+        ];
+      })
+    );
+    ready = nextSources.length > 0;
+    error = null;
+    status = ready
+      ? 'Sources registered. Mediabunny loads active media on demand.'
+      : 'No Mediabunny sources are configured.';
+    notify();
   };
 
   const adapter: MediabunnyAdapter = {
@@ -774,7 +963,11 @@ export function createMediabunnyAdapter(
       return controller === undefined ? 0 : getTimelinePlaybackSeconds(controller);
     },
     startClock: (timelineTime, playbackRate) => {
-      if (!ready || controllers.size === 0) {
+      if (
+        !ready ||
+        activeSourceIds.size === 0 ||
+        [...activeSourceIds].some((sourceId) => !controllers.has(sourceId))
+      ) {
         return false;
       }
 
@@ -850,6 +1043,17 @@ export function createMediabunnyAdapter(
       updateMasterGain();
       notify();
     },
+    setSources: reconcileSources,
+    preloadSource: ensureSource,
+    unloadSource: (sourceId) => {
+      if (!sourceDefinitions.has(sourceId)) {
+        return false;
+      }
+      releaseSource(sourceId);
+      setSourceState(createIdleSourceState(sourceId));
+      status = 'Source unloaded. It will reload when active or explicitly preloaded.';
+      return true;
+    },
     retrySource: async (sourceId) => {
       const source = sourceDefinitions.get(sourceId);
       if (source === undefined) {
@@ -882,6 +1086,7 @@ export function createMediabunnyAdapter(
       const result = await loadSource(source, 'loading');
       if (result.ok) {
         sourceDefinitions.set(source.sourceId, source);
+        ready = true;
       } else if (controllers.has(source.sourceId) && previousState !== undefined) {
         setSourceState(previousState);
       }
@@ -900,6 +1105,8 @@ export function createMediabunnyAdapter(
 
       const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
       const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
+
+      await ensureActiveSources(activeVisual, activeAudio);
 
       await Promise.all([...controllers.values()].map(cancelVideoPlayback));
       setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
@@ -952,6 +1159,8 @@ export function createMediabunnyAdapter(
     },
     dispose: () => {
       disposed = true;
+      ready = false;
+      status = 'Mediabunny adapter disposed.';
       activationGeneration += 1;
       if (activationTimer !== null) {
         window.clearTimeout(activationTimer);
@@ -969,40 +1178,13 @@ export function createMediabunnyAdapter(
     },
   };
 
-  void Promise.all(options.sources.map((source) => loadSource(source, 'loading')))
-    .then((results) => {
-      if (disposed) {
-        controllers.clear();
-        sourceStateSnapshot = new Map();
-        return;
-      }
-
-      const loadedCount = results.filter((result) => result.ok).length;
-      ready = loadedCount > 0;
-      const failedResult = results.find((result) => !result.ok);
-      if (loadedCount > 0) {
-        status = 'Ready. Mediabunny can drive timeline video and audio.';
-      } else if (failedResult !== undefined && !failedResult.ok) {
-        error = failedResult.error;
-        status = failedResult.error.message;
-      } else {
-        status = 'No Mediabunny source could be loaded.';
-      }
-      notify();
-    })
-    .catch((loadError: unknown) => {
-      if (!disposed) {
-        setError(loadError);
-      }
-    });
-
   return adapter;
 }
 
 function createController(
   sourceId: string,
   inputIndex: number,
-  timing: MediabunnySourceTiming | undefined
+  timing: TimelineMediaSourceTiming | undefined
 ): MediabunnySourceController {
   return {
     sourceId,

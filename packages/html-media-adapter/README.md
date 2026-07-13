@@ -13,10 +13,10 @@ HTMLMediaElement adapter for Canvas Timeline media playback.
 pnpm add @techsquidtv/canvas-timeline-html-media-adapter
 ```
 
-This package expects React peer dependencies compatible with the package manifest.
+The root export is framework-free. Install the optional React peers when using the `./react` hooks.
 
 ```tsx
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 ```
 
 ## Features
@@ -29,7 +29,7 @@ import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-ad
 
 ```tsx
 import { useRef } from 'react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 
 const sources = [
   {
@@ -54,6 +54,8 @@ export function NativePreview() {
 ```
 
 Each source describes one media choice already resolved by your application. Use `fallbacks` only for equivalent ways to load that choice. Keep originals, editing proxies, optimized previews, and export media in your media library, then switch the adapter with `media.adapter.replaceSource(...)`. Include a `timing` anchor when the resolved media uses a different timestamp origin.
+
+The React hook reconciles ordinary URL descriptors by value, so callers may pass an inline source array without causing adapter disposal or media reload. Imperative consumers can update the complete registry with `setSources(...)`.
 
 ```ts
 import { createHTMLMediaAdapter } from '@techsquidtv/canvas-timeline-html-media-adapter';

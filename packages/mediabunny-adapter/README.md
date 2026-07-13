@@ -13,7 +13,7 @@
 pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 ```
 
-`mediabunny` and React are peer dependencies. The high-level React hook can lazy-load Mediabunny in the browser by default, while lower-level APIs can receive an explicit module or loader.
+`mediabunny` is a peer dependency. React and the Canvas Timeline React package are optional peers used only by the `./react` export. The framework-free root does not import React.
 
 ## Choosing an API
 
@@ -73,6 +73,8 @@ function DecodedPreview() {
 ```
 
 Each item in `sources` uses a `sourceId` matching timeline clips and one app-resolved `input`. Common inputs can be passed directly as a URL string, `URL`, `Request`, `Blob`, or `File`; use the object descriptors for custom URL formats/options, supplied inputs, and factories. Add `fallbacks` only for equivalent ways to load the resolved media. Keep original/proxy policy in your media library and switch choices with `replaceSource(...)`, including a `timing` anchor when timestamps differ from logical source time. The adapter exposes input attempts, timing, dimensions, and frame-rate metadata through `sourceStateById`.
+
+Sources load on demand when their clips become active. Use `preloadSource(sourceId)` to warm likely next clips and `unloadSource(sourceId)` to release decoder resources without removing the source. React source arrays do not need stable identity for ordinary URL descriptors; keep factories, selectors, and custom option objects stable because their identity represents executable policy.
 
 ## Documentation
 

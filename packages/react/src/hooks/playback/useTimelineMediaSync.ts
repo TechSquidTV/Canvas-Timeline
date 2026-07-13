@@ -1,92 +1,21 @@
 import type {
   ActiveLayerSelector,
   ActiveLayerResult,
-  MaybePromise,
   PlaybackOptions,
+  TimelineMediaPlayFailureReason,
+  TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
+import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
 import { rationalEquals, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import {
   useTimelineMediaPlayback,
-  type TimelineLayerSyncDetails,
   type UseTimelineMediaPlaybackOptions,
 } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-
-/**
- * Adapter callbacks used to connect timeline playback to an external media clock.
- *
- * @remarks
- *
- * Implement this adapter when your media surface owns decoding, rendering, or
- * audio scheduling. {@link useTimelineMediaSync} calls these callbacks after it
- * resolves active clips with {@link ActiveLayerSelector} records and
- * {@link ActiveLayerResult} snapshots.
- *
- * @template LayerName - Named media layer keys from your `layers` object, such
- * as `"visuals"` or `"audio"`.
- */
-export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
-  /** Returns current timeline seconds from the external media clock. */
-  getClockTime: UseTimelineMediaPlaybackOptions<LayerName>['getClockTime'];
-  /** Starts the external media clock at a timeline time and playback rate. */
-  startClock: (timelineTime: RationalTime, playbackRate: number) => MaybePromise<boolean>;
-  /** Stops the external media clock if timeline playback cannot start. */
-  stopClock?: () => void;
-  /**
-   * Starts browser-gated clock activation without awaiting it.
-   *
-   * Keep permission or audio-resume degradation separate from visual transport;
-   * the callback must return immediately so `seek` and `startClock` can proceed.
-   */
-  requestClockActivation?: (playbackRate: number) => void;
-  /** Updates the external clock rate before timeline playback rate changes. */
-  setClockRate?: (playbackRate: number) => void;
-  /** Refreshes external media after paused playhead or timeline edits. */
-  seek?: (
-    timelineTime: RationalTime,
-    activeLayers: ActiveLayerResult<LayerName>
-  ) => MaybePromise<void>;
-  /** Synchronizes external rendering, audio, text, or effects for active layers during playback. */
-  syncLayers?: (details: TimelineLayerSyncDetails<LayerName>) => MaybePromise<void>;
-  /** Receives high-level playback status changes. */
-  onStatus?: UseTimelineMediaPlaybackOptions<LayerName>['onStatus'];
-}
-
-/** Observable lifecycle state shared by packaged timeline media adapters. */
-export type TimelineMediaSourceStatus = 'idle' | 'loading' | 'recovering' | 'ready' | 'failed';
-
-/** Reason a packaged adapter source operation could not be accepted. */
-export type TimelineMediaSourceOperationFailureReason =
-  | 'unknown-source'
-  | 'invalid-source'
-  | 'load-failed';
-
-/**
- * Result of retrying or replacing a packaged adapter source.
- *
- * @remarks
- *
- * `configured` means the adapter accepted the source and initiated any native
- * loading required for it. `ready` means the adapter completed source loading
- * before resolving the operation. Observe the adapter's `sourceStateById` for
- * subsequent lifecycle changes and detailed input attempts.
- */
-export type TimelineMediaSourceOperationResult =
-  | {
-      ok: true;
-      sourceId: string;
-      state: 'configured' | 'ready';
-    }
-  | {
-      ok: false;
-      sourceId: string;
-      reason: TimelineMediaSourceOperationFailureReason;
-      error: Error;
-    };
 
 /**
  * Options for high-level timeline media synchronization.
@@ -112,24 +41,9 @@ export interface UseTimelineMediaSyncOptions<LayerName extends string = string> 
   layers: Record<LayerName, ActiveLayerSelector>;
   /** External media adapter callbacks. */
   adapter: TimelineMediaSyncAdapter<LayerName>;
-  /** Called when no content exists or no active layer clip is available. */
-  onError?: (message: string) => void;
+  /** Receives structured media failures with a stable machine-readable reason. */
+  onError?: (error: TimelineMediaError) => void;
 }
-
-/**
- * Reason high-level media-synchronized playback could not begin.
- */
-export type TimelineMediaPlayFailureReason =
-  /** External media adapter has not finished loading. */
-  | 'not-ready'
-  /** No timeline content exists for the configured active layers. */
-  | 'no-content'
-  /** Content exists, but no clip is active at the resolved playhead time. */
-  | 'no-active-content'
-  /** External media clock failed to seek or start. */
-  | 'clock-failed'
-  /** Timeline engine playback could not start after the external clock started. */
-  | 'timeline-failed';
 
 /**
  * Result returned from a media-synchronized timeline play request.
@@ -202,13 +116,14 @@ function createPlayFailure(
   onError: UseTimelineMediaSyncOptions['onError'],
   cause?: Error
 ): TimelineMediaPlayResult {
+  const error = new TimelineMediaError(reason, withCauseMessage(message, cause), { cause });
   const result = {
     ok: false,
     reason,
-    message: withCauseMessage(message, cause),
+    message: error.message,
     ...(cause !== undefined ? { cause } : {}),
   } as const;
-  onError?.(result.message);
+  onError?.(error);
   return result;
 }
 
@@ -289,33 +204,42 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const previewSeekFrameRef = useRef<number | null>(null);
   const readyRef = useRef(ready);
   const onErrorRef = useRef(onError);
+  const { loop: shouldLoop = false, ...externalPlaybackOptions } = playbackOptions ?? {};
 
   const syncPlayback = useTimelineMediaPlayback<LayerName>({
     frameRate,
-    playbackOptions,
+    playbackOptions: externalPlaybackOptions,
     getClockTime: adapter.getClockTime,
     stopClock: adapter.stopClock,
     layers,
     syncLayers: adapter.syncLayers,
     onStatus: adapter.onStatus,
-    onLoop: async (timelineTime, loopLayers) => {
-      let restarted: boolean;
-      try {
-        await adapter.seek?.(timelineTime, loopLayers);
-        restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
-      } catch (loopError: unknown) {
-        const cause = toError(loopError);
-        onErrorRef.current?.(
-          withCauseMessage('Media clock could not restart after looping.', cause)
-        );
-        throw cause ?? new Error('Media clock could not restart after looping.');
-      }
-      if (!restarted) {
-        const error = new Error('Media clock could not restart after looping.');
-        onErrorRef.current?.(error.message);
-        throw error;
-      }
-    },
+    ...(shouldLoop && {
+      loop: async (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
+        let restarted: boolean;
+        try {
+          await adapter.seek?.(timelineTime, loopLayers);
+          restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
+        } catch (loopError: unknown) {
+          const cause = toError(loopError);
+          const error = new TimelineMediaError(
+            'loop-failed',
+            withCauseMessage('Media clock could not restart after looping.', cause),
+            { cause }
+          );
+          onErrorRef.current?.(error);
+          throw error;
+        }
+        if (!restarted) {
+          const error = new TimelineMediaError(
+            'loop-failed',
+            'Media clock could not restart after looping.'
+          );
+          onErrorRef.current?.(error);
+          throw error;
+        }
+      },
+    }),
   });
   const playingRef = useRef(syncPlayback.playing);
 
@@ -357,7 +281,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       void Promise.resolve(currentAdapter.seek(timelineTime, currentActiveLayers)).catch(
         (seekError: unknown) => {
           const cause = toError(seekError);
-          onErrorRef.current?.(withCauseMessage('Media seek failed.', cause));
+          onErrorRef.current?.(
+            new TimelineMediaError('seek-failed', withCauseMessage('Media seek failed.', cause), {
+              cause,
+            })
+          );
         }
       );
     });

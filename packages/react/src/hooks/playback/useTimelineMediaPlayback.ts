@@ -3,6 +3,9 @@ import type {
   ActiveLayerSelector,
   MaybePromise,
   PlaybackOptions,
+  TimelineContentPlaybackStatus,
+  TimelineLayerSyncDetails,
+  TimelineMediaSyncReason,
 } from '@techsquidtv/canvas-timeline-core';
 import {
   fromSeconds,
@@ -21,39 +24,6 @@ import {
   timelineCommandOk,
   type TimelineCommandResult,
 } from '#react/hooks/core/timelineCommandResult';
-
-/**
- * Reason an external media callback is being synchronized.
- */
-export type TimelineMediaSyncReason = 'play' | 'tick' | 'rate' | 'gap' | 'pause';
-
-/**
- * Status emitted by the timeline media playback hook.
- */
-export type TimelineContentPlaybackStatus = 'idle' | 'playing' | 'paused' | 'content-gap';
-
-/**
- * Details passed to external media sync callbacks.
- *
- * @remarks
- *
- * `TimelineLayerSyncDetails` is emitted when playback starts, ticks, pauses,
- * crosses a content gap, or changes rate. Adapter code should use `reason` to
- * decide whether work can be skipped. For example, an audio adapter usually
- * reschedules on `"play"` and `"rate"`, but can ignore ordinary `"tick"` calls
- * while the same clip remains active.
- *
- * @template LayerName - Named media layer keys from
- * {@link UseTimelineMediaPlaybackOptions.layers}.
- */
-export interface TimelineLayerSyncDetails<LayerName extends string = string> {
-  /** Timeline time being synchronized. */
-  timelineTime: RationalTime;
-  /** Reason the external layer callback is being synchronized. */
-  reason: TimelineMediaSyncReason;
-  /** Active clips grouped by the configured layer selectors. */
-  activeLayers: ActiveLayerResult<LayerName>;
-}
 
 /**
  * Options for coordinating timeline playback with an external media clock.
@@ -81,16 +51,16 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   getClockTime: () => number;
   /** Optional sequence frame rate used to quantize playback updates to project frames. */
   frameRate?: TimecodeFrameRate;
-  /** Core playback range and looping policy applied to the external clock. */
-  playbackOptions?: Omit<PlaybackOptions, 'clock'>;
+  /** Core playback range policy applied to the external clock. */
+  playbackOptions?: Omit<PlaybackOptions, 'clock' | 'loop'>;
   /** Stops the external media clock when timeline playback pauses or leaves active content. */
   stopClock?: () => void;
   /** Named active layer selectors used by the external media surface. */
   layers: Record<LayerName, ActiveLayerSelector>;
   /** Synchronizes external rendering, audio, text, or effects for the active layers. */
   syncLayers?: (details: TimelineLayerSyncDetails<LayerName>) => MaybePromise<void>;
-  /** Realigns the external clock after core loops playback to a range start. */
-  onLoop?: (
+  /** Enables looping and realigns the external clock after core returns to the range start. */
+  loop?: (
     timelineTime: RationalTime,
     activeLayers: ActiveLayerResult<LayerName>
   ) => MaybePromise<void>;
@@ -302,7 +272,11 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     const currentOptions = optionsRef.current;
     loopTransitionRef.current = null;
     const currentTime = engine.getTime();
-    const resolvedStartTime = engine.getPlaybackStartTime(currentOptions.playbackOptions);
+    const playbackOptions = {
+      ...currentOptions.playbackOptions,
+      loop: currentOptions.loop !== undefined,
+    };
+    const resolvedStartTime = engine.getPlaybackStartTime(playbackOptions);
     const startTime = quantizeTimelineTimeToFrame(resolvedStartTime, currentOptions.frameRate);
     if (!rationalEquals(currentTime, startTime)) {
       engine.setTime(startTime);
@@ -317,7 +291,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       return timelineCommandFail('content-gap');
     }
 
-    const started = engine.play({ ...currentOptions.playbackOptions, clock: 'external' });
+    const started = engine.play({ ...playbackOptions, clock: 'external' });
     if (!started) {
       return timelineCommandFail('unsupported');
     }
@@ -364,7 +338,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         const transition = {};
         loopTransitionRef.current = transition;
         try {
-          const loopResult = currentOptions.onLoop?.(update.time, nextActiveLayers);
+          const loopResult = currentOptions.loop?.(update.time, nextActiveLayers);
           if (isPromiseLike(loopResult)) {
             void Promise.resolve(loopResult).catch(() => {
               if (loopTransitionRef.current === transition) {

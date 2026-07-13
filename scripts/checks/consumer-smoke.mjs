@@ -133,7 +133,7 @@ import {
 import '@techsquidtv/canvas-timeline/styles.css';
 import '@techsquidtv/canvas-timeline-react/base.css';
 import { SnapIndex } from '@techsquidtv/canvas-timeline-core/snapping';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import { formatMediabunnyTime } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
 import { CanvasRenderer as FocusedCanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';

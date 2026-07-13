@@ -3,4 +3,4 @@
 '@techsquidtv/canvas-timeline-react': minor
 ---
 
-Enforce playback in/out points consistently for internal and external clocks, replace blocking clock resumption with non-blocking activation requests, and expose shared packaged-adapter source lifecycle and operation result contracts.
+Enforce playback in/out points consistently for internal and external clocks, make external looping require a clock-realignment callback, replace blocking clock resumption with non-blocking activation requests, move framework-neutral media contracts into core, and report structured `TimelineMediaError` values.

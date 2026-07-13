@@ -66,13 +66,13 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
     frameRate: 30,
     sources,
     layers: previewLayerSelectors,
-    onError: (message) => {
+    onError: (error) => {
       metrics?.onMediaLoadFailed?.({
         demoId: 'media-sync',
         adapter: 'mediabunny',
         mediaType: 'video_audio',
       });
-      setPlaybackError(message);
+      setPlaybackError(error.message);
     },
   });
   const lastFrameTime = useMediabunnyFrameTime(media.adapter);

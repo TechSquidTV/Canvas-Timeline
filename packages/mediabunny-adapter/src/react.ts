@@ -1,4 +1,11 @@
-import { useEffect, useReducer, useState, useSyncExternalStore, type RefObject } from 'react';
+import {
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
 import {
   useTimelineMediaSync,
   type UseTimelineMediaSyncOptions,
@@ -64,7 +71,7 @@ export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = st
 export interface UseMediabunnyTimelineMediaResult<
   LayerName extends string = string,
 > extends UseTimelineMediaSyncResult<LayerName> {
-  /** Whether at least one Mediabunny source is loaded and ready for playback. */
+  /** Whether at least one Mediabunny source is registered for lazy loading. */
   ready: boolean;
   /** Human-readable loading, playback, or error status. */
   status: string;
@@ -97,6 +104,15 @@ const noopAdapter: MediabunnyAdapter = {
   requestClockActivation: () => {},
   setVolume: () => {},
   setMuted: () => {},
+  setSources: () => {},
+  preloadSource: (sourceId) =>
+    Promise.resolve({
+      ok: false,
+      sourceId,
+      reason: 'unknown-source',
+      error: new Error('Mediabunny is unavailable.'),
+    }),
+  unloadSource: () => false,
   retrySource: (sourceId) =>
     Promise.resolve({
       ok: false,
@@ -122,6 +138,20 @@ const noopAdapter: MediabunnyAdapter = {
 };
 
 const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
+
+function useStableStringArray(values: readonly string[] | undefined) {
+  const valuesRef = useRef(values);
+  const previous = valuesRef.current;
+  if (
+    previous === undefined ||
+    values === undefined ||
+    previous.length !== values.length ||
+    previous.some((value, index) => value !== values[index])
+  ) {
+    valuesRef.current = values;
+  }
+  return valuesRef.current;
+}
 
 /**
  * Create and dispose a Mediabunny timeline adapter from React state.
@@ -168,6 +198,10 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
 export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): MediabunnyAdapter {
   const { audio, audioTrackKinds, canvasRef, mediabunny, selectTracks, sources, visualTrackKinds } =
     options;
+  const stableAudioTrackKinds = useStableStringArray(audioTrackKinds);
+  const stableVisualTrackKinds = useStableStringArray(visualTrackKinds);
+  const sourcesRef = useRef(sources);
+  const runtimeValuesRef = useRef({ volume: audio?.volume, muted: audio?.muted });
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [adapter, setAdapter] = useState<MediabunnyAdapter>(noopAdapter);
 
@@ -177,12 +211,18 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
     }
 
     const nextAdapter = createMediabunnyAdapter({
-      audio,
-      audioTrackKinds,
+      audio: {
+        context: audio?.context,
+        destination: audio?.destination,
+        activationTimeoutMs: audio?.activationTimeoutMs,
+        volume: runtimeValuesRef.current.volume,
+        muted: runtimeValuesRef.current.muted,
+      },
+      audioTrackKinds: stableAudioTrackKinds,
       mediabunny,
       selectTracks,
-      sources,
-      visualTrackKinds,
+      sources: sourcesRef.current,
+      visualTrackKinds: stableVisualTrackKinds,
       onChange: forceUpdate,
     });
     setAdapter(nextAdapter);
@@ -190,11 +230,36 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
     return () => {
       nextAdapter.dispose();
     };
-  }, [audio, audioTrackKinds, mediabunny, selectTracks, sources, visualTrackKinds]);
+  }, [
+    audio?.activationTimeoutMs,
+    audio?.context,
+    audio?.destination,
+    mediabunny,
+    selectTracks,
+    stableAudioTrackKinds,
+    stableVisualTrackKinds,
+  ]);
+
+  useEffect(() => adapter.setSources(sources), [adapter, sources]);
+
+  useEffect(() => {
+    if (audio?.volume !== undefined && adapter.volume !== audio.volume) {
+      adapter.setVolume(audio.volume);
+    }
+  }, [adapter, audio?.volume]);
+
+  useEffect(() => {
+    if (audio?.muted !== undefined && adapter.muted !== audio.muted) {
+      adapter.setMuted(audio.muted);
+    }
+  }, [adapter, audio?.muted]);
 
   useEffect(() => {
     adapter.setCanvas(canvasRef?.current ?? null);
   }, [adapter, canvasRef]);
+
+  sourcesRef.current = sources;
+  runtimeValuesRef.current = { volume: audio?.volume, muted: audio?.muted };
 
   return adapter;
 }

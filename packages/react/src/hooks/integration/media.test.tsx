@@ -74,8 +74,8 @@ test('useTimelineMediaPlayback invokes one loop transition until the clock re-en
       useTimelineMediaPlayback({
         getClockTime: () => clockTime,
         layers: mediaSyncLayers,
-        playbackOptions: { loop: true, respectInOut: true },
-        onLoop,
+        playbackOptions: { respectInOut: true },
+        loop: onLoop,
       }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
@@ -155,7 +155,12 @@ test('useTimelineMediaSync reports loop clock restart failures', async () => {
   await waitFor(() => {
     expect(onError).toHaveBeenCalledOnce();
   });
-  expect(onError).toHaveBeenCalledWith('Media clock could not restart after looping.');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reason: 'loop-failed',
+      message: 'Media clock could not restart after looping.',
+    })
+  );
   expect(engine.getState().playing).toBe(false);
 
   rafSpy.mockRestore();
@@ -650,7 +655,9 @@ test('useTimelineMediaSync reports missing media and does not start playback', a
   });
 
   expect(startClock).not.toHaveBeenCalled();
-  expect(onError).toHaveBeenCalledWith('No timeline content is available.');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({ reason: 'no-content', message: 'No timeline content is available.' })
+  );
 });
 
 test('useTimelineMediaSync reports not-ready adapters without starting playback', async () => {
@@ -685,7 +692,9 @@ test('useTimelineMediaSync reports not-ready adapters without starting playback'
   });
 
   expect(startClock).not.toHaveBeenCalled();
-  expect(onError).toHaveBeenCalledWith('Media adapter is not ready.');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({ reason: 'not-ready', message: 'Media adapter is not ready.' })
+  );
 });
 
 test('useTimelineMediaSync awaits async clock startup failures', async () => {
@@ -723,7 +732,9 @@ test('useTimelineMediaSync awaits async clock startup failures', async () => {
   expect(requestClockActivation).toHaveBeenCalledWith(1);
   expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
   expect(engine.getState().playing).toBe(false);
-  expect(onError).toHaveBeenCalledWith('Media clock could not start.');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({ reason: 'clock-failed', message: 'Media clock could not start.' })
+  );
 });
 
 test('useTimelineMediaSync converts adapter startup exceptions into a play result', async () => {
@@ -764,7 +775,12 @@ test('useTimelineMediaSync converts adapter startup exceptions into a play resul
   expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
   expect(stopClock).toHaveBeenCalled();
   expect(engine.getState().playing).toBe(false);
-  expect(onError).toHaveBeenCalledWith('Media clock could not start. blocked');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reason: 'clock-failed',
+      message: 'Media clock could not start. blocked',
+    })
+  );
 });
 
 test('useTimelineMediaSync converts timeline sync exceptions into a play result', async () => {
@@ -806,7 +822,12 @@ test('useTimelineMediaSync converts timeline sync exceptions into a play result'
   expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
   expect(stopClock).toHaveBeenCalled();
   expect(engine.getState().playing).toBe(false);
-  expect(onError).toHaveBeenCalledWith('Timeline playback could not start. render failed');
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reason: 'timeline-failed',
+      message: 'Timeline playback could not start. render failed',
+    })
+  );
 });
 
 test('useTimelineMediaSync forwards playback rate changes to the adapter', () => {

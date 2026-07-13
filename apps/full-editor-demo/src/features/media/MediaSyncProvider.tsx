@@ -48,7 +48,7 @@ function ActiveMediaSyncProvider({
     frameRate: timecodeFrameRate,
     sources,
     layers: previewLayerSelectors,
-    onError: setPlaybackError,
+    onError: (error) => setPlaybackError(error.message),
   });
 
   const clearPlaybackError = useCallback(() => {

@@ -291,7 +291,7 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
       title: 'Native video preview',
       lang: 'tsx',
       code: `import { useRef } from 'react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 
 const sources = [
   {

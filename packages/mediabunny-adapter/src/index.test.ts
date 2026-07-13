@@ -106,10 +106,8 @@ interface MockAudioContext {
   resume: ReturnType<typeof vi.fn<() => Promise<void>>>;
 }
 
-function waitForAdapterLoad(adapter: ReturnType<typeof createMediabunnyAdapter>) {
-  return vi.waitFor(() => {
-    expect(adapter.status).not.toBe('Loading Mediabunny sources...');
-  });
+async function waitForAdapterLoad(adapter: ReturnType<typeof createMediabunnyAdapter>) {
+  await Promise.all([...adapter.sourceStateById.keys()].map(adapter.preloadSource));
 }
 
 function createMockVideoTrack(): MockVideoTrack {
@@ -367,6 +365,52 @@ test('formatMediabunnyTime formats finite and invalid values', () => {
   expect(formatMediabunnyTime(Number.NaN)).toBe('0.00s');
 });
 
+test('createMediabunnyAdapter lazily loads, preloads, and unloads registered sources', async () => {
+  const firstInput = createMockInput({ metadataDuration: 4 });
+  const secondInput = createMockInput({ metadataDuration: 5 });
+  const mockMediabunny = createMockMediabunny([firstInput, secondInput]);
+  const loadMediabunny = vi.fn(async () => mockMediabunny.module);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: loadMediabunny,
+    sources: [
+      { sourceId: 'source-1', input: 'https://media.example/one.mp4' },
+      { sourceId: 'source-2', input: 'https://media.example/two.mp4' },
+    ],
+  });
+
+  expect(loadMediabunny).not.toHaveBeenCalled();
+  expect([...adapter.sourceStateById.values()].map((state) => state.status)).toEqual([
+    'idle',
+    'idle',
+  ]);
+
+  await expect(adapter.preloadSource('source-1')).resolves.toMatchObject({
+    ok: true,
+    state: 'ready',
+  });
+  expect(loadMediabunny).toHaveBeenCalledTimes(1);
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('ready');
+  expect(adapter.sourceStateById.get('source-2')?.status).toBe('idle');
+  const sourceSnapshot = adapter.sourceStateById;
+  adapter.setSources([
+    { sourceId: 'source-1', input: 'https://media.example/one.mp4' },
+    { sourceId: 'source-2', input: 'https://media.example/two.mp4' },
+  ]);
+  expect(adapter.sourceStateById).toBe(sourceSnapshot);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(false);
+
+  const secondClip = createActiveClip('visual', 'source-2', 0);
+  await adapter.seek(fromSeconds(0), createActiveLayers([secondClip], 0));
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(true);
+
+  expect(adapter.unloadSource('source-1')).toBe(true);
+  expect(firstInput.dispose).toHaveBeenCalled();
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('idle');
+  expect(adapter.unloadSource('source-2')).toBe(true);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(false);
+  expect(adapter.unloadSource('missing')).toBe(false);
+});
+
 test('createMediabunnyAdapter loads concise browser inputs and advanced descriptors', async () => {
   const blob = new Blob(['sample']);
   const file = new File(['sample'], 'sample.mp4', { type: 'video/mp4' });
@@ -475,7 +519,7 @@ test('createMediabunnyAdapter selects input fallbacks and surfaces load failures
 
   await waitForAdapterLoad(failingAdapter);
 
-  expect(failingAdapter.ready).toBe(false);
+  expect(failingAdapter.ready).toBe(true);
   expect(failingAdapter.error?.message).toBe(
     'No audio or video track found for source "empty-source".'
   );
@@ -489,7 +533,7 @@ test('createMediabunnyAdapter selects input fallbacks and surfaces load failures
 
   await waitForAdapterLoad(emptyAdapter);
   expect(emptyAdapter.ready).toBe(false);
-  expect(emptyAdapter.status).toBe('No Mediabunny source could be loaded.');
+  expect(emptyAdapter.status).toBe('No Mediabunny sources are configured.');
 });
 
 test('createMediabunnyAdapter replaces an app-resolved proxy and maps its timestamps', async () => {
@@ -552,12 +596,14 @@ test('createMediabunnyAdapter ignores async load completion after disposal', asy
     ],
   });
 
+  const preloadPromise = adapter.preloadSource('slow-source');
   adapter.dispose();
   resolveInput(createMockInput() as unknown as RealMediabunny.Input);
+  await preloadPromise;
   await new Promise((resolve) => window.setTimeout(resolve, 0));
 
   expect(adapter.ready).toBe(false);
-  expect(adapter.status).toBe('Loading Mediabunny sources...');
+  expect(adapter.status).toBe('Mediabunny adapter disposed.');
   expect(adapter.sourceStateById.size).toBe(0);
 });
 
@@ -754,6 +800,8 @@ test('createMediabunnyAdapter exposes frame, clock, resume, and status contracts
 
   await waitForAdapterLoad(adapter);
 
+  await adapter.seek(fromSeconds(2), createActiveLayers([visualClip], 2));
+
   expect(adapter.startClock(fromSeconds(2), 2)).toBe(true);
   expect(adapter.getClockTime()).toBeCloseTo(2, 1);
   adapter.requestClockActivation(2);
@@ -818,6 +866,7 @@ test('createMediabunnyAdapter handles null decoded frames and late audio schedul
 
   await waitForAdapterLoad(adapter);
   await expect(adapter.getFrame(visualClip)).resolves.toBeNull();
+  await adapter.seek(fromSeconds(1), createActiveLayers([visualClip, audioClip], 1));
   adapter.startClock(fromSeconds(1), 1);
   audioContext.currentTime = 30;
   adapter.syncAudio(audioClip, fromSeconds(1), 'play');
@@ -947,6 +996,10 @@ test('createMediabunnyAdapter reports pending audio activation without blocking 
   });
 
   await waitForAdapterLoad(adapter);
+  await adapter.seek(
+    fromSeconds(0),
+    createActiveLayers([createActiveClip('audio', 'source-1', 0)], 0)
+  );
   adapter.requestClockActivation(1);
   expect(adapter.startClock(fromSeconds(0), 1)).toBe(true);
   await vi.advanceTimersByTimeAsync(25);

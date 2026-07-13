@@ -39,6 +39,10 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./react": {
+      "types": "./dist/react.d.mts",
+      "import": "./dist/react.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -52,14 +56,22 @@
   },
   "dependencies": {
     "@techsquidtv/canvas-timeline-core": "workspace:*",
-    "@techsquidtv/canvas-timeline-react": "workspace:*",
     "@techsquidtv/canvas-timeline-utils": "workspace:*"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
+    "react": "^19.2.7"
+  },
+  "peerDependenciesMeta": {
+    "@techsquidtv/canvas-timeline-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   }

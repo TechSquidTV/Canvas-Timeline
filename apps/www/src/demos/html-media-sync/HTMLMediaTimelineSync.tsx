@@ -5,7 +5,7 @@ import {
   useTimeline,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -81,13 +81,13 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
     ref: videoRef,
     sources,
     layers: previewLayerSelectors,
-    onError: (message) => {
+    onError: (error) => {
       metrics?.onMediaLoadFailed?.({
         demoId: 'html-media-sync',
         adapter: 'html-media',
         mediaType: 'video',
       });
-      setPlaybackError(message);
+      setPlaybackError(error.message);
     },
   });
 

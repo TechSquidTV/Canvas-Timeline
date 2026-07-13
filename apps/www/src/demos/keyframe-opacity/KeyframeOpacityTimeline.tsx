@@ -12,7 +12,7 @@ import {
   useTimelineKeyframes,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Diamond, Plus, Trash2 } from 'lucide-react';
@@ -251,13 +251,13 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
     ref: videoRef,
     sources,
     layers: previewLayerSelectors,
-    onError: (message: string) => {
+    onError: (error) => {
       metrics?.onMediaLoadFailed?.({
         demoId: 'keyframe-opacity',
         adapter: 'html-media',
         mediaType: 'video',
       });
-      setPlaybackError(message);
+      setPlaybackError(error.message);
     },
   });
 

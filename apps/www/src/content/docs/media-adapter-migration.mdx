@@ -13,6 +13,15 @@ convention, adapter-owned original/proxy selection, `durationBySourceId`, and
 blocking `resumeClock()` contract have been removed. There are no compatibility
 aliases.
 
+Media contracts such as `TimelineMediaSyncAdapter`, `TimelineMediaSourceTiming`,
+and `TimelineMediaError` now come from the framework-free core package. HTML
+React hooks moved to the adapter's `./react` export, matching the Mediabunny
+package boundary.
+
+```tsx
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+```
+
 The common case stays concise: `{ sourceId, input }`. Use `fallbacks` only for
 equivalent transport or cache alternatives. Keep original, proxy, preview, and
 export policy in the application's media library.
@@ -44,6 +53,11 @@ ordered attempts. Use `media.adapter.retrySource(sourceId)` to retry inputs or
 recreating the adapter. Both commands return an explicit `configured` or
 `ready` success state instead of a boolean.
 
+React hooks reconcile sources by value, so an inline array of ordinary URL
+descriptors no longer disposes and recreates the adapter on every render. Keep
+input factories, track selectors, custom URL option objects, and other callback
+configuration stable because their identity represents executable policy.
+
 ## Migrate Mediabunny sources
 
 Pass a normal URL string, `URL`, `Request`, `Blob`, or `File` directly as
@@ -74,6 +88,12 @@ const sources = [
 Use `selectTracks` when primary tracks are not the desired video or audio
 tracks. Source state now includes detected timing, dimensions, frame rate, and
 audio metadata alongside input-attempt diagnostics.
+
+Mediabunny sources are registered immediately and loaded only when their clips
+become active. `ready` therefore means the adapter can resolve configured media;
+it does not mean every project asset has been opened. Use
+`preloadSource(sourceId)` for likely next clips and `unloadSource(sourceId)` to
+release decoder resources while keeping the definition registered.
 
 ## Model editing proxies in the media library
 
@@ -131,3 +151,18 @@ operation reloads sources.
 Caller-supplied `AudioContext` instances remain caller-owned. The Mediabunny
 adapter closes only contexts it creates, and it does not create an audio graph
 for sources without a decodable audio track.
+
+Error handlers now receive `TimelineMediaError` with a stable `reason` and a
+human-readable `message`:
+
+```tsx
+useMediabunnyTimelineMedia({
+  sources,
+  layers,
+  onError: (error) => reportPreviewFailure(error.reason, error.message),
+});
+```
+
+At the low-level `useTimelineMediaPlayback` boundary, provide `loop` as the
+clock-realignment callback. Its presence enables looping, so an external clock
+cannot be configured to loop without a way to seek back to the range start.

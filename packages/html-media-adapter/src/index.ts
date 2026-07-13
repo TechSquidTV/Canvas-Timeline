@@ -1,49 +1,21 @@
-import type { ActiveClip } from '@techsquidtv/canvas-timeline-core';
+import type {
+  ActiveClip,
+  TimelineMediaSource,
+  TimelineMediaSourceAttempt,
+  TimelineMediaSourceOperationResult,
+  TimelineMediaSourceStatus,
+  TimelineMediaSourceTiming,
+  TimelineMediaSyncAdapter,
+} from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useEffect, useMemo, useReducer, useState, type RefObject } from 'react';
-import {
-  useTimelineMediaSync,
-  type TimelineMediaSyncAdapter,
-  type TimelineMediaSourceOperationResult,
-  type TimelineMediaSourceStatus,
-  type UseTimelineMediaSyncOptions,
-  type UseTimelineMediaSyncResult,
-} from '@techsquidtv/canvas-timeline-react';
 
 /**
  * Source value that can be loaded into a native HTML media element.
  */
-export type HTMLMediaAdapterSource = string | Blob | File;
-
-/** Maps a logical source timestamp to the corresponding resolved media timestamp. */
-export interface HTMLMediaSourceTiming {
-  /** Timestamp in the logical source time domain. */
-  sourceTimeSeconds: number;
-  /** Equivalent timestamp in the resolved media's time domain. */
-  mediaTimeSeconds: number;
-}
+export type HTMLMediaSourceInput = string | Blob | File;
 
 /** One resolved media choice for a logical timeline source. */
-export interface HTMLMediaSource {
-  /** Identifier matching timeline clip `sourceId` values. */
-  sourceId: string;
-  /** Preferred URL, blob, or file for the resolved media. */
-  input: HTMLMediaAdapterSource;
-  /** Equivalent inputs attempted only when the preferred input fails. */
-  fallbacks?: readonly HTMLMediaAdapterSource[];
-  /** Optional mapping when media timestamps differ from logical source timestamps. */
-  timing?: HTMLMediaSourceTiming;
-}
-
-/** One native input attempt for an HTML media source. */
-export interface HTMLMediaSourceAttempt {
-  /** Preferred/fallback input index. */
-  inputIndex: number;
-  /** Whether native metadata loaded or the input failed. */
-  status: 'ready' | 'failed';
-  /** Native media error for a failed input. */
-  error: Error | null;
-}
+export type HTMLMediaSource = TimelineMediaSource<HTMLMediaSourceInput>;
 
 /** Observable lifecycle and input state for one HTML media source. */
 export interface HTMLMediaSourceState {
@@ -54,7 +26,7 @@ export interface HTMLMediaSourceState {
   /** Selected preferred/fallback input index, or `null` after all inputs fail. */
   selectedInputIndex: number | null;
   /** Ordered native input attempts for the current source definition. */
-  attempts: readonly HTMLMediaSourceAttempt[];
+  attempts: readonly TimelineMediaSourceAttempt[];
   /** Terminal source error when loading fails. */
   error: Error | null;
 }
@@ -71,13 +43,15 @@ export interface HTMLMediaSourceState {
  * frame-accurate decoded adapter.
  *
  * @see {@link createHTMLMediaAdapter}
- * @see {@link useHTMLTimelineMedia}
+ * @see {@link https://canvastimeline.com/packages/html-media-adapter | HTML media adapter guide}
  */
 export interface HTMLMediaAdapter extends TimelineMediaSyncAdapter {
   /** Immutable source snapshot replaced whenever observable lifecycle state changes. */
   readonly sourceStateById: ReadonlyMap<string, HTMLMediaSourceState>;
   readonly volume: number;
   readonly muted: boolean;
+  /** Reconcile the complete logical source registry without recreating the adapter. */
+  setSources: (sources: readonly HTMLMediaSource[]) => void;
   setVolume: (volume: number) => void;
   setMuted: (muted: boolean) => void;
   /** Retry one source from its preferred input and report that native loading was configured. */
@@ -106,108 +80,16 @@ export interface CreateHTMLMediaAdapterOptions {
 }
 
 /**
- * Options for creating an HTML media adapter from a React ref.
- *
- * @template TMediaElement - Native element type held by the ref, such as
- * `HTMLVideoElement` or `HTMLAudioElement`.
- */
-export interface UseHTMLMediaAdapterOptions<
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
-> {
-  /** Ref containing the media element once React has mounted it. */
-  ref: RefObject<TMediaElement | null>;
-  /** Resolved media sources and equivalent transport fallbacks. */
-  sources: readonly HTMLMediaSource[];
-}
-
-/**
- * React hook result for native HTML media timeline synchronization.
- */
-export interface UseHTMLMediaAdapterResult {
-  /** Whether the media element ref has been connected. */
-  ready: boolean;
-  /** Adapter callbacks passed to `useTimelineMediaSync`. */
-  adapter: HTMLMediaAdapter;
-}
-
-/**
- * Options for wiring one native media element directly to timeline playback.
- *
- * @remarks
- *
- * This is the high-level React shape used by the HTML media sync demo. Provide
- * a media element ref, source map, and named layers. The hook creates an
- * {@link HTMLMediaAdapter}, passes it to {@link useTimelineMediaSync}, and
- * exposes transport commands suitable for toolbar buttons.
- *
- * @template LayerName - Named media layer keys inferred from `layers`, such as
- * `"visuals"` for a video-only preview.
- * @template TMediaElement - Native element type held by `ref`.
- *
- * @see {@link https://canvastimeline.com/demos/html-media-sync | HTML media sync demo}
- */
-export interface UseHTMLTimelineMediaOptions<
-  LayerName extends string = string,
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
->
-  extends
-    UseHTMLMediaAdapterOptions<TMediaElement>,
-    Pick<UseTimelineMediaSyncOptions<LayerName>, 'layers' | 'onError' | 'playbackOptions'> {}
-
-/**
- * Timeline transport state plus the underlying native media adapter.
- *
- * @template LayerName - Named media layer keys from
- * {@link UseHTMLTimelineMediaOptions.layers}.
- */
-export interface UseHTMLTimelineMediaResult<
-  LayerName extends string = string,
-> extends UseTimelineMediaSyncResult<LayerName> {
-  /** Whether the media element ref has been connected. */
-  ready: boolean;
-  /** Source lifecycle and input attempt state by source id. */
-  sourceStateById: HTMLMediaAdapter['sourceStateById'];
-  /** Low-level adapter used for custom synchronization flows. */
-  adapter: HTMLMediaAdapter;
-}
-
-const noopAdapter: HTMLMediaAdapter = {
-  sourceStateById: new Map(),
-  volume: 1,
-  muted: false,
-  getClockTime: () => 0,
-  startClock: () => false,
-  setVolume: () => {},
-  setMuted: () => {},
-  retrySource: (sourceId) =>
-    Promise.resolve({
-      ok: false,
-      sourceId,
-      reason: 'unknown-source',
-      error: new Error('HTML media is unavailable.'),
-    }),
-  replaceSource: (source) =>
-    Promise.resolve({
-      ok: false,
-      sourceId: source.sourceId,
-      reason: 'load-failed',
-      error: new Error('HTML media is unavailable.'),
-    }),
-  dispose: () => {},
-};
-
-/**
  * Create an adapter that maps active timeline clips to one HTMLMediaElement.
  *
  * @remarks
  *
  * Use the imperative adapter when your app owns the media element lifecycle but
  * wants Canvas Timeline to do clip-to-source time mapping. React apps normally
- * use {@link useHTMLMediaAdapter} or {@link useHTMLTimelineMedia} instead so
- * disposal follows component lifetime.
+ * use the optional React hooks instead so disposal follows component lifetime.
  *
  * @param options - Media element and source map used for timeline synchronization.
- * @returns Adapter callbacks compatible with {@link useTimelineMediaSync}.
+ * @returns Adapter callbacks compatible with Canvas Timeline media synchronization.
  *
  * @example
  * ```ts
@@ -496,6 +378,75 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       void playElement().catch(() => undefined);
     }
   };
+
+  const reconcileSources = (nextSources: readonly HTMLMediaSource[]) => {
+    validateHTMLMediaSources(nextSources);
+    const nextDefinitions = new Map(nextSources.map((source) => [source.sourceId, source]));
+    const changedSourceIds = new Set<string>();
+
+    for (const [sourceId, source] of sourceDefinitions) {
+      const nextSource = nextDefinitions.get(sourceId);
+      if (nextSource === undefined || !areHTMLMediaSourcesEqual(source, nextSource)) {
+        changedSourceIds.add(sourceId);
+      }
+    }
+    for (const sourceId of nextDefinitions.keys()) {
+      if (!sourceDefinitions.has(sourceId)) {
+        changedSourceIds.add(sourceId);
+      }
+    }
+    if (changedSourceIds.size === 0 && sourceDefinitions.size === nextDefinitions.size) {
+      return;
+    }
+
+    for (const sourceId of changedSourceIds) {
+      revokeSourceObjectUrls(sourceId);
+      selectedInputIndexBySourceId.delete(sourceId);
+    }
+
+    sourceDefinitions.clear();
+    for (const [sourceId, source] of nextDefinitions) {
+      sourceDefinitions.set(sourceId, source);
+    }
+
+    sourceStateSnapshot = new Map(
+      nextSources.map((source) => {
+        const previousState = sourceStateSnapshot.get(source.sourceId);
+        return [
+          source.sourceId,
+          previousState !== undefined && !changedSourceIds.has(source.sourceId)
+            ? previousState
+            : {
+                sourceId: source.sourceId,
+                status: 'idle' as const,
+                selectedInputIndex: null,
+                attempts: [],
+                error: null,
+              },
+        ];
+      })
+    );
+
+    const activeSourceId = activeClip?.clip.sourceId;
+    if (activeSourceId !== undefined && !nextDefinitions.has(activeSourceId)) {
+      activeClip = undefined;
+      shouldPlay = false;
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+    }
+    notify();
+
+    if (
+      activeClip !== undefined &&
+      activeSourceId !== undefined &&
+      changedSourceIds.has(activeSourceId)
+    ) {
+      selectedInputIndexBySourceId.set(activeSourceId, 0);
+      loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
+    }
+  };
+
   element.addEventListener('loadedmetadata', handleLoadedMetadata);
   element.addEventListener('error', handleElementError);
 
@@ -509,6 +460,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     get muted() {
       return element.muted;
     },
+    setSources: reconcileSources,
     getClockTime: () => {
       if (activeClip === undefined) {
         return timelineTimeAtStart;
@@ -585,19 +537,12 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
           error: sourceError instanceof Error ? sourceError : new Error(String(sourceError)),
         };
       }
-      revokeSourceObjectUrls(source.sourceId);
-      sourceDefinitions.set(source.sourceId, source);
-      selectedInputIndexBySourceId.set(source.sourceId, 0);
-      setSourceState({
-        sourceId: source.sourceId,
-        status: activeClip?.clip.sourceId === source.sourceId ? 'loading' : 'idle',
-        selectedInputIndex: activeClip?.clip.sourceId === source.sourceId ? 0 : null,
-        attempts: [],
-        error: null,
-      });
-      if (activeClip?.clip.sourceId === source.sourceId) {
-        loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
-      }
+      reconcileSources([
+        ...[...sourceDefinitions.values()].filter(
+          (existingSource) => existingSource.sourceId !== source.sourceId
+        ),
+        source,
+      ]);
       return { ok: true, sourceId: source.sourceId, state: 'configured' };
     },
     seek: (_timelineTime, activeLayers) => {
@@ -660,7 +605,7 @@ function validateHTMLMediaSources(sources: readonly HTMLMediaSource[]) {
   }
 }
 
-function validateHTMLMediaTiming(sourceId: string, timing: HTMLMediaSourceTiming | undefined) {
+function validateHTMLMediaTiming(sourceId: string, timing: TimelineMediaSourceTiming | undefined) {
   if (
     timing !== undefined &&
     (!Number.isFinite(timing.sourceTimeSeconds) || !Number.isFinite(timing.mediaTimeSeconds))
@@ -669,130 +614,15 @@ function validateHTMLMediaTiming(sourceId: string, timing: HTMLMediaSourceTiming
   }
 }
 
-/**
- * Create and dispose an HTML media element timeline adapter from a React ref.
- *
- * @remarks
- *
- * Use this lower-level hook when you want direct access to the
- * {@link HTMLMediaAdapter} but will wire playback through
- * {@link useTimelineMediaSync} yourself. For the common case where a single
- * element should drive timeline playback, use {@link useHTMLTimelineMedia}.
- *
- * @param options - React media element ref and source map for the adapter.
- * @template TMediaElement - Native element type held by `options.ref`.
- * @returns Adapter readiness and callbacks for the mounted media element.
- */
-export function useHTMLMediaAdapter<TMediaElement extends HTMLMediaElement = HTMLMediaElement>(
-  options: UseHTMLMediaAdapterOptions<TMediaElement>
-): UseHTMLMediaAdapterResult {
-  const { ref, sources } = options;
-  const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
-  const [element, setElement] = useState<HTMLMediaElement | null>(null);
-
-  useEffect(() => {
-    setElement(ref.current);
-  }, [ref]);
-
-  const adapter = useMemo(() => {
-    if (element === null) {
-      return noopAdapter;
-    }
-
-    return createHTMLMediaAdapter({
-      element,
-      sources,
-      onChange: forceUpdate,
-    });
-  }, [element, sources]);
-
-  useEffect(() => adapter.dispose, [adapter]);
-
-  return useMemo(
-    () => ({
-      ready: element !== null,
-      adapter,
-    }),
-    [adapter, element]
-  );
-}
-
-/**
- * Create a native media adapter and bind it to timeline-synchronized playback.
- *
- * @remarks
- *
- * This hook is the simplest route for browser-native video or audio previews:
- * create a stable `sources` array, name the active layers you want to sync, and
- * render standard transport buttons from the returned commands. It is best for
- * straightforward media previews; use the Mediabunny adapter when you need
- * decoded canvas frames, audio scheduling, or richer source inspection.
- *
- * @param options - Media element ref, source map, active layers, and optional error callback.
- * @template LayerName - Named media layer keys inferred from `options.layers`.
- * @template TMediaElement - Native element type held by `options.ref`.
- * @returns Timeline transport state, readiness, active layers, and the underlying adapter.
- *
- * @example
- * ```tsx
- * import { useMemo, useRef } from 'react';
- * import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
- *
- * const previewLayers = {
- *   visuals: { trackKind: 'visual', sourceId: 'sample-video' },
- * } as const;
- *
- * export function NativeVideoPreview() {
- *   const ref = useRef<HTMLVideoElement>(null);
- *   const sources = useMemo(() => [{
- *     sourceId: 'sample-video',
- *     input: '/media/sample.mp4',
- *   }], []);
- *   const media = useHTMLTimelineMedia({
- *     ref,
- *     sources,
- *     layers: previewLayers,
- *     onError: console.error,
- *   });
- *
- *   return (
- *     <>
- *       <video ref={ref} muted playsInline />
- *       <button type="button" disabled={!media.ready} onClick={() => void media.play()}>
- *         {media.playing ? 'Playing' : 'Play'}
- *       </button>
- *     </>
- *   );
- * }
- * ```
- *
- * @see {@link useTimelineMediaSync}
- * @see {@link https://canvastimeline.com/demos/html-media-sync | HTML media sync demo}
- */
-export function useHTMLTimelineMedia<
-  LayerName extends string = string,
-  TMediaElement extends HTMLMediaElement = HTMLMediaElement,
->(
-  options: UseHTMLTimelineMediaOptions<LayerName, TMediaElement>
-): UseHTMLTimelineMediaResult<LayerName> {
-  const { layers, onError, playbackOptions, ref, sources } = options;
-  const htmlMedia = useHTMLMediaAdapter({ ref, sources });
-  const mediaSync = useTimelineMediaSync<LayerName>({
-    ready: htmlMedia.ready,
-    layers,
-    playbackOptions,
-    adapter: htmlMedia.adapter,
-    onError,
-  });
-  const sourceStateById = htmlMedia.adapter.sourceStateById;
-
-  return useMemo(
-    () => ({
-      ...mediaSync,
-      ready: htmlMedia.ready,
-      sourceStateById,
-      adapter: htmlMedia.adapter,
-    }),
-    [htmlMedia.adapter, htmlMedia.ready, mediaSync, sourceStateById]
+function areHTMLMediaSourcesEqual(left: HTMLMediaSource, right: HTMLMediaSource) {
+  const leftFallbacks = left.fallbacks ?? [];
+  const rightFallbacks = right.fallbacks ?? [];
+  return (
+    left.sourceId === right.sourceId &&
+    left.input === right.input &&
+    leftFallbacks.length === rightFallbacks.length &&
+    leftFallbacks.every((input, index) => input === rightFallbacks[index]) &&
+    left.timing?.sourceTimeSeconds === right.timing?.sourceTimeSeconds &&
+    left.timing?.mediaTimeSeconds === right.timing?.mediaTimeSeconds
   );
 }

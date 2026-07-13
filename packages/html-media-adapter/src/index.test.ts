@@ -4,11 +4,8 @@ import React from 'react';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
-import {
-  createHTMLMediaAdapter,
-  useHTMLMediaAdapter,
-  useHTMLTimelineMedia,
-} from '#html-media-adapter/index';
+import { createHTMLMediaAdapter } from '#html-media-adapter/index';
+import { useHTMLMediaAdapter, useHTMLTimelineMedia } from '#html-media-adapter/react';
 
 function htmlSources(source: string | Blob | File = '/sample.mp4') {
   return [
@@ -443,6 +440,28 @@ test('useHTMLTimelineMedia creates an adapter and exposes synchronized transport
     expect(result.current.pause()).toEqual({ ok: true });
   });
   expect(pause).toHaveBeenCalled();
+});
+
+test('useHTMLMediaAdapter preserves adapter identity for inline-equivalent sources', async () => {
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const ref = { current: element };
+  const { result, rerender } = renderHook(
+    ({ renderCount }: { renderCount: number }) => {
+      expect(renderCount).toBeGreaterThan(0);
+      return useHTMLMediaAdapter({
+        ref,
+        sources: [{ sourceId: 'source-1', input: '/sample.mp4' }],
+      });
+    },
+    { initialProps: { renderCount: 1 } }
+  );
+
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  const adapter = result.current.adapter;
+  rerender({ renderCount: 2 });
+
+  expect(result.current.adapter).toBe(adapter);
 });
 
 test('createHTMLMediaAdapter advances input fallbacks and exposes media controls', async () => {
