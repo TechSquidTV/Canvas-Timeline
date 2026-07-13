@@ -132,6 +132,45 @@ test('createHTMLMediaAdapter normalizes relative sources without reassigning mat
   expect(srcAssignments).toBe(1);
 });
 
+test('createHTMLMediaAdapter initializes every configured source as idle', () => {
+  const element = document.createElement('video');
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      { sourceId: 'source-1', input: '/first.mp4' },
+      { sourceId: 'source-2', input: '/second.mp4' },
+    ],
+  });
+
+  expect([...adapter.sourceStateById.values()]).toEqual([
+    {
+      sourceId: 'source-1',
+      status: 'idle',
+      selectedInputIndex: null,
+      attempts: [],
+      error: null,
+    },
+    {
+      sourceId: 'source-2',
+      status: 'idle',
+      selectedInputIndex: null,
+      attempts: [],
+      error: null,
+    },
+  ]);
+});
+
+test('createHTMLMediaAdapter rejects an empty source ID', () => {
+  const element = document.createElement('video');
+
+  expect(() =>
+    createHTMLMediaAdapter({
+      element,
+      sources: [{ sourceId: '', input: '/sample.mp4' }],
+    })
+  ).toThrow('HTML media sourceId cannot be empty.');
+});
+
 test('createHTMLMediaAdapter disposes object URLs for blob sources', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');
@@ -474,6 +513,59 @@ test('createHTMLMediaAdapter retries failed sources from their preferred input',
   });
   element.dispatchEvent(new Event('loadedmetadata'));
   expect(adapter.sourceStateById.get('source-1')?.status).toBe('ready');
+});
+
+test('createHTMLMediaAdapter resets inactive source diagnostics when retrying', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/primary.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+
+  await adapter.seek?.(
+    fromSeconds(1),
+    engine.getActiveLayers({
+      time: fromSeconds(1),
+      layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+    })
+  );
+  element.dispatchEvent(new Event('error'));
+  element.dispatchEvent(new Event('error'));
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'failed',
+    selectedInputIndex: null,
+  });
+  expect(adapter.sourceStateById.get('source-1')?.attempts).toHaveLength(2);
+
+  await adapter.seek?.(
+    fromSeconds(8),
+    engine.getActiveLayers({
+      time: fromSeconds(8),
+      layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+    })
+  );
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('idle');
+
+  await expect(adapter.retrySource('source-1')).resolves.toEqual({
+    ok: true,
+    sourceId: 'source-1',
+    state: 'configured',
+  });
+  expect(adapter.sourceStateById.get('source-1')).toEqual({
+    sourceId: 'source-1',
+    status: 'idle',
+    selectedInputIndex: null,
+    attempts: [],
+    error: null,
+  });
 });
 
 test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', async () => {
