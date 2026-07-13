@@ -76,7 +76,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
     },
   });
   const lastFrameTime = useMediabunnyFrameTime(media.adapter);
-  const { ready, status, durationBySourceId, playing, playbackRate, play, pause, setPlaybackRate } =
+  const { ready, status, sourceStateById, playing, playbackRate, play, pause, setPlaybackRate } =
     media;
 
   useEffect(() => {
@@ -112,7 +112,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       }
     }
   }, [metrics, pause, play, playing]);
-  const mediaDuration = durationBySourceId.get(sampleSourceId) ?? null;
+  const mediaDuration = sourceStateById.get(sampleSourceId)?.metadata?.durationSeconds ?? null;
 
   return (
     <div className="media-sync-demo">

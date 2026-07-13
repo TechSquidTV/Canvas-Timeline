@@ -5,7 +5,10 @@ import { getDemoClipColor } from '#www/demos/demo-clip-colors';
 export const sampleSourceId = 'big-buck-bunny-preview';
 
 const sampleMediaUrl = '/demo-media/big-buck-bunny-preview.webm';
-export const sampleMediaSource = { id: sampleSourceId, url: sampleMediaUrl } as const;
+export const sampleMediaSource = {
+  sourceId: sampleSourceId,
+  input: { kind: 'url', url: sampleMediaUrl },
+} as const;
 export const sampleDurationSeconds = 66.06;
 
 export const demoTracks: Track<'visual' | 'audio'>[] = [

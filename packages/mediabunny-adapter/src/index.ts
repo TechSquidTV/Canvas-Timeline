@@ -21,11 +21,128 @@ export type MediabunnyModule = typeof Mediabunny;
 /**
  * Media asset descriptor that tells the adapter how to open a timeline source.
  */
-export type MediabunnySource =
-  | { id: string; url: string }
-  | { id: string; blob: Blob | File }
-  | { id: string; input: Mediabunny.Input }
-  | { id: string; createInput: (mediabunny: MediabunnyModule) => MaybePromise<Mediabunny.Input> };
+export type MediabunnySourceInput =
+  | {
+      kind: 'url';
+      url: string | URL | Request;
+      formats?: readonly Mediabunny.InputFormat[];
+      urlSourceOptions?: Mediabunny.UrlSourceOptions;
+    }
+  | { kind: 'blob'; blob: Blob | File }
+  | { kind: 'input'; input: Mediabunny.Input }
+  | {
+      kind: 'input-factory';
+      createInput: (mediabunny: MediabunnyModule) => MaybePromise<Mediabunny.Input>;
+    };
+
+/** Maps a logical source timestamp to the corresponding representation timestamp. */
+export interface MediabunnyRepresentationTiming {
+  sourceTimeSeconds: number;
+  mediaTimeSeconds: number;
+}
+
+/** A deliberately selectable editing proxy for one logical source. */
+export interface MediabunnyProxy {
+  proxyId: string;
+  input: MediabunnySourceInput;
+  fallbacks?: readonly MediabunnySourceInput[];
+  timing?: MediabunnyRepresentationTiming;
+}
+
+/** Original or proxy representation selected for a logical source. */
+export type MediabunnyRepresentationSelection =
+  | { kind: 'original' }
+  | { kind: 'proxy'; proxyId: string };
+
+/** One logical source with an original input and optional editing proxies. */
+export interface MediabunnySource {
+  sourceId: string;
+  input: MediabunnySourceInput;
+  fallbacks?: readonly MediabunnySourceInput[];
+  proxies?: readonly MediabunnyProxy[];
+  timing?: MediabunnyRepresentationTiming;
+}
+
+/** Tracks selected from a loaded source representation input. */
+export interface MediabunnyTrackSelection {
+  videoTrack: Mediabunny.InputVideoTrack | null;
+  audioTrack: Mediabunny.InputAudioTrack | null;
+}
+
+/** Context passed to custom media-track selection. */
+export interface MediabunnyTrackSelectionContext {
+  source: MediabunnySource;
+  representation: MediabunnyRepresentationSelection;
+  sourceInput: MediabunnySourceInput;
+  input: Mediabunny.Input;
+  videoTracks: readonly Mediabunny.InputVideoTrack[];
+  audioTracks: readonly Mediabunny.InputAudioTrack[];
+}
+
+/** Video metadata for the selected source track. */
+export interface MediabunnyVideoMetadata {
+  displayWidth: number;
+  displayHeight: number;
+  rotation: Mediabunny.Rotation;
+  detectedFrameRate: number | null;
+}
+
+/** Audio metadata for the selected source track. */
+export interface MediabunnyAudioMetadata {
+  sampleRate: number;
+}
+
+/** Timing and selected-track metadata for a loaded source. */
+export interface MediabunnySourceMetadata {
+  /** First timestamp in the selected representation's media time domain. */
+  firstTimestampSeconds: number;
+  /** First timestamp mapped into the logical source time domain. */
+  sourceFirstTimestampSeconds: number;
+  presentationStartTimestampSeconds: number;
+  /** End timestamp mapped into the logical source time domain. */
+  sourceEndTimestampSeconds: number;
+  endTimestampSeconds: number;
+  durationSeconds: number;
+  video: MediabunnyVideoMetadata | null;
+  audio: MediabunnyAudioMetadata | null;
+}
+
+/** One input attempt within the selected source representation. */
+export interface MediabunnySourceAttempt {
+  representation: MediabunnyRepresentationSelection;
+  inputIndex: number;
+  status: 'ready' | 'failed';
+  error: Error | null;
+}
+
+/** Observable loading and recovery state for a logical source. */
+export interface MediabunnySourceState {
+  sourceId: string;
+  status: 'loading' | 'ready' | 'recovering' | 'failed';
+  selectedRepresentation: MediabunnyRepresentationSelection;
+  selectedInputIndex: number | null;
+  attempts: readonly MediabunnySourceAttempt[];
+  metadata: MediabunnySourceMetadata | null;
+  error: Error | null;
+}
+
+/** Result of explicitly loading or replacing one logical source. */
+export type MediabunnySourceLoadResult =
+  | {
+      ok: true;
+      sourceId: string;
+      representation: MediabunnyRepresentationSelection;
+      inputIndex: number;
+      metadata: MediabunnySourceMetadata;
+    }
+  | { ok: false; sourceId: string; error: Error };
+
+/** Current availability of the adapter's optional Web Audio graph. */
+export type MediabunnyAudioStatus =
+  | { state: 'unavailable' }
+  | { state: 'suspended' }
+  | { state: 'running' }
+  | { state: 'degraded'; error: Error | null };
 
 /**
  * Web Audio options used when Mediabunny drives timeline audio playback.
@@ -37,6 +154,10 @@ export interface MediabunnyTimelineAudioOptions {
   destination?: AudioNode;
   /** Gain applied to scheduled audio, from 0 to 1. */
   volume?: number;
+  /** Initial mute state. */
+  muted?: boolean;
+  /** Delay before a pending browser activation is reported as degraded. */
+  activationTimeoutMs?: number;
 }
 
 /**
@@ -55,6 +176,12 @@ export interface CreateMediabunnyAdapterOptions {
   visualTrackKinds?: readonly string[];
   /** Track kinds the adapter should treat as audio scheduling sources. Defaults to `["audio"]`. */
   audioTrackKinds?: readonly string[];
+  /** Select the initial representation for each source. Defaults to original. */
+  selectRepresentation?: (source: MediabunnySource) => MediabunnyRepresentationSelection;
+  /** Selects the video/audio tracks used by each source input. */
+  selectTracks?: (
+    context: MediabunnyTrackSelectionContext
+  ) => MaybePromise<MediabunnyTrackSelection>;
   /** Callback fired when adapter status, readiness, or frame state changes. */
   onChange?: () => void;
 }
@@ -81,8 +208,11 @@ export interface MediabunnyAdapter {
   readonly error: Error | null;
   /** Timestamp of the last rendered video frame, in seconds. */
   readonly lastFrameTime: number | null;
-  /** Loaded media duration by source id, in seconds. */
-  readonly durationBySourceId: ReadonlyMap<string, number>;
+  /** Loading, selected representation, input attempts, metadata, and recovery by source id. */
+  readonly sourceStateById: ReadonlyMap<string, MediabunnySourceState>;
+  readonly volume: number;
+  readonly muted: boolean;
+  readonly audioStatus: MediabunnyAudioStatus;
   /** React timeline media sync adapter backed by Mediabunny clocks and sinks. */
   readonly syncAdapter: TimelineMediaSyncAdapter<string>;
   /** Subscribe to decoded preview frame timestamp changes. */
@@ -95,8 +225,21 @@ export interface MediabunnyAdapter {
   startClock: (timelineTime: RationalTime, playbackRate: number) => boolean;
   /** Stop Mediabunny-driven playback without disposing loaded sources. */
   stopClock: () => void;
-  /** Resume a suspended audio context and keep the current clock aligned. */
-  resumeClock: (playbackRate: number) => Promise<void>;
+  /** Request browser audio activation without blocking visual transport. */
+  requestClockActivation: (playbackRate: number) => void;
+  /** Update master output volume without reloading sources. */
+  setVolume: (volume: number) => void;
+  /** Update master mute state without reloading sources. */
+  setMuted: (muted: boolean) => void;
+  /** Select and load an original or proxy representation. */
+  setRepresentation: (
+    sourceId: string,
+    representation: MediabunnyRepresentationSelection
+  ) => Promise<MediabunnySourceLoadResult>;
+  /** Retry the configured inputs for the selected representation of one source. */
+  retrySource: (sourceId: string) => Promise<MediabunnySourceLoadResult>;
+  /** Replace one logical source and load its selected representation. */
+  replaceSource: (source: MediabunnySource) => Promise<MediabunnySourceLoadResult>;
   /** Update the active playback rate while preserving timeline position. */
   setClockRate: (playbackRate: number) => void;
   /** Seek decoded media to the active clips for a timeline time. */
@@ -123,6 +266,9 @@ interface MediabunnySourceController {
   sourceId: string;
   input: Mediabunny.Input | null;
   ownsInput: boolean;
+  representation: MediabunnyRepresentationSelection;
+  inputIndex: number;
+  mediaTimeOffsetSeconds: number;
   videoSink: Mediabunny.CanvasSink | null;
   audioSink: Mediabunny.AudioBufferSink | null;
   audioContext: AudioContext | null;
@@ -160,7 +306,13 @@ interface PendingFrameRequest {
 }
 
 interface LoadedMediaInfo {
-  duration: number;
+  metadata: MediabunnySourceMetadata;
+}
+
+interface MediabunnyResolvedRepresentation {
+  selection: MediabunnyRepresentationSelection;
+  inputs: readonly MediabunnySourceInput[];
+  timing: MediabunnyRepresentationTiming | undefined;
 }
 
 /**
@@ -176,6 +328,80 @@ export function formatMediabunnyTime(seconds: number): string {
   return `${seconds.toFixed(2)}s`;
 }
 
+function validateSources(sources: readonly MediabunnySource[]) {
+  const sourceIds = new Set<string>();
+  for (const source of sources) {
+    if (source.sourceId.length === 0) {
+      throw new Error('Mediabunny sourceId cannot be empty.');
+    }
+    if (sourceIds.has(source.sourceId)) {
+      throw new Error(`Duplicate Mediabunny sourceId "${source.sourceId}".`);
+    }
+    sourceIds.add(source.sourceId);
+    validateMediabunnyTiming(source.sourceId, 'original', source.timing);
+    const proxyIds = new Set<string>();
+    for (const proxy of source.proxies ?? []) {
+      if (proxy.proxyId.length === 0) {
+        throw new Error(`Source "${source.sourceId}" has an empty proxyId.`);
+      }
+      if (proxyIds.has(proxy.proxyId)) {
+        throw new Error(`Source "${source.sourceId}" has duplicate proxyId "${proxy.proxyId}".`);
+      }
+      proxyIds.add(proxy.proxyId);
+      validateMediabunnyTiming(source.sourceId, `proxy "${proxy.proxyId}"`, proxy.timing);
+    }
+  }
+}
+
+function validateMediabunnyTiming(
+  sourceId: string,
+  representation: string,
+  timing: MediabunnyRepresentationTiming | undefined
+) {
+  if (
+    timing !== undefined &&
+    (!Number.isFinite(timing.sourceTimeSeconds) || !Number.isFinite(timing.mediaTimeSeconds))
+  ) {
+    throw new Error(`Source "${sourceId}" ${representation} timing values must be finite.`);
+  }
+}
+
+function resolveMediabunnyRepresentation(
+  source: MediabunnySource,
+  selection: MediabunnyRepresentationSelection
+): MediabunnyResolvedRepresentation | undefined {
+  if (selection.kind === 'original') {
+    return {
+      selection,
+      inputs: [source.input, ...(source.fallbacks ?? [])],
+      timing: source.timing,
+    };
+  }
+
+  const proxy = source.proxies?.find((candidate) => candidate.proxyId === selection.proxyId);
+  if (proxy === undefined) {
+    return undefined;
+  }
+
+  return {
+    selection,
+    inputs: [proxy.input, ...(proxy.fallbacks ?? [])],
+    timing: proxy.timing,
+  };
+}
+
+function assertMediabunnyRepresentation(
+  source: MediabunnySource,
+  selection: MediabunnyRepresentationSelection
+) {
+  if (resolveMediabunnyRepresentation(source, selection) === undefined) {
+    const representationId = selection.kind === 'proxy' ? selection.proxyId : 'original';
+    throw new Error(
+      `Source "${source.sourceId}" does not define representation "${representationId}".`
+    );
+  }
+}
+
 /**
  * Create a Mediabunny adapter that drives Canvas Timeline media playback.
  *
@@ -184,6 +410,10 @@ export function formatMediabunnyTime(seconds: number): string {
 export function createMediabunnyAdapter(
   options: CreateMediabunnyAdapterOptions
 ): MediabunnyAdapter {
+  validateSources(options.sources);
+  if (options.audio?.destination !== undefined && options.audio.context === undefined) {
+    throw new Error('An audio context is required when an audio destination is provided.');
+  }
   let ready = false;
   let status = 'Loading Mediabunny sources...';
   let error: Error | null = null;
@@ -194,9 +424,30 @@ export function createMediabunnyAdapter(
   let lastFrameTime: number | null = null;
   const frameListeners = new Set<() => void>();
   const controllers = new Map<string, MediabunnySourceController>();
-  const durationBySourceId = new Map<string, number>();
+  const sourceDefinitions = new Map(options.sources.map((source) => [source.sourceId, source]));
+  const selectedRepresentationBySourceId = new Map<string, MediabunnyRepresentationSelection>();
+  const sourceStateById = new Map<string, MediabunnySourceState>();
+  const loadGenerations = new Map<string, number>();
+  const recoveringSources = new Set<string>();
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
+  const mediabunnyPromise = Promise.resolve(
+    typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny
+  );
+  let audioContext: AudioContext | null = options.audio?.context ?? null;
+  let ownsAudioContext = false;
+  let masterGainNode: GainNode | null = null;
+  let volume = options.audio?.volume ?? 0.7;
+  let muted = options.audio?.muted ?? false;
+  let audioStatus: MediabunnyAudioStatus = { state: 'unavailable' };
+  let activationGeneration = 0;
+  let activationTimer: number | null = null;
+
+  for (const source of options.sources) {
+    const selection = options.selectRepresentation?.(source) ?? { kind: 'original' };
+    assertMediabunnyRepresentation(source, selection);
+    selectedRepresentationBySourceId.set(source.sourceId, selection);
+  }
 
   const notify = () => {
     options.onChange?.();
@@ -222,6 +473,44 @@ export function createMediabunnyAdapter(
     error = nextError instanceof Error ? nextError : new Error(String(nextError));
     status = error.message;
     notify();
+  };
+
+  const setSourceState = (state: MediabunnySourceState) => {
+    sourceStateById.set(state.sourceId, state);
+    notify();
+  };
+
+  const updateMasterGain = () => {
+    if (masterGainNode !== null) {
+      masterGainNode.gain.value = muted ? 0 : volume;
+    }
+  };
+
+  const ensureAudioRuntime = () => {
+    if (masterGainNode !== null && audioContext !== null) {
+      return { context: audioContext, gainNode: masterGainNode };
+    }
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (AudioContextCtor === undefined) {
+      audioStatus = {
+        state: 'degraded',
+        error: new Error('This browser does not expose AudioContext.'),
+      };
+      notify();
+      return null;
+    }
+    if (audioContext === null) {
+      audioContext = new AudioContextCtor();
+      ownsAudioContext = true;
+    }
+    masterGainNode = audioContext.createGain();
+    updateMasterGain();
+    masterGainNode.connect(options.audio?.destination ?? audioContext.destination);
+    audioStatus = { state: audioContext.state === 'running' ? 'running' : 'suspended' };
+    notify();
+    return { context: audioContext, gainNode: masterGainNode };
   };
 
   const getController = (activeClip: ActiveClip | undefined) => {
@@ -259,10 +548,16 @@ export function createMediabunnyAdapter(
     }
 
     clockController = controller;
-    await renderActiveVideoFrame(controller, canvas, activeVideo, (timestamp) => {
-      controller.lastRenderedVideoTimestamp = timestamp;
-      setLastFrameTime(timestamp);
-    });
+    try {
+      await renderActiveVideoFrame(controller, canvas, activeVideo, (timestamp) => {
+        controller.lastRenderedVideoTimestamp = timestamp;
+        setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
+      });
+    } catch (renderError) {
+      const error = renderError instanceof Error ? renderError : new Error(String(renderError));
+      void recoverSource(controller.sourceId, controller, error);
+      throw error;
+    }
   };
 
   const syncAudio = (activeAudio: ActiveClip | undefined) => {
@@ -275,7 +570,9 @@ export function createMediabunnyAdapter(
     }
 
     clockController = controller;
-    syncAudioClip(controller, activeAudio);
+    syncAudioClip(controller, activeAudio, (audioError) => {
+      void recoverSource(controller.sourceId, controller, audioError);
+    });
   };
 
   const findActiveClipForKinds = (
@@ -301,6 +598,179 @@ export function createMediabunnyAdapter(
     return controller?.activeAudioSyncKey !== activeAudio.syncKey;
   };
 
+  const loadSource = async (
+    source: MediabunnySource,
+    selection: MediabunnyRepresentationSelection,
+    loadStatus: 'loading' | 'recovering',
+    startIndex = 0,
+    previousAttempts: readonly MediabunnySourceAttempt[] = []
+  ): Promise<MediabunnySourceLoadResult> => {
+    const representation = resolveMediabunnyRepresentation(source, selection);
+    if (representation === undefined) {
+      return {
+        ok: false,
+        sourceId: source.sourceId,
+        error: new Error(
+          `Source "${source.sourceId}" does not define the selected representation.`
+        ),
+      };
+    }
+    const generation = (loadGenerations.get(source.sourceId) ?? 0) + 1;
+    loadGenerations.set(source.sourceId, generation);
+    setSourceState({
+      sourceId: source.sourceId,
+      status: loadStatus,
+      selectedRepresentation: selection,
+      selectedInputIndex: null,
+      attempts: previousAttempts,
+      metadata: null,
+      error: null,
+    });
+
+    const mediabunny = await mediabunnyPromise;
+    const attempts = [...previousAttempts];
+    let finalError = new Error(
+      `No remaining inputs are available for source "${source.sourceId}".`
+    );
+
+    for (let inputIndex = startIndex; inputIndex < representation.inputs.length; inputIndex += 1) {
+      const sourceInput = representation.inputs[inputIndex];
+      if (sourceInput === undefined) {
+        continue;
+      }
+      const candidate = createController(
+        source.sourceId,
+        selection,
+        inputIndex,
+        representation.timing
+      );
+      try {
+        const loaded = await loadMediabunnySourceController(
+          candidate,
+          mediabunny,
+          source,
+          selection,
+          sourceInput,
+          options.selectTracks,
+          ensureAudioRuntime
+        );
+        if (disposed || loadGenerations.get(source.sourceId) !== generation) {
+          disposeController(candidate);
+          return {
+            ok: false,
+            sourceId: source.sourceId,
+            error: new Error(`Loading source "${source.sourceId}" was superseded.`),
+          };
+        }
+
+        attempts.push({ representation: selection, inputIndex, status: 'ready', error: null });
+        const previous = controllers.get(source.sourceId);
+        const wasPlaying = previous?.playing ?? false;
+        const timelineSeconds = previous === undefined ? 0 : getTimelinePlaybackSeconds(previous);
+        if (previous !== undefined) {
+          if (clockController === previous) {
+            clockController = candidate;
+          }
+          disposeController(previous);
+        }
+        controllers.set(source.sourceId, candidate);
+        selectedRepresentationBySourceId.set(source.sourceId, selection);
+        if (wasPlaying) {
+          setTimelineClock(candidate, timelineSeconds, currentPlaybackRate);
+        }
+        candidate.playing = wasPlaying;
+        ready = controllers.size > 0;
+        error = null;
+        status = 'Ready. Mediabunny can drive timeline video and audio.';
+        setSourceState({
+          sourceId: source.sourceId,
+          status: 'ready',
+          selectedRepresentation: selection,
+          selectedInputIndex: inputIndex,
+          attempts,
+          metadata: loaded.metadata,
+          error: null,
+        });
+        return {
+          ok: true,
+          sourceId: source.sourceId,
+          representation: selection,
+          inputIndex,
+          metadata: loaded.metadata,
+        };
+      } catch (sourceError) {
+        disposeController(candidate);
+        finalError = sourceError instanceof Error ? sourceError : new Error(String(sourceError));
+        attempts.push({
+          representation: selection,
+          inputIndex,
+          status: 'failed',
+          error: finalError,
+        });
+      }
+    }
+
+    const previous = controllers.get(source.sourceId);
+    if (loadStatus === 'recovering' && previous !== undefined) {
+      disposeController(previous);
+      controllers.delete(source.sourceId);
+    }
+    ready = controllers.size > 0;
+    setSourceState({
+      sourceId: source.sourceId,
+      status: 'failed',
+      selectedRepresentation: selection,
+      selectedInputIndex: null,
+      attempts,
+      metadata: null,
+      error: finalError,
+    });
+    return { ok: false, sourceId: source.sourceId, error: finalError };
+  };
+
+  const recoverSource = async (
+    sourceId: string,
+    expectedController: MediabunnySourceController,
+    recoveryError: Error
+  ) => {
+    const source = sourceDefinitions.get(sourceId);
+    const controller = controllers.get(sourceId);
+    if (
+      source === undefined ||
+      controller !== expectedController ||
+      recoveringSources.has(sourceId) ||
+      disposed
+    ) {
+      return;
+    }
+    recoveringSources.add(sourceId);
+    stopMediaClock(controller);
+    const previousState = sourceStateById.get(sourceId);
+    const attempts = [
+      ...(previousState?.attempts ?? []),
+      {
+        representation: controller.representation,
+        inputIndex: controller.inputIndex,
+        status: 'failed',
+        error: recoveryError,
+      } as const,
+    ];
+    try {
+      const result = await loadSource(
+        source,
+        controller.representation,
+        'recovering',
+        controller.inputIndex + 1,
+        attempts
+      );
+      if (!result.ok) {
+        setError(result.error);
+      }
+    } finally {
+      recoveringSources.delete(sourceId);
+    }
+  };
+
   const syncLayers = async ({
     activeLayers,
     reason,
@@ -308,6 +778,16 @@ export function createMediabunnyAdapter(
   }: TimelineLayerSyncDetails<string>) => {
     const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
     const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
+
+    for (const activeClip of [activeVisual, activeAudio]) {
+      if (activeClip === undefined) {
+        continue;
+      }
+      const sourceState = sourceStateById.get(activeClip.clip.sourceId);
+      if (sourceState?.status === 'failed' && sourceState.error !== null) {
+        throw sourceState.error;
+      }
+    }
 
     if (activeVisual !== undefined) {
       const controller = getController(activeVisual);
@@ -322,11 +802,10 @@ export function createMediabunnyAdapter(
           canvas,
           activeVisual,
           (timestamp) => {
-            setLastFrameTime(timestamp);
+            setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
           },
           (playbackError) => {
-            stopMediaClock(controller);
-            setError(playbackError);
+            void recoverSource(controller.sourceId, controller, playbackError);
           }
         );
       } else {
@@ -357,15 +836,24 @@ export function createMediabunnyAdapter(
     get lastFrameTime() {
       return lastFrameTime;
     },
-    get durationBySourceId() {
-      return durationBySourceId;
+    get sourceStateById() {
+      return sourceStateById;
+    },
+    get volume() {
+      return volume;
+    },
+    get muted() {
+      return muted;
+    },
+    get audioStatus() {
+      return audioStatus;
     },
     get syncAdapter() {
       return {
         getClockTime: adapter.getClockTime,
         startClock: adapter.startClock,
         stopClock: adapter.stopClock,
-        resumeClock: adapter.resumeClock,
+        requestClockActivation: adapter.requestClockActivation,
         setClockRate: adapter.setClockRate,
         seek: adapter.seek,
         syncLayers: adapter.syncLayers,
@@ -413,16 +901,119 @@ export function createMediabunnyAdapter(
         void cancelVideoPlayback(controller);
       }
     },
-    resumeClock: async (playbackRate) => {
-      const controller = clockController ?? [...controllers.values()][0];
-      if (controller?.audioContext?.state !== 'suspended') {
+    requestClockActivation: (playbackRate) => {
+      if (audioContext?.state !== 'suspended') {
         return;
       }
-
-      await controller.audioContext.resume();
-      if (controller.playing) {
-        setTimelineClock(controller, getTimelinePlaybackSeconds(controller), playbackRate);
+      const generation = ++activationGeneration;
+      if (activationTimer !== null) {
+        window.clearTimeout(activationTimer);
       }
+      activationTimer = window.setTimeout(() => {
+        if (generation !== activationGeneration || audioContext?.state === 'running') {
+          return;
+        }
+        audioStatus = { state: 'degraded', error: null };
+        notify();
+      }, options.audio?.activationTimeoutMs ?? 1000);
+      void audioContext.resume().then(
+        () => {
+          if (generation !== activationGeneration || disposed) {
+            return;
+          }
+          if (activationTimer !== null) {
+            window.clearTimeout(activationTimer);
+          }
+          activationTimer = null;
+          audioStatus = { state: 'running' };
+          const timelineSeconds = adapter.getClockTime();
+          const playing = [...controllers.values()].some((controller) => controller.playing);
+          setAllClocks(timelineSeconds, playbackRate, playing);
+          notify();
+        },
+        (activationError: unknown) => {
+          if (generation !== activationGeneration || disposed) {
+            return;
+          }
+          if (activationTimer !== null) {
+            window.clearTimeout(activationTimer);
+          }
+          activationTimer = null;
+          audioStatus = {
+            state: 'degraded',
+            error:
+              activationError instanceof Error
+                ? activationError
+                : new Error(String(activationError)),
+          };
+          notify();
+        }
+      );
+    },
+    setVolume: (nextVolume) => {
+      if (!Number.isFinite(nextVolume) || nextVolume < 0 || nextVolume > 1) {
+        throw new RangeError('volume must be a finite number from 0 to 1.');
+      }
+      volume = nextVolume;
+      updateMasterGain();
+      notify();
+    },
+    setMuted: (nextMuted) => {
+      muted = nextMuted;
+      updateMasterGain();
+      notify();
+    },
+    setRepresentation: async (sourceId, representation) => {
+      const source = sourceDefinitions.get(sourceId);
+      if (source === undefined) {
+        return { ok: false, sourceId, error: new Error(`Unknown source "${sourceId}".`) };
+      }
+      const resolved = resolveMediabunnyRepresentation(source, representation);
+      if (resolved === undefined) {
+        return {
+          ok: false,
+          sourceId,
+          error: new Error(`Source "${sourceId}" does not define the selected representation.`),
+        };
+      }
+      const previousState = sourceStateById.get(sourceId);
+      const result = await loadSource(source, representation, 'loading');
+      if (!result.ok && controllers.has(sourceId) && previousState !== undefined) {
+        setSourceState(previousState);
+      }
+      return result;
+    },
+    retrySource: async (sourceId) => {
+      const source = sourceDefinitions.get(sourceId);
+      if (source === undefined) {
+        return { ok: false, sourceId, error: new Error(`Unknown source "${sourceId}".`) };
+      }
+      const previousState = sourceStateById.get(sourceId);
+      const representation =
+        selectedRepresentationBySourceId.get(sourceId) ?? ({ kind: 'original' } as const);
+      const result = await loadSource(source, representation, 'loading');
+      if (!result.ok && controllers.has(sourceId) && previousState !== undefined) {
+        setSourceState(previousState);
+      }
+      return result;
+    },
+    replaceSource: async (source) => {
+      validateSources([source]);
+      const previousState = sourceStateById.get(source.sourceId);
+      const previousSelection =
+        selectedRepresentationBySourceId.get(source.sourceId) ?? ({ kind: 'original' } as const);
+      const representation =
+        resolveMediabunnyRepresentation(source, previousSelection) === undefined
+          ? (options.selectRepresentation?.(source) ?? ({ kind: 'original' } as const))
+          : previousSelection;
+      assertMediabunnyRepresentation(source, representation);
+      const result = await loadSource(source, representation, 'loading');
+      if (result.ok) {
+        sourceDefinitions.set(source.sourceId, source);
+      } else if (controllers.has(source.sourceId) && previousState !== undefined) {
+        setSourceState(previousState);
+      }
+      return result;
     },
     setClockRate: (playbackRate) => {
       const timelineSeconds = adapter.getClockTime();
@@ -468,40 +1059,71 @@ export function createMediabunnyAdapter(
         return null;
       }
 
-      const wrappedCanvas = await controller.videoSink.getCanvas(toSeconds(activeVideo.sourceTime));
+      let wrappedCanvas: Awaited<ReturnType<Mediabunny.CanvasSink['getCanvas']>>;
+      try {
+        wrappedCanvas = await controller.videoSink.getCanvas(
+          toRepresentationSeconds(controller, toSeconds(activeVideo.sourceTime))
+        );
+      } catch (frameError) {
+        const error = frameError instanceof Error ? frameError : new Error(String(frameError));
+        void recoverSource(controller.sourceId, controller, error);
+        return null;
+      }
       if (wrappedCanvas === null) {
         return null;
       }
 
       return {
         canvas: wrappedCanvas.canvas,
-        timestamp: wrappedCanvas.timestamp,
+        timestamp: toLogicalSourceSeconds(controller, wrappedCanvas.timestamp),
       };
     },
     dispose: () => {
       disposed = true;
+      activationGeneration += 1;
+      if (activationTimer !== null) {
+        window.clearTimeout(activationTimer);
+      }
       for (const controller of controllers.values()) {
         disposeController(controller);
       }
       controllers.clear();
-      durationBySourceId.clear();
+      sourceStateById.clear();
       frameListeners.clear();
+      masterGainNode?.disconnect();
+      if (ownsAudioContext) {
+        void audioContext?.close();
+      }
     },
   };
 
-  void loadSources(options, controllers, durationBySourceId)
-    .then((loadedCount) => {
+  void Promise.all(
+    options.sources.map((source) =>
+      loadSource(
+        source,
+        selectedRepresentationBySourceId.get(source.sourceId) ?? { kind: 'original' },
+        'loading'
+      )
+    )
+  )
+    .then((results) => {
       if (disposed) {
         controllers.clear();
-        durationBySourceId.clear();
+        sourceStateById.clear();
         return;
       }
 
+      const loadedCount = results.filter((result) => result.ok).length;
       ready = loadedCount > 0;
-      status =
-        loadedCount > 0
-          ? 'Ready. Mediabunny can drive timeline video and audio.'
-          : 'No Mediabunny source could be loaded.';
+      const failedResult = results.find((result) => !result.ok);
+      if (loadedCount > 0) {
+        status = 'Ready. Mediabunny can drive timeline video and audio.';
+      } else if (failedResult !== undefined && !failedResult.ok) {
+        error = failedResult.error;
+        status = failedResult.error.message;
+      } else {
+        status = 'No Mediabunny source could be loaded.';
+      }
       notify();
     })
     .catch((loadError: unknown) => {
@@ -513,49 +1135,18 @@ export function createMediabunnyAdapter(
   return adapter;
 }
 
-async function loadSources(
-  options: CreateMediabunnyAdapterOptions,
-  controllers: Map<string, MediabunnySourceController>,
-  durationBySourceId: Map<string, number>
-) {
-  const mediabunny =
-    typeof options.mediabunny === 'function' ? await options.mediabunny() : options.mediabunny;
-
-  let loadedCount = 0;
-  let lastError: unknown;
-
-  for (const source of options.sources) {
-    if (controllers.has(source.id)) {
-      continue;
-    }
-
-    const controller = createController(source.id);
-    try {
-      const mediaInfo = await loadMediabunnySourceController(
-        controller,
-        mediabunny,
-        source,
-        options.audio
-      );
-      controllers.set(source.id, controller);
-      durationBySourceId.set(source.id, mediaInfo.duration);
-      loadedCount += 1;
-    } catch (sourceError) {
-      lastError = sourceError;
-      disposeController(controller);
-    }
-  }
-
-  if (loadedCount === 0 && lastError !== undefined) {
-    throw lastError;
-  }
-
-  return loadedCount;
-}
-
-function createController(sourceId: string): MediabunnySourceController {
+function createController(
+  sourceId: string,
+  representation: MediabunnyRepresentationSelection,
+  inputIndex: number,
+  timing: MediabunnyRepresentationTiming | undefined
+): MediabunnySourceController {
   return {
     sourceId,
+    representation,
+    inputIndex,
+    mediaTimeOffsetSeconds:
+      timing === undefined ? 0 : timing.mediaTimeSeconds - timing.sourceTimeSeconds,
     input: null,
     ownsInput: true,
     videoSink: null,
@@ -593,29 +1184,52 @@ async function loadMediabunnySourceController(
   controller: MediabunnySourceController,
   mediabunny: MediabunnyModule,
   source: MediabunnySource,
-  audioOptions: MediabunnyTimelineAudioOptions | undefined
+  representation: MediabunnyRepresentationSelection,
+  sourceInput: MediabunnySourceInput,
+  selectTracks: CreateMediabunnyAdapterOptions['selectTracks'],
+  ensureAudioRuntime: () => { context: AudioContext; gainNode: GainNode } | null
 ): Promise<LoadedMediaInfo> {
-  const input = await createInput(mediabunny, source);
+  const input = await createInput(mediabunny, sourceInput);
   controller.input = input;
-  controller.ownsInput = !('input' in source);
+  controller.ownsInput = sourceInput.kind !== 'input';
 
-  const videoTrack = await input.getPrimaryVideoTrack();
-  const audioTrack = await input.getPrimaryAudioTrack();
+  let videoTrack: Mediabunny.InputVideoTrack | null;
+  let audioTrack: Mediabunny.InputAudioTrack | null;
+  if (selectTracks === undefined) {
+    [videoTrack, audioTrack] = await Promise.all([
+      input.getPrimaryVideoTrack(),
+      input.getPrimaryAudioTrack(),
+    ]);
+  } else {
+    const [videoTracks, audioTracks] = await Promise.all([
+      input.getVideoTracks(),
+      input.getAudioTracks(),
+    ]);
+    ({ videoTrack, audioTrack } = await selectTracks({
+      source,
+      representation,
+      sourceInput,
+      input,
+      videoTracks,
+      audioTracks,
+    }));
+  }
   type InputTrack = NonNullable<typeof videoTrack> | NonNullable<typeof audioTrack>;
   const tracks = [videoTrack, audioTrack].filter((track): track is InputTrack => track !== null);
 
   if (tracks.length === 0) {
-    throw new Error(`No audio or video track found for source "${source.id}".`);
+    throw new Error(`No audio or video track found for source "${source.sourceId}".`);
   }
 
-  const firstTimestamp = Math.max(await input.getFirstTimestamp(tracks), 0);
+  const firstTimestamp = await input.getFirstTimestamp(tracks);
+  const presentationStartTimestamp = Math.max(firstTimestamp, 0);
   const endTimestamp =
     (await input.getDurationFromMetadata(tracks, { skipLiveWait: true })) ??
     (await input.computeDuration(tracks, { skipLiveWait: true }));
 
   if (videoTrack !== null) {
     if ((await videoTrack.getCodec()) === null || !(await videoTrack.canDecode())) {
-      throw new Error(`The browser cannot decode the video track for source "${source.id}".`);
+      throw new Error(`The browser cannot decode the video track for source "${source.sourceId}".`);
     }
 
     const alpha = await videoTrack.canBeTransparent();
@@ -626,53 +1240,64 @@ async function loadMediabunnySourceController(
     });
   }
 
-  const AudioContextCtor =
-    window.AudioContext ??
-    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (AudioContextCtor === undefined) {
-    throw new Error('This browser does not expose AudioContext.');
-  }
-
-  const audioContext =
-    audioOptions?.context ??
-    (audioTrack !== null
-      ? new AudioContextCtor({ sampleRate: await audioTrack.getSampleRate() })
-      : new AudioContextCtor());
-  const gainNode = audioContext.createGain();
-  gainNode.gain.value = audioOptions?.volume ?? 0.7;
-  gainNode.connect(audioOptions?.destination ?? audioContext.destination);
-  controller.audioContext = audioContext;
-  controller.gainNode = gainNode;
-
   if (
     audioTrack !== null &&
     (await audioTrack.getCodec()) !== null &&
     (await audioTrack.canDecode())
   ) {
-    controller.audioSink = new mediabunny.AudioBufferSink(audioTrack);
+    const audioRuntime = ensureAudioRuntime();
+    if (audioRuntime !== null) {
+      controller.audioContext = audioRuntime.context;
+      controller.gainNode = audioRuntime.gainNode;
+      controller.audioSink = new mediabunny.AudioBufferSink(audioTrack);
+    }
   }
 
+  const [videoMetadata, audioMetadata] = await Promise.all([
+    videoTrack === null
+      ? null
+      : Promise.all([
+          videoTrack.getDisplayWidth(),
+          videoTrack.getDisplayHeight(),
+          videoTrack.getRotation(),
+          videoTrack.computePacketStats(100, { skipLiveWait: true }).catch(() => null),
+        ]).then(([displayWidth, displayHeight, rotation, packetStats]) => ({
+          displayWidth,
+          displayHeight,
+          rotation,
+          detectedFrameRate: packetStats?.averagePacketRate || null,
+        })),
+    audioTrack === null ? null : audioTrack.getSampleRate().then((sampleRate) => ({ sampleRate })),
+  ]);
+
   return {
-    duration: endTimestamp - firstTimestamp,
+    metadata: {
+      firstTimestampSeconds: firstTimestamp,
+      sourceFirstTimestampSeconds: toLogicalSourceSeconds(controller, firstTimestamp),
+      presentationStartTimestampSeconds: presentationStartTimestamp,
+      endTimestampSeconds: endTimestamp,
+      sourceEndTimestampSeconds: toLogicalSourceSeconds(controller, endTimestamp),
+      durationSeconds: Math.max(0, endTimestamp - presentationStartTimestamp),
+      video: videoMetadata,
+      audio: audioMetadata,
+    },
   };
 }
 
 async function createInput(
   mediabunny: MediabunnyModule,
-  source: MediabunnySource
+  sourceInput: MediabunnySourceInput
 ): Promise<Mediabunny.Input> {
-  if ('input' in source) {
-    return source.input;
+  if (sourceInput.kind === 'input') {
+    return sourceInput.input;
   }
-
-  if ('createInput' in source) {
-    return source.createInput(mediabunny);
+  if (sourceInput.kind === 'input-factory') {
+    return sourceInput.createInput(mediabunny);
   }
-
-  if ('url' in source) {
+  if (sourceInput.kind === 'url') {
     return new mediabunny.Input({
-      source: new mediabunny.UrlSource(source.url),
-      formats: mediabunny.ALL_FORMATS,
+      source: new mediabunny.UrlSource(sourceInput.url, sourceInput.urlSourceOptions),
+      formats: [...(sourceInput.formats ?? mediabunny.ALL_FORMATS)],
     });
   }
 
@@ -687,7 +1312,7 @@ async function createInput(
   }
 
   return new mediabunny.Input({
-    source: new mediabunnyWithBlobSource.BlobSource(source.blob),
+    source: new mediabunnyWithBlobSource.BlobSource(sourceInput.blob),
     formats: mediabunny.ALL_FORMATS,
   });
 }
@@ -702,6 +1327,14 @@ function setTimelineClock(
   controller.audioClockReady = controller.audioContext?.state === 'running';
   controller.wallClockStartTime = performance.now() / 1000;
   controller.playbackRate = playbackRate;
+}
+
+function toRepresentationSeconds(controller: MediabunnySourceController, sourceSeconds: number) {
+  return sourceSeconds + controller.mediaTimeOffsetSeconds;
+}
+
+function toLogicalSourceSeconds(controller: MediabunnySourceController, mediaSeconds: number) {
+  return mediaSeconds - controller.mediaTimeOffsetSeconds;
 }
 
 function getTimelinePlaybackSeconds(controller: MediabunnySourceController) {
@@ -735,7 +1368,12 @@ async function renderActiveVideoFrame(
   video: ActiveClip,
   onFrame?: (timestamp: number) => void
 ) {
-  await renderFrameAt(controller, canvas, toSeconds(video.sourceTime), onFrame);
+  await renderFrameAt(
+    controller,
+    canvas,
+    toRepresentationSeconds(controller, toSeconds(video.sourceTime)),
+    onFrame
+  );
 }
 
 const VIDEO_TIMESTAMP_EPSILON = 1e-9;
@@ -866,10 +1504,10 @@ async function startVideoPlayback(
     return;
   }
 
-  const sourceSeconds = toSeconds(activeVideo.sourceTime);
+  const sourceSeconds = toRepresentationSeconds(controller, toSeconds(activeVideo.sourceTime));
   controller.videoPlaybackIterator = controller.videoSink.canvases(
     sourceSeconds,
-    toSeconds(activeVideo.sourceRange.end)
+    toRepresentationSeconds(controller, toSeconds(activeVideo.sourceRange.end))
   );
   controller.videoPlaybackSyncKey = activeVideo.syncKey;
   controller.videoPlaybackSourceSeconds = sourceSeconds;
@@ -887,7 +1525,7 @@ function syncActiveVideoPlaybackFrame(
   onFrame?: (timestamp: number) => void,
   onFailure?: (error: Error) => void
 ) {
-  const sourceSeconds = toSeconds(activeVideo.sourceTime);
+  const sourceSeconds = toRepresentationSeconds(controller, toSeconds(activeVideo.sourceTime));
   if (
     controller.videoPlaybackIterator === null ||
     controller.videoPlaybackSyncKey !== activeVideo.syncKey ||
@@ -917,7 +1555,11 @@ function clearPreviewCanvas(controller: MediabunnySourceController, canvas: HTML
   }
 }
 
-function syncAudioClip(controller: MediabunnySourceController, audio: ActiveClip | undefined) {
+function syncAudioClip(
+  controller: MediabunnySourceController,
+  audio: ActiveClip | undefined,
+  onFailure?: (error: Error) => void
+) {
   stopAudioIterator(controller);
   stopQueuedAudio(controller);
   controller.activeAudioSyncKey = audio?.syncKey;
@@ -926,15 +1568,17 @@ function syncAudioClip(controller: MediabunnySourceController, audio: ActiveClip
     return;
   }
 
-  const sourceStart = toSeconds(audio.sourceTime);
-  const sourceEnd = toSeconds(audio.sourceRange.end);
+  const sourceStart = toRepresentationSeconds(controller, toSeconds(audio.sourceTime));
+  const sourceEnd = toRepresentationSeconds(controller, toSeconds(audio.sourceRange.end));
 
   if (sourceEnd <= sourceStart) {
     return;
   }
 
   controller.audioBufferIterator = controller.audioSink.buffers(sourceStart, sourceEnd);
-  void runAudioIterator(controller, audio.clip, audio.syncKey);
+  void runAudioIterator(controller, audio.clip, audio.syncKey).catch((iteratorError: unknown) => {
+    onFailure?.(iteratorError instanceof Error ? iteratorError : new Error(String(iteratorError)));
+  });
 }
 
 function stopMediaClock(controller: MediabunnySourceController) {
@@ -956,7 +1600,6 @@ function disposeController(controller: MediabunnySourceController) {
   if (controller.ownsInput) {
     controller.input?.dispose();
   }
-  void controller.audioContext?.close();
 }
 
 function stopQueuedAudio(controller: MediabunnySourceController) {
@@ -989,7 +1632,7 @@ async function runAudioIterator(
   }
 
   const clipTimelineStart = toSeconds(audioClip.timelineStart);
-  const clipSourceStart = toSeconds(audioClip.sourceStart);
+  const clipSourceStart = toRepresentationSeconds(controller, toSeconds(audioClip.sourceStart));
 
   for await (const { buffer, timestamp } of controller.audioBufferIterator) {
     if (
