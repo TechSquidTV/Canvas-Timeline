@@ -70,7 +70,7 @@ export interface UseMediabunnyTimelineMediaResult<
   status: string;
   /** Last source loading error, when one is active. */
   error: Error | null;
-  /** Loading, selected representation, input attempts, metadata, and recovery by source id. */
+  /** Loading, input attempts, metadata, and recovery by source id. */
   sourceStateById: MediabunnyAdapter['sourceStateById'];
   /** Underlying low-level Mediabunny adapter. */
   adapter: MediabunnyAdapter;
@@ -97,14 +97,18 @@ const noopAdapter: MediabunnyAdapter = {
   requestClockActivation: () => {},
   setVolume: () => {},
   setMuted: () => {},
-  setRepresentation: (sourceId) =>
-    Promise.resolve({ ok: false, sourceId, error: new Error('Mediabunny is unavailable.') }),
   retrySource: (sourceId) =>
-    Promise.resolve({ ok: false, sourceId, error: new Error('Mediabunny is unavailable.') }),
+    Promise.resolve({
+      ok: false,
+      sourceId,
+      reason: 'unknown-source',
+      error: new Error('Mediabunny is unavailable.'),
+    }),
   replaceSource: (source) =>
     Promise.resolve({
       ok: false,
       sourceId: source.sourceId,
+      reason: 'load-failed',
       error: new Error('Mediabunny is unavailable.'),
     }),
   setClockRate: () => {},
@@ -141,7 +145,7 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
  *   const canvasRef = useRef<HTMLCanvasElement>(null);
  *   const sources = useMemo(() => [{
  *     sourceId: 'source-1',
- *     input: { kind: 'url', url: '/media/sample.mp4' },
+ *     input: '/media/sample.mp4',
  *   }], []);
  *   const adapter = useMediabunnyAdapter({
  *     canvasRef,
@@ -162,16 +166,8 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
  * @see {@link useMediabunnyTimelineMedia}
  */
 export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): MediabunnyAdapter {
-  const {
-    audio,
-    audioTrackKinds,
-    canvasRef,
-    mediabunny,
-    selectRepresentation,
-    selectTracks,
-    sources,
-    visualTrackKinds,
-  } = options;
+  const { audio, audioTrackKinds, canvasRef, mediabunny, selectTracks, sources, visualTrackKinds } =
+    options;
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [adapter, setAdapter] = useState<MediabunnyAdapter>(noopAdapter);
 
@@ -184,7 +180,6 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
       audio,
       audioTrackKinds,
       mediabunny,
-      selectRepresentation,
       selectTracks,
       sources,
       visualTrackKinds,
@@ -195,15 +190,7 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
     return () => {
       nextAdapter.dispose();
     };
-  }, [
-    audio,
-    audioTrackKinds,
-    mediabunny,
-    selectRepresentation,
-    selectTracks,
-    sources,
-    visualTrackKinds,
-  ]);
+  }, [audio, audioTrackKinds, mediabunny, selectTracks, sources, visualTrackKinds]);
 
   useEffect(() => {
     adapter.setCanvas(canvasRef?.current ?? null);
@@ -258,7 +245,7 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  *   const canvasRef = useRef<HTMLCanvasElement>(null);
  *   const sources = useMemo(() => [{
  *     sourceId: 'source-1',
- *     input: { kind: 'url', url: '/media/interview.mp4' },
+ *     input: '/media/interview.mp4',
  *   }], []);
  *   const media = useMediabunnyTimelineMedia<PreviewLayerName>({
  *     canvasRef,

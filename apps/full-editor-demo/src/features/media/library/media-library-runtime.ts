@@ -15,7 +15,7 @@ export function createPlayableSources(
     )
     .map((source) => ({
       sourceId: source.id,
-      input: { kind: 'blob', blob: source.file },
+      input: source.file,
     }));
 }
 

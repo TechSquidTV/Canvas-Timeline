@@ -3,4 +3,4 @@
 '@techsquidtv/canvas-timeline-mediabunny-adapter': patch
 ---
 
-Update media adapter reference documentation for original inputs, per-representation fallbacks, and selectable editing proxies.
+Update media adapter reference documentation for app-resolved inputs, equivalent transport fallbacks, and application-owned proxy policy.

@@ -44,7 +44,7 @@ const sourceId = 'clip-source-main';
 const sources = [
   {
     sourceId,
-    input: { kind: 'url', url: '/media/preview.mp4' },
+    input: '/media/preview.mp4',
   },
 ] as const;
 const previewLayers = {
@@ -72,7 +72,7 @@ function DecodedPreview() {
 }
 ```
 
-Each item in `sources` uses a `sourceId` matching timeline clips and one concise original `input`. Add `fallbacks` for alternate ways to load that representation. Add `proxies` for editing representations that can be selected independently with `setRepresentation`; every proxy can have its own fallbacks and a `timing` anchor when its timestamps differ from logical source time. Inputs can use URLs, blobs, supplied inputs, or input factories. The adapter exposes the selected representation, input attempts, timing, dimensions, and frame-rate metadata through `sourceStateById`.
+Each item in `sources` uses a `sourceId` matching timeline clips and one app-resolved `input`. Common inputs can be passed directly as a URL string, `URL`, `Request`, `Blob`, or `File`; use the object descriptors for custom URL formats/options, supplied inputs, and factories. Add `fallbacks` only for equivalent ways to load the resolved media. Keep original/proxy policy in your media library and switch choices with `replaceSource(...)`, including a `timing` anchor when timestamps differ from logical source time. The adapter exposes input attempts, timing, dimensions, and frame-rate metadata through `sourceStateById`.
 
 ## Documentation
 

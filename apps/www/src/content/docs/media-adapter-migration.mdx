@@ -1,21 +1,21 @@
 ---
 title: Media adapter migration
-description: Migrate HTML and Mediabunny integrations to source representations, input fallbacks, shared playback ranges, and runtime diagnostics.
+description: Migrate HTML and Mediabunny integrations to resolved sources, input fallbacks, shared playback ranges, and runtime diagnostics.
 section: packages
 order: 35
 ---
 
 ## Breaking change warning
 
-The media adapters now distinguish a logical timeline source, its deliberately
-selected original or proxy representation, and the inputs that can load that
-representation. The old flat descriptors, duplicate `sourceId` fallback
-convention, `durationBySourceId`, and blocking `resumeClock()` contract have
-been removed. There are no compatibility aliases.
+The media adapters now accept one app-resolved media choice for each logical
+timeline source. The old flat descriptors, duplicate `sourceId` fallback
+convention, adapter-owned original/proxy selection, `durationBySourceId`, and
+blocking `resumeClock()` contract have been removed. There are no compatibility
+aliases.
 
 The common case stays concise: `{ sourceId, input }`. Use `fallbacks` only for
-load failover and `proxies` only for editing representations that an application
-selects intentionally.
+equivalent transport or cache alternatives. Keep original, proxy, preview, and
+export policy in the application's media library.
 
 ## Migrate HTML media sources
 
@@ -38,16 +38,18 @@ const media = useHTMLTimelineMedia({
 });
 ```
 
-Read `sourceStateById` to inspect `selectedRepresentation` and
-`selectedInputIndex`. Use `media.adapter.retrySource(sourceId)` to retry inputs
-for the selected representation or `media.adapter.replaceSource(source)` to
-replace the logical source without recreating the controller.
+Read `sourceStateById` to inspect lifecycle status, `selectedInputIndex`, and
+ordered attempts. Use `media.adapter.retrySource(sourceId)` to retry inputs or
+`media.adapter.replaceSource(source)` to replace the resolved media without
+recreating the adapter. Both commands return an explicit `configured` or
+`ready` success state instead of a boolean.
 
 ## Migrate Mediabunny sources
 
-Wrap the normal URL, blob, supplied input, or input factory in `input`. Configure
-formats and `UrlSource` options on URL inputs, including `HLS_FORMATS` for HLS
-manifests. Put direct-media failover in `fallbacks`.
+Pass a normal URL string, `URL`, `Request`, `Blob`, or `File` directly as
+`input`. Use an object descriptor when you need formats, `UrlSource` options, a
+supplied input, or an input factory. Put equivalent direct-media failover in
+`fallbacks`.
 
 ```tsx
 const sources = [
@@ -71,43 +73,49 @@ const sources = [
 
 Use `selectTracks` when primary tracks are not the desired video or audio
 tracks. Source state now includes detected timing, dimensions, frame rate, and
-audio metadata alongside representation and input-attempt diagnostics.
+audio metadata alongside input-attempt diagnostics.
 
-## Add editing proxies
+## Model editing proxies in the media library
 
-A proxy is not a fallback. It is selected deliberately for preview or scrubbing
-while the original remains available for conform and export. Each proxy has its
-own preferred input and optional fallbacks.
+A proxy is an application-level media relationship, not a decoder fallback. An
+editor may select it for scrubbing while retaining the original for high-quality
+preview, conform, relink, and export. Model those purposes in media-library state
+and resolve one adapter source from the current editing policy.
 
 ```tsx
-const sources = [
-  {
-    sourceId: 'camera-a',
-    input: { kind: 'url', url: originalUrl },
-    proxies: [
-      {
-        proxyId: 'edit-540p',
-        input: { kind: 'url', url: proxyUrl },
-        fallbacks: [{ kind: 'blob', blob: cachedProxy }],
-        timing: {
-          sourceTimeSeconds: cameraTimestamp,
-          mediaTimeSeconds: 0,
-        },
+const cameraA = {
+  sourceId: 'camera-a',
+  original: { input: originalFile },
+  proxies: {
+    editing: {
+      input: proxyUrl,
+      fallbacks: [cachedProxy],
+      timing: {
+        sourceTimeSeconds: cameraTimestamp,
+        mediaTimeSeconds: 0,
       },
-    ],
+    },
   },
-];
+} as const;
 
-await media.adapter.setRepresentation('camera-a', {
-  kind: 'proxy',
-  proxyId: 'edit-540p',
-});
+function resolvePreviewSource(useProxy: boolean) {
+  const resolved = useProxy ? cameraA.proxies.editing : cameraA.original;
+  return { sourceId: cameraA.sourceId, ...resolved };
+}
+
+await media.adapter.replaceSource(resolvePreviewSource(true));
 ```
 
-The `timing` anchor maps logical source time to the representation's media time.
-It is required only when a proxy or transcode uses a different container
-timestamp origin. Switch back with `{ kind: 'original' }`; timeline clips keep
-the same `sourceId` throughout.
+The adapter does not need to know why that media was chosen. The `timing` anchor
+maps logical source time to the resolved media time and is needed only when a
+proxy or transcode uses a different container timestamp origin. Switching back
+uses `replaceSource(resolvePreviewSource(false))`; timeline clips keep the same
+`sourceId` throughout.
+
+This keeps policy extensible without changing adapter types: an application can
+also resolve offline cache entries, HLS/direct delivery, color-managed review
+media, remote collaboration previews, or export originals through the same
+source boundary.
 
 ## Update transport and audio controls
 

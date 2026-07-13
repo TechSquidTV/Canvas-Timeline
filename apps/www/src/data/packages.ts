@@ -282,7 +282,7 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
       steps: [
         'Give each media clip a stable `sourceId`.',
         'Create a `sources` array of `{ sourceId, input }` descriptors, one per logical source.',
-        'Add per-representation `fallbacks` or selectable editing `proxies` only when needed.',
+        'Resolve originals or proxies in your media library, then pass equivalent load `fallbacks` only when needed.',
         'Attach a ref to one `<video>` or `<audio>` element.',
         'Pass the ref, sources, and layer selector to `useHTMLTimelineMedia` inside a `TimelineProvider`.',
       ],
@@ -347,8 +347,8 @@ export function NativePreview() {
       body: 'Timeline clips keep lightweight `sourceId` values. Your app keeps the actual files, URLs, or Mediabunny inputs outside the timeline and passes matching source descriptors to the adapter.',
       steps: [
         'Give each media clip a stable `sourceId`.',
-        'Create a `sources` array where each logical source has a matching `sourceId` and original `input`.',
-        'Add `fallbacks` for load failover and `proxies` for deliberately selectable editing media.',
+        'Create a `sources` array where each logical source has a matching `sourceId` and app-resolved `input`.',
+        'Resolve originals or proxies in app state and use `fallbacks` only for equivalent transport failover.',
         'Attach a canvas ref for decoded video frames.',
         'Pass the canvas ref, sources, and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
         'Use the returned transport helpers for playback and the returned duration/frame state for preview UI.',
@@ -363,7 +363,7 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 const sourceId = 'clip-source-main';
 const sources = [{
   sourceId,
-  input: { kind: 'url', url: '/media/preview.mp4' },
+  input: '/media/preview.mp4',
 }] as const;
 const layers = {
   visuals: { trackKind: 'visual', sourceId },

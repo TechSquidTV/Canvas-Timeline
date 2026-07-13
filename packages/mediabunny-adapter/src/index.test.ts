@@ -219,7 +219,7 @@ function createMockMediabunny(
     audioSink?: MockAudioSink;
   } = {}
 ) {
-  const createdUrlSources: string[] = [];
+  const createdUrlSources: (string | URL | Request)[] = [];
   const createdBlobSources: Blob[] = [];
   const { audioSink, canvasSink } = createSinkFactory(sinkOptions);
   let inputIndex = 0;
@@ -233,7 +233,7 @@ function createMockMediabunny(
   }
 
   class MockUrlSource {
-    constructor(url: string) {
+    constructor(url: string | URL | Request) {
       createdUrlSources.push(url);
     }
   }
@@ -367,19 +367,34 @@ test('formatMediabunnyTime formats finite and invalid values', () => {
   expect(formatMediabunnyTime(Number.NaN)).toBe('0.00s');
 });
 
-test('createMediabunnyAdapter loads url, blob, input, and createInput sources', async () => {
+test('createMediabunnyAdapter loads concise browser inputs and advanced descriptors', async () => {
   const blob = new Blob(['sample']);
+  const file = new File(['sample'], 'sample.mp4', { type: 'video/mp4' });
+  const url = new URL('https://media.example/url-object.mp4');
+  const request = new Request('https://media.example/request.mp4');
   const urlInput = createMockInput({ metadataDuration: 4 });
   const blobInput = createMockInput({ metadataDuration: 5 });
+  const urlObjectInput = createMockInput({ metadataDuration: 5.5 });
+  const requestInput = createMockInput({ metadataDuration: 5.75 });
+  const fileInput = createMockInput({ metadataDuration: 5.9 });
   const providedInput = createMockInput({ metadataDuration: 6 });
   const createdInput = createMockInput({ metadataDuration: null, computedDuration: 7 });
-  const mockMediabunny = createMockMediabunny([urlInput, blobInput]);
+  const mockMediabunny = createMockMediabunny([
+    urlInput,
+    blobInput,
+    urlObjectInput,
+    requestInput,
+    fileInput,
+  ]);
   const adapter = createMediabunnyAdapter({
     audio: { context: createMockAudioContext() as unknown as AudioContext },
     mediabunny: mockMediabunny.module,
     sources: [
       urlSource('url-source', 'https://media.example/video.mp4'),
-      { sourceId: 'blob-source', input: { kind: 'blob', blob } },
+      { sourceId: 'blob-source', input: blob },
+      { sourceId: 'url-object-source', input: url },
+      { sourceId: 'request-source', input: request },
+      { sourceId: 'file-source', input: file },
       {
         sourceId: 'input-source',
         input: {
@@ -406,14 +421,24 @@ test('createMediabunnyAdapter loads url, blob, input, and createInput sources', 
   expect(adapter.status).toBe('Ready. Mediabunny can drive timeline video and audio.');
   expect(adapter.sourceStateById.get('url-source')?.metadata?.durationSeconds).toBe(4);
   expect(adapter.sourceStateById.get('blob-source')?.metadata?.durationSeconds).toBe(5);
+  expect(adapter.sourceStateById.get('url-object-source')?.metadata?.durationSeconds).toBe(5.5);
+  expect(adapter.sourceStateById.get('request-source')?.metadata?.durationSeconds).toBe(5.75);
+  expect(adapter.sourceStateById.get('file-source')?.metadata?.durationSeconds).toBe(5.9);
   expect(adapter.sourceStateById.get('input-source')?.metadata?.durationSeconds).toBe(6);
   expect(adapter.sourceStateById.get('created-source')?.metadata?.durationSeconds).toBe(7);
-  expect(mockMediabunny.createdUrlSources).toEqual(['https://media.example/video.mp4']);
-  expect(mockMediabunny.createdBlobSources).toEqual([blob]);
+  expect(mockMediabunny.createdUrlSources).toEqual([
+    'https://media.example/video.mp4',
+    url,
+    request,
+  ]);
+  expect(mockMediabunny.createdBlobSources).toEqual([blob, file]);
 
   adapter.dispose();
   expect(urlInput.dispose).toHaveBeenCalled();
   expect(blobInput.dispose).toHaveBeenCalled();
+  expect(urlObjectInput.dispose).toHaveBeenCalled();
+  expect(requestInput.dispose).toHaveBeenCalled();
+  expect(fileInput.dispose).toHaveBeenCalled();
   expect(providedInput.dispose).not.toHaveBeenCalled();
   expect(createdInput.dispose).toHaveBeenCalled();
 });
@@ -467,7 +492,7 @@ test('createMediabunnyAdapter selects input fallbacks and surfaces load failures
   expect(emptyAdapter.status).toBe('No Mediabunny source could be loaded.');
 });
 
-test('createMediabunnyAdapter selects proxies independently and maps their timestamps', async () => {
+test('createMediabunnyAdapter replaces an app-resolved proxy and maps its timestamps', async () => {
   const originalInput = createMockInput({ metadataDuration: 20 });
   const proxyInput = createMockInput({ firstTimestamp: 0, metadataDuration: 10 });
   const mockMediabunny = createMockMediabunny([originalInput, proxyInput]);
@@ -476,32 +501,33 @@ test('createMediabunnyAdapter selects proxies independently and maps their times
     sources: [
       {
         sourceId: 'source-1',
-        input: { kind: 'url', url: 'https://media.example/original.mp4' },
-        proxies: [
-          {
-            proxyId: 'edit-540p',
-            input: { kind: 'url', url: 'https://media.example/proxy.mp4' },
-            timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
-          },
-        ],
+        input: 'https://media.example/original.mp4',
       },
     ],
   });
 
   await waitForAdapterLoad(adapter);
+  const originalSnapshot = adapter.sourceStateById;
+  await expect(adapter.retrySource('missing-source')).resolves.toMatchObject({
+    ok: false,
+    reason: 'unknown-source',
+  });
   await expect(
-    adapter.setRepresentation('source-1', { kind: 'proxy', proxyId: 'edit-540p' })
+    adapter.replaceSource({
+      sourceId: 'source-1',
+      input: 'https://media.example/proxy.mp4',
+      timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
+    })
   ).resolves.toMatchObject({
     ok: true,
-    representation: { kind: 'proxy', proxyId: 'edit-540p' },
-    inputIndex: 0,
+    state: 'ready',
   });
+  expect(adapter.sourceStateById).not.toBe(originalSnapshot);
 
   const frame = await adapter.getFrame(createActiveClip('visual', 'source-1', 1));
   expect(mockMediabunny.canvasSink.getCanvas).toHaveBeenCalledWith(1);
   expect(frame?.timestamp).toBe(11);
   expect(adapter.sourceStateById.get('source-1')).toMatchObject({
-    selectedRepresentation: { kind: 'proxy', proxyId: 'edit-540p' },
     selectedInputIndex: 0,
     metadata: {
       sourceFirstTimestampSeconds: 10,
@@ -850,7 +876,7 @@ test('createMediabunnyAdapter rejects undecodable video and permits video withou
     sources: [
       {
         sourceId: 'local-file',
-        input: { kind: 'blob', blob: new Blob(['sample']) },
+        input: new Blob(['sample']),
       },
     ],
   });
@@ -883,7 +909,6 @@ test('createMediabunnyAdapter exposes selected-track metadata and runtime audio 
 
   await waitForAdapterLoad(adapter);
   expect(adapter.sourceStateById.get('source-1')).toMatchObject({
-    selectedRepresentation: { kind: 'original' },
     selectedInputIndex: 0,
     metadata: {
       firstTimestampSeconds: 12,

@@ -418,10 +418,15 @@ test('createHTMLMediaAdapter advances input fallbacks and exposes media controls
   });
 
   await adapter.seek?.(fromSeconds(1), activeLayers);
+  const loadingSnapshot = adapter.sourceStateById;
   expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(0);
   element.dispatchEvent(new Event('error'));
+  expect(adapter.sourceStateById).not.toBe(loadingSnapshot);
   expect(element.src).toBe('http://localhost:3000/fallback.mp4');
   expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(1);
+  expect(adapter.sourceStateById.get('source-1')?.attempts).toMatchObject([
+    { inputIndex: 0, status: 'failed' },
+  ]);
 
   adapter.setVolume(0.4);
   adapter.setMuted(true);
@@ -453,13 +458,22 @@ test('createHTMLMediaAdapter retries failed sources from their preferred input',
   element.dispatchEvent(new Event('error'));
 
   expect(adapter.sourceStateById.get('source-1')?.status).toBe('failed');
-  expect(adapter.retrySource('missing-source')).toBe(false);
-  expect(adapter.retrySource('source-1')).toBe(true);
+  await expect(adapter.retrySource('missing-source')).resolves.toMatchObject({
+    ok: false,
+    reason: 'unknown-source',
+  });
+  await expect(adapter.retrySource('source-1')).resolves.toEqual({
+    ok: true,
+    sourceId: 'source-1',
+    state: 'configured',
+  });
   expect(element.src).toBe('http://localhost:3000/primary.mp4');
   expect(adapter.sourceStateById.get('source-1')).toMatchObject({
-    status: 'ready',
+    status: 'loading',
     selectedInputIndex: 0,
   });
+  element.dispatchEvent(new Event('loadedmetadata'));
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('ready');
 });
 
 test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', async () => {
@@ -483,7 +497,9 @@ test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', asy
   await adapter.seek?.(fromSeconds(1), activeLayers);
   expect(element.src).toBe('blob:first');
 
-  expect(adapter.replaceSource({ sourceId: 'source-1', input: new Blob(['second']) })).toBe(true);
+  await expect(
+    adapter.replaceSource({ sourceId: 'source-1', input: new Blob(['second']) })
+  ).resolves.toEqual({ ok: true, sourceId: 'source-1', state: 'configured' });
 
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:first');
   expect(createObjectURL).toHaveBeenCalledTimes(2);
@@ -493,7 +509,7 @@ test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', asy
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:second');
 });
 
-test('createHTMLMediaAdapter selects proxies independently from input fallback', async () => {
+test('createHTMLMediaAdapter loads an app-resolved proxy through source replacement', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');
   vi.spyOn(element, 'pause').mockImplementation(() => {});
@@ -503,13 +519,6 @@ test('createHTMLMediaAdapter selects proxies independently from input fallback',
       {
         sourceId: 'source-1',
         input: '/original.mp4',
-        proxies: [
-          {
-            proxyId: 'edit-540p',
-            input: '/proxy.mp4',
-            timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
-          },
-        ],
       },
     ],
   });
@@ -518,14 +527,17 @@ test('createHTMLMediaAdapter selects proxies independently from input fallback',
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
 
-  expect(adapter.setRepresentation('source-1', { kind: 'proxy', proxyId: 'edit-540p' })).toBe(true);
+  await expect(
+    adapter.replaceSource({
+      sourceId: 'source-1',
+      input: '/proxy.mp4',
+      timing: { sourceTimeSeconds: 10, mediaTimeSeconds: 0 },
+    })
+  ).resolves.toEqual({ ok: true, sourceId: 'source-1', state: 'configured' });
   await adapter.seek?.(fromSeconds(1), activeLayers);
 
   expect(element.src).toBe('http://localhost:3000/proxy.mp4');
   expect(element.currentTime).toBe(1);
   expect(adapter.getClockTime()).toBe(1);
-  expect(adapter.sourceStateById.get('source-1')?.selectedRepresentation).toEqual({
-    kind: 'proxy',
-    proxyId: 'edit-540p',
-  });
+  expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(0);
 });

@@ -71,11 +71,9 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): Mediabun
         {
           sourceId: 'source-1',
           status: 'ready',
-          selectedRepresentation: { kind: 'original' },
           selectedInputIndex: 0,
           attempts: [
             {
-              representation: { kind: 'original' },
               inputIndex: 0,
               status: 'ready',
               error: null,
@@ -113,12 +111,20 @@ function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): Mediabun
     requestClockActivation: () => {},
     setVolume: () => {},
     setMuted: () => {},
-    setRepresentation: (sourceId) =>
-      Promise.resolve({ ok: false, sourceId, error: new Error('Unavailable in test.') }),
     retrySource: (sourceId: string) =>
-      Promise.resolve({ ok: false, sourceId, error: new Error('unavailable') }),
+      Promise.resolve({
+        ok: false,
+        sourceId,
+        reason: 'unknown-source',
+        error: new Error('unavailable'),
+      }),
     replaceSource: (source) =>
-      Promise.resolve({ ok: false, sourceId: source.sourceId, error: new Error('unavailable') }),
+      Promise.resolve({
+        ok: false,
+        sourceId: source.sourceId,
+        reason: 'load-failed',
+        error: new Error('unavailable'),
+      }),
     setClockRate: () => {},
     seek: () => Promise.resolve(),
     renderVideo: () => Promise.resolve(),

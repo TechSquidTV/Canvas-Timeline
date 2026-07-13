@@ -36,7 +36,12 @@ export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
   startClock: (timelineTime: RationalTime, playbackRate: number) => MaybePromise<boolean>;
   /** Stops the external media clock if timeline playback cannot start. */
   stopClock?: () => void;
-  /** Requests browser-gated clock activation without blocking visual transport. */
+  /**
+   * Starts browser-gated clock activation without awaiting it.
+   *
+   * Keep permission or audio-resume degradation separate from visual transport;
+   * the callback must return immediately so `seek` and `startClock` can proceed.
+   */
   requestClockActivation?: (playbackRate: number) => void;
   /** Updates the external clock rate before timeline playback rate changes. */
   setClockRate?: (playbackRate: number) => void;
@@ -50,6 +55,38 @@ export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
   /** Receives high-level playback status changes. */
   onStatus?: UseTimelineMediaPlaybackOptions<LayerName>['onStatus'];
 }
+
+/** Observable lifecycle state shared by packaged timeline media adapters. */
+export type TimelineMediaSourceStatus = 'idle' | 'loading' | 'recovering' | 'ready' | 'failed';
+
+/** Reason a packaged adapter source operation could not be accepted. */
+export type TimelineMediaSourceOperationFailureReason =
+  | 'unknown-source'
+  | 'invalid-source'
+  | 'load-failed';
+
+/**
+ * Result of retrying or replacing a packaged adapter source.
+ *
+ * @remarks
+ *
+ * `configured` means the adapter accepted the source and initiated any native
+ * loading required for it. `ready` means the adapter completed source loading
+ * before resolving the operation. Observe the adapter's `sourceStateById` for
+ * subsequent lifecycle changes and detailed input attempts.
+ */
+export type TimelineMediaSourceOperationResult =
+  | {
+      ok: true;
+      sourceId: string;
+      state: 'configured' | 'ready';
+    }
+  | {
+      ok: false;
+      sourceId: string;
+      reason: TimelineMediaSourceOperationFailureReason;
+      error: Error;
+    };
 
 /**
  * Options for high-level timeline media synchronization.
@@ -89,7 +126,7 @@ export type TimelineMediaPlayFailureReason =
   | 'no-content'
   /** Content exists, but no clip is active at the resolved playhead time. */
   | 'no-active-content'
-  /** External media clock failed to resume, seek, or start. */
+  /** External media clock failed to seek or start. */
   | 'clock-failed'
   /** Timeline engine playback could not start after the external clock started. */
   | 'timeline-failed';

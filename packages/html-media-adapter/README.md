@@ -53,7 +53,7 @@ export function NativePreview() {
 }
 ```
 
-Use `fallbacks` for alternate ways to load the currently selected representation. Use `proxies` for deliberately selectable editing media, and switch with `media.adapter.setRepresentation(...)`. A proxy can define its own fallbacks and a `timing` anchor when its container timestamps differ from the logical source.
+Each source describes one media choice already resolved by your application. Use `fallbacks` only for equivalent ways to load that choice. Keep originals, editing proxies, optimized previews, and export media in your media library, then switch the adapter with `media.adapter.replaceSource(...)`. Include a `timing` anchor when the resolved media uses a different timestamp origin.
 
 ```ts
 import { createHTMLMediaAdapter } from '@techsquidtv/canvas-timeline-html-media-adapter';

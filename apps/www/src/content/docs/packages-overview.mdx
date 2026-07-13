@@ -49,8 +49,8 @@ into media playback.
 
 Choose the HTML media adapter when one native `<video>` or `<audio>` element
 should follow timeline transport. Start with `useHTMLTimelineMedia`, which takes
-the element ref, a `Record<sourceId, string | Blob | File>`, and the timeline
-layers you want to sync.
+the element ref, an array of app-resolved `{ sourceId, input, fallbacks? }`
+sources, and the timeline layers you want to sync.
 
 Choose the Mediabunny adapter when you need decoded frames on a canvas, local
 files/blobs, custom Mediabunny inputs, or separate visual/audio scheduling.
