@@ -29,6 +29,7 @@ const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
   audio: { trackKind: 'audio', sourceId: sampleSourceId },
 } as const;
+const sources = [sampleMediaSource] as const;
 
 function formatRenderedFrame(seconds: number | null) {
   return seconds === null ? 'Pending' : formatMediabunnyTime(seconds);
@@ -60,7 +61,6 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   // The source id joins app-owned media descriptors to timeline clips without storing media in timeline state.
-  const sources = useMemo(() => [sampleMediaSource], []);
   const media = useMediabunnyTimelineMedia({
     canvasRef,
     frameRate: 30,
@@ -78,9 +78,11 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const lastFrameTime = useMediabunnyFrameTime(media.adapter);
   const { ready, status, sourceStateById, playing, playbackRate, play, pause, setPlaybackRate } =
     media;
+  const sourceState = sourceStateById.get(sampleSourceId);
+  const sourceReady = sourceState?.status === 'ready';
 
   useEffect(() => {
-    if (!ready || decodeMetricReportedRef.current) {
+    if (!sourceReady || decodeMetricReportedRef.current) {
       return;
     }
 
@@ -93,7 +95,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       },
       performance.now() - mediaLoadStartedAtRef.current
     );
-  }, [metrics, ready]);
+  }, [metrics, sourceReady]);
 
   // Transport controls
   const handlePlayPause = useCallback(async () => {
@@ -112,7 +114,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       }
     }
   }, [metrics, pause, play, playing]);
-  const mediaDuration = sourceStateById.get(sampleSourceId)?.metadata?.durationSeconds ?? null;
+  const mediaDuration = sourceState?.metadata?.durationSeconds ?? null;
 
   return (
     <div className="media-sync-demo">

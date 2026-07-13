@@ -31,6 +31,8 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 - Use Mediabunny to decode video frames and audio buffers, then keep canvas drawing and Web Audio playback aligned with timeline clips.
 - Map `clip.sourceId` values to Mediabunny sources without storing heavy media objects in timeline state.
 - Build a custom timeline preview monitor without storing files, blobs, or decoded frames in timeline state.
+- Load only active or explicitly preloaded sources and release decoder resources without removing definitions.
+- Select alternate video/audio tracks and inspect timing, dimensions, frame-rate, audio, and fallback diagnostics.
 
 ## Quick Start
 
@@ -76,10 +78,16 @@ Each item in `sources` uses a `sourceId` matching timeline clips and one app-res
 
 Sources load on demand when their clips become active. Use `preloadSource(sourceId)` to warm likely next clips and `unloadSource(sourceId)` to release decoder resources without removing the source. React source arrays do not need stable identity for ordinary URL descriptors; keep factories, selectors, and custom option objects stable because their identity represents executable policy.
 
+`ready` means at least one source is registered, not that every project asset is decoded. Read `sourceStateById` for each source's lazy lifecycle and `audioStatus` for browser activation degradation. Caller-supplied `AudioContext` and destination nodes remain caller-owned; the adapter creates an audio graph only for a selected decodable audio track. Runtime `setVolume()` and `setMuted()` changes do not reload sources.
+
+High-level React playback applies Core in/out and loop policy to the external clock. `onError` receives a `TimelineMediaError` with a stable `reason`; audio activation is requested without blocking visual transport.
+
 ## Documentation
 
 - [Package docs](https://canvastimeline.com/packages/mediabunny-adapter/)
 - [API reference](https://canvastimeline.com/packages/mediabunny-adapter/api)
+- [Media adapter guide](https://canvastimeline.com/docs/media-adapters)
+- [Breaking migration guide](https://canvastimeline.com/docs/media-adapter-migration)
 - [Mediabunny adapter demo](https://canvastimeline.com/demos/media-preview-sync)
 - [Demos](https://canvastimeline.com/demos/)
 - [Mediabunny docs](https://mediabunny.dev/)

@@ -48,11 +48,15 @@ export interface HTMLMediaSourceState {
 export interface HTMLMediaAdapter extends TimelineMediaSyncAdapter {
   /** Immutable source snapshot replaced whenever observable lifecycle state changes. */
   readonly sourceStateById: ReadonlyMap<string, HTMLMediaSourceState>;
+  /** Current native media element volume from 0 to 1. */
   readonly volume: number;
+  /** Whether native media element output is muted. */
   readonly muted: boolean;
   /** Reconcile the complete logical source registry without recreating the adapter. */
   setSources: (sources: readonly HTMLMediaSource[]) => void;
+  /** Update native element volume without reloading the active source. */
   setVolume: (volume: number) => void;
+  /** Update native element mute state without reloading the active source. */
   setMuted: (muted: boolean) => void;
   /** Retry one source from its preferred input and report that native loading was configured. */
   retrySource: (sourceId: string) => Promise<TimelineMediaSourceOperationResult>;

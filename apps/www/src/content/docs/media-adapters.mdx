@@ -1,0 +1,208 @@
+---
+title: Media adapters
+description: Connect timeline clips to native media or decoded Mediabunny previews without putting media-library policy in the timeline.
+section: packages
+order: 34
+---
+
+## Choose the preview boundary
+
+Canvas Timeline keeps clips lightweight. A clip stores a stable `sourceId`,
+while your application owns files, URLs, proxies, offline state, relinks, and
+export media. A media adapter receives the app-resolved preview source for each
+ID and synchronizes it with timeline playback.
+
+Choose the HTML media adapter when one native `<video>` or `<audio>` element can
+represent the preview. Choose the Mediabunny adapter when you need decoded
+canvas frames, separate visual/audio scheduling, local files, custom inputs, or
+track selection.
+
+Both packages keep their imperative roots framework-free. React hooks live in
+the explicit `./react` entry points:
+
+```tsx
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+```
+
+The shared `TimelineMediaSyncAdapter`, source, timing, lifecycle, operation, and
+error contracts live in `@techsquidtv/canvas-timeline-core`. Use
+`useTimelineMediaSync` from the React package when implementing a different
+decoder, renderer, or external clock.
+
+## Define one resolved source
+
+The common source has two required fields:
+
+```tsx
+const sources = [
+  {
+    sourceId: 'camera-a',
+    input: '/media/camera-a.mp4',
+  },
+];
+```
+
+`sourceId` joins the descriptor to timeline clips. `input` is the media your
+application selected for this preview session. Ordinary inline URL descriptors
+do not need `useMemo`; hooks reconcile definitions and preserve adapters and
+loaded media when values have not changed.
+
+Use `fallbacks` only for ordered, content-equivalent ways to load the same
+choice—for example, an HLS endpoint followed by a direct file, or a CDN URL
+followed by an offline cache entry:
+
+```tsx
+import { HLS_FORMATS } from 'mediabunny';
+
+const sources = [
+  {
+    sourceId: 'camera-a',
+    input: {
+      kind: 'url',
+      url: manifestUrl,
+      formats: HLS_FORMATS,
+      urlSourceOptions: { maxCacheSize: 32 * 1024 * 1024 },
+    },
+    fallbacks: [directFile],
+  },
+];
+```
+
+Mediabunny accepts URL strings, `URL`, `Request`, `Blob`, and `File` directly.
+Use its object descriptors only for explicit formats and `UrlSource` options,
+an existing Mediabunny input, or an input factory. Keep `Request`, `Blob`,
+`File`, factory, selector, and custom option identities stable when their
+identity represents a distinct resource or executable policy.
+
+## Keep proxy policy in the media library
+
+A proxy is not a decoder fallback. It is a separate media-library choice with
+its own purpose, lifecycle, quality, and timestamp mapping. Resolve the choice
+in app state and replace the adapter source without changing timeline clips:
+
+```tsx
+const asset = {
+  sourceId: 'camera-a',
+  original: { input: originalFile },
+  proxies: {
+    editing: {
+      input: proxyUrl,
+      timing: {
+        sourceTimeSeconds: cameraTimestamp,
+        mediaTimeSeconds: 0,
+      },
+    },
+  },
+};
+
+const selected = useProxy ? asset.proxies.editing : asset.original;
+
+await media.adapter.replaceSource({
+  sourceId: asset.sourceId,
+  ...selected,
+});
+```
+
+The optional `timing` anchor says that `sourceTimeSeconds` and
+`mediaTimeSeconds` identify the same frame or sample. Omit it when logical
+source timestamps already equal media timestamps. This keeps epoch/live source
+time, proxies, transcodes, and trimmed cache files aligned.
+
+Use `setSources(nextSources)` when replacing the complete registry. Use
+`replaceSource(source)` for one app-level media choice, and `retrySource(id)` to
+retry the preferred input and its fallbacks. Replacement and retry return a
+discriminated result with `ok`, `sourceId`, and either a `configured`/`ready`
+state or a machine-readable failure reason.
+
+## Understand readiness and lazy loading
+
+HTML and Mediabunny have intentionally different readiness boundaries:
+
+- `useHTMLTimelineMedia().ready` means the React ref resolved to a native media
+  element. Read `sourceStateById` to determine whether a source is `idle`,
+  `loading`, `recovering`, `ready`, or `failed`.
+- `useMediabunnyTimelineMedia().ready` means at least one source is registered
+  and can be resolved. Sources start `idle` and load only when their clips are
+  active or explicitly preloaded.
+
+Mediabunny exposes lifecycle control for larger projects:
+
+```tsx
+const result = await media.adapter.preloadSource(nextSourceId);
+
+if (!result.ok) {
+  console.error(result.reason, result.error);
+}
+
+media.adapter.unloadSource(previousSourceId);
+```
+
+`preloadSource` warms a registered source without changing proxy/original
+policy. `unloadSource` releases its decoder and audio resources but keeps the
+definition registered; the source returns to `idle` and reloads when needed.
+
+`sourceStateById` snapshots are referentially new when observable state changes.
+Each state includes the selected input index, ordered attempts, and terminal
+error. Mediabunny ready states also expose source-domain and media-domain
+timestamps, duration, dimensions, rotation, detected frame rate, and audio
+sample rate.
+
+## Select tracks and configure audio
+
+Mediabunny uses the primary video and audio tracks by default. Supply
+`selectTracks(context)` when the editor needs an alternate camera angle,
+language, commentary mix, or another explicit track. The context contains all
+decodable tracks plus the logical source and selected preferred/fallback input.
+
+The adapter creates an audio graph only after loading a source with a decodable
+audio track. A supplied `AudioContext` and destination remain caller-owned;
+disposal closes only a context created by the adapter.
+
+Use `setVolume()` and `setMuted()` for imperative runtime changes. In React,
+updating `audio.volume` or `audio.muted` changes the master gain without
+disposing the adapter or reloading sources.
+
+Browser audio activation is separate from visual transport. The high-level
+sync hook starts activation without awaiting it, so suspended audio cannot
+prevent video playback. Observe `adapter.audioStatus` for `suspended`,
+`running`, or `degraded` state. Imperative integrations can call
+`requestClockActivation()` directly.
+
+## Apply playback ranges and errors
+
+High-level adapter hooks accept the same range policy as timeline playback:
+
+```tsx
+const media = useMediabunnyTimelineMedia({
+  sources,
+  layers,
+  playbackOptions: {
+    respectInOut: true,
+    loop: true,
+  },
+  onError: (error) => reportPreviewFailure(error.reason, error.message),
+});
+```
+
+External clock ticks pass through Core range enforcement. When looping is
+enabled, the high-level sync hook seeks and restarts the adapter clock at the
+range start. At the lower-level `useTimelineMediaPlayback` boundary, looping is
+enabled by supplying the `loop(timelineTime, activeLayers)` realignment callback
+instead of a boolean; this prevents a clock from looping without a way to seek.
+
+`onError` receives `TimelineMediaError`. Use its stable `reason` for program
+flow and `message` for logs or UI. Play commands also return a discriminated
+`TimelineMediaPlayResult`, so callers can handle failures without parsing error
+text.
+
+## Continue reading
+
+- [Media adapter migration](/docs/media-adapter-migration) for removed APIs and
+  breaking-change examples.
+- [HTML media adapter package](/packages/html-media-adapter) for the native
+  single-element path.
+- [Mediabunny adapter package](/packages/mediabunny-adapter) for decoded canvas
+  and Web Audio previews.
+- [HTML media sync demo](/demos/html-media-sync) and [Mediabunny media sync
+  demo](/demos/media-preview-sync) for complete source-backed examples.

@@ -81,6 +81,10 @@ export const demoDocs: DemoDoc[] = [
     liveDemoId: 'media-sync',
     references: [
       {
+        label: 'Media source and lifecycle guide',
+        url: '/docs/media-adapters',
+      },
+      {
         label: 'Mediabunny adapter integration guide',
         url: '/packages/mediabunny-adapter',
       },
@@ -111,6 +115,10 @@ export const demoDocs: DemoDoc[] = [
     sourcePath: 'apps/www/src/demos/html-media-sync/HTMLMediaTimelineSync.tsx',
     liveDemoId: 'html-media-sync',
     references: [
+      {
+        label: 'Media source and lifecycle guide',
+        url: '/docs/media-adapters',
+      },
       {
         label: 'HTML media adapter integration guide',
         url: '/packages/html-media-adapter',

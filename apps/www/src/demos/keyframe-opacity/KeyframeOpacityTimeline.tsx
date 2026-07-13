@@ -49,6 +49,7 @@ const keyframeValuePadding = opacityKeyframeValuePadding;
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
 } as const;
+const sources = [{ sourceId: sampleSourceId, input: sampleMediaUrl }] as const;
 
 interface InterpolationPreset {
   id: string;
@@ -220,15 +221,6 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const playheadTime = useTimelinePlayheadTime();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const sources = useMemo(
-    () => [
-      {
-        sourceId: sampleSourceId,
-        input: sampleMediaUrl,
-      },
-    ],
-    []
-  );
   const keyframes = useTimelineKeyframes({
     clipId: opacityClipId,
     property: 'opacity',

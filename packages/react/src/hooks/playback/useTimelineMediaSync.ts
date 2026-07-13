@@ -31,7 +31,7 @@ import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandRes
  * @template LayerName - Named media layer keys inferred from `layers`.
  */
 export interface UseTimelineMediaSyncOptions<LayerName extends string = string> {
-  /** Whether the external media adapter is loaded and ready to play. */
+  /** Whether the external adapter can accept a playback request for configured media. */
   ready?: boolean;
   /** Optional sequence frame rate used to lock media playback to project frames. */
   frameRate?: UseTimelineMediaPlaybackOptions<LayerName>['frameRate'];
@@ -57,9 +57,13 @@ export type TimelineMediaPlayResult =
   | { ok: true; time: RationalTime }
   /** Playback failed before the timeline and external media clock could run together. */
   | {
+      /** Discriminant for a failed media play command. */
       ok: false;
+      /** Machine-readable play failure category. */
       reason: TimelineMediaPlayFailureReason;
+      /** Human-readable failure detail suitable for status UI or logs. */
       message: string;
+      /** Underlying adapter or decoder failure, when one was thrown. */
       cause?: Error;
     };
 
@@ -136,6 +140,9 @@ function createPlayFailure(
  * rendering, and audio scheduling, while the hook handles active layer lookup,
  * first-content seeking, external-clock playback, rate changes, and pause state.
  * It builds on {@link useTimelineMediaPlayback} for external-clock playback.
+ * High-level `playbackOptions.loop` is translated into an adapter seek and clock
+ * restart at the range start. Errors are delivered as {@link TimelineMediaError}
+ * values and play commands also return a discriminated result.
  * For packaged adapters, prefer the higher-level HTML and Mediabunny hooks first;
  * use this hook when you are building a custom clock or preview surface.
  *

@@ -24,6 +24,7 @@ const playbackRates = [0.5, 1, 2] as const;
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
 } as const;
+const sources = [{ sourceId: sampleSourceId, input: sampleMediaUrl }] as const;
 
 interface MediaReadout {
   status: string;
@@ -68,15 +69,6 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   });
 
   // Adapter setup
-  const sources = useMemo(
-    () => [
-      {
-        sourceId: sampleSourceId,
-        input: sampleMediaUrl,
-      },
-    ],
-    []
-  );
   const { playing, playbackRate, play, pause, setPlaybackRate, ready } = useHTMLTimelineMedia({
     ref: videoRef,
     sources,

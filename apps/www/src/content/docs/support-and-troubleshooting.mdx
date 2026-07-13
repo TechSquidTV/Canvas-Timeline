@@ -79,9 +79,13 @@ and `@techsquidtv/canvas-timeline-utils`.
 ### Media adapter import is larger than expected
 
 Install adapter packages only when the app needs them. The main package exports
-the native HTML media adapter path for convenience; Mediabunny remains in the
-focused `@techsquidtv/canvas-timeline-mediabunny-adapter` package with
-`mediabunny` as a peer dependency.
+the framework-free native HTML media adapter path for convenience; import its
+React hooks from the focused adapter package's `./react` entry point.
+Mediabunny remains in
+`@techsquidtv/canvas-timeline-mediabunny-adapter`, with `mediabunny` as a peer
+dependency and React isolated behind that package's `./react` entry point. See
+[Media adapters](/docs/media-adapters) for the package boundaries and lazy
+source lifecycle.
 
 ### Worker or canvas output is missing
 

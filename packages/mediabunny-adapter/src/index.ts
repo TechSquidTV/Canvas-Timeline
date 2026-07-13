@@ -31,14 +31,25 @@ export type MediabunnySourceInput =
   | Blob
   | File
   | {
+      /** Discriminant for a URL-backed Mediabunny source. */
       kind: 'url';
+      /** URL, URL object, or Request used to construct a Mediabunny `UrlSource`. */
       url: string | URL | Request;
+      /** Explicit formats such as `HLS_FORMATS`; defaults to `ALL_FORMATS`. */
       formats?: readonly Mediabunny.InputFormat[];
+      /** Cache, request, and parallel-loading options passed to `UrlSource`. */
       urlSourceOptions?: Mediabunny.UrlSourceOptions;
     }
-  | { kind: 'input'; input: Mediabunny.Input }
   | {
+      /** Discriminant for an already-created Mediabunny input. */
+      kind: 'input';
+      /** Caller-owned Mediabunny input; the adapter will not dispose it. */
+      input: Mediabunny.Input;
+    }
+  | {
+      /** Discriminant for a lazily-created Mediabunny input. */
       kind: 'input-factory';
+      /** Create an adapter-owned input when the source first loads. */
       createInput: (mediabunny: MediabunnyModule) => MaybePromise<Mediabunny.Input>;
     };
 
@@ -47,29 +58,41 @@ export type MediabunnySource = TimelineMediaSource<MediabunnySourceInput>;
 
 /** Tracks selected from a loaded resolved source input. */
 export interface MediabunnyTrackSelection {
+  /** Video track to decode, or `null` for an audio-only selection. */
   videoTrack: Mediabunny.InputVideoTrack | null;
+  /** Audio track to schedule, or `null` for a video-only selection. */
   audioTrack: Mediabunny.InputAudioTrack | null;
 }
 
 /** Context passed to custom media-track selection. */
 export interface MediabunnyTrackSelectionContext {
+  /** Logical source definition currently being loaded. */
   source: MediabunnySource;
+  /** Preferred or fallback descriptor selected for this load attempt. */
   sourceInput: MediabunnySourceInput;
+  /** Open Mediabunny input whose tracks are being selected. */
   input: Mediabunny.Input;
+  /** All decodable video tracks reported by the input. */
   videoTracks: readonly Mediabunny.InputVideoTrack[];
+  /** All decodable audio tracks reported by the input. */
   audioTracks: readonly Mediabunny.InputAudioTrack[];
 }
 
 /** Video metadata for the selected source track. */
 export interface MediabunnyVideoMetadata {
+  /** Display width after applying track rotation, in pixels. */
   displayWidth: number;
+  /** Display height after applying track rotation, in pixels. */
   displayHeight: number;
+  /** Selected video track rotation. */
   rotation: Mediabunny.Rotation;
+  /** Detected average frame rate, or `null` when it cannot be determined. */
   detectedFrameRate: number | null;
 }
 
 /** Audio metadata for the selected source track. */
 export interface MediabunnyAudioMetadata {
+  /** Selected audio track sample rate in hertz. */
   sampleRate: number;
 }
 
@@ -79,22 +102,33 @@ export interface MediabunnySourceMetadata {
   firstTimestampSeconds: number;
   /** First timestamp mapped into the logical source time domain. */
   sourceFirstTimestampSeconds: number;
+  /** Earliest presentation timestamp across the selected audio and video tracks. */
   presentationStartTimestampSeconds: number;
   /** End timestamp mapped into the logical source time domain. */
   sourceEndTimestampSeconds: number;
+  /** End timestamp in the resolved media's time domain. */
   endTimestampSeconds: number;
+  /** Selected-track presentation duration in seconds. */
   durationSeconds: number;
+  /** Selected video metadata, or `null` when no video track is selected. */
   video: MediabunnyVideoMetadata | null;
+  /** Selected audio metadata, or `null` when no audio track is selected. */
   audio: MediabunnyAudioMetadata | null;
 }
 
 /** Observable loading and recovery state for a logical source. */
 export interface MediabunnySourceState {
+  /** Logical source identifier. */
   sourceId: string;
+  /** Current lazy-loading or recovery lifecycle state. */
   status: TimelineMediaSourceStatus;
+  /** Selected position in `[input, ...fallbacks]`, or `null` before/after loading. */
   selectedInputIndex: number | null;
+  /** Ordered preferred and fallback input attempts. */
   attempts: readonly TimelineMediaSourceAttempt[];
+  /** Selected-track timing and format metadata, or `null` until ready. */
   metadata: MediabunnySourceMetadata | null;
+  /** Terminal source load error, or `null` outside the failed state. */
   error: Error | null;
 }
 
@@ -169,10 +203,13 @@ export interface MediabunnyAdapter {
   readonly lastFrameTime: number | null;
   /** Immutable loading, input-attempt, metadata, and recovery snapshot by source id. */
   readonly sourceStateById: ReadonlyMap<string, MediabunnySourceState>;
+  /** Current master output volume from 0 to 1. */
   readonly volume: number;
+  /** Whether master audio output is muted. */
   readonly muted: boolean;
+  /** Current optional Web Audio graph and browser activation state. */
   readonly audioStatus: MediabunnyAudioStatus;
-  /** React timeline media sync adapter backed by Mediabunny clocks and sinks. */
+  /** Framework-neutral synchronization contract backed by Mediabunny clocks and sinks. */
   readonly syncAdapter: TimelineMediaSyncAdapter<string>;
   /** Subscribe to decoded preview frame timestamp changes. */
   subscribeFrame: (listener: () => void) => () => void;
@@ -391,7 +428,32 @@ function areMediabunnyUrlsEqual(left: string | URL | Request, right: string | UR
 /**
  * Create a Mediabunny adapter that drives Canvas Timeline media playback.
  *
+ * @remarks
+ *
+ * Source definitions are registered immediately but opened only when active or
+ * explicitly preloaded. The adapter owns inputs created from URLs, blobs, and
+ * factories, while supplied `{ kind: "input" }` values and caller-provided
+ * `AudioContext` instances remain caller-owned.
+ *
  * @param options - Mediabunny sources, preview canvas, audio, loader, and change callback.
+ * @returns Imperative lazy-loading adapter and framework-neutral sync contract.
+ *
+ * @example
+ * ```ts
+ * import * as mediabunny from 'mediabunny';
+ * import { createMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
+ *
+ * const adapter = createMediabunnyAdapter({
+ *   mediabunny,
+ *   canvas,
+ *   sources: [{ sourceId: 'source-1', input: '/media/interview.mp4' }],
+ * });
+ *
+ * await adapter.preloadSource('source-1');
+ * ```
+ *
+ * @see {@link MediabunnyAdapter}
+ * @see {@link https://canvastimeline.com/docs/media-adapters | Media adapter guide}
  */
 export function createMediabunnyAdapter(
   options: CreateMediabunnyAdapterOptions

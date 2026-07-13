@@ -26,6 +26,7 @@ import '@techsquidtv/canvas-timeline-react/styles.css';
 
 - Bind a `TimelineEngine` instance to React components, controls, and state subscriptions.
 - Use hooks for clips, tracks, selection, playback, viewport state, history, clipboard, and edit commands.
+- Coordinate custom external clocks with `useTimelineMediaSync` or `useTimelineMediaPlayback`.
 - Add pointer-captured interaction layers for selection, drag, trim, playhead scrubbing, and custom scrollbars.
 
 ## Quick Start
@@ -64,5 +65,6 @@ import '@techsquidtv/canvas-timeline-react/theme.css';
 - [Package docs](https://canvastimeline.com/packages/react/)
 - [API reference](https://canvastimeline.com/packages/react/api)
 - [React registry](https://canvastimeline.com/packages/react/registry/)
+- [Media adapter guide](https://canvastimeline.com/docs/media-adapters)
 - [Demos](https://canvastimeline.com/demos/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react)

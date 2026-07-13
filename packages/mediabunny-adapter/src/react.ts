@@ -161,22 +161,25 @@ function useStableStringArray(values: readonly string[] | undefined) {
  * Use this hook when your app wants to manage transport with
  * {@link useTimelineMediaSync} manually, inspect decoded frame state, or share
  * one adapter across custom preview controls. For a ready-made transport hook,
- * use {@link useMediabunnyTimelineMedia}.
+ * use {@link useMediabunnyTimelineMedia}. Ordinary URL source arrays are
+ * reconciled by value; keep factories, track selectors, and custom option
+ * objects stable because their identity represents executable policy.
  *
  * @param options - Mediabunny sources, optional canvas ref, audio options, and module loader.
  * @returns The current Mediabunny adapter, including readiness, status, decoded frame state, and sync callbacks.
  *
  * @example
  * ```tsx
- * import { useMemo, useRef } from 'react';
- * import { useMediabunnyAdapter } from '#mediabunny-adapter/react';
+ * import { useRef } from 'react';
+ * import { useMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ *
+ * const sources = [{
+ *   sourceId: 'source-1',
+ *   input: '/media/sample.mp4',
+ * }];
  *
  * export function DecoderStatus() {
  *   const canvasRef = useRef<HTMLCanvasElement>(null);
- *   const sources = useMemo(() => [{
- *     sourceId: 'source-1',
- *     input: '/media/sample.mp4',
- *   }], []);
  *   const adapter = useMediabunnyAdapter({
  *     canvasRef,
  *     sources,
@@ -284,20 +287,21 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  * @remarks
  *
  * This is the high-level React hook for decoded media previews. It is the same
- * shape used by the media sync demo and the full editor demo: define stable
+ * shape used by the media sync demo and the full editor demo: define named
  * `visuals` and `audio` layers, pass sources keyed by timeline clip `sourceId`,
  * and drive toolbar buttons from the returned `play`, `pause`, and
- * `setPlaybackRate` commands.
+ * `setPlaybackRate` commands. `ready` means at least one source is registered;
+ * inspect `sourceStateById` for per-source idle, loading, and ready state.
  *
  * @param options - Mediabunny sources, active layers, optional canvas ref, and sync options.
  * @template LayerName - Named media layer keys inferred from `options.layers`,
  * such as `"visuals" | "audio"`.
- * @returns Timeline transport state, active layer data, decoded frame status, source durations, and the low-level adapter.
+ * @returns Timeline transport state, active layer data, source diagnostics, and the low-level adapter.
  *
  * @example
  * ```tsx
- * import { useMemo, useRef } from 'react';
- * import { useMediabunnyTimelineMedia } from '#mediabunny-adapter/react';
+ * import { useRef } from 'react';
+ * import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
  *
  * type PreviewLayerName = 'visuals' | 'audio';
  *
@@ -305,18 +309,18 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  *   visuals: { trackKind: 'visual' },
  *   audio: { trackKind: 'audio' },
  * } as const;
+ * const sources = [{
+ *   sourceId: 'source-1',
+ *   input: '/media/interview.mp4',
+ * }];
  *
  * export function DecodedPreview() {
  *   const canvasRef = useRef<HTMLCanvasElement>(null);
- *   const sources = useMemo(() => [{
- *     sourceId: 'source-1',
- *     input: '/media/interview.mp4',
- *   }], []);
  *   const media = useMediabunnyTimelineMedia<PreviewLayerName>({
  *     canvasRef,
  *     sources,
  *     layers: previewLayers,
- *     onError: console.error,
+ *     onError: (error) => console.error(error.reason, error.message),
  *   });
  *
  *   return (

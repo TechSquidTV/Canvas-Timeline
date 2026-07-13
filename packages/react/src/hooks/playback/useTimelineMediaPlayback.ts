@@ -51,7 +51,7 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   getClockTime: () => number;
   /** Optional sequence frame rate used to quantize playback updates to project frames. */
   frameRate?: TimecodeFrameRate;
-  /** Core playback range policy applied to the external clock. */
+  /** Core playback range policy applied to the external clock; looping is configured by `loop`. */
   playbackOptions?: Omit<PlaybackOptions, 'clock' | 'loop'>;
   /** Stops the external media clock when timeline playback pauses or leaves active content. */
   stopClock?: () => void;
@@ -59,7 +59,10 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   layers: Record<LayerName, ActiveLayerSelector>;
   /** Synchronizes external rendering, audio, text, or effects for the active layers. */
   syncLayers?: (details: TimelineLayerSyncDetails<LayerName>) => MaybePromise<void>;
-  /** Enables looping and realigns the external clock after core returns to the range start. */
+  /**
+   * Enables looping and realigns the external clock after Core returns to the range start.
+   * The callback is invoked once per loop transition until the clock re-enters range.
+   */
   loop?: (
     timelineTime: RationalTime,
     activeLayers: ActiveLayerResult<LayerName>
@@ -139,7 +142,7 @@ function isPromiseLike(value: MaybePromise<void> | undefined): boolean {
  * @example
  * ```tsx
  * import { useMemo, useRef } from 'react';
- * import { useTimelineMediaPlayback } from '#react/hooks';
+ * import { useTimelineMediaPlayback } from '@techsquidtv/canvas-timeline-react/hooks';
  *
  * const previewLayers = {
  *   visuals: { trackKind: 'visual' },

@@ -138,6 +138,36 @@ function EditToolbar() {
 }
 ```
 
+## External media playback
+
+Start with the adapter-owned React hooks for normal preview surfaces:
+
+```tsx
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+```
+
+These hooks create and dispose the imperative adapter, reconcile source
+definitions, and compose `useTimelineMediaSync()` for media-aware play, pause,
+rate, In/Out, and loop behavior. They accept ordinary inline URL source arrays;
+stable array identity is not required for unchanged descriptors.
+
+Use `useTimelineMediaSync()` when your app implements a different
+`TimelineMediaSyncAdapter`. It owns active-layer lookup, initial-content seeking,
+paused preview seeks, structured `TimelineMediaError` reporting, and shared Core
+range policy. The adapter remains responsible for decoding, rendering, audio
+scheduling, and its external clock.
+
+Drop down to `useTimelineMediaPlayback()` only for direct external-clock
+coordination. At that level, `playbackOptions` contains range policy but not a
+loop boolean. Supply `loop(timelineTime, activeLayers)` to enable looping and
+realign the clock; requiring the callback prevents an external clock from
+looping without a seek/restart implementation.
+
+Read [Media adapters](/docs/media-adapters) for source ownership, proxy versus
+fallback semantics, readiness, lazy loading, timing, track selection, audio,
+and error handling.
+
 ## Accessibility and keyboard composition
 
 Canvas Timeline keeps repeated clips and track visuals on canvas for
@@ -202,5 +232,7 @@ platform-specific preset bindings.
   and drop feedback hooks.
 - [Keyframes](/docs/keyframes) for clip property keyframes, interpolation modes,
   and keyframe interaction composition.
+- [Media adapters](/docs/media-adapters) for native and decoded preview hooks,
+  source registries, and external-clock transport.
 - [Canvas renderer customization](/docs/renderer-customization) for custom
   drawing layers, renderer theme options, and canvas overlays.
