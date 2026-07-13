@@ -2,6 +2,7 @@ import type {
   ActiveLayerSelector,
   ActiveLayerResult,
   MaybePromise,
+  PlaybackOptions,
 } from '@techsquidtv/canvas-timeline-core';
 import { rationalEquals, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -35,8 +36,8 @@ export interface TimelineMediaSyncAdapter<LayerName extends string = string> {
   startClock: (timelineTime: RationalTime, playbackRate: number) => MaybePromise<boolean>;
   /** Stops the external media clock if timeline playback cannot start. */
   stopClock?: () => void;
-  /** Resumes browser-gated clocks, such as AudioContext, from a user gesture. */
-  resumeClock?: (playbackRate: number) => MaybePromise<void>;
+  /** Requests browser-gated clock activation without blocking visual transport. */
+  requestClockActivation?: (playbackRate: number) => void;
   /** Updates the external clock rate before timeline playback rate changes. */
   setClockRate?: (playbackRate: number) => void;
   /** Refreshes external media after paused playhead or timeline edits. */
@@ -68,6 +69,8 @@ export interface UseTimelineMediaSyncOptions<LayerName extends string = string> 
   ready?: boolean;
   /** Optional sequence frame rate used to lock media playback to project frames. */
   frameRate?: UseTimelineMediaPlaybackOptions<LayerName>['frameRate'];
+  /** Core playback range and looping policy applied to the external media clock. */
+  playbackOptions?: Omit<PlaybackOptions, 'clock'>;
   /** Named active layer selectors used by the external media surface. */
   layers: Record<LayerName, ActiveLayerSelector>;
   /** External media adapter callbacks. */
@@ -239,7 +242,7 @@ function createPlayFailure(
 export function useTimelineMediaSync<LayerName extends string = string>(
   options: UseTimelineMediaSyncOptions<LayerName>
 ): UseTimelineMediaSyncResult<LayerName> {
-  const { adapter, frameRate, layers, onError, ready = true } = options;
+  const { adapter, frameRate, layers, onError, playbackOptions, ready = true } = options;
   const adapterSeek = adapter.seek;
   const { engine } = useTimeline();
   const activeLayers = useActiveLayers<LayerName>({ layers });
@@ -252,11 +255,18 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   const syncPlayback = useTimelineMediaPlayback<LayerName>({
     frameRate,
+    playbackOptions,
     getClockTime: adapter.getClockTime,
     stopClock: adapter.stopClock,
     layers,
     syncLayers: adapter.syncLayers,
     onStatus: adapter.onStatus,
+    onLoop: async (timelineTime, loopLayers) => {
+      await adapter.seek?.(timelineTime, loopLayers);
+      if (!(await adapter.startClock(timelineTime, engine.getPlaybackRate()))) {
+        throw new Error('Media clock could not restart after looping.');
+      }
+    },
   });
   const playingRef = useRef(syncPlayback.playing);
 
@@ -346,7 +356,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     const currentTime = engine.getTime();
-    let timelineTime = quantizeTimelineTimeToFrame(currentTime, frameRate);
+    const resolvedStartTime = engine.getPlaybackStartTime(playbackOptions);
+    let timelineTime = quantizeTimelineTimeToFrame(resolvedStartTime, frameRate);
     if (!rationalEquals(currentTime, timelineTime)) {
       engine.setTime(timelineTime);
     }
@@ -378,7 +389,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     try {
-      await adapter.resumeClock?.(syncPlayback.playbackRate);
+      adapter.requestClockActivation?.(syncPlayback.playbackRate);
       await adapter.seek?.(timelineTime, timelineLayers);
       if (!(await adapter.startClock(timelineTime, syncPlayback.playbackRate))) {
         adapter.stopClock?.();
@@ -413,7 +424,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     return { ok: true, time: timelineTime };
-  }, [adapter, engine, frameRate, layers, onError, ready, syncPlayback]);
+  }, [adapter, engine, frameRate, layers, onError, playbackOptions, ready, syncPlayback]);
 
   const setPlaybackRate = useCallback(
     (playbackRate: number) => {

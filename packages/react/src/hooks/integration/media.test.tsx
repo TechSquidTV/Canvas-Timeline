@@ -56,6 +56,62 @@ test('useTimelineMediaPlayback starts external playback and advances from clock 
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaPlayback invokes one loop transition until the clock re-enters range', () => {
+  const engine = createMediaSyncEngine();
+  engine.setInPoint(fromSeconds(1), false);
+  engine.setOutPoint(fromSeconds(4), false);
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const onLoop = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => clockTime,
+        layers: mediaSyncLayers,
+        playbackOptions: { loop: true, respectInOut: true },
+        onLoop,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  act(() => {
+    expect(result.current.play()).toEqual({ ok: true });
+  });
+
+  clockTime = 4.25;
+  act(() => {
+    tick?.(16);
+  });
+  expect(onLoop).toHaveBeenCalledTimes(1);
+  expect(engine.getTime()).toEqual(fromSeconds(1));
+
+  act(() => {
+    tick?.(32);
+  });
+  expect(onLoop).toHaveBeenCalledTimes(1);
+
+  clockTime = 1.25;
+  act(() => {
+    tick?.(48);
+  });
+  clockTime = 4.25;
+  act(() => {
+    tick?.(64);
+  });
+  expect(onLoop).toHaveBeenCalledTimes(2);
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
 test('useTimelineMediaPlayback synchronizes at most once per project frame and skips missed ticks', () => {
   const engine = createMediaSyncEngine();
   engine.setTime(fromSeconds(1.02));
@@ -383,7 +439,7 @@ test('useTimelineMediaSync seeks to first media and starts an external adapter c
     clockTime = toSeconds(timelineTime);
     return true;
   });
-  const resumeClock = vi.fn();
+  const requestClockActivation = vi.fn();
   const seek = vi.fn();
   const syncLayers = vi.fn();
 
@@ -397,7 +453,7 @@ test('useTimelineMediaSync seeks to first media and starts an external adapter c
         adapter: {
           getClockTime: () => clockTime,
           startClock,
-          resumeClock,
+          requestClockActivation,
           seek,
           syncLayers,
         },
@@ -417,7 +473,7 @@ test('useTimelineMediaSync seeks to first media and starts an external adapter c
     expect.objectContaining({ hasActiveClips: true })
   );
   expect(startClock).toHaveBeenCalledWith(fromSeconds(0), 1);
-  expect(resumeClock).toHaveBeenCalledWith(1);
+  expect(requestClockActivation).toHaveBeenCalledWith(1);
   expect(syncLayers).toHaveBeenCalledWith(
     expect.objectContaining({
       reason: 'play',
@@ -585,7 +641,7 @@ test('useTimelineMediaSync reports not-ready adapters without starting playback'
 test('useTimelineMediaSync awaits async clock startup failures', async () => {
   const engine = createMediaSyncEngine();
   const startClock = vi.fn(async () => false);
-  const resumeClock = vi.fn(async () => {});
+  const requestClockActivation = vi.fn();
   const onError = vi.fn();
 
   const { result } = renderHook(
@@ -597,7 +653,7 @@ test('useTimelineMediaSync awaits async clock startup failures', async () => {
         adapter: {
           getClockTime: () => 0,
           startClock,
-          resumeClock,
+          requestClockActivation,
         },
         onError,
       }),
@@ -614,7 +670,7 @@ test('useTimelineMediaSync awaits async clock startup failures', async () => {
     });
   });
 
-  expect(resumeClock).toHaveBeenCalledWith(1);
+  expect(requestClockActivation).toHaveBeenCalledWith(1);
   expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
   expect(engine.getState().playing).toBe(false);
   expect(onError).toHaveBeenCalledWith('Media clock could not start.');

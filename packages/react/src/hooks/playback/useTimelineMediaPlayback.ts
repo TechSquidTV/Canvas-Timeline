@@ -2,6 +2,7 @@ import type {
   ActiveLayerResult,
   ActiveLayerSelector,
   MaybePromise,
+  PlaybackOptions,
 } from '@techsquidtv/canvas-timeline-core';
 import {
   fromSeconds,
@@ -80,12 +81,19 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   getClockTime: () => number;
   /** Optional sequence frame rate used to quantize playback updates to project frames. */
   frameRate?: TimecodeFrameRate;
+  /** Core playback range and looping policy applied to the external clock. */
+  playbackOptions?: Omit<PlaybackOptions, 'clock'>;
   /** Stops the external media clock when timeline playback pauses or leaves active content. */
   stopClock?: () => void;
   /** Named active layer selectors used by the external media surface. */
   layers: Record<LayerName, ActiveLayerSelector>;
   /** Synchronizes external rendering, audio, text, or effects for the active layers. */
   syncLayers?: (details: TimelineLayerSyncDetails<LayerName>) => MaybePromise<void>;
+  /** Realigns the external clock after core loops playback to a range start. */
+  onLoop?: (
+    timelineTime: RationalTime,
+    activeLayers: ActiveLayerResult<LayerName>
+  ) => MaybePromise<void>;
   /** Receives high-level playback status changes. */
   onStatus?: (status: TimelineContentPlaybackStatus) => void;
 }
@@ -204,6 +212,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   const animationFrameRef = useRef<number | null>(null);
   const pausingRef = useRef(false);
   const playbackFrameCursorRef = useRef<PlaybackFrameCursor | null>(null);
+  const loopTransitionRef = useRef<object | null>(null);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -263,6 +272,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       pausingRef.current = true;
       cancelTick();
       playbackFrameCursorRef.current = null;
+      loopTransitionRef.current = null;
       try {
         const timelineTime = engine.getTime();
         const currentOptions = optionsRef.current;
@@ -290,8 +300,10 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
 
   const play = useCallback(() => {
     const currentOptions = optionsRef.current;
+    loopTransitionRef.current = null;
     const currentTime = engine.getTime();
-    const startTime = quantizeTimelineTimeToFrame(currentTime, currentOptions.frameRate);
+    const resolvedStartTime = engine.getPlaybackStartTime(currentOptions.playbackOptions);
+    const startTime = quantizeTimelineTimeToFrame(resolvedStartTime, currentOptions.frameRate);
     if (!rationalEquals(currentTime, startTime)) {
       engine.setTime(startTime);
     }
@@ -305,7 +317,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       return timelineCommandFail('content-gap');
     }
 
-    const started = engine.play({ clock: 'external' });
+    const started = engine.play({ ...currentOptions.playbackOptions, clock: 'external' });
     if (!started) {
       return timelineCommandFail('unsupported');
     }
@@ -344,9 +356,33 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         );
       }
 
-      engine.setTime(timelineTime);
-
-      const nextActiveLayers = synchronizeLayers(timelineTime, 'tick');
+      const update = engine.updateExternalPlaybackTime(timelineTime);
+      const nextActiveLayers = synchronizeLayers(update.time, 'tick');
+      if (update.action !== 'loop') {
+        loopTransitionRef.current = null;
+      } else if (loopTransitionRef.current === null) {
+        const transition = {};
+        loopTransitionRef.current = transition;
+        try {
+          const loopResult = currentOptions.onLoop?.(update.time, nextActiveLayers);
+          if (isPromiseLike(loopResult)) {
+            void Promise.resolve(loopResult).catch(() => {
+              if (loopTransitionRef.current === transition) {
+                pause('paused');
+              }
+            });
+          }
+        } catch {
+          if (loopTransitionRef.current === transition) {
+            pause('paused');
+          }
+          return;
+        }
+      }
+      if (update.action === 'pause') {
+        pause('paused');
+        return;
+      }
       if (!nextActiveLayers.hasActiveClips) {
         pause('content-gap');
         return;
