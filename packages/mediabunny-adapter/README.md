@@ -81,7 +81,7 @@ Sources load on demand when their clips become active. Use `preloadSource(source
 
 The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock is independent of loaded source controllers, so lazy source changes and runtime fallback recovery preserve timeline time. Lazy module-loader failures are observable operation failures and `retrySource()` invokes the loader again.
 
-High-level React playback applies Core in/out and loop policy to the external clock. `onError` receives a `TimelineMediaError` with a stable `reason`, including `sync-failed` for rendering or scheduling failures. Audio activation is requested without blocking visual transport, retained until a decodable audio track loads, and never resumes a supplied context for video-only media.
+High-level React playback applies Core in/out and loop policy to the external clock. Concurrent `play()` calls share one pending startup; `pause()` cancels pending work with a non-error `cancelled` play result. `onError` receives a `TimelineMediaError` with a stable `reason`, including `sync-failed` for rendering or scheduling failures. Audio activation is requested without blocking visual transport, retained until a decodable audio track loads, and never resumes a supplied context for video-only media.
 
 ## Documentation
 

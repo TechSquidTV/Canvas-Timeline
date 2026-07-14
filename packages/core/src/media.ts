@@ -140,6 +140,7 @@ export type TimelineMediaSourceOperationResult =
 
 /** Reason media-synchronized playback could not begin. */
 export type TimelineMediaPlayFailureReason =
+  | 'cancelled'
   | 'not-ready'
   | 'no-content'
   | 'no-active-content'

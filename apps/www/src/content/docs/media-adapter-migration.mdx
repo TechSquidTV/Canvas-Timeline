@@ -211,7 +211,10 @@ Low-level media `play()` and media-aware `setPlaybackRate()` commands are now
 asynchronous because the adapter synchronization contract permits promises.
 Await their command results when product UI needs to surface startup, decoder,
 or scheduling failures. External ticks and loop realignment are serialized, so
-an older adapter operation cannot race a newer timeline position.
+an older adapter operation cannot race a newer timeline position. Concurrent
+high-level play requests share one startup. Calling `pause()` during startup
+resolves that pending play result with `reason: 'cancelled'`; cancellation is a
+normal transport outcome and is not delivered to `onError`.
 
 Native HTML startup now keeps one play command attached to equivalent input
 fallbacks. When the preferred input fails during initial `play()`, the command

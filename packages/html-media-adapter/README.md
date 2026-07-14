@@ -60,6 +60,8 @@ The React hook reconciles ordinary URL descriptors by value, so callers may pass
 
 Initial playback remains one coordinated operation across equivalent input fallbacks: if the preferred input fails while `play()` is pending, the command waits for the selected fallback instead of reporting a detached startup failure.
 
+Concurrent `play()` calls share that pending startup. Calling `pause()` before startup completes resolves the play result with `reason: 'cancelled'`, stops the native clock, and does not report cancellation through `onError`.
+
 This adapter intentionally drives one native element and therefore one active media choice at a time. Use the Mediabunny adapter for decoded canvas frames, separate visual/audio scheduling, custom track selection, or larger lazy-loaded source registries.
 
 ```ts

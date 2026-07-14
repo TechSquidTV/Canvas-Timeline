@@ -166,8 +166,11 @@ looping without a seek/restart implementation. Supply `onError(error)` to
 observe layer synchronization failures; the hook serializes asynchronous
 adapter work, waits for startup and rate synchronization before resolving those
 commands, and stops both clocks before reporting a failure. Loop realignment is
-also awaited before another external-clock tick. The higher-level sync hook
-wraps failures as `TimelineMediaError` values with the `sync-failed` reason.
+also awaited before another external-clock tick. Concurrent high-level play
+requests share one startup; pausing during startup resolves the pending play
+result with `reason: 'cancelled'` and prevents stale adapter work from starting
+the timeline. The higher-level sync hook wraps failures as `TimelineMediaError`
+values with the `sync-failed` reason.
 
 Read [Media adapters](/docs/media-adapters) for source ownership, proxy versus
 fallback semantics, readiness, lazy loading, timing, track selection, audio,
