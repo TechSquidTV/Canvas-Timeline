@@ -726,8 +726,9 @@ test('useTimelineMediaPlayback reports a rate synchronization superseded by paus
   await act(async () => {
     await result.current.play();
   });
-  const rateResult = result.current.setPlaybackRate(2);
+  let rateResult!: ReturnType<typeof result.current.setPlaybackRate>;
   await act(async () => {
+    rateResult = result.current.setPlaybackRate(2);
     await Promise.resolve();
   });
   act(() => {
