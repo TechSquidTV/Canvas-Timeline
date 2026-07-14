@@ -182,6 +182,63 @@ test('useTimelineMediaPlayback serializes asynchronous ticks', async () => {
   rafSpy.mockRestore();
 });
 
+test('useTimelineMediaPlayback orders paused cleanup after an in-flight tick', async () => {
+  const engine = createMediaSyncEngine();
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  let resolveTickSynchronization = () => {};
+  const tickSynchronization = new Promise<void>((resolve) => {
+    resolveTickSynchronization = resolve;
+  });
+  const reasons: string[] = [];
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const syncLayers = vi.fn(async ({ reason }: { reason: string }) => {
+    reasons.push(reason);
+    if (reason === 'tick') {
+      await tickSynchronization;
+    }
+  });
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => clockTime,
+        layers: mediaSyncLayers,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await result.current.play();
+  });
+  clockTime = 1.5;
+  await act(async () => {
+    tick?.(16);
+    await Promise.resolve();
+  });
+  expect(reasons).toEqual(['play', 'tick']);
+
+  act(() => {
+    result.current.pause();
+  });
+  expect(reasons).toEqual(['play', 'tick']);
+
+  await act(async () => {
+    resolveTickSynchronization();
+  });
+  await waitFor(() => {
+    expect(reasons).toEqual(['play', 'tick', 'pause']);
+  });
+
+  rafSpy.mockRestore();
+});
+
 test('useTimelineMediaPlayback waits for loop realignment before syncing or ticking again', async () => {
   const engine = createMediaSyncEngine();
   engine.setInPoint(fromSeconds(1), false);
@@ -433,7 +490,7 @@ test('useTimelineMediaPlayback stops external sync when the engine is paused out
     await expect(result.current.play()).resolves.toEqual({ ok: true });
   });
 
-  act(() => {
+  await act(async () => {
     engine.pause();
   });
 
@@ -642,6 +699,48 @@ test('useTimelineMediaPlayback updates playback rate and resyncs media', async (
   });
   expect(engine.getPlaybackRate()).toBe(2);
   expect(setClockRate).toHaveBeenCalledTimes(1);
+});
+
+test('useTimelineMediaPlayback reports a rate synchronization superseded by pause', async () => {
+  const engine = createMediaSyncEngine();
+  let resolveRateSynchronization = () => {};
+  const rateSynchronization = new Promise<void>((resolve) => {
+    resolveRateSynchronization = resolve;
+  });
+  const syncLayers = vi.fn(({ reason }: { reason: string }) =>
+    reason === 'rate' ? rateSynchronization : Promise.resolve()
+  );
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => 1,
+        layers: mediaSyncLayers,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await result.current.play();
+  });
+  const rateResult = result.current.setPlaybackRate(2);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  act(() => {
+    result.current.pause();
+  });
+  await act(async () => {
+    resolveRateSynchronization();
+    await expect(rateResult).resolves.toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Playback rate change was superseded.',
+    });
+  });
 });
 
 test('useTimelineMediaPlayback returns command failures for content gaps', async () => {
@@ -929,6 +1028,69 @@ test('useTimelineMediaSync awaits async clock startup failures', async () => {
   expect(onError).toHaveBeenCalledWith(
     expect.objectContaining({ reason: 'clock-failed', message: 'Media clock could not start.' })
   );
+});
+
+test('useTimelineMediaSync waits for an in-flight paused preview before starting playback', async () => {
+  const engine = createMediaSyncEngine();
+  let previewTick: FrameRequestCallback | undefined;
+  let resolvePreviewSeek = () => {};
+  const previewSeek = new Promise<void>((resolve) => {
+    resolvePreviewSeek = resolve;
+  });
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    previewTick = callback;
+    return 1;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const seek = vi
+    .fn()
+    .mockImplementationOnce(() => previewSeek)
+    .mockResolvedValue(undefined);
+  const startClock = vi.fn(() => true);
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock,
+          seek,
+        },
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  act(() => {
+    previewTick?.(16);
+  });
+  await waitFor(() => {
+    expect(seek).toHaveBeenCalledTimes(1);
+  });
+
+  const playResult = result.current.play();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(startClock).not.toHaveBeenCalled();
+  expect(seek).toHaveBeenCalledTimes(1);
+
+  resolvePreviewSeek();
+  await act(async () => {
+    await expect(playResult).resolves.toMatchObject({ ok: true });
+  });
+
+  expect(seek).toHaveBeenCalledTimes(2);
+  expect(startClock).toHaveBeenCalledTimes(1);
+  act(() => {
+    result.current.pause();
+  });
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test('useTimelineMediaSync cancels playback while an adapter seek is pending', async () => {
@@ -1287,7 +1449,99 @@ test('useTimelineMediaSync forwards playback rate changes to the adapter', async
   );
 });
 
-test('useTimelineMediaSync seeks paused preview on initial ready mount', () => {
+test('useTimelineMediaSync applies a rate change after pending startup adapter work', async () => {
+  const engine = createMediaSyncEngine();
+  let resolveStartupSeek = () => {};
+  const startupSeek = new Promise<void>((resolve) => {
+    resolveStartupSeek = resolve;
+  });
+  const startClock = vi.fn(() => true);
+  const setClockRate = vi.fn();
+  const seek = vi.fn(() => startupSeek);
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock,
+          setClockRate,
+          seek,
+        },
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const playResult = result.current.play();
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(seek).toHaveBeenCalledTimes(1);
+
+  const rateResult = result.current.setPlaybackRate(2);
+  expect(setClockRate).not.toHaveBeenCalled();
+  resolveStartupSeek();
+
+  await act(async () => {
+    await expect(playResult).resolves.toMatchObject({ ok: true });
+    await expect(rateResult).resolves.toEqual({ ok: true });
+  });
+
+  expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
+  expect(setClockRate).toHaveBeenCalledWith(2);
+  expect(engine.getPlaybackRate()).toBe(2);
+  act(() => {
+    result.current.pause();
+  });
+});
+
+test('useTimelineMediaSync rejects playback owned by another clock', async () => {
+  const engine = createMediaSyncEngine();
+  engine.play({ clock: 'external' });
+  const startClock = vi.fn(() => true);
+  const onError = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock,
+        },
+        onError,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await expect(result.current.play()).resolves.toEqual({
+    ok: false,
+    reason: 'timeline-failed',
+    message: 'Timeline playback is already controlled by another clock.',
+  });
+  expect(startClock).not.toHaveBeenCalled();
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reason: 'timeline-failed',
+      message: 'Timeline playback is already controlled by another clock.',
+    })
+  );
+  act(() => {
+    engine.pause();
+  });
+});
+
+test('useTimelineMediaSync seeks paused preview on initial ready mount', async () => {
   const engine = createMediaSyncEngine();
   let previewTick: FrameRequestCallback | undefined;
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -1317,8 +1571,9 @@ test('useTimelineMediaSync seeks paused preview on initial ready mount', () => {
   expect(rafSpy).toHaveBeenCalledTimes(1);
   expect(seek).not.toHaveBeenCalled();
 
-  act(() => {
+  await act(async () => {
     previewTick?.(16);
+    await Promise.resolve();
   });
 
   expect(seek).toHaveBeenCalledWith(
@@ -1334,7 +1589,7 @@ test('useTimelineMediaSync seeks paused preview on initial ready mount', () => {
   cancelSpy.mockRestore();
 });
 
-test('useTimelineMediaSync schedules initial paused preview when adapter becomes ready', () => {
+test('useTimelineMediaSync schedules initial paused preview when adapter becomes ready', async () => {
   const engine = createMediaSyncEngine();
   let ready = false;
   const previewTicks: FrameRequestCallback[] = [];
@@ -1370,8 +1625,9 @@ test('useTimelineMediaSync schedules initial paused preview when adapter becomes
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
 
-  act(() => {
+  await act(async () => {
     previewTicks[0]?.(16);
+    await Promise.resolve();
   });
 
   expect(seek).toHaveBeenCalledTimes(1);
@@ -1380,7 +1636,7 @@ test('useTimelineMediaSync schedules initial paused preview when adapter becomes
   cancelSpy.mockRestore();
 });
 
-test('useTimelineMediaSync primes a replacement adapter while paused', () => {
+test('useTimelineMediaSync primes a replacement adapter while paused', async () => {
   const engine = createMediaSyncEngine();
   const previewTicks: FrameRequestCallback[] = [];
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -1409,8 +1665,9 @@ test('useTimelineMediaSync primes a replacement adapter while paused', () => {
     }
   );
 
-  act(() => {
+  await act(async () => {
     previewTicks[0]?.(16);
+    await Promise.resolve();
   });
   expect(firstSeek).toHaveBeenCalledOnce();
 
@@ -1422,8 +1679,9 @@ test('useTimelineMediaSync primes a replacement adapter while paused', () => {
   rerender();
 
   expect(rafSpy).toHaveBeenCalledTimes(2);
-  act(() => {
+  await act(async () => {
     previewTicks[1]?.(32);
+    await Promise.resolve();
   });
   expect(secondSeek).toHaveBeenCalledOnce();
 
@@ -1431,7 +1689,7 @@ test('useTimelineMediaSync primes a replacement adapter while paused', () => {
   cancelSpy.mockRestore();
 });
 
-test('useTimelineMediaSync refreshes paused preview when a clip move changes active layers', () => {
+test('useTimelineMediaSync refreshes paused preview when a clip move changes active layers', async () => {
   const engine = createMediaSyncEngine();
   let previewTick: FrameRequestCallback | undefined;
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -1465,8 +1723,9 @@ test('useTimelineMediaSync refreshes paused preview when a clip move changes act
 
   expect(seek).not.toHaveBeenCalled();
 
-  act(() => {
+  await act(async () => {
     previewTick?.(16);
+    await Promise.resolve();
   });
 
   expect(seek).toHaveBeenCalledTimes(1);
@@ -1478,7 +1737,7 @@ test('useTimelineMediaSync refreshes paused preview when a clip move changes act
   cancelSpy.mockRestore();
 });
 
-test('useTimelineMediaSync skips paused preview seeks until the adapter is ready', () => {
+test('useTimelineMediaSync skips paused preview seeks until the adapter is ready', async () => {
   const engine = createMediaSyncEngine();
   let ready = false;
   const previewTicks: FrameRequestCallback[] = [];
@@ -1524,8 +1783,9 @@ test('useTimelineMediaSync skips paused preview seeks until the adapter is ready
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
 
-  act(() => {
+  await act(async () => {
     previewTicks[0]?.(16);
+    await Promise.resolve();
   });
 
   expect(seek).toHaveBeenCalledTimes(1);
@@ -1583,7 +1843,7 @@ test('useTimelineMediaSync skips a queued paused preview seek if the adapter bec
   cancelSpy.mockRestore();
 });
 
-test('useTimelineMediaSync coalesces initial and media edit events into one paused preview seek', () => {
+test('useTimelineMediaSync coalesces initial and media edit events into one paused preview seek', async () => {
   const engine = createMediaSyncEngine();
   const previewTicks: FrameRequestCallback[] = [];
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -1619,8 +1879,9 @@ test('useTimelineMediaSync coalesces initial and media edit events into one paus
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
 
-  act(() => {
+  await act(async () => {
     previewTicks[0]?.(16);
+    await Promise.resolve();
   });
 
   expect(seek).toHaveBeenCalledTimes(1);

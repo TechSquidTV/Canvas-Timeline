@@ -411,6 +411,43 @@ test('createMediabunnyAdapter lazily loads, preloads, and unloads registered sou
   expect(adapter.unloadSource('missing')).toBe(false);
 });
 
+test('createMediabunnyAdapter loads a replacement while the previous source load is pending', async () => {
+  const previousInput = createMockInput();
+  const replacementInput = createMockInput({ metadataDuration: 9 });
+  let resolvePreviousTrack = (_track: MockVideoTrack | null) => {};
+  previousInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolvePreviousTrack = resolve;
+      })
+  );
+  const mockMediabunny = createMockMediabunny([previousInput, replacementInput]);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+  });
+
+  const previousLoad = adapter.preloadSource('source-1');
+  await vi.waitFor(() => {
+    expect(previousInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+
+  adapter.setSources([urlSource('source-1', 'https://media.example/replacement.mp4')]);
+  await expect(adapter.preloadSource('source-1')).resolves.toMatchObject({
+    ok: true,
+    state: 'ready',
+  });
+  expect(adapter.sourceStateById.get('source-1')?.metadata?.durationSeconds).toBe(9);
+
+  resolvePreviousTrack(createMockVideoTrack());
+  await expect(previousLoad).resolves.toMatchObject({
+    ok: false,
+    reason: 'load-failed',
+    error: expect.objectContaining({ message: 'Loading source "source-1" was superseded.' }),
+  });
+  expect(adapter.sourceStateById.get('source-1')?.metadata?.durationSeconds).toBe(9);
+});
+
 test('createMediabunnyAdapter loads concise browser inputs and advanced descriptors', async () => {
   const blob = new Blob(['sample']);
   const file = new File(['sample'], 'sample.mp4', { type: 'video/mp4' });
@@ -563,6 +600,26 @@ test('createMediabunnyAdapter reports module loader failures and retries the loa
     state: 'ready',
   });
   expect(loadMediabunny).toHaveBeenCalledTimes(2);
+});
+
+test('createMediabunnyAdapter reports synchronous module loader failures as source results', async () => {
+  const loadMediabunny = vi.fn<() => Promise<MediabunnyModule>>(() => {
+    throw new Error('module loader threw synchronously');
+  });
+  const adapter = createMediabunnyAdapter({
+    mediabunny: loadMediabunny,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+
+  await expect(adapter.preloadSource('source-1')).resolves.toMatchObject({
+    ok: false,
+    reason: 'load-failed',
+    error: expect.objectContaining({ message: 'module loader threw synchronously' }),
+  });
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'failed',
+    error: expect.objectContaining({ message: 'module loader threw synchronously' }),
+  });
 });
 
 test('createMediabunnyAdapter replaces an app-resolved proxy and maps its timestamps', async () => {
@@ -1059,6 +1116,57 @@ test('createMediabunnyAdapter reports pending audio activation without blocking 
   expect(adapter.audioStatus).toEqual({ state: 'degraded', error: null });
   adapter.dispose();
   vi.useRealTimers();
+});
+
+test('createMediabunnyAdapter reschedules active audio after delayed activation', async () => {
+  const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext();
+  audioContext.state = 'suspended';
+  let resolveResume = () => {};
+  audioContext.resume = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveResume = () => {
+          audioContext.state = 'running';
+          resolve();
+        };
+      })
+  );
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([input]).module,
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
+  });
+  const activeAudio = createActiveClip('audio', 'audio-source', 0);
+  const activeLayers = createActiveLayers([activeAudio], 0);
+
+  await adapter.seek(fromSeconds(0), activeLayers);
+  adapter.requestClockActivation(1);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(true);
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(0),
+    reason: 'play',
+    activeLayers,
+  });
+  await vi.waitFor(() => {
+    expect(audioContext.createBufferSource).toHaveBeenCalledOnce();
+  });
+  const firstNode = audioContext.createBufferSource.mock.results[0]?.value;
+
+  resolveResume();
+  await vi.waitFor(() => {
+    expect(adapter.audioStatus).toEqual({ state: 'running' });
+    expect(firstNode?.stop).toHaveBeenCalledOnce();
+  });
+
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(0),
+    reason: 'tick',
+    activeLayers,
+  });
+  await vi.waitFor(() => {
+    expect(audioContext.createBufferSource).toHaveBeenCalledTimes(2);
+  });
 });
 
 test('createMediabunnyAdapter defers audio activation until an audio track loads', async () => {

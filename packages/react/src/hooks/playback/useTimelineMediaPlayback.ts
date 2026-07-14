@@ -118,17 +118,6 @@ export interface UseTimelineMediaPlaybackResult {
   setPlaybackRate: (rate: number) => Promise<TimelineCommandResult>;
 }
 
-function safelySyncLayers<LayerName extends string>(
-  syncLayers: UseTimelineMediaPlaybackOptions<LayerName>['syncLayers'],
-  details: TimelineLayerSyncDetails<LayerName>
-) {
-  try {
-    void Promise.resolve(syncLayers?.(details)).catch(() => undefined);
-  } catch {
-    // Adapter cleanup should not throw during pause or unmount.
-  }
-}
-
 /**
  * Coordinates timeline playback with an external media clock.
  *
@@ -215,6 +204,31 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     [engine]
   );
 
+  const enqueueBestEffortSynchronization = useCallback(
+    (
+      syncLayers: UseTimelineMediaPlaybackOptions<LayerName>['syncLayers'],
+      details: TimelineLayerSyncDetails<LayerName>,
+      generation: number
+    ) => {
+      const synchronize = async () => {
+        if (playbackGenerationRef.current !== generation) {
+          return;
+        }
+        try {
+          await syncLayers?.(details);
+        } catch {
+          // Adapter cleanup should not throw during pause or unmount.
+        }
+      };
+      const pendingSynchronization = synchronizationQueueRef.current.then(synchronize, synchronize);
+      synchronizationQueueRef.current = pendingSynchronization.then(
+        () => undefined,
+        () => undefined
+      );
+    },
+    []
+  );
+
   const pause = useCallback(
     (status: TimelineContentPlaybackStatus = 'paused', force = false) => {
       if (
@@ -231,9 +245,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       }
 
       pausingRef.current = true;
-      playbackGenerationRef.current += 1;
+      const generation = playbackGenerationRef.current + 1;
+      playbackGenerationRef.current = generation;
       playbackStartGenerationRef.current = null;
-      synchronizationQueueRef.current = Promise.resolve();
       cancelTick();
       playbackFrameCursorRef.current = null;
       loopTransitionRef.current = null;
@@ -241,11 +255,15 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         const timelineTime = engine.getTime();
         const currentOptions = optionsRef.current;
         currentOptions.stopClock?.();
-        safelySyncLayers(currentOptions.syncLayers, {
-          activeLayers: getActiveLayers(timelineTime),
-          timelineTime,
-          reason: status === 'content-gap' ? 'gap' : 'pause',
-        });
+        enqueueBestEffortSynchronization(
+          currentOptions.syncLayers,
+          {
+            activeLayers: getActiveLayers(timelineTime),
+            timelineTime,
+            reason: status === 'content-gap' ? 'gap' : 'pause',
+          },
+          generation
+        );
         if (engine.getState().playing) {
           engine.pause();
         }
@@ -254,7 +272,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         pausingRef.current = false;
       }
     },
-    [cancelTick, engine, getActiveLayers]
+    [cancelTick, engine, enqueueBestEffortSynchronization, getActiveLayers]
   );
 
   const handleSyncFailure = useCallback(
@@ -323,7 +341,6 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     const generation = playbackGenerationRef.current + 1;
     playbackGenerationRef.current = generation;
     playbackStartGenerationRef.current = generation;
-    synchronizationQueueRef.current = Promise.resolve();
     const currentOptions = optionsRef.current;
     loopTransitionRef.current = null;
     const currentTime = engine.getTime();
@@ -486,6 +503,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         'rate',
         playbackGenerationRef.current
       );
+      if (synchronization.superseded === true) {
+        return timelineCommandFail('policy-rejected', 'Playback rate change was superseded.');
+      }
       if (synchronization.error !== undefined) {
         return timelineCommandFail(
           'sync-failed',
@@ -510,20 +530,25 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
 
   useEffect(
     () => () => {
-      playbackGenerationRef.current += 1;
+      const generation = playbackGenerationRef.current + 1;
+      playbackGenerationRef.current = generation;
       playbackStartGenerationRef.current = null;
-      synchronizationQueueRef.current = Promise.resolve();
       cancelTick();
       const timelineTime = engine.getTime();
-      optionsRef.current.stopClock?.();
-      safelySyncLayers(optionsRef.current.syncLayers, {
-        activeLayers: getActiveLayers(timelineTime),
-        timelineTime,
-        reason: 'pause',
-      });
+      const currentOptions = optionsRef.current;
+      currentOptions.stopClock?.();
+      enqueueBestEffortSynchronization(
+        currentOptions.syncLayers,
+        {
+          activeLayers: getActiveLayers(timelineTime),
+          timelineTime,
+          reason: 'pause',
+        },
+        generation
+      );
       engine.pause();
     },
-    [cancelTick, engine, getActiveLayers]
+    [cancelTick, engine, enqueueBestEffortSynchronization, getActiveLayers]
   );
 
   return useMemo(

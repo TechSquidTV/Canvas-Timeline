@@ -208,7 +208,10 @@ Play commands await startup synchronization before returning a discriminated
 `TimelineMediaPlayResult`, and media-aware playback-rate commands likewise
 resolve only after the external clock and active layers are synchronized. This
 lets callers handle failures without parsing error text or receiving a stale
-success result.
+success result. Paused preview seeks share the same adapter-operation ordering
+as startup, looping, ticks, pause cleanup, and rate changes. This matters when a
+lazy source load or decoded-frame request finishes after the user has already
+scrubbed or started playback at a newer position.
 
 ## Continue reading
 

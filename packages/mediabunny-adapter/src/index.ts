@@ -491,7 +491,7 @@ export function createMediabunnyAdapter(
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
   let mediabunnyPromise: Promise<MediabunnyModule> | null = null;
   const getMediabunny = () => {
-    mediabunnyPromise ??= Promise.resolve(
+    mediabunnyPromise ??= Promise.resolve().then(() =>
       typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny
     );
     return mediabunnyPromise;
@@ -669,6 +669,11 @@ export function createMediabunnyAdapter(
         activationTimer = null;
         pendingAudioActivationRate = null;
         const timelineSeconds = getTransportClockTime();
+        for (const controller of controllers.values()) {
+          stopAudioIterator(controller);
+          stopQueuedAudio(controller);
+          controller.activeAudioSyncKey = undefined;
+        }
         setTransportClock(timelineSeconds, playbackRate, transportPlaying);
         setAllClocks(timelineSeconds, playbackRate, transportPlaying);
         audioStatus = { state: 'running' };
@@ -1040,6 +1045,7 @@ export function createMediabunnyAdapter(
 
   const releaseSource = (sourceId: string) => {
     loadGenerations.set(sourceId, (loadGenerations.get(sourceId) ?? 0) + 1);
+    sourceLoadPromises.delete(sourceId);
     recoveringSources.delete(sourceId);
     const controller = controllers.get(sourceId);
     if (controller !== undefined) {
