@@ -204,6 +204,8 @@ instead of a boolean; this prevents a clock from looping without a way to seek.
 `onError` receives `TimelineMediaError`. Use its stable `reason` for program
 flow and `message` for logs or UI. Rendering and scheduling failures report
 `sync-failed` and pause both clocks, including asynchronous iterator failures.
+Rejected loop realignment reports `loop-failed` through the same callback and
+also pauses both clocks.
 Play commands await startup synchronization before returning a discriminated
 `TimelineMediaPlayResult`, and media-aware playback-rate commands likewise
 resolve only after the external clock and active layers are synchronized. This
@@ -212,6 +214,15 @@ success result. Paused preview seeks share the same adapter-operation ordering
 as startup, looping, ticks, pause cleanup, and rate changes. This matters when a
 lazy source load or decoded-frame request finishes after the user has already
 scrubbed or started playback at a newer position.
+
+If React replaces an adapter instance while it owns playback, the synchronization
+hook cancels pending startup, stops the previous clock, pauses the timeline, and
+primes the replacement at the current position. This keeps native element
+replacement and decoder-controller recreation from leaving the timeline driven
+by a detached or frozen clock. The packaged hooks supply `adapterIdentity`
+automatically. Custom `useTimelineMediaSync()` integrations should pass their
+underlying controller as `adapterIdentity`; inline callback facades may omit it
+and do not need memoization.
 
 ## Continue reading
 

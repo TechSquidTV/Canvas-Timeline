@@ -218,6 +218,12 @@ Calling `pause()` during startup resolves that pending play result with
 `reason: 'cancelled'`; cancellation is a normal transport outcome and is not
 delivered to `onError`.
 
+Packaged hooks coordinate adapter replacement automatically. Custom
+`useTimelineMediaSync()` integrations should pass the underlying controller as
+`adapterIdentity` when replacing it must cancel pending startup, stop its owned
+clock, and prime the new paused preview. Omit `adapterIdentity` for an inline
+callback facade; it may be recreated on render without `useMemo`.
+
 Native HTML startup now keeps one play command attached to equivalent input
 fallbacks. When the preferred input fails during initial `play()`, the command
 resolves from the selected fallback instead of failing while fallback playback

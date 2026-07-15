@@ -602,6 +602,98 @@ test('createHTMLMediaAdapter advances input fallbacks and exposes media controls
   expect(adapter.muted).toBe(true);
 });
 
+test('createHTMLMediaAdapter surfaces terminal runtime failures to synchronization', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'play').mockResolvedValue(undefined);
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: htmlSources(),
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  await expect(adapter.startClock(fromSeconds(1), 1)).resolves.toBe(true);
+  element.dispatchEvent(new Event('error'));
+
+  expect(adapter.sourceStateById.get('source-1')?.status).toBe('failed');
+  await expect(
+    adapter.syncLayers?.({
+      timelineTime: fromSeconds(1.25),
+      reason: 'tick',
+      activeLayers,
+    })
+  ).rejects.toThrow('All HTML media inputs failed for source "source-1".');
+});
+
+test('createHTMLMediaAdapter resets input attempts for each source activation', async () => {
+  const engine = new TimelineEngine({
+    duration: fromSeconds(6),
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'clip-a-1',
+            sourceId: 'source-a',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(2),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'clip-b',
+            sourceId: 'source-b',
+            timelineStart: fromSeconds(2),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'clip-a-2',
+            sourceId: 'source-a',
+            timelineStart: fromSeconds(4),
+            timelineEnd: fromSeconds(6),
+            sourceStart: fromSeconds(2),
+            selected: false,
+          },
+        ],
+      },
+    ],
+  });
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      { sourceId: 'source-a', input: '/a.mp4' },
+      { sourceId: 'source-b', input: '/b.mp4' },
+    ],
+  });
+  const layers = { visuals: { trackKind: 'visual' } } as const;
+
+  for (const seconds of [1, 3, 5]) {
+    await adapter.seek?.(
+      fromSeconds(seconds),
+      engine.getActiveLayers({ time: fromSeconds(seconds), layers })
+    );
+    element.dispatchEvent(new Event('loadedmetadata'));
+  }
+
+  expect(adapter.sourceStateById.get('source-a')?.attempts).toEqual([
+    { inputIndex: 0, status: 'ready', error: null },
+  ]);
+});
+
 test('createHTMLMediaAdapter retries failed sources from their preferred input', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');

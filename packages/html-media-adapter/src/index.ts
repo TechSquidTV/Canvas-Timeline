@@ -303,7 +303,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
         sourceId: clip.clip.sourceId,
         status: loadOptions.status ?? 'loading',
         selectedInputIndex: inputIndex,
-        attempts: previousState?.attempts ?? [],
+        attempts: [],
         error: null,
       });
     }
@@ -675,6 +675,10 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
         return;
       }
 
+      const sourceState = sourceStateSnapshot.get(clip.clip.sourceId);
+      if (sourceState?.status === 'failed' && sourceState.error !== null) {
+        throw sourceState.error;
+      }
       if (!loadClip(clip, activeLayers.time) && lastError !== null) {
         throw lastError;
       }
@@ -687,8 +691,12 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
         return;
       }
 
+      const sourceState = sourceStateSnapshot.get(clip.clip.sourceId);
+      if (sourceState?.status === 'failed' && sourceState.error !== null) {
+        throw sourceState.error;
+      }
       const loaded = loadClip(clip, timelineTime);
-      if (!loaded && shouldPlay && lastError !== null) {
+      if (!loaded && lastError !== null) {
         throw lastError;
       }
       if (loaded && shouldPlay) {

@@ -150,20 +150,25 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 These hooks create and dispose the imperative adapter, reconcile source
 definitions, and compose `useTimelineMediaSync()` for media-aware play, pause,
 rate, In/Out, and loop behavior. They accept ordinary inline URL source arrays;
-stable array identity is not required for unchanged descriptors.
+stable array identity is not required for unchanged descriptors. If a hook must
+replace its imperative adapter, synchronized transport pauses, any pending start
+is cancelled, and the replacement is primed at the current paused position.
 
 Use `useTimelineMediaSync()` when your app implements a different
 `TimelineMediaSyncAdapter`. It owns active-layer lookup, initial-content seeking,
 paused preview seeks, structured `TimelineMediaError` reporting, and shared Core
 range policy. The adapter remains responsible for decoding, rendering, audio
-scheduling, and its external clock.
+scheduling, and its external clock. Pass the underlying controller as
+`adapterIdentity` when changing that controller should cancel pending transport
+and release its clock. Omit it for an inline callback facade; the facade can be
+recreated without `useMemo` boilerplate.
 
 Drop down to `useTimelineMediaPlayback()` only for direct external-clock
 coordination. At that level, `playbackOptions` contains range policy but not a
 loop boolean. Supply `loop(timelineTime, activeLayers)` to enable looping and
 realign the clock; requiring the callback prevents an external clock from
 looping without a seek/restart implementation. Supply `onError(error)` to
-observe layer synchronization failures; the hook serializes asynchronous
+observe layer synchronization and loop-realignment failures; the hook serializes asynchronous
 adapter work, waits for startup and rate synchronization before resolving those
 commands, and stops both clocks before reporting a failure. Loop realignment is
 also awaited before another external-clock tick. The high-level hook orders
@@ -173,7 +178,8 @@ apply an older timeline position after newer transport work. Concurrent
 high-level play requests share one startup; pausing during startup resolves the
 pending play result with `reason: 'cancelled'` and prevents stale adapter work
 from starting the timeline. The higher-level sync hook wraps failures as
-`TimelineMediaError` values with the `sync-failed` reason.
+`TimelineMediaError` values while preserving specific reasons such as
+`loop-failed`.
 
 Read [Media adapters](/docs/media-adapters) for source ownership, proxy versus
 fallback semantics, readiness, lazy loading, timing, track selection, audio,

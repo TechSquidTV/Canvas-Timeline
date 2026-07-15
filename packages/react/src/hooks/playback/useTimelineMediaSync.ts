@@ -42,6 +42,16 @@ export interface UseTimelineMediaSyncOptions<LayerName extends string = string> 
   layers: Record<LayerName, ActiveLayerSelector>;
   /** External media adapter callbacks. */
   adapter: TimelineMediaSyncAdapter<LayerName>;
+  /**
+   * Stable identity for the adapter resource lifetime.
+   *
+   * @remarks
+   *
+   * Pass the underlying controller or element-backed adapter when replacing it
+   * must cancel pending playback and release its clock. Omit this for an inline
+   * callback facade whose object identity may change on every render.
+   */
+  adapterIdentity?: object;
   /** Receives structured media failures with a stable machine-readable reason. */
   onError?: (error: TimelineMediaError) => void;
 }
@@ -146,6 +156,9 @@ function createCancelledPlayResult(): TimelineMediaPlayResult {
  * Paused previews, startup, loop realignment, layer synchronization, and rate
  * changes share one ordered adapter-operation queue so older asynchronous media
  * work cannot overwrite a newer timeline position.
+ * Replacing the adapter cancels an in-flight start, stops a clock owned by the
+ * previous adapter, pauses timeline transport, and primes the replacement for
+ * the current paused preview position.
  * For packaged adapters, prefer the higher-level HTML and Mediabunny hooks first;
  * use this hook when you are building a custom clock or preview surface.
  *
@@ -204,11 +217,20 @@ function createCancelledPlayResult(): TimelineMediaPlayResult {
 export function useTimelineMediaSync<LayerName extends string = string>(
   options: UseTimelineMediaSyncOptions<LayerName>
 ): UseTimelineMediaSyncResult<LayerName> {
-  const { adapter, frameRate, layers, onError, playbackOptions, ready = true } = options;
+  const {
+    adapter,
+    adapterIdentity,
+    frameRate,
+    layers,
+    onError,
+    playbackOptions,
+    ready = true,
+  } = options;
   const adapterSeek = adapter.seek;
   const { engine } = useTimeline();
   const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
+  const adapterIdentityRef = useRef(adapterIdentity);
   const layersRef = useRef(layers);
   const primedSeekRef = useRef<TimelineMediaSyncAdapter<LayerName>['seek'] | null>(null);
   const previewSeekFrameRef = useRef<number | null>(null);
@@ -250,11 +272,13 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     onStatus: adapter.onStatus,
     onError: (syncError) => {
       onErrorRef.current?.(
-        new TimelineMediaError(
-          'sync-failed',
-          withMediaCauseMessage('Media synchronization failed.', syncError),
-          { cause: syncError }
-        )
+        syncError instanceof TimelineMediaError
+          ? syncError
+          : new TimelineMediaError(
+              'sync-failed',
+              withMediaCauseMessage('Media synchronization failed.', syncError),
+              { cause: syncError }
+            )
       );
     },
     ...(shouldLoop && {
@@ -271,7 +295,6 @@ export function useTimelineMediaSync<LayerName extends string = string>(
               withMediaCauseMessage('Media clock could not restart after looping.', cause),
               { cause }
             );
-            onErrorRef.current?.(error);
             throw error;
           }
           if (!restarted) {
@@ -279,12 +302,12 @@ export function useTimelineMediaSync<LayerName extends string = string>(
               'loop-failed',
               'Media clock could not restart after looping.'
             );
-            onErrorRef.current?.(error);
             throw error;
           }
         }),
     }),
   });
+  const pauseSynchronizedPlayback = syncPlayback.pause;
   const playingRef = useRef(syncPlayback.playing);
 
   useEffect(() => {
@@ -416,6 +439,38 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     pendingStart.adapter.stopClock?.();
     return true;
   }, []);
+
+  useEffect(() => {
+    if (Object.is(adapterIdentityRef.current, adapterIdentity)) {
+      return;
+    }
+
+    adapterIdentityRef.current = adapterIdentity;
+    const shouldPrimeAdapter = ready && adapter.seek !== undefined;
+    primedSeekRef.current = shouldPrimeAdapter ? adapter.seek : null;
+    cancelScheduledSeek();
+    const cancelledPendingStart = cancelPendingPlaybackStart();
+    const previousOwner = clockOwnerRef.current;
+    if (previousOwner !== null) {
+      clockOwnerRef.current = null;
+      if (!cancelledPendingStart) {
+        previousOwner.adapter.stopClock?.();
+      }
+      pauseSynchronizedPlayback();
+    }
+    if (shouldPrimeAdapter && !engine.getState().playing) {
+      schedulePausedPreviewSeek();
+    }
+  }, [
+    adapter,
+    adapterIdentity,
+    cancelPendingPlaybackStart,
+    cancelScheduledSeek,
+    engine,
+    ready,
+    schedulePausedPreviewSeek,
+    pauseSynchronizedPlayback,
+  ]);
 
   useEffect(
     () => () => {

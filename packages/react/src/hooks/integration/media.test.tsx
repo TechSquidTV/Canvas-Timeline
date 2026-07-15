@@ -1,7 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { TimelineEngine, type TimelineMediaSyncAdapter } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import {
@@ -290,6 +290,49 @@ test('useTimelineMediaPlayback waits for loop realignment before syncing or tick
   expect(rafSpy).toHaveBeenCalledTimes(scheduledFramesAfterPlay + 1);
 
   rafSpy.mockRestore();
+});
+
+test('useTimelineMediaPlayback reports loop realignment failures', async () => {
+  const engine = createMediaSyncEngine();
+  engine.setInPoint(fromSeconds(1), false);
+  engine.setOutPoint(fromSeconds(4), false);
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const loopError = new Error('clock realignment failed');
+  const onError = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => clockTime,
+        layers: mediaSyncLayers,
+        playbackOptions: { respectInOut: true },
+        loop: () => Promise.reject(loopError),
+        onError,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true });
+  });
+  clockTime = 4.25;
+  await act(async () => {
+    tick?.(16);
+  });
+
+  expect(onError).toHaveBeenCalledWith(loopError);
+  expect(engine.getState().playing).toBe(false);
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test('useTimelineMediaPlayback invokes one loop transition until the clock re-enters range', async () => {
@@ -1540,6 +1583,102 @@ test('useTimelineMediaSync rejects playback owned by another clock', async () =>
   act(() => {
     engine.pause();
   });
+});
+
+test('useTimelineMediaSync pauses an owned clock when the adapter changes', async () => {
+  const engine = createMediaSyncEngine();
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+  const stopFirstClock = vi.fn();
+  const startSecondClock = vi.fn(() => true);
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: stopFirstClock,
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: startSecondClock,
+    stopClock: vi.fn(),
+  };
+
+  const { result, rerender } = renderHook(
+    ({ adapter }: { adapter: TimelineMediaSyncAdapter<'visuals'> }) =>
+      useTimelineMediaSync({ layers, adapter, adapterIdentity: adapter }),
+    {
+      initialProps: { adapter: firstAdapter },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+  expect(engine.getState().playing).toBe(true);
+
+  rerender({ adapter: secondAdapter });
+  await waitFor(() => {
+    expect(stopFirstClock).toHaveBeenCalled();
+    expect(engine.getState().playing).toBe(false);
+  });
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+  expect(startSecondClock).toHaveBeenCalled();
+  act(() => {
+    result.current.pause();
+  });
+});
+
+test('useTimelineMediaSync cancels pending startup when the adapter changes', async () => {
+  const engine = createMediaSyncEngine();
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+  let resolveFirstClock = (_started: boolean) => {};
+  const firstClockStart = new Promise<boolean>((resolve) => {
+    resolveFirstClock = resolve;
+  });
+  const stopFirstClock = vi.fn();
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => firstClockStart,
+    stopClock: stopFirstClock,
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: vi.fn(),
+  };
+
+  const { result, rerender } = renderHook(
+    ({ adapter }: { adapter: TimelineMediaSyncAdapter<'visuals'> }) =>
+      useTimelineMediaSync({ layers, adapter, adapterIdentity: adapter }),
+    {
+      initialProps: { adapter: firstAdapter },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const pendingPlay = result.current.play();
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  rerender({ adapter: secondAdapter });
+  await waitFor(() => expect(stopFirstClock).toHaveBeenCalled());
+
+  await act(async () => {
+    resolveFirstClock(true);
+    await expect(pendingPlay).resolves.toEqual({
+      ok: false,
+      reason: 'cancelled',
+      message: 'Media playback start was cancelled.',
+    });
+  });
+  expect(engine.getState().playing).toBe(false);
 });
 
 test('useTimelineMediaSync seeks paused preview on initial ready mount', async () => {

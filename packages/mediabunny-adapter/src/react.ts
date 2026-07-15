@@ -374,6 +374,7 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     frameRate,
     layers,
     adapter,
+    adapterIdentity: adapter,
     onError,
     playbackOptions,
   });

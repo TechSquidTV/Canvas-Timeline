@@ -179,6 +179,7 @@ export function useHTMLTimelineMedia<LayerName extends string = string>(
     layers,
     playbackOptions,
     adapter: htmlMedia.adapter,
+    adapterIdentity: htmlMedia.adapter,
     onError,
   });
 
