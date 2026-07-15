@@ -179,6 +179,13 @@ export interface CreateMediabunnyAdapterOptions {
   onChange?: () => void;
 }
 
+interface MediabunnySourceLoadOptions {
+  status: 'loading' | 'recovering';
+  startIndex?: number;
+  previousAttempts?: readonly TimelineMediaSourceAttempt[];
+  deferReadyNotification?: boolean;
+}
+
 /**
  * Decoded video frame returned from a Mediabunny canvas sink.
  */
@@ -532,10 +539,14 @@ export function createMediabunnyAdapter(
     notify();
   };
 
-  const setSourceState = (state: MediabunnySourceState) => {
+  const updateSourceStateSnapshot = (state: MediabunnySourceState) => {
     const nextSnapshot = new Map(sourceStateSnapshot);
     nextSnapshot.set(state.sourceId, state);
     sourceStateSnapshot = nextSnapshot;
+  };
+
+  const setSourceState = (state: MediabunnySourceState) => {
+    updateSourceStateSnapshot(state);
     notify();
   };
 
@@ -770,10 +781,14 @@ export function createMediabunnyAdapter(
 
   const loadSource = async (
     source: MediabunnySource,
-    loadStatus: 'loading' | 'recovering',
-    startIndex = 0,
-    previousAttempts: readonly TimelineMediaSourceAttempt[] = []
+    loadOptions: MediabunnySourceLoadOptions
   ): Promise<TimelineMediaSourceOperationResult> => {
+    const {
+      status: loadStatus,
+      startIndex = 0,
+      previousAttempts = [],
+      deferReadyNotification = false,
+    } = loadOptions;
     const inputs = [source.input, ...(source.fallbacks ?? [])];
     const generation = (loadGenerations.get(source.sourceId) ?? 0) + 1;
     loadGenerations.set(source.sourceId, generation);
@@ -861,14 +876,19 @@ export function createMediabunnyAdapter(
         }
         error = null;
         status = 'Ready. Mediabunny can drive timeline video and audio.';
-        setSourceState({
+        const readyState: MediabunnySourceState = {
           sourceId: source.sourceId,
           status: 'ready',
           selectedInputIndex: inputIndex,
           attempts,
           metadata: loaded.metadata,
           error: null,
-        });
+        };
+        if (deferReadyNotification) {
+          updateSourceStateSnapshot(readyState);
+        } else {
+          setSourceState(readyState);
+        }
         return {
           ok: true,
           sourceId: source.sourceId,
@@ -926,7 +946,7 @@ export function createMediabunnyAdapter(
       return existingPromise;
     }
 
-    const loadPromise = loadSource(source, 'loading').finally(() => {
+    const loadPromise = loadSource(source, { status: 'loading' }).finally(() => {
       if (sourceLoadPromises.get(sourceId) === loadPromise) {
         sourceLoadPromises.delete(sourceId);
       }
@@ -980,7 +1000,11 @@ export function createMediabunnyAdapter(
       } as const,
     ];
     try {
-      const result = await loadSource(source, 'recovering', controller.inputIndex + 1, attempts);
+      const result = await loadSource(source, {
+        status: 'recovering',
+        startIndex: controller.inputIndex + 1,
+        previousAttempts: attempts,
+      });
       if (!result.ok) {
         setError(result.error);
       }
@@ -1196,8 +1220,8 @@ export function createMediabunnyAdapter(
         return false;
       }
       releaseSource(sourceId);
-      setSourceState(createIdleSourceState(sourceId));
       status = 'Source unloaded. It will reload when active or explicitly preloaded.';
+      setSourceState(createIdleSourceState(sourceId));
       return true;
     },
     retrySource: async (sourceId) => {
@@ -1211,7 +1235,7 @@ export function createMediabunnyAdapter(
         };
       }
       const previousState = sourceStateSnapshot.get(sourceId);
-      const result = await loadSource(source, 'loading');
+      const result = await loadSource(source, { status: 'loading' });
       if (!result.ok && controllers.has(sourceId) && previousState !== undefined) {
         setSourceState(previousState);
       }
@@ -1229,10 +1253,14 @@ export function createMediabunnyAdapter(
         };
       }
       const previousState = sourceStateSnapshot.get(source.sourceId);
-      const result = await loadSource(source, 'loading');
+      const result = await loadSource(source, {
+        status: 'loading',
+        deferReadyNotification: true,
+      });
       if (result.ok) {
         sourceDefinitions.set(source.sourceId, source);
         ready = true;
+        notify();
       } else if (controllers.has(source.sourceId) && previousState !== undefined) {
         setSourceState(previousState);
       }

@@ -411,6 +411,60 @@ test('createMediabunnyAdapter lazily loads, preloads, and unloads registered sou
   expect(adapter.unloadSource('missing')).toBe(false);
 });
 
+test('createMediabunnyAdapter publishes the unloaded status with the idle source snapshot', async () => {
+  const mockMediabunny = createMockMediabunny([createMockInput()]);
+  const snapshots: Array<{ status: string; sourceStatus: string | null }> = [];
+  let captureSnapshot = () => {};
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [{ sourceId: 'source-1', input: 'https://media.example/one.mp4' }],
+    onChange: () => captureSnapshot(),
+  });
+  captureSnapshot = () => {
+    snapshots.push({
+      status: adapter.status,
+      sourceStatus: adapter.sourceStateById.get('source-1')?.status ?? null,
+    });
+  };
+  await adapter.preloadSource('source-1');
+  snapshots.length = 0;
+
+  expect(adapter.unloadSource('source-1')).toBe(true);
+
+  expect(snapshots).toEqual([
+    {
+      status: 'Source unloaded. It will reload when active or explicitly preloaded.',
+      sourceStatus: 'idle',
+    },
+  ]);
+});
+
+test('createMediabunnyAdapter atomically publishes readiness after replacing an empty registry', async () => {
+  const mockMediabunny = createMockMediabunny([createMockInput()]);
+  const snapshots: Array<{ ready: boolean; sourceStatus: string | null }> = [];
+  let captureSnapshot = () => {};
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [],
+    onChange: () => captureSnapshot(),
+  });
+  captureSnapshot = () => {
+    snapshots.push({
+      ready: adapter.ready,
+      sourceStatus: adapter.sourceStateById.get('source-1')?.status ?? null,
+    });
+  };
+
+  await expect(
+    adapter.replaceSource({
+      sourceId: 'source-1',
+      input: 'https://media.example/replacement.mp4',
+    })
+  ).resolves.toMatchObject({ ok: true, state: 'ready' });
+
+  expect(snapshots.at(-1)).toEqual({ ready: true, sourceStatus: 'ready' });
+});
+
 test('createMediabunnyAdapter loads a replacement while the previous source load is pending', async () => {
   const previousInput = createMockInput();
   const replacementInput = createMockInput({ metadataDuration: 9 });

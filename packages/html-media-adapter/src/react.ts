@@ -111,25 +111,44 @@ export function useHTMLMediaAdapter(
   const sourcesRef = useRef(sources);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [element, setElement] = useState<HTMLMediaElement | null>(null);
+  const [adapterBinding, setAdapterBinding] = useState<{
+    element: HTMLMediaElement;
+    adapter: HTMLMediaAdapter;
+  } | null>(null);
   const mediaRef = useCallback<RefCallback<HTMLMediaElement>>((nextElement) => {
     setElement(nextElement);
   }, []);
 
-  const adapter = useMemo(() => {
+  useEffect(() => {
+    sourcesRef.current = sources;
+  }, [sources]);
+
+  useEffect(() => {
     if (element === null) {
-      return noopAdapter;
+      setAdapterBinding(null);
+      return;
     }
-    return createHTMLMediaAdapter({ element, sources: sourcesRef.current, onChange: forceUpdate });
+
+    const nextAdapter = createHTMLMediaAdapter({
+      element,
+      sources: sourcesRef.current,
+      onChange: forceUpdate,
+    });
+    setAdapterBinding({ element, adapter: nextAdapter });
+
+    return () => {
+      nextAdapter.dispose();
+    };
   }, [element]);
 
-  useEffect(() => adapter.dispose, [adapter]);
+  const hasCurrentAdapter = adapterBinding?.element === element;
+  const adapter = hasCurrentAdapter ? adapterBinding.adapter : noopAdapter;
   useEffect(() => adapter.setSources(sources), [adapter, sources]);
 
   const result = useMemo(
-    () => ({ mediaRef, element, ready: element !== null, adapter }),
-    [adapter, element, mediaRef]
+    () => ({ mediaRef, element, ready: hasCurrentAdapter, adapter }),
+    [adapter, element, hasCurrentAdapter, mediaRef]
   );
-  sourcesRef.current = sources;
   return result;
 }
 

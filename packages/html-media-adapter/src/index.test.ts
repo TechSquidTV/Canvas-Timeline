@@ -470,6 +470,24 @@ test('useHTMLMediaAdapter exposes a noop until its callback ref connects and dis
   expect(pause).toHaveBeenCalled();
 });
 
+test('useHTMLMediaAdapter balances native listeners under React Strict Mode', async () => {
+  const element = document.createElement('video');
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const addEventListener = vi.spyOn(element, 'addEventListener');
+  const removeEventListener = vi.spyOn(element, 'removeEventListener');
+  const connected = renderHook(() => useHTMLMediaAdapter({ sources: htmlSources() }), {
+    wrapper: ({ children }) => React.createElement(React.StrictMode, null, children),
+  });
+
+  void act(() => connected.result.current.mediaRef(element));
+  await waitFor(() => expect(connected.result.current.ready).toBe(true));
+  expect(addEventListener).toHaveBeenCalled();
+
+  connected.unmount();
+
+  expect(removeEventListener.mock.calls).toEqual(addEventListener.mock.calls);
+});
+
 test('useHTMLMediaAdapter follows callback ref replacement and removal', async () => {
   const firstElement = document.createElement('video');
   const secondElement = document.createElement('video');
