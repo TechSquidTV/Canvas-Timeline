@@ -1,5 +1,5 @@
 ---
-'@techsquidtv/canvas-timeline-html-media-adapter': major
+'@techsquidtv/canvas-timeline-html-media-adapter': minor
 '@techsquidtv/canvas-timeline': minor
 ---
 

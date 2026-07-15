@@ -1,5 +1,5 @@
 ---
-'@techsquidtv/canvas-timeline-mediabunny-adapter': major
+'@techsquidtv/canvas-timeline-mediabunny-adapter': minor
 ---
 
 **BREAKING:** Redesign Mediabunny sources and controller lifecycle around concise app-resolved inputs, lazy loading, explicit recovery, and the shared Core media contract.

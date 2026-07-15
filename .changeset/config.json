@@ -7,7 +7,17 @@
     }
   ],
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@techsquidtv/canvas-timeline-utils",
+      "@techsquidtv/canvas-timeline-core",
+      "@techsquidtv/canvas-timeline-react",
+      "@techsquidtv/canvas-timeline-renderer",
+      "@techsquidtv/canvas-timeline-html-media-adapter",
+      "@techsquidtv/canvas-timeline-mediabunny-adapter",
+      "@techsquidtv/canvas-timeline"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
