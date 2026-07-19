@@ -12,8 +12,9 @@ import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
 import {
-  useTimelineMediaPlayback,
+  delegateTimelineMediaPlaybackSynchronization,
   type UseTimelineMediaPlaybackOptions,
+  useTimelineMediaPlayback,
 } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
@@ -241,6 +242,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const pendingPlaybackStartRef = useRef<PendingMediaPlaybackStart<LayerName> | null>(null);
   const playbackStartBarrierRef = useRef<Promise<void>>(Promise.resolve());
   const adapterOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const rateSynchronizationActiveRef = useRef(false);
   const clockOwnerRef = useRef<MediaClockOwner<LayerName> | null>(null);
   const { loop: shouldLoop = false, ...externalPlaybackOptions } = playbackOptions ?? {};
 
@@ -255,7 +257,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   const adapterSyncLayers = adapter.syncLayers;
 
-  const syncPlayback = useTimelineMediaPlayback<LayerName>({
+  const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<LayerName>({
     frameRate,
     playbackOptions: externalPlaybackOptions,
     getClockTime: adapter.getClockTime,
@@ -265,10 +267,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     syncLayers:
       adapterSyncLayers === undefined
         ? undefined
-        : (details) =>
-            enqueueAdapterOperation(async () => {
+        : (details) => {
+            const synchronize = async () => {
               await adapterSyncLayers(details);
-            }),
+            };
+            return details.reason === 'rate' && rateSynchronizationActiveRef.current
+              ? synchronize()
+              : enqueueAdapterOperation(synchronize);
+          },
     onStatus: adapter.onStatus,
     onError: (syncError) => {
       onErrorRef.current?.(
@@ -307,6 +313,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         }),
     }),
   });
+  const syncPlayback = useTimelineMediaPlayback(syncPlaybackOptions);
   const pauseSynchronizedPlayback = syncPlayback.pause;
   const playingRef = useRef(syncPlayback.playing);
 
@@ -677,11 +684,16 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, [cancelPendingPlaybackStart, syncPlayback]);
 
   const setPlaybackRate = useCallback(
-    async (playbackRate: number) => {
-      await adapterOperationQueueRef.current;
-      return syncPlayback.setPlaybackRate(playbackRate);
-    },
-    [syncPlayback]
+    (playbackRate: number) =>
+      enqueueAdapterOperation(async () => {
+        rateSynchronizationActiveRef.current = true;
+        try {
+          return await syncPlayback.setPlaybackRate(playbackRate);
+        } finally {
+          rateSynchronizationActiveRef.current = false;
+        }
+      }),
+    [enqueueAdapterOperation, syncPlayback]
   );
 
   return useMemo(

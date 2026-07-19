@@ -1501,6 +1501,7 @@ test('useTimelineMediaSync applies a rate change after pending startup adapter w
   });
   const startClock = vi.fn(() => true);
   const setClockRate = vi.fn();
+  const syncLayers = vi.fn();
   const seek = vi.fn(() => startupSeek);
 
   const { result } = renderHook(
@@ -1514,6 +1515,7 @@ test('useTimelineMediaSync applies a rate change after pending startup adapter w
           startClock,
           setClockRate,
           seek,
+          syncLayers,
         },
       }),
     {
@@ -1539,10 +1541,72 @@ test('useTimelineMediaSync applies a rate change after pending startup adapter w
 
   expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
   expect(setClockRate).toHaveBeenCalledWith(2);
+  expect(syncLayers.mock.calls.map(([details]) => details.reason)).toEqual(
+    expect.arrayContaining(['play', 'rate'])
+  );
   expect(engine.getPlaybackRate()).toBe(2);
   act(() => {
     result.current.pause();
   });
+});
+
+test('useTimelineMediaSync keeps a rate change ahead of a later paused preview seek', async () => {
+  const engine = createMediaSyncEngine();
+  const previewTicks: FrameRequestCallback[] = [];
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    previewTicks.push(callback);
+    return previewTicks.length;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const operations: string[] = [];
+  const adapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    setClockRate: () => operations.push('set-rate'),
+    seek: () => {
+      operations.push('seek');
+    },
+    syncLayers: ({ reason }) => {
+      operations.push(`sync-${reason}`);
+    },
+  };
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    previewTicks.shift()?.(0);
+    await Promise.resolve();
+  });
+  operations.length = 0;
+
+  const rateResult = result.current.setPlaybackRate(2);
+  act(() => {
+    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(1.5) });
+    previewTicks.shift()?.(16);
+  });
+
+  await act(async () => {
+    await expect(rateResult).resolves.toEqual({ ok: true });
+    await Promise.resolve();
+  });
+  await waitFor(() => {
+    expect(operations).toContain('seek');
+  });
+
+  expect(operations).toEqual(['set-rate', 'sync-rate', 'seek']);
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test('useTimelineMediaSync rejects playback owned by another clock', async () => {

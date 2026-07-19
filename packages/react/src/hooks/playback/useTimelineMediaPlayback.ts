@@ -118,6 +118,24 @@ export interface UseTimelineMediaPlaybackResult {
   setPlaybackRate: (rate: number) => Promise<TimelineCommandResult>;
 }
 
+const externalSynchronizationQueue = Symbol('externalSynchronizationQueue');
+
+type InternalUseTimelineMediaPlaybackOptions<LayerName extends string> =
+  UseTimelineMediaPlaybackOptions<LayerName> & {
+    [externalSynchronizationQueue]?: true;
+  };
+
+/** @internal */
+export function delegateTimelineMediaPlaybackSynchronization<LayerName extends string>(
+  options: UseTimelineMediaPlaybackOptions<LayerName>
+): UseTimelineMediaPlaybackOptions<LayerName> {
+  const delegatedOptions: InternalUseTimelineMediaPlaybackOptions<LayerName> = {
+    ...options,
+    [externalSynchronizationQueue]: true,
+  };
+  return delegatedOptions;
+}
+
 /**
  * Coordinates timeline playback with an external media clock.
  *
@@ -173,6 +191,10 @@ export interface UseTimelineMediaPlaybackResult {
 export function useTimelineMediaPlayback<LayerName extends string = string>(
   options: UseTimelineMediaPlaybackOptions<LayerName>
 ): UseTimelineMediaPlaybackResult {
+  const serializeSynchronizations =
+    (options as InternalUseTimelineMediaPlaybackOptions<LayerName>)[
+      externalSynchronizationQueue
+    ] !== true;
   const { engine, state } = useTimeline();
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
@@ -204,6 +226,22 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     [engine]
   );
 
+  const runSynchronization = useCallback(
+    <Result>(synchronize: () => Promise<Result>) => {
+      if (!serializeSynchronizations) {
+        return synchronize();
+      }
+
+      const pendingSynchronization = synchronizationQueueRef.current.then(synchronize, synchronize);
+      synchronizationQueueRef.current = pendingSynchronization.then(
+        () => undefined,
+        () => undefined
+      );
+      return pendingSynchronization;
+    },
+    [serializeSynchronizations]
+  );
+
   const enqueueBestEffortSynchronization = useCallback(
     (
       syncLayers: UseTimelineMediaPlaybackOptions<LayerName>['syncLayers'],
@@ -220,13 +258,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
           // Adapter cleanup should not throw during pause or unmount.
         }
       };
-      const pendingSynchronization = synchronizationQueueRef.current.then(synchronize, synchronize);
-      synchronizationQueueRef.current = pendingSynchronization.then(
-        () => undefined,
-        () => undefined
-      );
+      void runSynchronization(synchronize);
     },
-    []
+    [runSynchronization]
   );
 
   const pause = useCallback(
@@ -318,14 +352,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
           : { activeLayers, superseded: true };
       };
 
-      const pendingSynchronization = synchronizationQueueRef.current.then(synchronize, synchronize);
-      synchronizationQueueRef.current = pendingSynchronization.then(
-        () => undefined,
-        () => undefined
-      );
-      return pendingSynchronization;
+      return runSynchronization(synchronize);
     },
-    [getActiveLayers, handleAdapterFailure]
+    [getActiveLayers, handleAdapterFailure, runSynchronization]
   );
 
   const pausePlayback = useCallback(() => {
