@@ -1585,6 +1585,63 @@ test('useTimelineMediaSync rejects playback owned by another clock', async () =>
   });
 });
 
+test('useTimelineMediaSync retains clock ownership across inline adapter rerenders', async () => {
+  const engine = createMediaSyncEngine();
+  const startClock = vi.fn(() => true);
+  const stopClock = vi.fn();
+  const onError = vi.fn();
+
+  const { result, rerender } = renderHook(
+    ({ revision }: { revision: number }) => {
+      void revision;
+      return useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock,
+          stopClock,
+        },
+        onError,
+      });
+    },
+    {
+      initialProps: { revision: 0 },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+  rerender({ revision: 1 });
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+
+  expect(startClock).toHaveBeenCalledOnce();
+  expect(onError).not.toHaveBeenCalled();
+
+  act(() => {
+    engine.pause();
+  });
+  await waitFor(() => {
+    expect(result.current.playing).toBe(false);
+  });
+  act(() => {
+    engine.play({ clock: 'external' });
+  });
+  await expect(result.current.play()).resolves.toMatchObject({
+    ok: false,
+    reason: 'timeline-failed',
+  });
+  expect(onError).toHaveBeenCalledOnce();
+  act(() => {
+    engine.pause();
+  });
+});
+
 test('useTimelineMediaSync pauses an owned clock when the adapter changes', async () => {
   const engine = createMediaSyncEngine();
   const layers = {

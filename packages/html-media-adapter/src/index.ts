@@ -375,6 +375,9 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       await element.play();
       return true;
     } catch (playError: unknown) {
+      if (load !== undefined && activeLoad?.generation !== load.generation && shouldPlay) {
+        return playElement();
+      }
       if (load !== undefined) {
         const settledOutcome = inputFailureOutcomes.get(load.generation);
         if (settledOutcome !== undefined) {

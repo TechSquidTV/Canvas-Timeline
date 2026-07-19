@@ -340,6 +340,37 @@ test('createHTMLMediaAdapter keeps startup pending when play rejects before the 
   expect(element.src).toBe('http://localhost:3000/fallback.mp4');
 });
 
+test('createHTMLMediaAdapter continues pending playback after active source replacement', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  let rejectOriginalPlay = (_error: Error) => {};
+  const originalPlay = new Promise<void>((_resolve, reject) => {
+    rejectOriginalPlay = reject;
+  });
+  const play = vi
+    .spyOn(element, 'play')
+    .mockImplementationOnce(() => originalPlay)
+    .mockResolvedValueOnce(undefined);
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: htmlSources('/original.mp4'),
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  const startPromise = adapter.startClock(fromSeconds(1), 1);
+  await adapter.replaceSource({ sourceId: 'source-1', input: '/replacement.mp4' });
+  rejectOriginalPlay(new DOMException('Playback was interrupted.', 'AbortError'));
+
+  await expect(startPromise).resolves.toBe(true);
+  expect(play).toHaveBeenCalledTimes(2);
+  expect(element.src).toBe('http://localhost:3000/replacement.mp4');
+});
+
 test('createHTMLMediaAdapter clears the element for missing sources and content gaps', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');

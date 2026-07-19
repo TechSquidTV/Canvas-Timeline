@@ -318,6 +318,12 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     onErrorRef.current = onError;
   }, [adapter, layers, onError, ready, syncPlayback.playing]);
 
+  useEffect(() => {
+    if (!syncPlayback.playing && pendingPlaybackStartRef.current === null) {
+      clockOwnerRef.current = null;
+    }
+  }, [syncPlayback.playing]);
+
   const cancelScheduledSeek = useCallback(() => {
     previewSeekGenerationRef.current += 1;
     if (previewSeekFrameRef.current !== null) {
@@ -491,7 +497,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return createPlayFailure('not-ready', 'Media adapter is not ready.', onError);
       }
       if (engine.getState().playing) {
-        if (clockOwnerRef.current?.adapter === playbackAdapter) {
+        if (clockOwnerRef.current !== null) {
           return { ok: true, time: engine.getTime() };
         }
         return createPlayFailure(
@@ -625,7 +631,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   const play = useCallback((): Promise<TimelineMediaPlayResult> => {
     if (engine.getState().playing) {
-      if (clockOwnerRef.current?.adapter === adapter) {
+      if (clockOwnerRef.current !== null) {
         return Promise.resolve({ ok: true, time: engine.getTime() });
       }
       return Promise.resolve(
