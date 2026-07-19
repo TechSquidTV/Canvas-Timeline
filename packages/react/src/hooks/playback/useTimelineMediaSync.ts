@@ -11,8 +11,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
+import { delegateTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
 import {
-  delegateTimelineMediaPlaybackSynchronization,
   type UseTimelineMediaPlaybackOptions,
   useTimelineMediaPlayback,
 } from '#react/hooks/playback/useTimelineMediaPlayback';
@@ -257,7 +257,9 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   const adapterSyncLayers = adapter.syncLayers;
 
-  const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<LayerName>({
+  const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<
+    UseTimelineMediaPlaybackOptions<LayerName>
+  >({
     frameRate,
     playbackOptions: externalPlaybackOptions,
     getClockTime: adapter.getClockTime,
@@ -288,13 +290,26 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       );
     },
     ...(shouldLoop && {
-      loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) =>
-        enqueueAdapterOperation(async () => {
+      loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
+        const loopOwner = clockOwnerRef.current;
+        return enqueueAdapterOperation(async () => {
+          const stillOwnsClock = () =>
+            loopOwner !== null && clockOwnerRef.current === loopOwner && engine.getState().playing;
+          if (!stillOwnsClock()) {
+            return;
+          }
+
           let restarted: boolean;
           try {
             await adapter.seek?.(timelineTime, loopLayers);
+            if (!stillOwnsClock()) {
+              return;
+            }
             restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
           } catch (loopError: unknown) {
+            if (!stillOwnsClock()) {
+              return;
+            }
             const cause = toMediaError(loopError);
             const error = new TimelineMediaError(
               'loop-failed',
@@ -303,6 +318,10 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             );
             throw error;
           }
+          if (!stillOwnsClock()) {
+            adapter.stopClock?.();
+            return;
+          }
           if (!restarted) {
             const error = new TimelineMediaError(
               'loop-failed',
@@ -310,7 +329,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             );
             throw error;
           }
-        }),
+        });
+      },
     }),
   });
   const syncPlayback = useTimelineMediaPlayback(syncPlaybackOptions);
@@ -339,8 +359,19 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
   }, []);
 
+  const canSeekPausedPreview = useCallback(
+    (candidateAdapter: TimelineMediaSyncAdapter<LayerName>) =>
+      pendingPlaybackStartRef.current === null &&
+      readyRef.current &&
+      !playingRef.current &&
+      adapterRef.current === candidateAdapter &&
+      candidateAdapter.seek !== undefined,
+    []
+  );
+
   const schedulePausedPreviewSeek = useCallback(() => {
-    if (!readyRef.current || playingRef.current || adapterRef.current.seek === undefined) {
+    const scheduledAdapter = adapterRef.current;
+    if (!canSeekPausedPreview(scheduledAdapter)) {
       return;
     }
     if (previewSeekFrameRef.current !== null) {
@@ -352,7 +383,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       const generation = previewSeekGenerationRef.current + 1;
       previewSeekGenerationRef.current = generation;
       const currentAdapter = adapterRef.current;
-      if (!readyRef.current || playingRef.current || currentAdapter.seek === undefined) {
+      if (!canSeekPausedPreview(currentAdapter)) {
         return;
       }
 
@@ -364,16 +395,17 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       void enqueueAdapterOperation(async () => {
         if (
           previewSeekGenerationRef.current !== generation ||
-          !readyRef.current ||
-          playingRef.current ||
-          adapterRef.current !== currentAdapter
+          !canSeekPausedPreview(currentAdapter)
         ) {
           return;
         }
         try {
           await currentAdapter.seek?.(timelineTime, currentActiveLayers);
         } catch (seekError: unknown) {
-          if (previewSeekGenerationRef.current !== generation || playingRef.current) {
+          if (
+            previewSeekGenerationRef.current !== generation ||
+            !canSeekPausedPreview(currentAdapter)
+          ) {
             return;
           }
           const cause = toMediaError(seekError);
@@ -389,7 +421,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         }
       });
     });
-  }, [engine, enqueueAdapterOperation]);
+  }, [canSeekPausedPreview, engine, enqueueAdapterOperation]);
 
   useEffect(() => {
     const unsubscribers = [
@@ -454,6 +486,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, []);
 
   useEffect(() => {
+    if (ready) {
+      return;
+    }
+
+    cancelScheduledSeek();
+    cancelPendingPlaybackStart();
+  }, [cancelPendingPlaybackStart, cancelScheduledSeek, ready]);
+
+  useEffect(() => {
     if (Object.is(adapterIdentityRef.current, adapterIdentity)) {
       return;
     }
@@ -500,7 +541,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       if (!isCurrentPlaybackStart(generation)) {
         return createCancelledPlayResult();
       }
-      if (!ready) {
+      if (!readyRef.current) {
         return createPlayFailure('not-ready', 'Media adapter is not ready.', onError);
       }
       if (engine.getState().playing) {
@@ -551,14 +592,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       try {
         const clockStarted = await enqueueAdapterOperation(async () => {
           await playbackAdapter.seek?.(timelineTime, timelineLayers);
-          if (!isCurrentPlaybackStart(generation)) {
+          if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
             return false;
           }
 
           clockOwnerRef.current = { generation, adapter: playbackAdapter };
           return playbackAdapter.startClock(timelineTime, engine.getPlaybackRate());
         });
-        if (!isCurrentPlaybackStart(generation)) {
+        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -567,7 +608,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           return createPlayFailure('clock-failed', 'Media clock could not start.', onError);
         }
       } catch (clockError: unknown) {
-        if (!isCurrentPlaybackStart(generation)) {
+        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -587,7 +628,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       let timelineStarted = false;
       try {
         const timelineResult = await syncPlayback.play();
-        if (!isCurrentPlaybackStart(generation)) {
+        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -602,7 +643,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         }
         timelineStarted = timelineResult.ok;
       } catch (timelineError: unknown) {
-        if (!isCurrentPlaybackStart(generation)) {
+        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -630,7 +671,6 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       layers,
       onError,
       playbackOptions,
-      ready,
       stopOwnedClock,
       syncPlayback,
     ]

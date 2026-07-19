@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError } from '#react/hooks/playback/mediaError';
+import { hasDelegatedTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
@@ -118,24 +119,6 @@ export interface UseTimelineMediaPlaybackResult {
   setPlaybackRate: (rate: number) => Promise<TimelineCommandResult>;
 }
 
-const externalSynchronizationQueue = Symbol('externalSynchronizationQueue');
-
-type InternalUseTimelineMediaPlaybackOptions<LayerName extends string> =
-  UseTimelineMediaPlaybackOptions<LayerName> & {
-    [externalSynchronizationQueue]?: true;
-  };
-
-/** @internal */
-export function delegateTimelineMediaPlaybackSynchronization<LayerName extends string>(
-  options: UseTimelineMediaPlaybackOptions<LayerName>
-): UseTimelineMediaPlaybackOptions<LayerName> {
-  const delegatedOptions: InternalUseTimelineMediaPlaybackOptions<LayerName> = {
-    ...options,
-    [externalSynchronizationQueue]: true,
-  };
-  return delegatedOptions;
-}
-
 /**
  * Coordinates timeline playback with an external media clock.
  *
@@ -191,10 +174,7 @@ export function delegateTimelineMediaPlaybackSynchronization<LayerName extends s
 export function useTimelineMediaPlayback<LayerName extends string = string>(
   options: UseTimelineMediaPlaybackOptions<LayerName>
 ): UseTimelineMediaPlaybackResult {
-  const serializeSynchronizations =
-    (options as InternalUseTimelineMediaPlaybackOptions<LayerName>)[
-      externalSynchronizationQueue
-    ] !== true;
+  const serializeSynchronizations = !hasDelegatedTimelineMediaPlaybackSynchronization(options);
   const { engine, state } = useTimeline();
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
