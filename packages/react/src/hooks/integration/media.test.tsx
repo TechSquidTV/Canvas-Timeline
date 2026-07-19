@@ -2112,6 +2112,7 @@ test('useTimelineMediaSync primes a replacement adapter while paused', async () 
           visuals: { trackKind: 'visual', sourceId: 'source-1' },
         },
         adapter,
+        adapterIdentity: adapter,
       }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
@@ -2137,6 +2138,51 @@ test('useTimelineMediaSync primes a replacement adapter while paused', async () 
     await Promise.resolve();
   });
   expect(secondSeek).toHaveBeenCalledOnce();
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
+test('useTimelineMediaSync does not reprime an inline seek facade on rerender', async () => {
+  const engine = createMediaSyncEngine();
+  const previewTicks: FrameRequestCallback[] = [];
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    previewTicks.push(callback);
+    return previewTicks.length;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const seek = vi.fn();
+
+  const { rerender } = renderHook(
+    ({ revision }: { revision: number }) => {
+      void revision;
+      return useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock: () => true,
+          seek: (...args) => seek(...args),
+        },
+      });
+    },
+    {
+      initialProps: { revision: 0 },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    previewTicks[0]?.(16);
+    await Promise.resolve();
+  });
+  expect(seek).toHaveBeenCalledOnce();
+
+  rerender({ revision: 1 });
+
+  expect(rafSpy).toHaveBeenCalledOnce();
+  expect(seek).toHaveBeenCalledOnce();
 
   rafSpy.mockRestore();
   cancelSpy.mockRestore();

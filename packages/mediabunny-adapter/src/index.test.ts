@@ -502,6 +502,38 @@ test('createMediabunnyAdapter loads a replacement while the previous source load
   expect(adapter.sourceStateById.get('source-1')?.metadata?.durationSeconds).toBe(9);
 });
 
+test('createMediabunnyAdapter retries an active seek after its source load is superseded', async () => {
+  const previousInput = createMockInput();
+  const replacementInput = createMockInput({ metadataDuration: 9 });
+  let resolvePreviousTrack = (_track: MockVideoTrack | null) => {};
+  previousInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolvePreviousTrack = resolve;
+      })
+  );
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([previousInput, replacementInput]).module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  const pendingSeek = adapter.seek(fromSeconds(1), createActiveLayers([visualClip], 1));
+  await vi.waitFor(() => {
+    expect(previousInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+
+  adapter.setSources([urlSource('source-1', 'https://media.example/replacement.mp4')]);
+  resolvePreviousTrack(createMockVideoTrack());
+
+  await expect(pendingSeek).resolves.toBeUndefined();
+  expect(replacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    metadata: { durationSeconds: 9 },
+  });
+});
+
 test('createMediabunnyAdapter ignores a superseded source failure after replacement', async () => {
   const previousInput = createMockInput();
   const replacementInput = createMockInput({ metadataDuration: 9 });
@@ -1222,6 +1254,40 @@ test('createMediabunnyAdapter does not paint a frame after its controller is rep
   });
   await pendingSeek;
   expect(drawImage).not.toHaveBeenCalled();
+});
+
+test('createMediabunnyAdapter does not return a frame after its controller is replaced', async () => {
+  const initialInput = createMockInput();
+  const replacementInput = createMockInput({ metadataDuration: 9 });
+  let resolveFrame = (_frame: Awaited<ReturnType<MockCanvasSink['getCanvas']>>) => {};
+  const frame = new Promise<Awaited<ReturnType<MockCanvasSink['getCanvas']>>>((resolve) => {
+    resolveFrame = resolve;
+  });
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(() => frame),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([initialInput, replacementInput], { canvasSink }).module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  await waitForAdapterLoad(adapter);
+  const pendingFrame = adapter.getFrame(visualClip);
+  await vi.waitFor(() => {
+    expect(canvasSink.getCanvas).toHaveBeenCalledOnce();
+  });
+  await expect(
+    adapter.replaceSource(urlSource('source-1', 'https://media.example/replacement.mp4'))
+  ).resolves.toMatchObject({ ok: true });
+
+  resolveFrame({
+    canvas: document.createElement('canvas'),
+    timestamp: 11,
+    duration: 1 / 30,
+  });
+  await expect(pendingFrame).resolves.toBeNull();
 });
 
 test('createMediabunnyAdapter samples sequential 24 fps frames on 30 fps playback ticks', async () => {

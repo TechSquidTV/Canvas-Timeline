@@ -90,7 +90,8 @@ export class PlaybackManager {
 
   private advanceTo(nextTime: RationalTime): ExternalPlaybackUpdate {
     const state = this.engine.getState();
-    const inLimit = state.inPoint ?? fromSeconds(0, nextTime.r);
+    const timelineStart = fromSeconds(0, nextTime.r);
+    const inLimit = this.respectInOut ? (state.inPoint ?? timelineStart) : timelineStart;
 
     if (
       this.respectInOut &&

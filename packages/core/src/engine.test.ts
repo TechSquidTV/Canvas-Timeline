@@ -606,6 +606,23 @@ describe('TimelineEngine', () => {
       expect(toSeconds(engine.getTime())).toBe(2);
       expect(engine.getState().playing).toBe(true);
     });
+
+    it('loops external playback to zero when in/out boundaries are ignored', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(10),
+      });
+      rangedEngine.setInPoint(fromSeconds(2), false);
+      rangedEngine.setTime(fromSeconds(9));
+
+      expect(rangedEngine.play({ clock: 'external', respectInOut: false, loop: true })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(10.25))).toMatchObject({
+        action: 'loop',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
   });
 
   describe('Snapping', () => {

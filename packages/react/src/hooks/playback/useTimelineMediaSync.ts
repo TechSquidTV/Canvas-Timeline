@@ -227,13 +227,13 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     playbackOptions,
     ready = true,
   } = options;
-  const adapterSeek = adapter.seek;
+  const adapterCanSeek = adapter.seek !== undefined;
   const { engine } = useTimeline();
   const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
   const adapterIdentityRef = useRef(adapterIdentity);
   const layersRef = useRef(layers);
-  const primedSeekRef = useRef<TimelineMediaSyncAdapter<LayerName>['seek'] | null>(null);
+  const pausedPreviewPrimedRef = useRef(false);
   const previewSeekFrameRef = useRef<number | null>(null);
   const previewSeekGenerationRef = useRef(0);
   const readyRef = useRef(ready);
@@ -446,18 +446,18 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, [cancelScheduledSeek, engine, schedulePausedPreviewSeek]);
 
   useEffect(() => {
-    if (!ready || adapterSeek === undefined) {
-      primedSeekRef.current = null;
+    if (!ready || !adapterCanSeek) {
+      pausedPreviewPrimedRef.current = false;
       return;
     }
 
-    if (primedSeekRef.current === adapterSeek) {
+    if (pausedPreviewPrimedRef.current) {
       return;
     }
 
-    primedSeekRef.current = adapterSeek;
+    pausedPreviewPrimedRef.current = true;
     schedulePausedPreviewSeek();
-  }, [adapterSeek, ready, schedulePausedPreviewSeek]);
+  }, [adapterCanSeek, ready, schedulePausedPreviewSeek]);
 
   const isCurrentPlaybackStart = useCallback((generation: number) => {
     return pendingPlaybackStartRef.current?.generation === generation;
@@ -501,7 +501,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
     adapterIdentityRef.current = adapterIdentity;
     const shouldPrimeAdapter = ready && adapter.seek !== undefined;
-    primedSeekRef.current = shouldPrimeAdapter ? adapter.seek : null;
+    pausedPreviewPrimedRef.current = shouldPrimeAdapter;
     cancelScheduledSeek();
     const cancelledPendingStart = cancelPendingPlaybackStart();
     const previousOwner = clockOwnerRef.current;

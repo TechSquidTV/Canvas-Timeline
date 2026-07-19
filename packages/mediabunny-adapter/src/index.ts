@@ -363,13 +363,27 @@ function createIdleSourceState(sourceId: string): MediabunnySourceState {
   };
 }
 
+class SupersededSourceLoadError extends Error {
+  override readonly name = 'SupersededSourceLoadError';
+
+  constructor(sourceId: string) {
+    super(`Loading source "${sourceId}" was superseded.`);
+  }
+}
+
 function createSupersededSourceLoadResult(sourceId: string): TimelineMediaSourceOperationResult {
   return {
     ok: false,
     sourceId,
     reason: 'load-failed',
-    error: new Error(`Loading source "${sourceId}" was superseded.`),
+    error: new SupersededSourceLoadError(sourceId),
   };
+}
+
+function isSupersededSourceLoadResult(
+  result: TimelineMediaSourceOperationResult
+): result is Extract<TimelineMediaSourceOperationResult, { ok: false }> {
+  return !result.ok && result.error instanceof SupersededSourceLoadError;
 }
 
 function areMediabunnySourcesEqual(left: MediabunnySource, right: MediabunnySource) {
@@ -821,18 +835,19 @@ export function createMediabunnyAdapter(
         mediabunnyPromise = null;
       }
       const loadError = moduleError instanceof Error ? moduleError : new Error(String(moduleError));
-      if (isCurrentLoad()) {
-        error = loadError;
-        status = loadError.message;
-        setSourceState({
-          sourceId: source.sourceId,
-          status: 'failed',
-          selectedInputIndex: null,
-          attempts: previousAttempts,
-          metadata: null,
-          error: loadError,
-        });
+      if (!isCurrentLoad()) {
+        return createSupersededSourceLoadResult(source.sourceId);
       }
+      error = loadError;
+      status = loadError.message;
+      setSourceState({
+        sourceId: source.sourceId,
+        status: 'failed',
+        selectedInputIndex: null,
+        attempts: previousAttempts,
+        metadata: null,
+        error: loadError,
+      });
       return {
         ok: false,
         sourceId: source.sourceId,
@@ -976,11 +991,24 @@ export function createMediabunnyAdapter(
       }
     }
 
-    const results = await Promise.all([...activeSourceIds].map(ensureSource));
-    const failedResult = results.find((result) => !result.ok);
-    if (failedResult !== undefined && !failedResult.ok) {
-      throw failedResult.error;
-    }
+    await Promise.all(
+      [...activeSourceIds].map(async (sourceId) => {
+        while (true) {
+          const result = await ensureSource(sourceId);
+          if (result.ok) {
+            return;
+          }
+          if (
+            isSupersededSourceLoadResult(result) &&
+            !disposed &&
+            sourceDefinitions.has(sourceId)
+          ) {
+            continue;
+          }
+          throw result.error;
+        }
+      })
+    );
   };
 
   const recoverSource = async (
@@ -1356,7 +1384,11 @@ export function createMediabunnyAdapter(
         void recoverSource(controller.sourceId, controller, error);
         return null;
       }
-      if (wrappedCanvas === null) {
+      if (
+        wrappedCanvas === null ||
+        disposed ||
+        controllers.get(controller.sourceId) !== controller
+      ) {
         return null;
       }
 
