@@ -1,4 +1,5 @@
 import { packageResourceLinks } from '#www/data/site';
+import type { SearchOptions } from '#www/lib/search';
 
 interface PackageExample {
   title: string;
@@ -36,6 +37,7 @@ export interface PackageDoc {
   usage: PackageUsage;
   example: PackageExample;
   linkGroups: PackageLinkGroup[];
+  search?: SearchOptions;
 }
 
 function packageLinks(slug: Parameters<typeof packageResourceLinks>[0]): PackageLinkGroup {
@@ -56,6 +58,10 @@ export const packageDocs: PackageDoc[] = [
     purpose: 'React timeline editing toolkit.',
     description:
       'Start here when you want the common Canvas Timeline experience without choosing lower-level package boundaries up front.',
+    search: {
+      keywords: ['timeline editor', 'React timeline', 'quickstart'],
+      priority: 'high',
+    },
     installCommand: 'pnpm add @techsquidtv/canvas-timeline',
     overview: [
       'The main package is the easiest way to start a Canvas Timeline editor. It re-exports the core engine, React bindings, renderer, and time utilities from one dependency so early app code can stay focused on the editor experience.',

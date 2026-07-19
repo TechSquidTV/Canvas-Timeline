@@ -6,6 +6,7 @@ import { packageDocs, type PackageDoc } from '#www/data/packages';
 import { apiPackageHref } from '#www/lib/api-reference';
 import { inlineProseHtml } from '#www/lib/inline-prose';
 import { createPackageStructuredData } from '#www/lib/structured-data';
+import { createPackageSearchDocument } from '#www/lib/search';
 
 interface Props {
   packageDoc: PackageDoc;
@@ -45,6 +46,7 @@ const seoH1s: Record<string, string> = {
 const seoTitle = seoTitles[packageDoc.slug] || packageDoc.name;
 const seoH1 = seoH1s[packageDoc.slug] || packageDoc.name;
 const structuredData = createPackageStructuredData(packageDoc);
+const search = createPackageSearchDocument(packageDoc);
 ---
 
 <BaseLayout
@@ -56,6 +58,7 @@ const structuredData = createPackageStructuredData(packageDoc);
     { label: packageDoc.shortName },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">

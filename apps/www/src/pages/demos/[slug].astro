@@ -5,6 +5,7 @@ import { demoCodeExamples } from '#www/data/demo-code';
 import CodeExampleTabs from '#www/components/CodeExampleTabs.astro';
 import LiveDemoRenderer from '#www/components/LiveDemoRenderer';
 import { createDemoStructuredData } from '#www/lib/structured-data';
+import { createDemoSearchDocument } from '#www/lib/search';
 
 interface Props {
   demoDoc: DemoDoc;
@@ -25,6 +26,7 @@ const hasAsideLinks = Boolean(demoDoc.externalUrl || demoDoc.references?.length)
 const sourceUrl = `https://github.com/techsquidtv/canvas-timeline/blob/main/${demoDoc.sourcePath}`;
 const sourceFileName = demoDoc.sourcePath.split('/').pop() ?? demoDoc.sourcePath;
 const structuredData = createDemoStructuredData(demoDoc);
+const search = createDemoSearchDocument(demoDoc);
 ---
 
 <BaseLayout
@@ -36,6 +38,7 @@ const structuredData = createDemoStructuredData(demoDoc);
     { label: demoDoc.title },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <section class="page-band">
     <div class="container-page page-heading">

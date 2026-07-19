@@ -2,6 +2,7 @@
 import BaseLayout from '#www/layouts/BaseLayout.astro';
 import { packageDocs } from '#www/data/packages';
 import { createPackageIndexStructuredData } from '#www/lib/structured-data';
+import { createSearchDocument } from '#www/lib/search';
 
 const corePackages = packageDocs.filter(
   (p) => p.slug !== 'html-media-adapter' && p.slug !== 'mediabunny-adapter'
@@ -10,6 +11,13 @@ const adapterPackages = packageDocs.filter(
   (p) => p.slug === 'html-media-adapter' || p.slug === 'mediabunny-adapter'
 );
 const structuredData = createPackageIndexStructuredData(packageDocs);
+const search = createSearchDocument({
+  url: '/packages',
+  title: 'Canvas Timeline Packages',
+  description: 'Explore the Canvas Timeline package family and focused integration entry points.',
+  kind: 'package',
+  tags: ['Canvas Timeline', 'packages', 'React timeline editor'],
+});
 ---
 
 <BaseLayout
@@ -20,6 +28,7 @@ const structuredData = createPackageIndexStructuredData(packageDocs);
     { label: 'Packages' },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-16 pb-20 md:pt-24 md:pb-28 border-b border-border">

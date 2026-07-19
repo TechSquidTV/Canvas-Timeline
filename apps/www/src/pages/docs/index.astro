@@ -2,6 +2,7 @@
 import CodeBlock from '#www/components/CodeBlock.astro';
 import DocsLayout from '#www/layouts/DocsLayout.astro';
 import { createDocsArticleStructuredData } from '#www/lib/structured-data';
+import { createSearchDocument } from '#www/lib/search';
 
 const title = 'Canvas Timeline documentation';
 const description = 'Guides, package notes, interactive demos, and generated references for the Canvas Timeline package family.';
@@ -10,6 +11,13 @@ const structuredData = createDocsArticleStructuredData({
   description,
   url: '/docs',
   keywords: ['Canvas Timeline', 'documentation', 'React timeline editor'],
+});
+const search = createSearchDocument({
+  url: '/docs',
+  title,
+  description,
+  kind: 'docs',
+  tags: ['Canvas Timeline', 'documentation', 'React timeline editor'],
 });
 ---
 
@@ -22,6 +30,7 @@ const structuredData = createDocsArticleStructuredData({
   markdownAriaLabel="Copy the documentation index as Markdown"
   markdownTooltip="Copies a generated Markdown map of docs pages, with links to each page and its Markdown endpoint."
   structuredData={structuredData}
+  search={search}
 >
   <div class="docs-home">
     <section class="docs-home__intro">

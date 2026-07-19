@@ -1,0 +1,48 @@
+<pagefind-config excerpt-length="24"></pagefind-config>
+<pagefind-modal reset-on-close>
+  <pagefind-modal-header>
+    <pagefind-input placeholder="Search Canvas Timeline"></pagefind-input>
+  </pagefind-modal-header>
+  <pagefind-modal-body>
+    <div class="site-search-modal__content">
+      <aside class="site-search-modal__filters" aria-label="Search filters">
+        <pagefind-filter-pane open="kind"></pagefind-filter-pane>
+      </aside>
+      <div class="site-search-modal__results">
+        <pagefind-summary></pagefind-summary>
+        <pagefind-results>
+          <script type="text/pagefind-template">
+            <li class="pf-result site-search-result">
+              <div class="pf-result-card">
+                <div class="pf-result-content">
+                  <div class="site-search-result__heading">
+                    <span class="site-search-result__kind">{{ meta.kind }}</span>
+                    <p class="pf-result-title">
+                      <a class="pf-result-link" href="{{ url | safeUrl }}">{{ meta.title }}</a>
+                    </p>
+                  </div>
+                  {{#if excerpt}}
+                  <p class="pf-result-excerpt">{{+ excerpt +}}</p>
+                  {{/if}}
+                </div>
+              </div>
+              {{#if sub_results}}
+              <ul class="pf-heading-chips">
+                {{#each sub_results as sub}}
+                <li class="pf-heading-chip">
+                  <a class="pf-heading-link" href="{{ sub.url | safeUrl }}">{{ sub.title }}</a>
+                  <p class="pf-heading-excerpt">{{+ sub.excerpt +}}</p>
+                </li>
+                {{/each}}
+              </ul>
+              {{/if}}
+            </li>
+          </script>
+        </pagefind-results>
+      </div>
+    </div>
+  </pagefind-modal-body>
+  <pagefind-modal-footer>
+    <pagefind-keyboard-hints></pagefind-keyboard-hints>
+  </pagefind-modal-footer>
+</pagefind-modal>

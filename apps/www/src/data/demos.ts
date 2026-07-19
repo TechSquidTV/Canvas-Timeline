@@ -1,3 +1,5 @@
+import type { SearchOptions } from '#www/lib/search';
+
 type DemoStatus =
   | 'Minimal'
   | 'Media sync'
@@ -37,6 +39,7 @@ export interface DemoDoc {
   externalUrl?: string;
   liveDemoId?: LiveDemoId;
   references?: DemoReference[];
+  search?: SearchOptions;
 }
 
 export const demoDocs: DemoDoc[] = [
@@ -45,6 +48,10 @@ export const demoDocs: DemoDoc[] = [
     title: 'Basic Timeline',
     description:
       'A minimal timeline with draggable clips, a visible playhead, canvas rendering, and enough state to explain the editor model.',
+    search: {
+      keywords: ['starter example', 'basic editor', 'draggable clips'],
+      priority: 'high',
+    },
     status: 'Minimal',
     difficulty: 'Beginner',
     packageFocus: [

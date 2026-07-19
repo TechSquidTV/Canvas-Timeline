@@ -17,6 +17,10 @@ const publicDir = resolve(appDir, 'public');
 const apiReferencePath = resolve(appDir, '.generated/api-reference.json');
 const sameSiteHosts = new Set(['canvastimeline.com']);
 const apiDocTextKeys = new Set(['summary', 'remarks', 'returnsSummary', 'examples', 'see']);
+const generatedAssetPaths = new Set([
+  '/pagefind/pagefind-component-ui.css',
+  '/pagefind/pagefind-component-ui.js',
+]);
 
 const apiReference = await readApiReference().catch((error) => {
   console.error(error.message);
@@ -387,6 +391,10 @@ function validateFragment(filePath, line, raw, route, fragment) {
 }
 
 async function validatePublicPath(filePath, line, routePath, raw) {
+  if (generatedAssetPaths.has(routePath)) {
+    return;
+  }
+
   const publicPath = resolve(publicDir, routePath.slice(1));
   if (!isInsideDirectory(publicDir, publicPath)) {
     errors.push(`${formatLocation(filePath, line)} points outside public assets: ${raw}`);

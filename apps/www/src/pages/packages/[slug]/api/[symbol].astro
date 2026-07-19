@@ -14,6 +14,7 @@ import {
   type ApiSymbol,
 } from '#www/lib/api-reference';
 import { createApiSymbolArticleStructuredData } from '#www/lib/structured-data';
+import { createApiSymbolSearchDocument } from '#www/lib/search';
 
 interface Props {
   packageDoc: ApiPackage;
@@ -72,6 +73,16 @@ const returnMembersHeading =
 const examplesHeading = resolvedSymbol.examples.length > 0 ? 'Examples' : 'Aliased examples';
 const hexColorPattern = /^#[0-9a-f]{3,8}$/i;
 const structuredData = createApiSymbolArticleStructuredData(packageDoc, resolvedSymbol);
+const search = createApiSymbolSearchDocument({
+  slug: packageDoc.slug,
+  name: packageDoc.name,
+  entryPoint: packageDoc.entryPoint,
+  symbolSlug: resolvedSymbol.slug,
+  symbolName: resolvedSymbol.name,
+  symbolKind: resolvedSymbol.kind,
+  summary: resolvedSymbol.summary,
+  sourcePackage: resolvedSymbol.sourcePackage,
+});
 const timelineStateBreakdown =
   resolvedSymbol.name === 'useTimelineState'
     ? [
@@ -175,6 +186,7 @@ function descriptionHtml(
     { label: resolvedSymbol.name },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">
