@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { decodeHtmlAttribute } from '#www/lib/html-entities';
 import { assertUniqueSearchDocumentUrls } from '#www/lib/search';
 
 type SearchDocumentKind = 'docs' | 'package' | 'demo' | 'registry' | 'blog' | 'api';
@@ -145,7 +147,7 @@ function collectMetadata(source: string): Record<string, string> {
       continue;
     }
 
-    metadata[field.replace(/\[.*$/u, '')] = decodeHtml(content);
+    metadata[field.replace(/\[.*$/u, '')] = decodeHtmlAttribute(content);
   }
 
   return metadata;
@@ -199,13 +201,4 @@ function splitTerms(value: string): string[] {
     .split('|')
     .map((term) => term.trim())
     .filter(Boolean);
-}
-
-function decodeHtml(value: string): string {
-  return value
-    .replaceAll('&amp;', '&')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>');
 }
