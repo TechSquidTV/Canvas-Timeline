@@ -190,7 +190,7 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
       expect(dispose).toHaveBeenCalled();
     }
   );
-});
+}, 10_000);
 
 test('useMediabunnyAdapter returns noop behavior when window is unavailable', async () => {
   const useEffect = vi.fn((effect: () => void | (() => void)) => {

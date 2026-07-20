@@ -639,6 +639,119 @@ test('createMediabunnyAdapter ignores a superseded runtime recovery failure', as
   });
 });
 
+test('createMediabunnyAdapter keeps a pending replacement ahead of outgoing recovery', async () => {
+  const initialInput = createMockInput({ metadataDuration: 6 });
+  const replacementTrack = createMockVideoTrack();
+  const replacementInput = createMockInput({
+    videoTrack: replacementTrack,
+    metadataDuration: 9,
+  });
+  const fallbackInput = createMockInput({ metadataDuration: 12 });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  replacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const decoderError = new Error('outgoing decoder failed');
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async () => Promise.reject(decoderError)),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: document.createElement('canvas'),
+    mediabunny: createMockMediabunny([initialInput, replacementInput, fallbackInput], {
+      canvasSink,
+    }).module,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: { kind: 'url', url: 'https://media.example/original.mp4' },
+        fallbacks: [{ kind: 'url', url: 'https://media.example/fallback.mp4' }],
+      },
+    ],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  await waitForAdapterLoad(adapter);
+  const replacement = adapter.replaceSource(
+    urlSource('source-1', 'https://media.example/replacement.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(replacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+
+  await expect(adapter.renderVideo(visualClip, fromSeconds(1))).rejects.toBe(decoderError);
+  expect(fallbackInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+
+  resolveReplacementTrack(replacementTrack);
+  await expect(replacement).resolves.toMatchObject({ ok: true, state: 'ready' });
+  expect(fallbackInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    metadata: { durationSeconds: 9 },
+    error: null,
+  });
+});
+
+test('createMediabunnyAdapter resumes outgoing recovery after a replacement fails', async () => {
+  const initialInput = createMockInput({ metadataDuration: 6 });
+  const failedReplacementInput = createMockInput({ videoTrack: null, audioTrack: null });
+  const fallbackInput = createMockInput({ metadataDuration: 12 });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  failedReplacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const decoderError = new Error('outgoing decoder failed');
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async () => Promise.reject(decoderError)),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: document.createElement('canvas'),
+    mediabunny: createMockMediabunny([initialInput, failedReplacementInput, fallbackInput], {
+      canvasSink,
+    }).module,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: { kind: 'url', url: 'https://media.example/original.mp4' },
+        fallbacks: [{ kind: 'url', url: 'https://media.example/fallback.mp4' }],
+      },
+    ],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  await waitForAdapterLoad(adapter);
+  const replacement = adapter.replaceSource(
+    urlSource('source-1', 'https://media.example/replacement.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(failedReplacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+
+  await expect(adapter.renderVideo(visualClip, fromSeconds(1))).rejects.toBe(decoderError);
+  expect(fallbackInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+
+  resolveReplacementTrack(null);
+  await expect(replacement).resolves.toMatchObject({ ok: false, reason: 'load-failed' });
+  await vi.waitFor(() => {
+    expect(fallbackInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  await vi.waitFor(() => {
+    expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+      status: 'ready',
+      selectedInputIndex: 1,
+      metadata: { durationSeconds: 12 },
+      error: null,
+    });
+  });
+});
+
 test('createMediabunnyAdapter does not restore stale state from a superseded retry', async () => {
   const failedInput = createMockInput({ videoTrack: null, audioTrack: null });
   const retryInput = createMockInput();
@@ -767,6 +880,42 @@ test('createMediabunnyAdapter lets a complete registry supersede a pending repla
     status: 'ready',
     metadata: { durationSeconds: 4 },
   });
+});
+
+test('createMediabunnyAdapter does not resurrect after replacement notification disposal', async () => {
+  const originalInput = createMockInput({ metadataDuration: 4 });
+  const replacementInput = createMockInput({
+    videoTrack: null,
+    audioTrack: createMockAudioTrack(),
+    metadataDuration: 9,
+  });
+  let disposeOnAudioReady = false;
+  const adapterRef: { current: ReturnType<typeof createMediabunnyAdapter> | null } = {
+    current: null,
+  };
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([originalInput, replacementInput]).module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+    onChange: () => {
+      const currentAdapter = adapterRef.current;
+      if (disposeOnAudioReady && currentAdapter?.audioStatus.state === 'running') {
+        currentAdapter.dispose();
+      }
+    },
+  });
+  adapterRef.current = adapter;
+
+  await waitForAdapterLoad(adapter);
+  disposeOnAudioReady = true;
+
+  await expect(
+    adapter.replaceSource(urlSource('source-1', 'https://media.example/replacement.webm'))
+  ).resolves.toMatchObject({ ok: true, state: 'ready' });
+  expect(adapter.ready).toBe(false);
+  expect(adapter.status).toBe('Mediabunny adapter disposed.');
+  expect(adapter.sourceStateById.size).toBe(0);
+  expect(originalInput.dispose).toHaveBeenCalledOnce();
+  expect(replacementInput.dispose).toHaveBeenCalledOnce();
 });
 
 test('createMediabunnyAdapter rolls back failed replacements for idle and new sources', async () => {

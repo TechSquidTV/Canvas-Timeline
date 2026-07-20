@@ -575,16 +575,25 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
       if (!timelineLayers.hasActiveClips) {
         const state = engine.getState();
+        const playbackStartTime =
+          (playbackOptions?.respectInOut ?? true) ? state.inPoint : undefined;
         const playbackEndTime = getEarliestTimelineTime([
           playbackOptions?.toTime,
           state.duration,
           (playbackOptions?.respectInOut ?? true) ? state.outPoint : undefined,
         ]);
-        const firstContentTime = engine.getFirstContentTime({
-          layers,
-          atOrAfter: (playbackOptions?.respectInOut ?? true) ? state.inPoint : undefined,
-          before: playbackEndTime,
-        });
+        const playbackStartsInContent =
+          playbackStartTime !== undefined &&
+          (playbackEndTime === undefined ||
+            compareRational(playbackStartTime, playbackEndTime) < 0) &&
+          engine.getActiveLayers({ time: playbackStartTime, layers }).hasActiveClips;
+        const firstContentTime = playbackStartsInContent
+          ? playbackStartTime
+          : engine.getFirstContentTime({
+              layers,
+              atOrAfter: playbackStartTime,
+              before: playbackEndTime,
+            });
         if (firstContentTime === undefined) {
           if (engine.getFirstContentTime({ layers }) === undefined) {
             return createPlayFailure('no-content', 'No timeline content is available.', onError);

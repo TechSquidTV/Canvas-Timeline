@@ -190,6 +190,8 @@ interface PendingSourceReplacement {
   previousState: MediabunnySourceState | undefined;
   candidate: MediabunnySourceController | null;
   readyState: MediabunnySourceState | null;
+  completion: Promise<void>;
+  complete: () => void;
 }
 
 /**
@@ -621,7 +623,7 @@ export function createMediabunnyAdapter(
     currentPlaybackRate = playbackRate;
   };
 
-  const ensureAudioRuntime = () => {
+  const ensureAudioRuntime = (notifyChange = true) => {
     if (disposed) {
       return null;
     }
@@ -636,7 +638,9 @@ export function createMediabunnyAdapter(
         state: 'degraded',
         error: new Error('This browser does not expose AudioContext.'),
       };
-      notify();
+      if (notifyChange) {
+        notify();
+      }
       return null;
     }
     if (audioContext === null) {
@@ -647,7 +651,9 @@ export function createMediabunnyAdapter(
     updateMasterGain();
     masterGainNode.connect(options.audio?.destination ?? audioContext.destination);
     audioStatus = { state: audioContext.state === 'running' ? 'running' : 'suspended' };
-    notify();
+    if (notifyChange) {
+      notify();
+    }
     return { context: audioContext, gainNode: masterGainNode };
   };
 
@@ -818,6 +824,7 @@ export function createMediabunnyAdapter(
     if (replacement?.candidate !== null && replacement?.candidate !== undefined) {
       disposeController(replacement.candidate);
     }
+    replacement?.complete();
     pendingSourceReplacements.delete(sourceId);
   };
 
@@ -1061,6 +1068,11 @@ export function createMediabunnyAdapter(
       disposed
     ) {
       return;
+    }
+    const pendingReplacement = pendingSourceReplacements.get(sourceId);
+    if (pendingReplacement !== undefined) {
+      await pendingReplacement.completion;
+      return recoverSource(sourceId, expectedController, recoveryError);
     }
     recoveringSources.set(sourceId, expectedController);
     stopMediaClock(controller);
@@ -1349,63 +1361,86 @@ export function createMediabunnyAdapter(
         };
       }
       const previousReplacement = pendingSourceReplacements.get(source.sourceId);
+      let completeReplacement = () => {};
+      const replacementCompletion = new Promise<void>((resolve) => {
+        completeReplacement = () => resolve();
+      });
       const replacement: PendingSourceReplacement = {
         previousState:
           previousReplacement?.previousState ?? sourceStateSnapshot.get(source.sourceId),
         candidate: null,
         readyState: null,
+        completion: replacementCompletion,
+        complete: completeReplacement,
       };
       discardPendingSourceReplacement(source.sourceId);
       pendingSourceReplacements.set(source.sourceId, replacement);
-      const loadPromise = loadSource(source, {
-        status: 'loading',
-        replacement,
-      });
-      const generation = loadGenerations.get(source.sourceId);
-      const result = await loadPromise;
-      if (
-        disposed ||
-        loadGenerations.get(source.sourceId) !== generation ||
-        pendingSourceReplacements.get(source.sourceId) !== replacement
-      ) {
-        return createSupersededSourceLoadResult(source.sourceId);
-      }
-      pendingSourceReplacements.delete(source.sourceId);
-      if (result.ok) {
-        if (replacement.candidate === null || replacement.readyState === null) {
-          return {
-            ok: false,
-            sourceId: source.sourceId,
-            reason: 'load-failed',
-            error: new Error(
-              `Replacement source "${source.sourceId}" did not produce a controller.`
-            ),
-          };
+      try {
+        const loadPromise = loadSource(source, {
+          status: 'loading',
+          replacement,
+        });
+        const generation = loadGenerations.get(source.sourceId);
+        const result = await loadPromise;
+        if (
+          disposed ||
+          loadGenerations.get(source.sourceId) !== generation ||
+          pendingSourceReplacements.get(source.sourceId) !== replacement
+        ) {
+          return createSupersededSourceLoadResult(source.sourceId);
         }
-        if (replacement.candidate.audioSink !== null) {
-          const audioRuntime = ensureAudioRuntime();
-          if (audioRuntime === null) {
-            replacement.candidate.audioSink = null;
-          } else {
-            replacement.candidate.audioContext = audioRuntime.context;
-            replacement.candidate.gainNode = audioRuntime.gainNode;
+        if (result.ok) {
+          if (replacement.candidate === null || replacement.readyState === null) {
+            pendingSourceReplacements.delete(source.sourceId);
+            return {
+              ok: false,
+              sourceId: source.sourceId,
+              reason: 'load-failed',
+              error: new Error(
+                `Replacement source "${source.sourceId}" did not produce a controller.`
+              ),
+            };
           }
-        }
-        commitLoadedController(replacement.candidate, replacement.readyState, false);
-        sourceDefinitions.set(source.sourceId, source);
-        ready = true;
-        notify();
-      } else {
-        const nextSnapshot = new Map(sourceStateSnapshot);
-        if (replacement.previousState === undefined) {
-          nextSnapshot.delete(source.sourceId);
+          if (replacement.candidate.audioSink !== null) {
+            const audioRuntime = ensureAudioRuntime(false);
+            if (audioRuntime === null) {
+              replacement.candidate.audioSink = null;
+            } else {
+              replacement.candidate.audioContext = audioRuntime.context;
+              replacement.candidate.gainNode = audioRuntime.gainNode;
+            }
+          }
+          if (
+            disposed ||
+            loadGenerations.get(source.sourceId) !== generation ||
+            pendingSourceReplacements.get(source.sourceId) !== replacement
+          ) {
+            return createSupersededSourceLoadResult(source.sourceId);
+          }
+          pendingSourceReplacements.delete(source.sourceId);
+          commitLoadedController(replacement.candidate, replacement.readyState, false);
+          sourceDefinitions.set(source.sourceId, source);
+          ready = true;
+          notify();
         } else {
-          nextSnapshot.set(source.sourceId, replacement.previousState);
+          pendingSourceReplacements.delete(source.sourceId);
+          const nextSnapshot = new Map(sourceStateSnapshot);
+          if (replacement.previousState === undefined) {
+            nextSnapshot.delete(source.sourceId);
+          } else {
+            nextSnapshot.set(source.sourceId, replacement.previousState);
+          }
+          sourceStateSnapshot = nextSnapshot;
+          notify();
         }
-        sourceStateSnapshot = nextSnapshot;
-        notify();
+        return result;
+      } finally {
+        if (pendingSourceReplacements.get(source.sourceId) === replacement) {
+          discardPendingSourceReplacement(source.sourceId);
+        } else {
+          replacement.complete();
+        }
       }
-      return result;
     },
     setClockRate: (playbackRate) => {
       const timelineSeconds = getTransportClockTime();

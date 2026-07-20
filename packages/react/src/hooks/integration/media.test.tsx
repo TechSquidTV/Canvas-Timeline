@@ -1031,6 +1031,80 @@ test('useTimelineMediaSync keeps initial-content fallback inside the playback ra
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaSync starts at In when a clip overlaps the playback boundary', async () => {
+  const engine = new TimelineEngine({
+    duration: fromSeconds(8),
+    playheadTime: fromSeconds(4),
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'overlaps-in',
+            sourceId: 'source-overlap',
+            timelineStart: fromSeconds(1),
+            timelineEnd: fromSeconds(3),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'later-content',
+            sourceId: 'source-later',
+            timelineStart: fromSeconds(5),
+            timelineEnd: fromSeconds(7),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+      },
+    ],
+  });
+  engine.setInPoint(fromSeconds(2), false);
+  engine.setOutPoint(fromSeconds(7), false);
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const seek = vi.fn();
+  const startClock = vi.fn(() => true);
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: { visuals: { trackKind: 'visual' } },
+        adapter: {
+          getClockTime: () => 2,
+          startClock,
+          seek,
+        },
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(2) });
+  });
+
+  expect(engine.getTime()).toEqual(fromSeconds(2));
+  expect(seek).toHaveBeenCalledWith(
+    fromSeconds(2),
+    expect.objectContaining({
+      primary: expect.objectContaining({
+        visuals: expect.objectContaining({ clip: expect.objectContaining({ id: 'overlaps-in' }) }),
+      }),
+    })
+  );
+  expect(startClock).toHaveBeenCalledWith(fromSeconds(2), 1);
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
 test.each([
   ['time-continuous', undefined],
   ['frame-locked', 30],
