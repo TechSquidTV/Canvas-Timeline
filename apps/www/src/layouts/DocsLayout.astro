@@ -5,6 +5,7 @@ import DocsNav from '#www/components/DocsNav.astro';
 import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
 import { docsSections, type DocsSectionId } from '#www/data/docs';
 import type { StructuredDataInput } from '#www/lib/structured-data';
+import type { SearchDocument } from '#www/lib/search';
 
 interface PagerLink {
   id: string;
@@ -26,6 +27,7 @@ interface Props {
   markdownAriaLabel?: string;
   markdownTooltip?: string;
   structuredData?: StructuredDataInput;
+  search: SearchDocument;
 }
 
 const {
@@ -41,6 +43,7 @@ const {
   markdownAriaLabel,
   markdownTooltip,
   structuredData,
+  search,
 } = Astro.props;
 const tocHeadings = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 const currentSection = section
@@ -59,6 +62,7 @@ const breadcrumbs = [
   description={description}
   breadcrumbs={breadcrumbs}
   structuredData={structuredData}
+  search={search}
 >
   <section class="docs-hero">
     <div class="container-page docs-hero__content">

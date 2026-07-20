@@ -15,6 +15,7 @@ import {
   createBlogFaqStructuredData,
   createBlogPostStructuredData,
 } from '#www/lib/structured-data';
+import { createBlogSearchDocument } from '#www/lib/search';
 
 type BlogEntry = CollectionEntry<'blog'>;
 
@@ -43,6 +44,14 @@ const structuredData = [
   createBlogPostStructuredData(entry),
   ...(faqStructuredData ? [faqStructuredData] : []),
 ];
+const search = createBlogSearchDocument({
+  id: entry.id,
+  title: entry.data.title,
+  description: entry.data.description,
+  author: entry.data.author,
+  tags: entry.data.tags,
+  search: entry.data.search,
+});
 ---
 
 <BaseLayout
@@ -61,6 +70,7 @@ const structuredData = [
   tags={entry.data.tags}
   noindex={entry.data.draft}
   structuredData={structuredData}
+  search={entry.data.draft ? undefined : search}
 >
   <article class="blog-post">
     <header class="blog-post__header">

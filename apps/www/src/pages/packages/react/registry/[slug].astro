@@ -11,6 +11,7 @@ import {
 } from '#www/data/react-registry';
 import { apiPackageHref } from '#www/lib/api-reference';
 import { createReactRegistryStructuredData } from '#www/lib/structured-data';
+import { createRegistrySearchDocument } from '#www/lib/search';
 
 type ReactRegistryDocEntry = CollectionEntry<'reactRegistryDocs'>;
 
@@ -82,6 +83,16 @@ const mdxTocLinks = registryHeadings
   }));
 const tocLinks = [...generatedTocLinks, ...mdxTocLinks];
 const structuredData = createReactRegistryStructuredData(item, pageTitle, pageDescription);
+const search = createRegistrySearchDocument({
+  slug: item.slug,
+  title: pageTitle,
+  name: item.name,
+  description: pageDescription,
+  kind: item.kind,
+  importPath: item.importPath,
+  packageName: item.packageName,
+  search: item.search ?? entry.data.search,
+});
 ---
 
 <BaseLayout
@@ -95,6 +106,7 @@ const structuredData = createReactRegistryStructuredData(item, pageTitle, pageDe
     { label: pageTitle },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <section class="page-band registry-page-band">
     <div class="container-page page-heading">

@@ -2,6 +2,7 @@
 import { site } from '#www/data/site';
 import Breadcrumbs, { type BreadcrumbItem } from '#www/components/Breadcrumbs.astro';
 import GitHubIcon from '#www/components/GitHubIcon.astro';
+import SearchModal from '#www/components/SearchModal.astro';
 import SiteFooter from '#www/components/SiteFooter.astro';
 import {
   createSiteStructuredData,
@@ -9,6 +10,10 @@ import {
   type StructuredDataInput,
 } from '#www/lib/structured-data';
 import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
+import {
+  assertSearchDocumentMatchesPath,
+  type SearchDocument,
+} from '#www/lib/search';
 import '#www/styles/global.css';
 
 interface Props {
@@ -28,6 +33,7 @@ interface Props {
   tags?: readonly string[];
   noindex?: boolean;
   structuredData?: StructuredDataInput;
+  search?: SearchDocument;
 }
 
 const {
@@ -42,7 +48,12 @@ const {
   tags = [],
   noindex = false,
   structuredData,
+  search,
 } = Astro.props;
+if (search) {
+  assertSearchDocumentMatchesPath(search, Astro.url.pathname);
+}
+const searchDocument = search?.exclude ? undefined : search;
 const pageTitle = title ? `${title} | ${site.name}` : site.name;
 const canonicalUrl = providedCanonicalUrl ?? new URL(Astro.url.pathname, site.url).toString();
 const pageImage =
@@ -73,11 +84,34 @@ const structuredDataItems = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    {
+      searchDocument ? (
+        <>
+          <meta data-pagefind-meta="title[content]" content={searchDocument.title} />
+          <meta data-pagefind-meta="description[content]" content={searchDocument.description} />
+          <meta data-pagefind-meta="kind[content]" content={searchDocument.kind} />
+          <meta data-pagefind-meta="tags[content]" content={searchDocument.tags.join('|')} />
+          {
+            searchDocument.aliases.length > 0 ? (
+              <meta data-pagefind-meta="aliases[content]" content={searchDocument.aliases.join('|')} />
+            ) : null
+          }
+          {
+            searchDocument.packageSlug ? (
+              <meta data-pagefind-meta="package[content]" content={searchDocument.packageSlug} />
+            ) : null
+          }
+          <meta data-pagefind-filter={`kind:${searchDocument.kind}`} />
+        </>
+      ) : null
+    }
     {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
     <meta name="theme-color" content="#ffffff" />
     <link class="canonical-link" rel="canonical" href={canonicalUrl} />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css" />
+    <script src="/pagefind/pagefind-component-ui.js" type="module"></script>
     <meta property="og:site_name" content={site.name} />
     <meta property="og:type" content={pageType} />
     <meta property="og:title" content={metaTitle} />
@@ -120,6 +154,10 @@ const structuredDataItems = [
           <nav class="site-nav" aria-label="Primary navigation">
             {site.primaryNav.map((link) => <a href={link.href}>{link.label}</a>)}
           </nav>
+          <pagefind-modal-trigger
+            class="site-search-trigger"
+            placeholder="Search"
+          ></pagefind-modal-trigger>
           <a
             class="site-icon-link"
             href={site.repository.href}
@@ -131,7 +169,11 @@ const structuredDataItems = [
         </div>
       </div>
     </header>
-    <main>
+    <SearchModal />
+    <main
+      data-pagefind-body={searchDocument ? '' : undefined}
+      data-pagefind-weight={searchDocument?.weight}
+    >
       <Breadcrumbs items={breadcrumbs} />
       <slot />
     </main>

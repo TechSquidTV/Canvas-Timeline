@@ -4,6 +4,7 @@ import { getCollection, render } from 'astro:content';
 import DocsLayout from '#www/layouts/DocsLayout.astro';
 import { adjacentDocs } from '#www/data/docs';
 import { createDocsArticleStructuredData } from '#www/lib/structured-data';
+import { createDocsSearchDocument } from '#www/lib/search';
 
 type DocsEntry = CollectionEntry<'docs'>;
 
@@ -30,6 +31,13 @@ const structuredData = createDocsArticleStructuredData({
   url: `/docs/${entry.id}`,
   keywords: [entry.data.section, 'Canvas Timeline', 'documentation'],
 });
+const search = createDocsSearchDocument({
+  id: entry.id,
+  title: entry.data.title,
+  description: entry.data.description,
+  section: entry.data.section,
+  search: entry.data.search,
+});
 ---
 
 <DocsLayout
@@ -42,6 +50,7 @@ const structuredData = createDocsArticleStructuredData({
   next={next}
   markdownHref={`/docs/${entry.id}.md`}
   structuredData={structuredData}
+  search={search}
 >
   <Content />
 </DocsLayout>

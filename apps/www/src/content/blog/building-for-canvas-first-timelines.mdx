@@ -7,6 +7,12 @@ tags:
   - Architecture
   - React
   - Performance
+search:
+  keywords:
+    - canvas rendering
+    - 60fps timeline
+    - editor performance
+  priority: high
 ---
 
 Canvas Timeline is built around a simple constraint: timeline editors become expensive when every clip, tick, ruler mark, and interaction hint is a DOM node. The library keeps that dense work in the canvas renderer, then lets React handle the lower-count controls that need accessibility, focus management, and product-specific composition.

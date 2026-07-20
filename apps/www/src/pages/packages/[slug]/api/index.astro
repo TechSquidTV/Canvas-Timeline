@@ -4,6 +4,7 @@ import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
 import { groupApiSymbols, groupNameForApiSymbol } from '#www/lib/api-symbol-groups';
 import { apiReference, apiSymbolHref, type ApiPackage } from '#www/lib/api-reference';
 import { createApiPackageArticleStructuredData } from '#www/lib/structured-data';
+import { createApiPackageSearchDocument } from '#www/lib/search';
 
 interface Props {
   packageDoc: ApiPackage;
@@ -55,6 +56,7 @@ const commonEntryPoints = (commonEntryPointNames[packageDoc.slug] ?? [])
   .map((symbolName) => packageDoc.symbols.find((symbol) => symbol.name === symbolName))
   .filter(Boolean) as typeof packageDoc.symbols;
 const structuredData = createApiPackageArticleStructuredData(packageDoc);
+const search = createApiPackageSearchDocument(packageDoc);
 ---
 
 <BaseLayout
@@ -67,6 +69,7 @@ const structuredData = createApiPackageArticleStructuredData(packageDoc);
     { label: 'API' },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">

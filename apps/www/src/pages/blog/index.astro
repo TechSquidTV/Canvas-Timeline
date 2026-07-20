@@ -8,6 +8,7 @@ import {
   getReadingMinutes,
 } from '#www/data/blog';
 import { createBlogIndexStructuredData } from '#www/lib/structured-data';
+import { createSearchDocument } from '#www/lib/search';
 
 const posts = await getBlogPosts();
 const [featuredPost, ...recentPosts] = posts;
@@ -15,6 +16,13 @@ const title = 'Canvas Timeline Blog';
 const description =
   'Engineering notes, release writeups, and practical guides for building high-performance React timeline editors with Canvas Timeline.';
 const structuredData = createBlogIndexStructuredData(posts);
+const search = createSearchDocument({
+  url: '/blog',
+  title,
+  description,
+  kind: 'blog',
+  tags: ['Canvas Timeline', 'engineering', 'React timeline editor'],
+});
 ---
 
 <BaseLayout
@@ -25,6 +33,7 @@ const structuredData = createBlogIndexStructuredData(posts);
     { label: 'Blog' },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <section class="blog-hero">
     <div class="container-page blog-hero__inner">

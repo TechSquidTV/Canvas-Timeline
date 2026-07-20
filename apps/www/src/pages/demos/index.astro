@@ -2,10 +2,18 @@
 import BaseLayout from '#www/layouts/BaseLayout.astro';
 import { demoDocs } from '#www/data/demos';
 import { createDemoIndexStructuredData } from '#www/lib/structured-data';
+import { createSearchDocument } from '#www/lib/search';
 
 const featuredDemoDocs = demoDocs.filter((demoDoc) => demoDoc.featured);
 const standardDemoDocs = demoDocs.filter((demoDoc) => !demoDoc.featured);
 const structuredData = createDemoIndexStructuredData(demoDocs);
+const search = createSearchDocument({
+  url: '/demos',
+  title: 'Canvas Timeline demos',
+  description: 'Source-backed Canvas Timeline demos for editor basics and advanced integrations.',
+  kind: 'demo',
+  tags: ['Canvas Timeline', 'demos', 'examples'],
+});
 ---
 
 <BaseLayout
@@ -16,6 +24,7 @@ const structuredData = createDemoIndexStructuredData(demoDocs);
     { label: 'Demos' },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <section class="page-band">
     <div class="container-page page-heading">

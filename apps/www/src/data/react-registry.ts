@@ -1,4 +1,5 @@
 import { apiSymbolHref, getApiSymbol } from '#www/lib/api-reference';
+import type { SearchOptions } from '#www/lib/search';
 import {
   timelineHookMetadata,
   type TimelineHookGroupId,
@@ -69,6 +70,7 @@ export interface ReactRegistryItem {
   apis: ReactRegistryApi[];
   props?: ReactRegistryProp[];
   notes?: string[];
+  search?: SearchOptions;
 }
 
 export interface ReactRegistryGroup {

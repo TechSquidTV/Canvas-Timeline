@@ -7,8 +7,18 @@ import {
 } from '#www/data/react-registry';
 import PackageManagerTabs from '#www/components/PackageManagerTabs.astro';
 import { createReactRegistryIndexStructuredData } from '#www/lib/structured-data';
+import { createSearchDocument } from '#www/lib/search';
 
 const structuredData = createReactRegistryIndexStructuredData(reactRegistryItems);
+const search = createSearchDocument({
+  url: '/packages/react/registry',
+  title: 'React Timeline Component Registry',
+  description:
+    'Browse Canvas Timeline React components, primitives, interaction layers, and hook bindings.',
+  kind: 'registry',
+  packageSlug: 'react',
+  tags: ['Canvas Timeline', 'React', 'component registry', 'hooks'],
+});
 ---
 
 <BaseLayout
@@ -21,6 +31,7 @@ const structuredData = createReactRegistryIndexStructuredData(reactRegistryItems
     { label: 'Registry' },
   ]}
   structuredData={structuredData}
+  search={search}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">

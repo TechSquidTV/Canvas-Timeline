@@ -4,6 +4,7 @@ import { z } from 'astro/zod';
 import { docsSectionIds } from '#www/data/docs';
 import { reactRegistryItems } from '#www/data/react-registry';
 import { site } from '#www/data/site';
+import { searchOptionsSchema } from '#www/lib/search';
 
 const reactRegistryKeys = new Set(reactRegistryItems.map((item) => item.slug));
 
@@ -17,6 +18,7 @@ const docs = defineCollection({
     description: z.string(),
     section: z.enum(docsSectionIds),
     order: z.number(),
+    search: searchOptionsSchema.optional(),
   }),
 });
 
@@ -33,6 +35,7 @@ const blog = defineCollection({
       updatedDate: z.date().optional(),
       author: z.string().min(1).max(80),
       tags: z.array(z.string().min(1).max(40)).min(1).max(8),
+      search: searchOptionsSchema.optional(),
       faq: z
         .array(
           z
@@ -71,6 +74,7 @@ const reactRegistryDocs = defineCollection({
     registryKey: z.string().refine((key) => reactRegistryKeys.has(key), {
       message: 'Unknown React registry key',
     }),
+    search: searchOptionsSchema.optional(),
   }),
 });
 

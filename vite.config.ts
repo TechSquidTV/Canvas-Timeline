@@ -117,6 +117,18 @@ export default defineConfig({
         cache: false,
         dependsOn: ['build:www:verify-full-editor-demo'],
       },
+      'build:www:search': {
+        command: 'vp run docs:search',
+        cwd: 'apps/www',
+        dependsOn: ['build:www:astro'],
+        input: [
+          'apps/www/dist/client/**/*.html',
+          'apps/www/scripts/generate/search-catalog.ts',
+          'apps/www/scripts/verify/search-build.mjs',
+          'apps/www/src/lib/search.ts',
+        ],
+        output: ['apps/www/.generated/search-catalog.json', 'apps/www/dist/client/pagefind/**'],
+      },
       'build:www:astro': {
         command: 'vp exec astro build',
         cache: false,
@@ -134,7 +146,7 @@ export default defineConfig({
       'build:www:verify-full-editor-demo': {
         command: 'vp run docs:editor:verify',
         cwd: 'apps/www',
-        dependsOn: ['build:www:astro'],
+        dependsOn: ['build:www:search'],
         input: [
           'apps/www/dist/client/demos/full-editor-demo/index.html',
           'apps/www/dist/client/demos/full-editor-demo/assets/**',
