@@ -59,6 +59,10 @@ function createMediaSyncEngine() {
   });
 }
 
+function urlSource(sourceId: string, url: string) {
+  return { sourceId, input: { kind: 'url' as const, url } };
+}
+
 function createTestAdapter(overrides: Partial<MediabunnyAdapter> = {}): MediabunnyAdapter {
   return {
     ready: true,
@@ -191,6 +195,116 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
     }
   );
 }, 10_000);
+
+test('useMediabunnyAdapter keeps StrictMode updates on the currently owned adapter', async () => {
+  const records: Array<{
+    adapter: MediabunnyAdapter;
+    disposed: boolean;
+    setCanvas: ReturnType<typeof vi.fn>;
+    setMuted: ReturnType<typeof vi.fn>;
+    setSources: ReturnType<typeof vi.fn>;
+    setVolume: ReturnType<typeof vi.fn>;
+  }> = [];
+  const createMediabunnyAdapter = vi.fn(() => {
+    const record = {
+      adapter: null as MediabunnyAdapter | null,
+      disposed: false,
+      setCanvas: vi.fn(),
+      setMuted: vi.fn(),
+      setSources: vi.fn(),
+      setVolume: vi.fn(),
+    };
+    const assertOwned = () => {
+      if (record.disposed) {
+        throw new Error('stale React effect reached a disposed adapter');
+      }
+    };
+    record.setCanvas.mockImplementation(assertOwned);
+    record.setMuted.mockImplementation(assertOwned);
+    record.setSources.mockImplementation(assertOwned);
+    record.setVolume.mockImplementation(assertOwned);
+    const adapter = createTestAdapter({
+      setCanvas: record.setCanvas,
+      setMuted: record.setMuted,
+      setSources: record.setSources,
+      setVolume: record.setVolume,
+      dispose: vi.fn(() => {
+        record.disposed = true;
+      }),
+    });
+    record.adapter = adapter;
+    records.push(record as (typeof records)[number]);
+    return adapter;
+  });
+  vi.doMock('./index', async () => ({ createMediabunnyAdapter }));
+  const { useMediabunnyAdapter: useMockedMediabunnyAdapter } =
+    await import('#mediabunny-adapter/react');
+  const initialCanvas = document.createElement('canvas');
+  const replacementCanvas = document.createElement('canvas');
+  const initialLoader = () => Promise.resolve({} as never);
+  const replacementLoader = () => Promise.resolve({} as never);
+  const wrapper = ({ children }: React.PropsWithChildren) => (
+    <React.StrictMode>{children}</React.StrictMode>
+  );
+  const { result, rerender } = renderHook(
+    ({
+      canvas,
+      loader,
+      muted,
+      sourceUrl,
+      volume,
+    }: {
+      canvas: HTMLCanvasElement;
+      loader: () => Promise<never>;
+      muted: boolean;
+      sourceUrl: string;
+      volume: number;
+    }) =>
+      useMockedMediabunnyAdapter({
+        audio: { muted, volume },
+        canvas,
+        mediabunny: loader,
+        sources: [urlSource('source-1', sourceUrl)],
+      }),
+    {
+      initialProps: {
+        canvas: initialCanvas,
+        loader: initialLoader,
+        muted: false,
+        sourceUrl: '/initial.mp4',
+        volume: 0.7,
+      },
+      wrapper,
+    }
+  );
+
+  await waitFor(() => {
+    expect(records.length).toBeGreaterThanOrEqual(1);
+    expect(result.current).toBe(records.at(-1)?.adapter);
+  });
+
+  rerender({
+    canvas: replacementCanvas,
+    loader: replacementLoader,
+    muted: true,
+    sourceUrl: '/replacement.mp4',
+    volume: 0.4,
+  });
+
+  await waitFor(() => {
+    const current = records.at(-1);
+    expect(records.length).toBeGreaterThanOrEqual(2);
+    expect(result.current).toBe(current?.adapter);
+    expect(current?.setSources).toHaveBeenLastCalledWith([
+      urlSource('source-1', '/replacement.mp4'),
+    ]);
+    expect(current?.setCanvas).toHaveBeenLastCalledWith(replacementCanvas);
+    expect(current?.setMuted).toHaveBeenLastCalledWith(true);
+    expect(current?.setVolume).toHaveBeenLastCalledWith(0.4);
+  });
+
+  expect(records.slice(0, -1).every((record) => record.disposed)).toBe(true);
+});
 
 test('useMediabunnyAdapter returns noop behavior when window is unavailable', async () => {
   const useEffect = vi.fn((effect: () => void | (() => void)) => {

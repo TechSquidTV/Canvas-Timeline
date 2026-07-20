@@ -145,6 +145,12 @@ Module-loader failures use the same discriminated operation result and failed
 source state as input failures. A later `retrySource()` call invokes the lazy
 module loader again.
 
+Adapter disposal is terminal. Work already in flight releases staged resources
+without publishing late state. New loading, decoding, rendering, or mutating
+calls after `dispose()` throw or reject, while read-only state and idempotent
+teardown calls remain safe. React hooks enforce this ownership boundary when
+Strict Mode or option changes recreate an adapter.
+
 `sourceStateById` snapshots are referentially new when observable state changes.
 Each state includes the selected input index, ordered attempts, and terminal
 error. Mediabunny ready states also expose source-domain and media-domain

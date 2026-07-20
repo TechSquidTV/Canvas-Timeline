@@ -212,6 +212,7 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
   const runtimeValuesRef = useRef({ volume: audio?.volume, muted: audio?.muted });
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [adapter, setAdapter] = useState<MediabunnyAdapter>(noopAdapter);
+  const ownedAdapterRef = useRef<MediabunnyAdapter>(noopAdapter);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -233,9 +234,13 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
       visualTrackKinds: stableVisualTrackKinds,
       onChange: forceUpdate,
     });
+    ownedAdapterRef.current = nextAdapter;
     setAdapter(nextAdapter);
 
     return () => {
+      if (ownedAdapterRef.current === nextAdapter) {
+        ownedAdapterRef.current = noopAdapter;
+      }
       nextAdapter.dispose();
     };
   }, [
@@ -248,22 +253,36 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
     stableVisualTrackKinds,
   ]);
 
-  useEffect(() => adapter.setSources(sources), [adapter, sources]);
+  useEffect(() => {
+    if (ownedAdapterRef.current === adapter) {
+      adapter.setSources(sources);
+    }
+  }, [adapter, sources]);
 
   useEffect(() => {
-    if (audio?.volume !== undefined && adapter.volume !== audio.volume) {
+    if (
+      ownedAdapterRef.current === adapter &&
+      audio?.volume !== undefined &&
+      adapter.volume !== audio.volume
+    ) {
       adapter.setVolume(audio.volume);
     }
   }, [adapter, audio?.volume]);
 
   useEffect(() => {
-    if (audio?.muted !== undefined && adapter.muted !== audio.muted) {
+    if (
+      ownedAdapterRef.current === adapter &&
+      audio?.muted !== undefined &&
+      adapter.muted !== audio.muted
+    ) {
       adapter.setMuted(audio.muted);
     }
   }, [adapter, audio?.muted]);
 
   useEffect(() => {
-    adapter.setCanvas(canvas ?? null);
+    if (ownedAdapterRef.current === adapter) {
+      adapter.setCanvas(canvas ?? null);
+    }
   }, [adapter, canvas]);
 
   sourcesRef.current = sources;
