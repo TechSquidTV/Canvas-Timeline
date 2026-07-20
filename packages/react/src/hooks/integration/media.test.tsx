@@ -957,6 +957,80 @@ test('useTimelineMediaSync seeks to first media and starts an external adapter c
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaSync keeps initial-content fallback inside the playback range', async () => {
+  const engine = new TimelineEngine({
+    duration: fromSeconds(12),
+    playheadTime: fromSeconds(4),
+    tracks: [
+      {
+        id: 'video-1',
+        kind: 'visual',
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+        clips: [
+          {
+            id: 'before-range',
+            sourceId: 'source-before',
+            timelineStart: fromSeconds(0),
+            timelineEnd: fromSeconds(1),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'inside-range',
+            sourceId: 'source-inside',
+            timelineStart: fromSeconds(3),
+            timelineEnd: fromSeconds(5),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+      },
+    ],
+  });
+  engine.setInPoint(fromSeconds(2), false);
+  engine.setOutPoint(fromSeconds(4), false);
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const seek = vi.fn();
+  const startClock = vi.fn(() => true);
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: { visuals: { trackKind: 'visual' } },
+        adapter: {
+          getClockTime: () => 3,
+          startClock,
+          seek,
+        },
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(3) });
+  });
+
+  expect(engine.getTime()).toEqual(fromSeconds(3));
+  expect(seek).toHaveBeenCalledWith(
+    fromSeconds(3),
+    expect.objectContaining({
+      primary: expect.objectContaining({
+        visuals: expect.objectContaining({ clip: expect.objectContaining({ id: 'inside-range' }) }),
+      }),
+    })
+  );
+  expect(startClock).toHaveBeenCalledWith(fromSeconds(3), 1);
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
 test.each([
   ['time-continuous', undefined],
   ['frame-locked', 30],
@@ -2183,6 +2257,67 @@ test('useTimelineMediaSync does not reprime an inline seek facade on rerender', 
 
   expect(rafSpy).toHaveBeenCalledOnce();
   expect(seek).toHaveBeenCalledOnce();
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
+test('useTimelineMediaSync completes a queued paused seek through the latest inline facade', async () => {
+  const engine = createMediaSyncEngine();
+  const previewTicks: FrameRequestCallback[] = [];
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    previewTicks.push(callback);
+    return previewTicks.length;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  let resolveFirstSeek = () => {};
+  const firstSeekPromise = new Promise<void>((resolve) => {
+    resolveFirstSeek = resolve;
+  });
+  const firstSeek = vi.fn(() => firstSeekPromise);
+  const latestSeek = vi.fn();
+
+  const { rerender } = renderHook(
+    ({ revision }: { revision: number }) =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock: () => true,
+          seek: () => (revision === 0 ? firstSeek() : latestSeek()),
+        },
+      }),
+    {
+      initialProps: { revision: 0 },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    previewTicks[0]?.(16);
+    await Promise.resolve();
+  });
+  expect(firstSeek).toHaveBeenCalledOnce();
+
+  act(() => {
+    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(0.5) });
+  });
+  await act(async () => {
+    previewTicks[1]?.(32);
+    await Promise.resolve();
+  });
+
+  rerender({ revision: 1 });
+  await act(async () => {
+    resolveFirstSeek();
+    await firstSeekPromise;
+    await Promise.resolve();
+  });
+
+  expect(firstSeek).toHaveBeenCalledOnce();
+  expect(latestSeek).toHaveBeenCalledOnce();
 
   rafSpy.mockRestore();
   cancelSpy.mockRestore();

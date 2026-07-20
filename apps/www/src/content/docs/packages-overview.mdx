@@ -49,10 +49,10 @@ into media playback.
 
 Choose the HTML media adapter when one native `<video>` or `<audio>` element
 should follow timeline transport. Start with `useHTMLTimelineMedia`, which takes
-the element ref, an array of app-resolved `{ sourceId, input, fallbacks? }`
-sources, and the timeline layers you want to sync. Import React hooks from the
-adapter's `./react` entry point; the package root contains only the imperative,
-framework-free API.
+an array of app-resolved `{ sourceId, input, fallbacks? }` sources and the
+timeline layers you want to sync, then attach its returned `mediaRef` to the
+element. Import React hooks from the adapter's `./react` entry point; the package
+root contains only the imperative, framework-free API.
 
 Choose the Mediabunny adapter when you need decoded frames on a canvas, local
 files/blobs, custom Mediabunny inputs, or separate visual/audio scheduling.

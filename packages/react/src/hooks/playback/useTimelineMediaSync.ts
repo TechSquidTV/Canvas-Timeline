@@ -6,7 +6,11 @@ import type {
   TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
 import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
-import { rationalEquals, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import {
+  compareRational,
+  rationalEquals,
+  type RationalTime,
+} from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
@@ -18,6 +22,17 @@ import {
 } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+
+function getEarliestTimelineTime(
+  times: readonly (RationalTime | undefined)[]
+): RationalTime | undefined {
+  return times.reduce<RationalTime | undefined>((earliest, time) => {
+    if (time === undefined || (earliest !== undefined && compareRational(earliest, time) <= 0)) {
+      return earliest;
+    }
+    return time;
+  }, undefined);
+}
 
 /**
  * Options for high-level timeline media synchronization.
@@ -360,18 +375,16 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, []);
 
   const canSeekPausedPreview = useCallback(
-    (candidateAdapter: TimelineMediaSyncAdapter<LayerName>) =>
+    () =>
       pendingPlaybackStartRef.current === null &&
       readyRef.current &&
       !playingRef.current &&
-      adapterRef.current === candidateAdapter &&
-      candidateAdapter.seek !== undefined,
+      adapterRef.current.seek !== undefined,
     []
   );
 
   const schedulePausedPreviewSeek = useCallback(() => {
-    const scheduledAdapter = adapterRef.current;
-    if (!canSeekPausedPreview(scheduledAdapter)) {
+    if (!canSeekPausedPreview()) {
       return;
     }
     if (previewSeekFrameRef.current !== null) {
@@ -382,8 +395,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       previewSeekFrameRef.current = null;
       const generation = previewSeekGenerationRef.current + 1;
       previewSeekGenerationRef.current = generation;
-      const currentAdapter = adapterRef.current;
-      if (!canSeekPausedPreview(currentAdapter)) {
+      if (!canSeekPausedPreview()) {
         return;
       }
 
@@ -393,19 +405,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         layers: layersRef.current,
       });
       void enqueueAdapterOperation(async () => {
-        if (
-          previewSeekGenerationRef.current !== generation ||
-          !canSeekPausedPreview(currentAdapter)
-        ) {
+        if (previewSeekGenerationRef.current !== generation || !canSeekPausedPreview()) {
           return;
         }
+        const currentAdapter = adapterRef.current;
         try {
           await currentAdapter.seek?.(timelineTime, currentActiveLayers);
         } catch (seekError: unknown) {
-          if (
-            previewSeekGenerationRef.current !== generation ||
-            !canSeekPausedPreview(currentAdapter)
-          ) {
+          if (previewSeekGenerationRef.current !== generation || !canSeekPausedPreview()) {
             return;
           }
           const cause = toMediaError(seekError);
@@ -567,17 +574,29 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       });
 
       if (!timelineLayers.hasActiveClips) {
-        const firstContentTime = engine.getFirstContentTime({ layers });
-        if (firstContentTime === undefined) {
-          return createPlayFailure('no-content', 'No timeline content is available.', onError);
-        }
-
-        timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
-        engine.setTime(timelineTime);
-        timelineLayers = engine.getActiveLayers({
-          time: timelineTime,
+        const state = engine.getState();
+        const playbackEndTime = getEarliestTimelineTime([
+          playbackOptions?.toTime,
+          state.duration,
+          (playbackOptions?.respectInOut ?? true) ? state.outPoint : undefined,
+        ]);
+        const firstContentTime = engine.getFirstContentTime({
           layers,
+          atOrAfter: (playbackOptions?.respectInOut ?? true) ? state.inPoint : undefined,
+          before: playbackEndTime,
         });
+        if (firstContentTime === undefined) {
+          if (engine.getFirstContentTime({ layers }) === undefined) {
+            return createPlayFailure('no-content', 'No timeline content is available.', onError);
+          }
+        } else {
+          timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
+          engine.setTime(timelineTime);
+          timelineLayers = engine.getActiveLayers({
+            time: timelineTime,
+            layers,
+          });
+        }
       }
 
       if (!timelineLayers.hasActiveClips) {

@@ -6,6 +6,7 @@ import type {
   ActiveLayerResult,
   Clip,
   ClipSourceRange,
+  FirstContentTimeOptions,
   Track,
 } from '#core/types';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
@@ -118,11 +119,11 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
   /**
    * Finds the earliest clip start matching any requested layer.
    *
-   * @param options - Named layer selectors.
+   * @param options - Named layer selectors and optional clip-start bounds.
    * @returns Earliest matching timeline start, or `undefined` when nothing matches.
    */
   getFirstContentTime<LayerName extends string = string>(
-    options: Pick<ActiveLayerOptions<LayerName>, 'layers'>
+    options: FirstContentTimeOptions<LayerName>
   ): RationalTime | undefined {
     let firstContentTime: RationalTime | undefined;
 
@@ -132,7 +133,12 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
       }
 
       for (const clip of track.clips) {
-        if (clip.disabled) {
+        if (
+          clip.disabled ||
+          (options.atOrAfter !== undefined &&
+            compareRational(clip.timelineStart, options.atOrAfter) < 0) ||
+          (options.before !== undefined && compareRational(clip.timelineStart, options.before) >= 0)
+        ) {
           continue;
         }
 

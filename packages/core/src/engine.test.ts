@@ -1116,6 +1116,30 @@ describe('TimelineEngine', () => {
           },
         })
       ).toBeUndefined();
+
+      expect(
+        toSeconds(
+          expectDefined(
+            engine.getFirstContentTime({
+              layers: {
+                visuals: { trackKind: 'visual' },
+              },
+              atOrAfter: fromSeconds(1.25),
+              before: fromSeconds(2),
+            }),
+            'bounded first content time'
+          )
+        )
+      ).toBeCloseTo(1.5);
+
+      expect(
+        engine.getFirstContentTime({
+          layers: {
+            visuals: { trackKind: 'visual' },
+          },
+          atOrAfter: fromSeconds(2),
+        })
+      ).toBeUndefined();
     });
   });
 

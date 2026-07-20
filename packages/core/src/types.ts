@@ -149,6 +149,17 @@ export interface ActiveLayerOptions<LayerName extends string = string, TrackKind
   layers: Record<LayerName, ActiveLayerSelector<TrackKind>>;
 }
 
+/** Options for finding the first matching content within optional timeline bounds. */
+export interface FirstContentTimeOptions<
+  LayerName extends string = string,
+  TrackKind = string,
+> extends Pick<ActiveLayerOptions<LayerName, TrackKind>, 'layers'> {
+  /** Inclusive lower bound for matching clip start times. */
+  atOrAfter?: RationalTime;
+  /** Exclusive upper bound for matching clip start times. */
+  before?: RationalTime;
+}
+
 /**
  * Active timeline layer lookup result.
  *
