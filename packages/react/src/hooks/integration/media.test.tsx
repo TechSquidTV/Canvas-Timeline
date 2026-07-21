@@ -1,7 +1,11 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
-import { TimelineEngine, type TimelineMediaSyncAdapter } from '@techsquidtv/canvas-timeline-core';
+import {
+  TimelineEngine,
+  TimelineMediaError,
+  type TimelineMediaSyncAdapter,
+} from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import * as playbackHookExports from '#react/hooks/playback';
@@ -1979,11 +1983,16 @@ test('useTimelineMediaSync waits for a cancelled clock start before replaying', 
   });
 });
 
-test('useTimelineMediaSync converts adapter startup exceptions into a play result', async () => {
+test('useTimelineMediaSync converts activation exceptions into a play result', async () => {
   const engine = createMediaSyncEngine();
-  const startClock = vi.fn(() => {
-    throw new Error('blocked');
-  });
+  const activationError = new Error('activation blocked');
+  const requestClockActivation = vi
+    .fn()
+    .mockImplementationOnce(() => {
+      throw activationError;
+    })
+    .mockReturnValue(undefined);
+  const startClock = vi.fn(() => true);
   const stopClock = vi.fn();
   const onError = vi.fn();
 
@@ -1997,6 +2006,7 @@ test('useTimelineMediaSync converts adapter startup exceptions into a play resul
           getClockTime: () => 0,
           startClock,
           stopClock,
+          requestClockActivation,
         },
         onError,
       }),
@@ -2009,21 +2019,102 @@ test('useTimelineMediaSync converts adapter startup exceptions into a play resul
     await expect(result.current.play()).resolves.toEqual({
       ok: false,
       reason: 'clock-failed',
-      message: 'Media clock could not start. blocked',
-      cause: expect.any(Error),
+      message: 'Media clock could not start. activation blocked',
+      cause: activationError,
     });
   });
 
-  expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
-  expect(stopClock).toHaveBeenCalled();
+  expect(startClock).not.toHaveBeenCalled();
+  expect(stopClock).toHaveBeenCalledOnce();
   expect(engine.getState().playing).toBe(false);
+  expect(onError).toHaveBeenCalledOnce();
   expect(onError).toHaveBeenCalledWith(
     expect.objectContaining({
       reason: 'clock-failed',
-      message: 'Media clock could not start. blocked',
+      message: 'Media clock could not start. activation blocked',
+      cause: activationError,
     })
   );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(1) });
+  });
+  expect(startClock).toHaveBeenCalledOnce();
+  expect(engine.getState().playing).toBe(true);
+
+  act(() => {
+    result.current.pause();
+  });
+  expect(stopClock).toHaveBeenCalledTimes(2);
 });
+
+test.each([
+  ['ordinary error', new Error('blocked')],
+  ['structured timeline error', new TimelineMediaError('timeline-failed', 'adapter conflict')],
+] as const)(
+  'useTimelineMediaSync releases ownership when startClock throws an %s',
+  async (_case, startupError) => {
+    const engine = createMediaSyncEngine();
+    const startClock = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw startupError;
+      })
+      .mockReturnValue(true);
+    const stopClock = vi.fn();
+    const onError = vi.fn();
+
+    const { result } = renderHook(
+      () =>
+        useTimelineMediaSync({
+          layers: {
+            visuals: { trackKind: 'visual', sourceId: 'source-1' },
+          },
+          adapter: {
+            getClockTime: () => 0,
+            startClock,
+            stopClock,
+          },
+          onError,
+        }),
+      {
+        wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+      }
+    );
+
+    await act(async () => {
+      await expect(result.current.play()).resolves.toEqual({
+        ok: false,
+        reason: 'clock-failed',
+        message: `Media clock could not start. ${startupError.message}`,
+        cause: startupError,
+      });
+    });
+
+    expect(startClock).toHaveBeenCalledWith(fromSeconds(1), 1);
+    expect(stopClock).toHaveBeenCalledOnce();
+    expect(engine.getState().playing).toBe(false);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'clock-failed',
+        message: `Media clock could not start. ${startupError.message}`,
+        cause: startupError,
+      })
+    );
+
+    await act(async () => {
+      await expect(result.current.play()).resolves.toEqual({ ok: true, time: fromSeconds(1) });
+    });
+    expect(startClock).toHaveBeenCalledTimes(2);
+    expect(engine.getState().playing).toBe(true);
+
+    act(() => {
+      result.current.pause();
+    });
+    expect(stopClock).toHaveBeenCalledTimes(2);
+  }
+);
 
 test('useTimelineMediaSync converts timeline sync exceptions into a play result', async () => {
   const engine = createMediaSyncEngine();

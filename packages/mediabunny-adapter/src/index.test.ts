@@ -666,6 +666,175 @@ test('createMediabunnyAdapter atomically publishes readiness after replacing an 
   expect(snapshots.at(-1)).toEqual({ ready: true, sourceStatus: 'ready' });
 });
 
+test('createMediabunnyAdapter waits for an idle source replacement before seeking', async () => {
+  const replacementTrack = createMockVideoTrack();
+  const replacementInput = createMockInput({
+    videoTrack: replacementTrack,
+    metadataDuration: 9,
+  });
+  const originalInput = createMockInput({ metadataDuration: 6 });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  replacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const mockMediabunny = createMockMediabunny([replacementInput, originalInput]);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  const replacement = adapter.replaceSource(
+    urlSource('source-1', 'https://media.example/replacement.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(replacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  let seekSettled = false;
+  const seek = adapter.seek(fromSeconds(1), createActiveLayers([visualClip], 1)).then(() => {
+    seekSettled = true;
+  });
+  await Promise.resolve();
+
+  expect(seekSettled).toBe(false);
+  expect(originalInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+
+  resolveReplacementTrack(replacementTrack);
+  await expect(replacement).resolves.toMatchObject({ ok: true, state: 'ready' });
+  await seek;
+
+  expect(originalInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+  expect(mockMediabunny.constructInput).toHaveBeenCalledOnce();
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    metadata: { durationSeconds: 9 },
+  });
+});
+
+test('createMediabunnyAdapter resumes an idle source load after replacement fails', async () => {
+  const failedReplacementInput = createMockInput({ videoTrack: null, audioTrack: null });
+  const originalInput = createMockInput({ metadataDuration: 6 });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  failedReplacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const mockMediabunny = createMockMediabunny([failedReplacementInput, originalInput]);
+  const adapter = createMediabunnyAdapter({
+    mediabunny: mockMediabunny.module,
+    sources: [urlSource('source-1', 'https://media.example/original.mp4')],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+
+  const replacement = adapter.replaceSource(
+    urlSource('source-1', 'https://media.example/broken.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(failedReplacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  const seek = adapter.seek(fromSeconds(1), createActiveLayers([visualClip], 1));
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  expect(originalInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+
+  resolveReplacementTrack(null);
+  await expect(replacement).resolves.toMatchObject({
+    ok: false,
+    reason: 'load-failed',
+    error: expect.objectContaining({
+      message: 'No audio or video track found for source "source-1".',
+    }),
+  });
+  await seek;
+
+  expect(originalInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  expect(mockMediabunny.constructInput).toHaveBeenCalledTimes(2);
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    metadata: { durationSeconds: 6 },
+  });
+});
+
+test('createMediabunnyAdapter lets preload await a pending new-source replacement', async () => {
+  const replacementTrack = createMockVideoTrack();
+  const replacementInput = createMockInput({
+    videoTrack: replacementTrack,
+    metadataDuration: 9,
+  });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  replacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([replacementInput]).module,
+    sources: [],
+  });
+
+  const replacement = adapter.replaceSource(
+    urlSource('new-source', 'https://media.example/replacement.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(replacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  let preloadSettled = false;
+  const preload = adapter.preloadSource('new-source').then((result) => {
+    preloadSettled = true;
+    return result;
+  });
+  await Promise.resolve();
+  expect(preloadSettled).toBe(false);
+
+  resolveReplacementTrack(replacementTrack);
+  await expect(replacement).resolves.toMatchObject({ ok: true, state: 'ready' });
+  await expect(preload).resolves.toMatchObject({ ok: true, state: 'ready' });
+  expect(adapter.sourceStateById.get('new-source')).toMatchObject({ status: 'ready' });
+});
+
+test('createMediabunnyAdapter shares a failed new-source replacement with pending preload', async () => {
+  const failedReplacementInput = createMockInput({ videoTrack: null, audioTrack: null });
+  let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  failedReplacementInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveReplacementTrack = resolve;
+      })
+  );
+  const adapter = createMediabunnyAdapter({
+    mediabunny: createMockMediabunny([failedReplacementInput]).module,
+    sources: [],
+  });
+
+  const replacement = adapter.replaceSource(
+    urlSource('new-source', 'https://media.example/broken.mp4')
+  );
+  await vi.waitFor(() => {
+    expect(failedReplacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  let preloadSettled = false;
+  const preload = adapter.preloadSource('new-source').then((result) => {
+    preloadSettled = true;
+    return result;
+  });
+  await Promise.resolve();
+  expect(preloadSettled).toBe(false);
+
+  resolveReplacementTrack(null);
+  const replacementResult = await replacement;
+  const preloadResult = await preload;
+
+  expect(replacementResult).toMatchObject({ ok: false, reason: 'load-failed' });
+  expect(preloadResult).toBe(replacementResult);
+  expect(adapter.ready).toBe(false);
+  expect(adapter.sourceStateById.has('new-source')).toBe(false);
+});
+
 test('createMediabunnyAdapter loads a replacement while the previous source load is pending', async () => {
   const previousInput = createMockInput();
   const replacementInput = createMockInput({ metadataDuration: 9 });

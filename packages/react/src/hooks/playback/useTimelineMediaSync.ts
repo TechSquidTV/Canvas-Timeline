@@ -137,6 +137,11 @@ interface MediaAdapterOperationToken {
   identity: unknown;
 }
 
+type MediaClockStartupResult =
+  | { state: 'cancelled' }
+  | { state: 'competing-clock' }
+  | { state: 'started'; started: boolean };
+
 function createPlayFailure(
   reason: TimelineMediaPlayFailureReason,
   message: string,
@@ -718,40 +723,43 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         );
       }
 
-      startupAdapter = adapterRef.current;
-      startupAdapter.requestClockActivation?.(engine.getPlaybackRate());
       try {
-        const clockStarted = await enqueueAdapterOperation(async () => {
-          if (!isCurrentAdapterOperation(operationToken)) {
-            return false;
-          }
-          startupAdapter = adapterRef.current;
-          await startupAdapter.seek?.(timelineTime, timelineLayers);
-          if (
-            !isCurrentAdapterOperation(operationToken) ||
-            !isCurrentPlaybackStart(generation) ||
-            !readyRef.current
-          ) {
-            return false;
-          }
-          if (engine.getState().playing) {
+        startupAdapter = adapterRef.current;
+        startupAdapter.requestClockActivation?.(engine.getPlaybackRate());
+        const clockStartup = await enqueueAdapterOperation(
+          async (): Promise<MediaClockStartupResult> => {
+            if (!isCurrentAdapterOperation(operationToken)) {
+              return { state: 'cancelled' };
+            }
             startupAdapter = adapterRef.current;
-            startupAdapter.stopClock?.();
-            throw new TimelineMediaError(
-              'timeline-failed',
-              'Timeline playback is already controlled by another clock.'
-            );
-          }
+            await startupAdapter.seek?.(timelineTime, timelineLayers);
+            if (
+              !isCurrentAdapterOperation(operationToken) ||
+              !isCurrentPlaybackStart(generation) ||
+              !readyRef.current
+            ) {
+              return { state: 'cancelled' };
+            }
+            if (engine.getState().playing) {
+              startupAdapter = adapterRef.current;
+              startupAdapter.stopClock?.();
+              return { state: 'competing-clock' };
+            }
 
-          startupAdapter = adapterRef.current;
-          clockOwnerRef.current = {
-            generation,
-            adapter: startupAdapter,
-            identity: adapterIdentityRef.current,
-          };
-          return startupAdapter.startClock(timelineTime, engine.getPlaybackRate());
-        });
+            startupAdapter = adapterRef.current;
+            clockOwnerRef.current = {
+              generation,
+              adapter: startupAdapter,
+              identity: adapterIdentityRef.current,
+            };
+            return {
+              state: 'started',
+              started: await startupAdapter.startClock(timelineTime, engine.getPlaybackRate()),
+            };
+          }
+        );
         if (
+          clockStartup.state === 'cancelled' ||
           !isCurrentAdapterOperation(operationToken) ||
           !isCurrentPlaybackStart(generation) ||
           !readyRef.current
@@ -759,7 +767,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
-        if (!clockStarted) {
+        if (clockStartup.state === 'competing-clock') {
+          return createPlayFailure(
+            'timeline-failed',
+            'Timeline playback is already controlled by another clock.',
+            onErrorRef.current
+          );
+        }
+        if (!clockStartup.started) {
           stopOwnedClock(generation);
           return createPlayFailure(
             'clock-failed',
@@ -775,13 +790,6 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         ) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
-        }
-        if (clockError instanceof TimelineMediaError && clockError.reason === 'timeline-failed') {
-          return createPlayFailure(
-            'timeline-failed',
-            'Timeline playback is already controlled by another clock.',
-            onErrorRef.current
-          );
         }
         if (clockOwnerRef.current?.generation === generation) {
           stopOwnedClock(generation);

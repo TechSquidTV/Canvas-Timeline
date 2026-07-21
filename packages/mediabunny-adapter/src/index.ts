@@ -1213,6 +1213,26 @@ export function createMediabunnyAdapter(
   };
 
   const ensureSource = (sourceId: string): Promise<TimelineMediaSourceOperationResult> => {
+    const operation = sourceOperations.get(sourceId);
+    const activeRecovery = operation?.recovery;
+    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
+      return activeRecovery.promise;
+    }
+    const activeReplacement = operation?.replacement ?? null;
+    if (activeReplacement !== null) {
+      if (controllers.has(sourceId) && activeReplacement.deferredRecovery === null) {
+        return Promise.resolve({ ok: true, sourceId, state: 'ready' });
+      }
+      if (activeReplacement.promise === null) {
+        return Promise.resolve().then(() => ensureSource(sourceId));
+      }
+      return activeReplacement.promise.then((result) => {
+        if (result.ok || !sourceDefinitions.has(sourceId)) {
+          return result;
+        }
+        return ensureSource(sourceId);
+      });
+    }
     const source = sourceDefinitions.get(sourceId);
     if (source === undefined) {
       return Promise.resolve({
@@ -1222,38 +1242,23 @@ export function createMediabunnyAdapter(
         error: new Error(`Unknown source "${sourceId}".`),
       });
     }
-    const operation = getSourceOperation(sourceId);
-    const activeRecovery = operation.recovery;
-    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
-      return activeRecovery.promise;
-    }
-    const activeReplacement = operation.replacement;
-    if (
-      activeReplacement?.deferredRecovery !== null &&
-      activeReplacement?.promise !== null &&
-      activeReplacement?.promise !== undefined
-    ) {
-      return activeReplacement.promise.then((result) =>
-        result.ok ? result : ensureSource(sourceId)
-      );
-    }
+    const sourceOperation = operation ?? getSourceOperation(sourceId);
     if (controllers.has(sourceId)) {
       return Promise.resolve({ ok: true, sourceId, state: 'ready' });
     }
-    const existingPromise = operation.preloadPromise;
+    const existingPromise = sourceOperation.preloadPromise;
     if (existingPromise !== null) {
       return existingPromise;
     }
 
-    discardPendingSourceReplacement(sourceId);
-    operation.recovery = null;
+    sourceOperation.recovery = null;
     const token = beginSourceLoad(sourceId);
     const loadPromise = loadSource(source, { status: 'loading', token }).finally(() => {
-      if (operation.preloadPromise === loadPromise) {
-        operation.preloadPromise = null;
+      if (sourceOperation.preloadPromise === loadPromise) {
+        sourceOperation.preloadPromise = null;
       }
     });
-    operation.preloadPromise = loadPromise;
+    sourceOperation.preloadPromise = loadPromise;
     return loadPromise;
   };
 
