@@ -130,6 +130,7 @@ interface PendingMediaPlaybackStart<LayerName extends string> {
 interface MediaClockOwner<LayerName extends string> {
   generation: number;
   adapter: TimelineMediaSyncAdapter<LayerName>;
+  identity: unknown;
 }
 
 function createPlayFailure(
@@ -270,6 +271,16 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     return pendingOperation;
   }, []);
 
+  const stopSynchronizedClock = useCallback(() => {
+    const owner = clockOwnerRef.current;
+    clockOwnerRef.current = null;
+    const clockAdapter =
+      owner !== null && !Object.is(owner.identity, adapterIdentityRef.current)
+        ? owner.adapter
+        : adapterRef.current;
+    clockAdapter.stopClock?.();
+  }, []);
+
   const adapterSyncLayers = adapter.syncLayers;
 
   const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<
@@ -278,7 +289,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     frameRate,
     playbackOptions: externalPlaybackOptions,
     getClockTime: adapter.getClockTime,
-    stopClock: adapter.stopClock,
+    stopClock: stopSynchronizedClock,
     setClockRate: adapter.setClockRate,
     layers,
     syncLayers:
@@ -498,8 +509,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     cancelScheduledSeek();
-    cancelPendingPlaybackStart();
-  }, [cancelPendingPlaybackStart, cancelScheduledSeek, ready]);
+    const cancelledPendingStart = cancelPendingPlaybackStart();
+    if (clockOwnerRef.current !== null) {
+      if (cancelledPendingStart) {
+        clockOwnerRef.current = null;
+      }
+      pauseSynchronizedPlayback();
+    }
+  }, [cancelPendingPlaybackStart, cancelScheduledSeek, pauseSynchronizedPlayback, ready]);
 
   useEffect(() => {
     if (Object.is(adapterIdentityRef.current, adapterIdentity)) {
@@ -513,9 +530,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     const cancelledPendingStart = cancelPendingPlaybackStart();
     const previousOwner = clockOwnerRef.current;
     if (previousOwner !== null) {
-      clockOwnerRef.current = null;
-      if (!cancelledPendingStart) {
-        previousOwner.adapter.stopClock?.();
+      if (cancelledPendingStart) {
+        clockOwnerRef.current = null;
       }
       pauseSynchronizedPlayback();
     }
@@ -624,7 +640,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             return false;
           }
 
-          clockOwnerRef.current = { generation, adapter: playbackAdapter };
+          clockOwnerRef.current = {
+            generation,
+            adapter: playbackAdapter,
+            identity: adapterIdentityRef.current,
+          };
           return playbackAdapter.startClock(timelineTime, engine.getPlaybackRate());
         });
         if (!isCurrentPlaybackStart(generation) || !readyRef.current) {

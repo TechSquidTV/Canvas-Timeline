@@ -555,6 +555,7 @@ export function createMediabunnyAdapter(
   );
   const sourceOperations = new Map<string, MediabunnySourceOperationState>();
   const activeSourceIds = new Set<string>();
+  let activeVisualClip: ActiveClip | undefined;
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
   let mediabunnyPromise: Promise<MediabunnyModule> | null = null;
@@ -830,13 +831,7 @@ export function createMediabunnyAdapter(
     );
   };
 
-  const clearVideo = () => {
-    if (disposed) {
-      return;
-    }
-    for (const sourceController of controllers.values()) {
-      void cancelVideoPlayback(sourceController);
-    }
+  const clearVideoSurface = () => {
     if (canvas !== null) {
       const controller = clockController ?? [...controllers.values()][0];
       if (controller !== undefined) {
@@ -844,6 +839,17 @@ export function createMediabunnyAdapter(
       }
     }
     setLastFrameTime(null);
+  };
+
+  const clearVideo = () => {
+    if (disposed) {
+      return;
+    }
+    activeVisualClip = undefined;
+    for (const sourceController of controllers.values()) {
+      void cancelVideoPlayback(sourceController);
+    }
+    clearVideoSurface();
   };
 
   const renderVideo = async (activeVideo: ActiveClip, _timelineTime: RationalTime) => {
@@ -895,6 +901,26 @@ export function createMediabunnyAdapter(
     activeLayers: ActiveLayerResult<string>,
     trackKinds: ReadonlySet<string>
   ) => activeLayers.all.find((activeClip) => trackKinds.has(activeClip.track.kind));
+
+  const stopInactiveControllerOutputs = async (
+    activeVisual: ActiveClip | undefined,
+    activeAudio: ActiveClip | undefined
+  ) => {
+    const activeVideoController = getController(activeVisual);
+    const activeAudioController = getController(activeAudio);
+    const videoCancellations: Promise<void>[] = [];
+
+    for (const controller of controllers.values()) {
+      if (controller !== activeAudioController) {
+        stopControllerAudio(controller);
+      }
+      if (controller !== activeVideoController) {
+        videoCancellations.push(cancelVideoPlayback(controller));
+      }
+    }
+
+    await Promise.all(videoCancellations);
+  };
 
   const shouldSyncAudio = (
     reason: TimelineMediaSyncReason,
@@ -1265,7 +1291,13 @@ export function createMediabunnyAdapter(
       }
     }
 
+    await stopInactiveControllerOutputs(activeVisual, activeAudio);
+    if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
+      return;
+    }
+
     if (activeVisual !== undefined) {
+      activeVisualClip = activeVisual;
       const controller = getController(activeVisual);
       if (
         controller !== undefined &&
@@ -1297,7 +1329,8 @@ export function createMediabunnyAdapter(
         }
       }
     } else {
-      clearVideo();
+      activeVisualClip = undefined;
+      clearVideoSurface();
     }
 
     if (shouldSyncAudio(reason, activeAudio)) {
@@ -1441,12 +1474,19 @@ export function createMediabunnyAdapter(
     },
     setCanvas: (nextCanvas) => {
       assertAdapterActive();
-      if (canvas !== nextCanvas) {
-        for (const controller of controllers.values()) {
-          void cancelVideoPlayback(controller);
-        }
+      if (canvas === nextCanvas) {
+        return;
+      }
+      for (const controller of controllers.values()) {
+        invalidateFrameRendering(controller);
+        void cancelVideoPlayback(controller);
       }
       canvas = nextCanvas;
+      if (canvas !== null && !transportPlaying && activeVisualClip !== undefined) {
+        void renderVideo(activeVisualClip, activeVisualClip.timelineTime).catch(() => {
+          // renderVideo owns recovery; canvas replacement is a best-effort refresh.
+        });
+      }
     },
     getClockTime: getTransportClockTime,
     startClock: (timelineTime, playbackRate) => {
@@ -1679,12 +1719,14 @@ export function createMediabunnyAdapter(
       setTransportClock(toSeconds(timelineTime), currentPlaybackRate, false);
       setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
       if (activeVisual !== undefined) {
+        activeVisualClip = activeVisual;
         await adapter.renderVideo(activeVisual, timelineTime);
         if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
           return;
         }
       } else {
-        adapter.clearVideo();
+        activeVisualClip = undefined;
+        clearVideoSurface();
       }
 
       if (activeVisual === undefined) {

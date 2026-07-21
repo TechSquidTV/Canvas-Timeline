@@ -461,7 +461,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       if (synchronization.superseded === true || synchronization.error !== undefined) {
         return;
       }
-      if (!nextActiveLayers.hasActiveClips) {
+      if (!synchronization.activeLayers.hasActiveClips) {
         pause('content-gap');
         return;
       }
