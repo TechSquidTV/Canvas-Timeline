@@ -1216,6 +1216,71 @@ export function createMediabunnyAdapter(
     }));
   };
 
+  const queuePausedActiveVisualRefresh = (sourceIds: ReadonlySet<string>) => {
+    const expectedVisual = activeVisualClip;
+    if (
+      transportPlaying ||
+      canvas === null ||
+      expectedVisual === undefined ||
+      !sourceIds.has(expectedVisual.clip.sourceId)
+    ) {
+      return;
+    }
+
+    const sourceId = expectedVisual.clip.sourceId;
+    const activeRequestGeneration = getSourceOperation(sourceId).activeRequestGeneration;
+    void (async () => {
+      while (true) {
+        if (
+          disposed ||
+          transportPlaying ||
+          activeVisualClip !== expectedVisual ||
+          !isCurrentActiveSourceRequest(sourceId, activeRequestGeneration) ||
+          !sourceDefinitions.has(sourceId)
+        ) {
+          return;
+        }
+
+        const result = await ensureSource(sourceId);
+        if (result.ok) {
+          break;
+        }
+        if (!isSupersededSourceLoadResult(result) || !sourceDefinitions.has(sourceId)) {
+          return;
+        }
+      }
+
+      const ownership: readonly MediabunnyActiveSourceOwnershipToken[] = [
+        {
+          sourceId,
+          generation: getSourceOperation(sourceId).generation,
+          activeRequestGeneration,
+        },
+      ];
+      const controller = controllers.get(sourceId);
+      if (
+        controller === undefined ||
+        transportPlaying ||
+        activeVisualClip !== expectedVisual ||
+        !isCurrentActiveSourceOwnership(ownership)
+      ) {
+        return;
+      }
+
+      await cancelVideoPlayback(controller);
+      if (
+        transportPlaying ||
+        activeVisualClip !== expectedVisual ||
+        !isCurrentActiveSourceOwnership(ownership)
+      ) {
+        return;
+      }
+      await renderVideo(expectedVisual, expectedVisual.timelineTime);
+    })().catch(() => {
+      // Source loads publish their failures and renderVideo owns runtime recovery.
+    });
+  };
+
   const recoverSource = async (
     sourceId: string,
     expectedController: MediabunnySourceController,
@@ -1254,12 +1319,15 @@ export function createMediabunnyAdapter(
     ];
     const token = beginSourceLoad(sourceId);
     try {
-      await loadSource(source, {
+      const result = await loadSource(source, {
         status: 'recovering',
         token,
         startIndex: controller.inputIndex + 1,
         previousAttempts: attempts,
       });
+      if (result.ok && isCurrentSourceLoad(token)) {
+        queuePausedActiveVisualRefresh(new Set([sourceId]));
+      }
     } finally {
       if (operation.recovery === recovery) {
         operation.recovery = null;
@@ -1333,7 +1401,11 @@ export function createMediabunnyAdapter(
       clearVideoSurface();
     }
 
-    if (shouldSyncAudio(reason, activeAudio)) {
+    if (reason === 'pause' || reason === 'gap') {
+      for (const controller of controllers.values()) {
+        stopControllerAudio(controller);
+      }
+    } else if (shouldSyncAudio(reason, activeAudio)) {
       syncAudio(activeAudio);
     }
   };
@@ -1438,6 +1510,7 @@ export function createMediabunnyAdapter(
       ? 'Sources registered. Mediabunny loads active media on demand.'
       : 'No Mediabunny sources are configured.';
     notify();
+    queuePausedActiveVisualRefresh(changedSourceIds);
   };
 
   const adapter: MediabunnyAdapter = {
@@ -1542,7 +1615,11 @@ export function createMediabunnyAdapter(
     setSources: reconcileSources,
     preloadSource: async (sourceId) => {
       assertAdapterActive();
-      return ensureSource(sourceId);
+      const result = await ensureSource(sourceId);
+      if (result.ok) {
+        queuePausedActiveVisualRefresh(new Set([sourceId]));
+      }
+      return result;
     },
     unloadSource: (sourceId) => {
       assertAdapterActive();
@@ -1590,6 +1667,9 @@ export function createMediabunnyAdapter(
           error = previousError;
           setSourceState(previousState);
         }
+      }
+      if (result.ok) {
+        queuePausedActiveVisualRefresh(new Set([sourceId]));
       }
       return result;
     },
@@ -1659,6 +1739,7 @@ export function createMediabunnyAdapter(
           sourceDefinitions.set(source.sourceId, source);
           ready = true;
           notify();
+          queuePausedActiveVisualRefresh(new Set([source.sourceId]));
         } else {
           operation.replacement = null;
           const nextSnapshot = new Map(sourceStateSnapshot);

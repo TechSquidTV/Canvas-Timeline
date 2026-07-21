@@ -2046,6 +2046,47 @@ test('createMediabunnyAdapter realigns active audio after a loop seek', async ()
   });
 });
 
+test('createMediabunnyAdapter stops audio on pause without opening another iterator', async () => {
+  const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext();
+  const audioSink: MockAudioSink = {
+    buffers: vi.fn(async function* (start: number, end: number) {
+      yield {
+        buffer: {} as AudioBuffer,
+        timestamp: start,
+        duration: end - start,
+      };
+    }),
+  };
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([input], { audioSink }).module,
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
+  });
+  const activeAudio = createActiveClip('audio', 'audio-source', 1);
+  const activeLayers = createActiveLayers([activeAudio], 1);
+
+  await adapter.seek(fromSeconds(1), activeLayers);
+  expect(adapter.startClock(fromSeconds(1), 1)).toBe(true);
+  await adapter.syncLayers({ timelineTime: fromSeconds(1), reason: 'play', activeLayers });
+  await vi.waitFor(() => {
+    expect(audioContext.createBufferSource).toHaveBeenCalledOnce();
+  });
+  const playingNode = audioContext.createBufferSource.mock.results[0]?.value;
+
+  adapter.stopClock();
+  await adapter.syncLayers({ timelineTime: fromSeconds(1), reason: 'pause', activeLayers });
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+  expect(playingNode?.stop).toHaveBeenCalledOnce();
+  expect(audioSink.buffers).toHaveBeenCalledOnce();
+  expect(adapter.sourceStateById.get('audio-source')).toMatchObject({
+    status: 'ready',
+    error: null,
+  });
+  expect(adapter.error).toBeNull();
+});
+
 test('createMediabunnyAdapter ignores a pending audio buffer after realignment', async () => {
   const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
   const audioContext = createMockAudioContext();
@@ -2184,9 +2225,10 @@ test('createMediabunnyAdapter ignores a cancelled audio iterator failure', async
   expect(adapter.sourceStateById.get('audio-source')?.status).toBe('ready');
 });
 
-test('createMediabunnyAdapter does not paint a frame after its controller is replaced', async () => {
+test('createMediabunnyAdapter refreshes paused frames after replacement and reconciliation', async () => {
   const initialInput = createMockInput();
   const replacementInput = createMockInput({ metadataDuration: 9 });
+  const reconciledInput = createMockInput({ metadataDuration: 12 });
   const targetCanvas = document.createElement('canvas');
   const drawImage = vi.fn();
   vi.spyOn(targetCanvas, 'getContext').mockReturnValue({
@@ -2197,13 +2239,21 @@ test('createMediabunnyAdapter does not paint a frame after its controller is rep
   const frame = new Promise<Awaited<ReturnType<MockCanvasSink['getCanvas']>>>((resolve) => {
     resolveFrame = resolve;
   });
+  const replacementCanvas = document.createElement('canvas');
+  const reconciledCanvas = document.createElement('canvas');
   const canvasSink: MockCanvasSink = {
-    getCanvas: vi.fn(() => frame),
+    getCanvas: vi
+      .fn()
+      .mockImplementationOnce(() => frame)
+      .mockResolvedValueOnce({ canvas: replacementCanvas, timestamp: 11, duration: 1 / 30 })
+      .mockResolvedValueOnce({ canvas: reconciledCanvas, timestamp: 11, duration: 1 / 30 }),
     canvases: vi.fn(async function* () {}),
   };
   const adapter = createMediabunnyAdapter({
     canvas: targetCanvas,
-    mediabunny: createMockMediabunny([initialInput, replacementInput], { canvasSink }).module,
+    mediabunny: createMockMediabunny([initialInput, replacementInput, reconciledInput], {
+      canvasSink,
+    }).module,
     sources: [urlSource('source-1', 'https://media.example/original.mp4')],
   });
   const visualClip = createActiveClip('visual', 'source-1', 1);
@@ -2216,6 +2266,9 @@ test('createMediabunnyAdapter does not paint a frame after its controller is rep
   await expect(
     adapter.replaceSource(urlSource('source-1', 'https://media.example/replacement.mp4'))
   ).resolves.toMatchObject({ ok: true });
+  await vi.waitFor(() => {
+    expect(drawImage).toHaveBeenCalledWith(replacementCanvas, 0, 0);
+  });
 
   resolveFrame({
     canvas: document.createElement('canvas'),
@@ -2223,7 +2276,19 @@ test('createMediabunnyAdapter does not paint a frame after its controller is rep
     duration: 1 / 30,
   });
   await pendingSeek;
-  expect(drawImage).not.toHaveBeenCalled();
+  expect(drawImage).toHaveBeenCalledTimes(1);
+
+  adapter.setSources([urlSource('source-1', 'https://media.example/reconciled.mp4')]);
+  await vi.waitFor(() => {
+    expect(canvasSink.getCanvas).toHaveBeenCalledTimes(3);
+    expect(drawImage).toHaveBeenCalledTimes(2);
+  });
+
+  expect(drawImage.mock.calls[1]?.[0]).toBe(reconciledCanvas);
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    metadata: { durationSeconds: 12 },
+  });
 });
 
 test('createMediabunnyAdapter invalidates and refreshes paused rendering after canvas replacement', async () => {
