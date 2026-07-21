@@ -371,6 +371,132 @@ test('createHTMLMediaAdapter continues pending playback after active source repl
   expect(element.src).toBe('http://localhost:3000/replacement.mp4');
 });
 
+function createPendingFallbackStartup() {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  let resolveOriginalPlay = () => {};
+  let rejectOriginalPlay = (_error: Error) => {};
+  const originalPlay = new Promise<void>((resolve, reject) => {
+    resolveOriginalPlay = resolve;
+    rejectOriginalPlay = reject;
+  });
+  const play = vi
+    .spyOn(element, 'play')
+    .mockImplementationOnce(() => originalPlay)
+    .mockResolvedValueOnce(undefined);
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'load').mockImplementation(() => {});
+  Object.defineProperty(element, 'error', {
+    configurable: true,
+    get: () =>
+      ({
+        code: 4,
+        message: 'original input failed',
+      }) as MediaError,
+  });
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: '/original.mp4',
+        fallbacks: ['/fallback.mp4'],
+      },
+    ],
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  return {
+    activeLayers,
+    adapter,
+    element,
+    play,
+    rejectOriginalPlay,
+    resolveOriginalPlay,
+  };
+}
+
+test.each([
+  {
+    transition: 'replacement',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) =>
+      adapter.replaceSource({ sourceId: 'source-1', input: '/replacement.mp4' }),
+    expectedUrl: 'http://localhost:3000/replacement.mp4',
+  },
+  {
+    transition: 'retry',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) => adapter.retrySource('source-1'),
+    expectedUrl: 'http://localhost:3000/original.mp4',
+  },
+])(
+  'createHTMLMediaAdapter continues startup when $transition follows a rejected play',
+  async ({ apply, expectedUrl }) => {
+    const { activeLayers, adapter, element, play, rejectOriginalPlay } =
+      createPendingFallbackStartup();
+
+    await adapter.seek?.(fromSeconds(1), activeLayers);
+    const startPromise = adapter.startClock(fromSeconds(1), 1);
+    rejectOriginalPlay(new Error('original input failed'));
+    await Promise.resolve();
+    await apply(adapter);
+
+    await expect(startPromise).resolves.toBe(true);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(element.src).toBe(expectedUrl);
+  }
+);
+
+test.each([
+  {
+    transition: 'replacement',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) =>
+      adapter.replaceSource({ sourceId: 'source-1', input: '/replacement.mp4' }),
+  },
+  {
+    transition: 'retry',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) => adapter.retrySource('source-1'),
+  },
+])(
+  'createHTMLMediaAdapter restarts startup when a play superseded by $transition resolves',
+  async ({ apply }) => {
+    const { activeLayers, adapter, play, resolveOriginalPlay } = createPendingFallbackStartup();
+
+    await adapter.seek?.(fromSeconds(1), activeLayers);
+    const startPromise = adapter.startClock(fromSeconds(1), 1);
+    await apply(adapter);
+    resolveOriginalPlay();
+
+    await expect(startPromise).resolves.toBe(true);
+    expect(play).toHaveBeenCalledTimes(2);
+  }
+);
+
+test.each([
+  {
+    transition: 'stop',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) => adapter.stopClock?.(),
+  },
+  {
+    transition: 'disposal',
+    apply: (adapter: ReturnType<typeof createHTMLMediaAdapter>) => adapter.dispose(),
+  },
+])(
+  'createHTMLMediaAdapter settles rejected startup immediately followed by $transition',
+  async ({ apply }) => {
+    const { activeLayers, adapter, rejectOriginalPlay } = createPendingFallbackStartup();
+
+    await adapter.seek?.(fromSeconds(1), activeLayers);
+    const startPromise = adapter.startClock(fromSeconds(1), 1);
+    rejectOriginalPlay(new Error('original input failed'));
+    apply(adapter);
+
+    await expect(startPromise).rejects.toThrow();
+  }
+);
+
 test('createHTMLMediaAdapter clears the element for missing sources and content gaps', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');

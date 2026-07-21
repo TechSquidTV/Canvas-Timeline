@@ -1,4 +1,8 @@
-export * from '#react/hooks/playback/useTimelineMediaPlayback';
+export {
+  useTimelineMediaPlayback,
+  type UseTimelineMediaPlaybackOptions,
+  type UseTimelineMediaPlaybackResult,
+} from '#react/hooks/playback/useTimelineMediaPlayback';
 export * from '#react/hooks/playback/useTimelineMediaSync';
 export * from '#react/hooks/playback/useTimelinePlayback';
 export * from '#react/hooks/playback/useTimelinePlayheadControl';

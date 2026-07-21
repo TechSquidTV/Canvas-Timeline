@@ -19,7 +19,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError } from '#react/hooks/playback/mediaError';
-import { getDelegatedTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
@@ -88,6 +87,10 @@ interface LayerSynchronizationResult<LayerName extends string> {
   activeLayers: ActiveLayerResult<LayerName>;
   error?: Error;
   superseded?: boolean;
+}
+
+export interface TimelineMediaPlaybackSynchronizationRunner {
+  run: <Result>(operation: () => Promise<Result>, superseded: () => Result) => Promise<Result>;
 }
 
 function getPlaybackFrameNumber(seconds: number, frameRate: TimecodeFrameRate) {
@@ -175,7 +178,13 @@ export interface UseTimelineMediaPlaybackResult {
 export function useTimelineMediaPlayback<LayerName extends string = string>(
   options: UseTimelineMediaPlaybackOptions<LayerName>
 ): UseTimelineMediaPlaybackResult {
-  const delegatedSynchronization = getDelegatedTimelineMediaPlaybackSynchronization(options);
+  return useTimelineMediaPlaybackInternal(options);
+}
+
+export function useTimelineMediaPlaybackInternal<LayerName extends string = string>(
+  options: UseTimelineMediaPlaybackOptions<LayerName>,
+  delegatedSynchronization?: TimelineMediaPlaybackSynchronizationRunner
+): UseTimelineMediaPlaybackResult {
   const { engine, state } = useTimeline();
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
@@ -184,6 +193,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   const loopTransitionRef = useRef<object | null>(null);
   const playbackGenerationRef = useRef(0);
   const playbackStartGenerationRef = useRef<number | null>(null);
+  const ownsPlaybackRef = useRef(false);
   const synchronizationQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
@@ -263,6 +273,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       const generation = playbackGenerationRef.current + 1;
       playbackGenerationRef.current = generation;
       playbackStartGenerationRef.current = null;
+      ownsPlaybackRef.current = false;
       cancelTick();
       playbackFrameCursorRef.current = null;
       loopTransitionRef.current = null;
@@ -407,6 +418,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     if (playbackStartGenerationRef.current === generation) {
       playbackStartGenerationRef.current = null;
     }
+    ownsPlaybackRef.current = true;
     optionsRef.current.onStatus?.('playing');
 
     const tick = async () => {
@@ -558,10 +570,16 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
 
   useEffect(
     () => () => {
+      const ownedEnginePlayback = ownsPlaybackRef.current;
+      const ownedMediaWork = ownedEnginePlayback || playbackStartGenerationRef.current !== null;
       const generation = playbackGenerationRef.current + 1;
       playbackGenerationRef.current = generation;
       playbackStartGenerationRef.current = null;
+      ownsPlaybackRef.current = false;
       cancelTick();
+      if (!ownedMediaWork) {
+        return;
+      }
       const timelineTime = engine.getTime();
       const currentOptions = optionsRef.current;
       currentOptions.stopClock?.();
@@ -574,7 +592,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         },
         generation
       );
-      engine.pause();
+      if (ownedEnginePlayback && engine.getState().playing) {
+        engine.pause();
+      }
     },
     [cancelTick, engine, enqueueBestEffortSynchronization, getActiveLayers]
   );

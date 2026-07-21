@@ -20,6 +20,7 @@ const mediaSyncLayers = {
 
 test('playback hook exports exclude delegated synchronization internals', () => {
   expect(playbackHookExports).not.toHaveProperty('delegateTimelineMediaPlaybackSynchronization');
+  expect(playbackHookExports).not.toHaveProperty('useTimelineMediaPlaybackInternal');
 });
 
 test('useTimelineMediaPlayback starts external playback and advances from clock time', async () => {
@@ -753,6 +754,82 @@ test('useTimelineMediaPlayback stops external sync when the engine is paused out
 
   rafSpy.mockRestore();
   cancelSpy.mockRestore();
+});
+
+test('useTimelineMediaPlayback does not pause a competing clock when it unmounts', () => {
+  const engine = createMediaSyncEngine();
+  const stopClock = vi.fn();
+  const syncLayers = vi.fn();
+  const { unmount } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => 1,
+        layers: mediaSyncLayers,
+        stopClock,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  act(() => {
+    expect(engine.play({ clock: 'external' })).toBe(true);
+  });
+  unmount();
+
+  expect(engine.getState().playing).toBe(true);
+  expect(stopClock).not.toHaveBeenCalled();
+  expect(syncLayers).not.toHaveBeenCalled();
+
+  act(() => {
+    engine.pause();
+  });
+});
+
+test('useTimelineMediaPlayback cancels pending media startup without pausing a competing clock', async () => {
+  const engine = createMediaSyncEngine();
+  const stopClock = vi.fn();
+  let resolveStartup = () => {};
+  const startup = new Promise<void>((resolve) => {
+    resolveStartup = resolve;
+  });
+  const syncLayers = vi.fn(({ reason }: { reason: string }) =>
+    reason === 'play' ? startup : Promise.resolve()
+  );
+  const { result, unmount } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => 1,
+        layers: mediaSyncLayers,
+        stopClock,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const pendingPlay = result.current.play();
+  await waitFor(() => {
+    expect(syncLayers).toHaveBeenCalledWith(expect.objectContaining({ reason: 'play' }));
+  });
+  act(() => {
+    expect(engine.play({ clock: 'external' })).toBe(true);
+  });
+  unmount();
+
+  expect(engine.getState().playing).toBe(true);
+  expect(stopClock).toHaveBeenCalledTimes(1);
+
+  resolveStartup();
+  await expect(pendingPlay).resolves.toMatchObject({
+    ok: false,
+    reason: 'policy-rejected',
+  });
+  act(() => {
+    engine.pause();
+  });
 });
 
 test('useTimelineMediaPlayback pauses on content gaps and runs cleanup callbacks', async () => {

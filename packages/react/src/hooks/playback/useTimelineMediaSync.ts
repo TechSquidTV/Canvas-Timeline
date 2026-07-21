@@ -15,10 +15,9 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
-import { delegateTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
 import {
   type UseTimelineMediaPlaybackOptions,
-  useTimelineMediaPlayback,
+  useTimelineMediaPlaybackInternal,
 } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
@@ -316,107 +315,99 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   const adapterSyncLayers = adapter.syncLayers;
 
-  const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<
-    UseTimelineMediaPlaybackOptions<LayerName>
-  >(
-    {
-      frameRate,
-      playbackOptions: externalPlaybackOptions,
-      getClockTime: adapter.getClockTime,
-      stopClock: stopSynchronizedClock,
-      setClockRate: adapter.setClockRate,
-      layers,
-      syncLayers:
-        adapterSyncLayers === undefined
-          ? undefined
-          : (details) => {
-              const token = captureAdapterOperation();
-              const synchronize = async () => {
+  const syncPlaybackOptions: UseTimelineMediaPlaybackOptions<LayerName> = {
+    frameRate,
+    playbackOptions: externalPlaybackOptions,
+    getClockTime: adapter.getClockTime,
+    stopClock: stopSynchronizedClock,
+    setClockRate: adapter.setClockRate,
+    layers,
+    syncLayers:
+      adapterSyncLayers === undefined
+        ? undefined
+        : (details) => {
+            const token = captureAdapterOperation();
+            const synchronize = async () => {
+              if (!isCurrentAdapterOperation(token)) {
+                return;
+              }
+              try {
+                await adapterRef.current.syncLayers?.(details);
+              } catch (syncError: unknown) {
                 if (!isCurrentAdapterOperation(token)) {
                   return;
                 }
-                try {
-                  await adapterRef.current.syncLayers?.(details);
-                } catch (syncError: unknown) {
-                  if (!isCurrentAdapterOperation(token)) {
-                    return;
-                  }
-                  throw syncError;
-                }
-                if (!isCurrentAdapterOperation(token)) {
-                  return;
-                }
-              };
-              return synchronize();
-            },
-      onStatus: adapter.onStatus,
-      onError: (syncError) => {
-        onErrorRef.current?.(
-          syncError instanceof TimelineMediaError
-            ? syncError
-            : new TimelineMediaError(
-                'sync-failed',
-                withMediaCauseMessage('Media synchronization failed.', syncError),
-                { cause: syncError }
-              )
-        );
-      },
-      ...(shouldLoop && {
-        loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
-          const loopOwner = clockOwnerRef.current;
-          if (loopOwner === null) {
+                throw syncError;
+              }
+              if (!isCurrentAdapterOperation(token)) {
+                return;
+              }
+            };
+            return synchronize();
+          },
+    onStatus: adapter.onStatus,
+    onError: (syncError) => {
+      onErrorRef.current?.(
+        syncError instanceof TimelineMediaError
+          ? syncError
+          : new TimelineMediaError(
+              'sync-failed',
+              withMediaCauseMessage('Media synchronization failed.', syncError),
+              { cause: syncError }
+            )
+      );
+    },
+    ...(shouldLoop && {
+      loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
+        const loopOwner = clockOwnerRef.current;
+        if (loopOwner === null) {
+          return;
+        }
+        const token = captureAdapterOperation();
+        return enqueueAdapterOperation(async () => {
+          const stillOwnsClock = () =>
+            isCurrentAdapterOperation(token) &&
+            clockOwnerRef.current === loopOwner &&
+            engine.getState().playing;
+          if (!stillOwnsClock()) {
             return;
           }
-          const token = captureAdapterOperation();
-          return enqueueAdapterOperation(async () => {
-            const stillOwnsClock = () =>
-              isCurrentAdapterOperation(token) &&
-              clockOwnerRef.current === loopOwner &&
-              engine.getState().playing;
-            if (!stillOwnsClock()) {
-              return;
-            }
 
-            let restarted: boolean;
-            try {
-              await loopOwner.adapter.seek?.(timelineTime, loopLayers);
-              if (!stillOwnsClock()) {
-                return;
-              }
-              restarted = await loopOwner.adapter.startClock(
-                timelineTime,
-                engine.getPlaybackRate()
-              );
-            } catch (loopError: unknown) {
-              if (!stillOwnsClock()) {
-                return;
-              }
-              const cause = toMediaError(loopError);
-              const error = new TimelineMediaError(
-                'loop-failed',
-                withMediaCauseMessage('Media clock could not restart after looping.', cause),
-                { cause }
-              );
-              throw error;
-            }
+          let restarted: boolean;
+          try {
+            await loopOwner.adapter.seek?.(timelineTime, loopLayers);
             if (!stillOwnsClock()) {
-              loopOwner.adapter.stopClock?.();
               return;
             }
-            if (!restarted) {
-              const error = new TimelineMediaError(
-                'loop-failed',
-                'Media clock could not restart after looping.'
-              );
-              throw error;
+            restarted = await loopOwner.adapter.startClock(timelineTime, engine.getPlaybackRate());
+          } catch (loopError: unknown) {
+            if (!stillOwnsClock()) {
+              return;
             }
-          });
-        },
-      }),
-    },
-    synchronizationRunner
-  );
-  const syncPlayback = useTimelineMediaPlayback(syncPlaybackOptions);
+            const cause = toMediaError(loopError);
+            const error = new TimelineMediaError(
+              'loop-failed',
+              withMediaCauseMessage('Media clock could not restart after looping.', cause),
+              { cause }
+            );
+            throw error;
+          }
+          if (!stillOwnsClock()) {
+            loopOwner.adapter.stopClock?.();
+            return;
+          }
+          if (!restarted) {
+            const error = new TimelineMediaError(
+              'loop-failed',
+              'Media clock could not restart after looping.'
+            );
+            throw error;
+          }
+        });
+      },
+    }),
+  };
+  const syncPlayback = useTimelineMediaPlaybackInternal(syncPlaybackOptions, synchronizationRunner);
   const pauseSynchronizedPlayback = syncPlayback.pause;
   const playingRef = useRef(syncPlayback.playing);
 

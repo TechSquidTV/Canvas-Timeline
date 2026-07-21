@@ -195,6 +195,14 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     });
   };
 
+  const setActiveLoad = (nextLoad: HTMLMediaElementLoad | undefined) => {
+    const previousLoad = activeLoad;
+    activeLoad = nextLoad;
+    if (previousLoad !== undefined && previousLoad.generation !== nextLoad?.generation) {
+      settleInputFailure(previousLoad.generation, nextLoad === undefined ? 'terminal' : 'advanced');
+    }
+  };
+
   const setSourceState = (state: HTMLMediaSourceState) => {
     const nextSnapshot = new Map(sourceStateSnapshot);
     nextSnapshot.set(state.sourceId, state);
@@ -232,7 +240,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       setSourceIdle(activeClip.clip.sourceId);
     }
     activeClip = undefined;
-    activeLoad = undefined;
+    setActiveLoad(undefined);
     element.pause();
     element.removeAttribute('src');
     element.load();
@@ -318,12 +326,12 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       activeLoad === undefined
     ) {
       loadGeneration += 1;
-      activeLoad = {
+      setActiveLoad({
         generation: loadGeneration,
         sourceId: clip.clip.sourceId,
         inputIndex,
         url: nextUrl,
-      };
+      });
     }
 
     if (urlChanged) {
@@ -360,7 +368,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     return true;
   };
 
-  const playElement = async () => {
+  const playElement = async (): Promise<boolean> => {
     if (activeClip === undefined) {
       if (lastError !== null) {
         throw lastError;
@@ -373,10 +381,24 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     const load = activeLoad;
     try {
       await element.play();
+      if (load !== undefined && activeLoad?.generation !== load.generation) {
+        inputFailureOutcomes.delete(load.generation);
+        return shouldPlay ? playElement() : false;
+      }
+      if (!shouldPlay) {
+        return false;
+      }
+      if (load !== undefined) {
+        inputFailureOutcomes.delete(load.generation);
+      }
       return true;
     } catch (playError: unknown) {
-      if (load !== undefined && activeLoad?.generation !== load.generation && shouldPlay) {
-        return playElement();
+      if (load !== undefined && activeLoad?.generation !== load.generation) {
+        inputFailureOutcomes.delete(load.generation);
+        if (shouldPlay) {
+          return playElement();
+        }
+        throw lastError ?? new Error('HTML media playback was stopped.');
       }
       if (load !== undefined) {
         const settledOutcome = inputFailureOutcomes.get(load.generation);
@@ -499,7 +521,6 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     });
     const clip = activeClip;
     loadClip(clip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true, status: 'recovering' });
-    settleInputFailure(failedLoad.generation, 'advanced');
     resumeIntendedPlayback();
   };
 
@@ -554,6 +575,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     const activeSourceId = activeClip?.clip.sourceId;
     if (activeSourceId !== undefined && !nextDefinitions.has(activeSourceId)) {
       activeClip = undefined;
+      setActiveLoad(undefined);
       shouldPlay = false;
       element.pause();
       element.removeAttribute('src');
@@ -617,6 +639,9 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     },
     stopClock: () => {
       shouldPlay = false;
+      if (activeLoad !== undefined) {
+        settleInputFailure(activeLoad.generation, 'terminal');
+      }
       clockStartPending = false;
       element.pause();
     },
@@ -721,8 +746,8 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     },
     dispose: () => {
       shouldPlay = false;
+      setActiveLoad(undefined);
       clockStartPending = false;
-      activeLoad = undefined;
       element.pause();
       element.removeEventListener('loadedmetadata', handleLoadedMetadata);
       element.removeEventListener('error', handleElementError);
