@@ -207,9 +207,14 @@ interface PendingSourceReplacement {
 
 interface MediabunnySourceOperationState {
   generation: number;
+  activeRequestGeneration: number;
   preloadPromise: Promise<TimelineMediaSourceOperationResult> | null;
   replacement: PendingSourceReplacement | null;
   recovery: PendingSourceRecovery | null;
+}
+
+interface MediabunnyActiveSourceOwnershipToken extends MediabunnySourceLoadToken {
+  activeRequestGeneration: number;
 }
 
 /**
@@ -574,6 +579,7 @@ export function createMediabunnyAdapter(
     if (operation === undefined) {
       operation = {
         generation: 0,
+        activeRequestGeneration: 0,
         preloadPromise: null,
         replacement: null,
         recovery: null,
@@ -592,6 +598,22 @@ export function createMediabunnyAdapter(
 
   const isCurrentSourceLoad = (token: MediabunnySourceLoadToken) =>
     !disposed && getSourceOperation(token.sourceId).generation === token.generation;
+
+  const isCurrentActiveSourceRequest = (sourceId: string, activeRequestGeneration: number) =>
+    !disposed && getSourceOperation(sourceId).activeRequestGeneration === activeRequestGeneration;
+
+  const isCurrentActiveSourceOwnership = (
+    ownership: readonly MediabunnyActiveSourceOwnershipToken[]
+  ) =>
+    !disposed &&
+    ownership.every((token) => {
+      const operation = getSourceOperation(token.sourceId);
+      return (
+        operation.generation === token.generation &&
+        operation.activeRequestGeneration === token.activeRequestGeneration &&
+        controllers.has(token.sourceId)
+      );
+    });
 
   const assertAdapterActive = () => {
     if (disposed) {
@@ -1120,31 +1142,52 @@ export function createMediabunnyAdapter(
   const ensureActiveSources = async (
     activeVisual: ActiveClip | undefined,
     activeAudio: ActiveClip | undefined
-  ) => {
-    activeSourceIds.clear();
+  ): Promise<readonly MediabunnyActiveSourceOwnershipToken[] | null> => {
+    const requestedSourceIds = new Set<string>();
     for (const activeClip of [activeVisual, activeAudio]) {
       if (activeClip !== undefined) {
-        activeSourceIds.add(activeClip.clip.sourceId);
+        requestedSourceIds.add(activeClip.clip.sourceId);
       }
     }
 
-    await Promise.all(
-      [...activeSourceIds].map(async (sourceId) => {
+    activeSourceIds.clear();
+    for (const sourceId of requestedSourceIds) {
+      activeSourceIds.add(sourceId);
+    }
+
+    const requestTokens = [...requestedSourceIds].map((sourceId) => ({
+      sourceId,
+      activeRequestGeneration: getSourceOperation(sourceId).activeRequestGeneration,
+    }));
+    const sourceResults = await Promise.all(
+      requestTokens.map(async ({ sourceId, activeRequestGeneration }) => {
         while (true) {
+          if (!isCurrentActiveSourceRequest(sourceId, activeRequestGeneration)) {
+            return false;
+          }
           const result = await ensureSource(sourceId);
+          if (!isCurrentActiveSourceRequest(sourceId, activeRequestGeneration)) {
+            return false;
+          }
           if (result.ok) {
-            return;
+            return true;
           }
           if (isSupersededSourceLoadResult(result) && sourceDefinitions.has(sourceId)) {
-            if (disposed) {
-              return;
-            }
             continue;
           }
           throw result.error;
         }
       })
     );
+    if (sourceResults.some((sourceReady) => !sourceReady)) {
+      return null;
+    }
+
+    return requestTokens.map(({ sourceId, activeRequestGeneration }) => ({
+      sourceId,
+      generation: getSourceOperation(sourceId).generation,
+      activeRequestGeneration,
+    }));
   };
 
   const recoverSource = async (
@@ -1207,8 +1250,8 @@ export function createMediabunnyAdapter(
     const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
     const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
 
-    await ensureActiveSources(activeVisual, activeAudio);
-    if (disposed) {
+    const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio);
+    if (sourceOwnership === null || !isCurrentActiveSourceOwnership(sourceOwnership)) {
       return;
     }
 
@@ -1244,12 +1287,12 @@ export function createMediabunnyAdapter(
       } else {
         if (controller !== undefined) {
           await cancelVideoPlayback(controller);
-          if (disposed) {
+          if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
             return;
           }
         }
         await renderVideo(activeVisual, timelineTime);
-        if (disposed) {
+        if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
           return;
         }
       }
@@ -1270,7 +1313,10 @@ export function createMediabunnyAdapter(
     discardPendingSourceReplacement(sourceId);
   };
 
-  const releaseSource = (sourceId: string) => {
+  const releaseSource = (sourceId: string, invalidateActiveRequests = false) => {
+    if (invalidateActiveRequests) {
+      getSourceOperation(sourceId).activeRequestGeneration += 1;
+    }
     invalidateSourceLoad(sourceId);
     const controller = controllers.get(sourceId);
     if (controller !== undefined) {
@@ -1335,7 +1381,7 @@ export function createMediabunnyAdapter(
     }
 
     for (const sourceId of changedSourceIds) {
-      releaseSource(sourceId);
+      releaseSource(sourceId, !nextDefinitions.has(sourceId));
     }
     sourceDefinitions.clear();
     for (const [sourceId, source] of nextDefinitions) {
@@ -1463,7 +1509,7 @@ export function createMediabunnyAdapter(
       if (!sourceDefinitions.has(sourceId)) {
         return false;
       }
-      releaseSource(sourceId);
+      releaseSource(sourceId, true);
       status = 'Source unloaded. It will reload when active or explicitly preloaded.';
       setSourceState(createIdleSourceState(sourceId));
       return true;
@@ -1480,11 +1526,17 @@ export function createMediabunnyAdapter(
         };
       }
       const operation = getSourceOperation(sourceId);
-      const recovery = operation.recovery;
+      const pendingReplacement = operation.replacement;
+      const recovery = operation.recovery ?? pendingReplacement?.deferredRecovery ?? null;
       operation.recovery = null;
       discardPendingSourceReplacement(sourceId);
-      const previousState = recovery?.previousState ?? sourceStateSnapshot.get(sourceId);
+      const previousState =
+        recovery?.previousState ??
+        pendingReplacement?.previousState ??
+        sourceStateSnapshot.get(sourceId);
       const previousController = controllers.get(sourceId);
+      const previousStatus = status;
+      const previousError = error;
       const token = beginSourceLoad(sourceId);
       const result = await loadSource(source, { status: 'loading', token });
       if (!isCurrentSourceLoad(token)) {
@@ -1494,6 +1546,8 @@ export function createMediabunnyAdapter(
         if (recovery !== null) {
           discardCurrentController(sourceId, previousController);
         } else if (previousState !== undefined) {
+          status = previousStatus;
+          error = previousError;
           setSourceState(previousState);
         }
       }
@@ -1610,8 +1664,8 @@ export function createMediabunnyAdapter(
       const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
       const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
 
-      await ensureActiveSources(activeVisual, activeAudio);
-      if (disposed) {
+      const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio);
+      if (sourceOwnership === null || !isCurrentActiveSourceOwnership(sourceOwnership)) {
         return;
       }
 
@@ -1619,14 +1673,14 @@ export function createMediabunnyAdapter(
         stopControllerAudio(controller);
       }
       await Promise.all([...controllers.values()].map(cancelVideoPlayback));
-      if (disposed) {
+      if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
         return;
       }
       setTransportClock(toSeconds(timelineTime), currentPlaybackRate, false);
       setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
       if (activeVisual !== undefined) {
         await adapter.renderVideo(activeVisual, timelineTime);
-        if (disposed) {
+        if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
           return;
         }
       } else {
