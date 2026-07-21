@@ -716,7 +716,7 @@ export class TimelineEngine extends TimelineEngineState {
     return this.playbackManager.play(options);
   }
 
-  /** Resolves playback start time from a reached Out point to the In point (or zero) when enabled. */
+  /** Resolves exhausted Out-point and loop-duration starts to the active range start. */
   getPlaybackStartTime(options: PlaybackOptions = {}): RationalTime {
     return this.playbackManager.prepareStart(options);
   }

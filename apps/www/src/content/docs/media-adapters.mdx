@@ -184,6 +184,10 @@ The Mediabunny adapter itself implements `TimelineMediaSyncAdapter`, so pass the
 adapter directly to `useTimelineMediaSync()`. Its transport clock is independent
 of individual loaded source controllers: lazy source transitions, unloads, and
 runtime input recovery do not reset timeline time.
+When synchronization reaches a source whose decoder is recovering, it waits for
+the fallback controller to commit. If recovery exhausts the source's fallback
+chain, synchronization reports `sync-failed` and the high-level transport
+pauses; superseded recovery work cannot publish an error.
 
 ## Apply playback ranges and errors
 
@@ -209,7 +213,9 @@ instead of a boolean; this prevents a clock from looping without a way to seek.
 
 `onError` receives `TimelineMediaError`. Use its stable `reason` for program
 flow and `message` for logs or UI. Rendering and scheduling failures report
-`sync-failed` and pause both clocks, including asynchronous iterator failures.
+`sync-failed` and pause both clocks, including terminal asynchronous iterator
+recovery failures. Recoverable iterator failures first block the next
+synchronization while the fallback controller loads.
 Rejected loop realignment reports `loop-failed` through the same callback and
 also pauses both clocks.
 Play commands await startup synchronization before returning a discriminated

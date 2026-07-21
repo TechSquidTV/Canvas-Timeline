@@ -133,6 +133,11 @@ interface MediaClockOwner<LayerName extends string> {
   identity: unknown;
 }
 
+interface MediaAdapterOperationToken {
+  epoch: number;
+  identity: unknown;
+}
+
 function createPlayFailure(
   reason: TimelineMediaPlayFailureReason,
   message: string,
@@ -258,9 +263,28 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const pendingPlaybackStartRef = useRef<PendingMediaPlaybackStart<LayerName> | null>(null);
   const playbackStartBarrierRef = useRef<Promise<void>>(Promise.resolve());
   const adapterOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const rateSynchronizationActiveRef = useRef(false);
   const clockOwnerRef = useRef<MediaClockOwner<LayerName> | null>(null);
+  const adapterOperationEpochRef = useRef(0);
   const { loop: shouldLoop = false, ...externalPlaybackOptions } = playbackOptions ?? {};
+
+  const captureAdapterOperation = useCallback(
+    (): MediaAdapterOperationToken => ({
+      epoch: adapterOperationEpochRef.current,
+      identity: adapterIdentityRef.current,
+    }),
+    []
+  );
+
+  const isCurrentAdapterOperation = useCallback((token: MediaAdapterOperationToken) => {
+    return (
+      token.epoch === adapterOperationEpochRef.current &&
+      Object.is(token.identity, adapterIdentityRef.current)
+    );
+  }, []);
+
+  const invalidateAdapterOperations = useCallback(() => {
+    adapterOperationEpochRef.current += 1;
+  }, []);
 
   const enqueueAdapterOperation = useCallback(<Result>(operation: () => Promise<Result>) => {
     const pendingOperation = adapterOperationQueueRef.current.then(operation, operation);
@@ -271,105 +295,143 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     return pendingOperation;
   }, []);
 
+  const synchronizationRunner = useMemo(
+    () => ({
+      run: <Result>(operation: () => Promise<Result>, superseded: () => Result) => {
+        const token = captureAdapterOperation();
+        return enqueueAdapterOperation(() =>
+          isCurrentAdapterOperation(token) ? operation() : Promise.resolve(superseded())
+        );
+      },
+    }),
+    [captureAdapterOperation, enqueueAdapterOperation, isCurrentAdapterOperation]
+  );
+
   const stopSynchronizedClock = useCallback(() => {
+    invalidateAdapterOperations();
     const owner = clockOwnerRef.current;
     clockOwnerRef.current = null;
-    const clockAdapter =
-      owner !== null && !Object.is(owner.identity, adapterIdentityRef.current)
-        ? owner.adapter
-        : adapterRef.current;
+    const clockAdapter = owner?.adapter ?? adapterRef.current;
     clockAdapter.stopClock?.();
-  }, []);
+  }, [invalidateAdapterOperations]);
 
   const adapterSyncLayers = adapter.syncLayers;
 
   const syncPlaybackOptions = delegateTimelineMediaPlaybackSynchronization<
     UseTimelineMediaPlaybackOptions<LayerName>
-  >({
-    frameRate,
-    playbackOptions: externalPlaybackOptions,
-    getClockTime: adapter.getClockTime,
-    stopClock: stopSynchronizedClock,
-    setClockRate: adapter.setClockRate,
-    layers,
-    syncLayers:
-      adapterSyncLayers === undefined
-        ? undefined
-        : (details) => {
-            const synchronize = async () => {
-              await adapterSyncLayers(details);
-            };
-            return details.reason === 'rate' && rateSynchronizationActiveRef.current
-              ? synchronize()
-              : enqueueAdapterOperation(synchronize);
-          },
-    onStatus: adapter.onStatus,
-    onError: (syncError) => {
-      onErrorRef.current?.(
-        syncError instanceof TimelineMediaError
-          ? syncError
-          : new TimelineMediaError(
-              'sync-failed',
-              withMediaCauseMessage('Media synchronization failed.', syncError),
-              { cause: syncError }
-            )
-      );
-    },
-    ...(shouldLoop && {
-      loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
-        const loopOwner = clockOwnerRef.current;
-        return enqueueAdapterOperation(async () => {
-          const stillOwnsClock = () =>
-            loopOwner !== null && clockOwnerRef.current === loopOwner && engine.getState().playing;
-          if (!stillOwnsClock()) {
-            return;
-          }
-
-          let restarted: boolean;
-          try {
-            await adapter.seek?.(timelineTime, loopLayers);
-            if (!stillOwnsClock()) {
-              return;
-            }
-            restarted = await adapter.startClock(timelineTime, engine.getPlaybackRate());
-          } catch (loopError: unknown) {
-            if (!stillOwnsClock()) {
-              return;
-            }
-            const cause = toMediaError(loopError);
-            const error = new TimelineMediaError(
-              'loop-failed',
-              withMediaCauseMessage('Media clock could not restart after looping.', cause),
-              { cause }
-            );
-            throw error;
-          }
-          if (!stillOwnsClock()) {
-            adapter.stopClock?.();
-            return;
-          }
-          if (!restarted) {
-            const error = new TimelineMediaError(
-              'loop-failed',
-              'Media clock could not restart after looping.'
-            );
-            throw error;
-          }
-        });
+  >(
+    {
+      frameRate,
+      playbackOptions: externalPlaybackOptions,
+      getClockTime: adapter.getClockTime,
+      stopClock: stopSynchronizedClock,
+      setClockRate: adapter.setClockRate,
+      layers,
+      syncLayers:
+        adapterSyncLayers === undefined
+          ? undefined
+          : (details) => {
+              const token = captureAdapterOperation();
+              const synchronize = async () => {
+                if (!isCurrentAdapterOperation(token)) {
+                  return;
+                }
+                try {
+                  await adapterRef.current.syncLayers?.(details);
+                } catch (syncError: unknown) {
+                  if (!isCurrentAdapterOperation(token)) {
+                    return;
+                  }
+                  throw syncError;
+                }
+                if (!isCurrentAdapterOperation(token)) {
+                  return;
+                }
+              };
+              return synchronize();
+            },
+      onStatus: adapter.onStatus,
+      onError: (syncError) => {
+        onErrorRef.current?.(
+          syncError instanceof TimelineMediaError
+            ? syncError
+            : new TimelineMediaError(
+                'sync-failed',
+                withMediaCauseMessage('Media synchronization failed.', syncError),
+                { cause: syncError }
+              )
+        );
       },
-    }),
-  });
+      ...(shouldLoop && {
+        loop: (timelineTime: RationalTime, loopLayers: ActiveLayerResult<LayerName>) => {
+          const loopOwner = clockOwnerRef.current;
+          if (loopOwner === null) {
+            return;
+          }
+          const token = captureAdapterOperation();
+          return enqueueAdapterOperation(async () => {
+            const stillOwnsClock = () =>
+              isCurrentAdapterOperation(token) &&
+              clockOwnerRef.current === loopOwner &&
+              engine.getState().playing;
+            if (!stillOwnsClock()) {
+              return;
+            }
+
+            let restarted: boolean;
+            try {
+              await loopOwner.adapter.seek?.(timelineTime, loopLayers);
+              if (!stillOwnsClock()) {
+                return;
+              }
+              restarted = await loopOwner.adapter.startClock(
+                timelineTime,
+                engine.getPlaybackRate()
+              );
+            } catch (loopError: unknown) {
+              if (!stillOwnsClock()) {
+                return;
+              }
+              const cause = toMediaError(loopError);
+              const error = new TimelineMediaError(
+                'loop-failed',
+                withMediaCauseMessage('Media clock could not restart after looping.', cause),
+                { cause }
+              );
+              throw error;
+            }
+            if (!stillOwnsClock()) {
+              loopOwner.adapter.stopClock?.();
+              return;
+            }
+            if (!restarted) {
+              const error = new TimelineMediaError(
+                'loop-failed',
+                'Media clock could not restart after looping.'
+              );
+              throw error;
+            }
+          });
+        },
+      }),
+    },
+    synchronizationRunner
+  );
   const syncPlayback = useTimelineMediaPlayback(syncPlaybackOptions);
   const pauseSynchronizedPlayback = syncPlayback.pause;
   const playingRef = useRef(syncPlayback.playing);
 
   useEffect(() => {
+    const owner = clockOwnerRef.current;
+    if (owner !== null && Object.is(owner.identity, adapterIdentity)) {
+      owner.adapter = adapter;
+    }
     adapterRef.current = adapter;
     layersRef.current = layers;
     playingRef.current = syncPlayback.playing;
     readyRef.current = ready;
     onErrorRef.current = onError;
-  }, [adapter, layers, onError, ready, syncPlayback.playing]);
+  }, [adapter, adapterIdentity, layers, onError, ready, syncPlayback.playing]);
 
   useEffect(() => {
     if (!syncPlayback.playing && pendingPlaybackStartRef.current === null) {
@@ -415,15 +477,24 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         time: timelineTime,
         layers: layersRef.current,
       });
+      const operationToken = captureAdapterOperation();
       void enqueueAdapterOperation(async () => {
-        if (previewSeekGenerationRef.current !== generation || !canSeekPausedPreview()) {
+        if (
+          previewSeekGenerationRef.current !== generation ||
+          !isCurrentAdapterOperation(operationToken) ||
+          !canSeekPausedPreview()
+        ) {
           return;
         }
         const currentAdapter = adapterRef.current;
         try {
           await currentAdapter.seek?.(timelineTime, currentActiveLayers);
         } catch (seekError: unknown) {
-          if (previewSeekGenerationRef.current !== generation || !canSeekPausedPreview()) {
+          if (
+            previewSeekGenerationRef.current !== generation ||
+            !isCurrentAdapterOperation(operationToken) ||
+            !canSeekPausedPreview()
+          ) {
             return;
           }
           const cause = toMediaError(seekError);
@@ -439,7 +510,13 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         }
       });
     });
-  }, [canSeekPausedPreview, engine, enqueueAdapterOperation]);
+  }, [
+    canSeekPausedPreview,
+    captureAdapterOperation,
+    engine,
+    enqueueAdapterOperation,
+    isCurrentAdapterOperation,
+  ]);
 
   useEffect(() => {
     const unsubscribers = [
@@ -498,16 +575,18 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     playbackStartGenerationRef.current += 1;
+    invalidateAdapterOperations();
     pendingPlaybackStartRef.current = null;
     pendingStart.adapter.stopClock?.();
     return true;
-  }, []);
+  }, [invalidateAdapterOperations]);
 
   useEffect(() => {
     if (ready) {
       return;
     }
 
+    invalidateAdapterOperations();
     cancelScheduledSeek();
     const cancelledPendingStart = cancelPendingPlaybackStart();
     if (clockOwnerRef.current !== null) {
@@ -516,7 +595,13 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       }
       pauseSynchronizedPlayback();
     }
-  }, [cancelPendingPlaybackStart, cancelScheduledSeek, pauseSynchronizedPlayback, ready]);
+  }, [
+    cancelPendingPlaybackStart,
+    cancelScheduledSeek,
+    invalidateAdapterOperations,
+    pauseSynchronizedPlayback,
+    ready,
+  ]);
 
   useEffect(() => {
     if (Object.is(adapterIdentityRef.current, adapterIdentity)) {
@@ -524,6 +609,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     }
 
     adapterIdentityRef.current = adapterIdentity;
+    invalidateAdapterOperations();
     const shouldPrimeAdapter = ready && adapter.seek !== undefined;
     pausedPreviewPrimedRef.current = shouldPrimeAdapter;
     cancelScheduledSeek();
@@ -544,6 +630,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     cancelPendingPlaybackStart,
     cancelScheduledSeek,
     engine,
+    invalidateAdapterOperations,
     ready,
     schedulePausedPreviewSeek,
     pauseSynchronizedPlayback,
@@ -551,9 +638,10 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
   useEffect(
     () => () => {
+      invalidateAdapterOperations();
       cancelPendingPlaybackStart();
     },
-    [cancelPendingPlaybackStart]
+    [cancelPendingPlaybackStart, invalidateAdapterOperations]
   );
 
   const startPlayback = useCallback(
@@ -561,6 +649,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       generation: number,
       playbackAdapter: TimelineMediaSyncAdapter<LayerName>
     ): Promise<TimelineMediaPlayResult> => {
+      const operationToken = captureAdapterOperation();
       if (!isCurrentPlaybackStart(generation)) {
         return createCancelledPlayResult();
       }
@@ -635,9 +724,23 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       playbackAdapter.requestClockActivation?.(engine.getPlaybackRate());
       try {
         const clockStarted = await enqueueAdapterOperation(async () => {
-          await playbackAdapter.seek?.(timelineTime, timelineLayers);
-          if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
+          if (!isCurrentAdapterOperation(operationToken)) {
             return false;
+          }
+          await playbackAdapter.seek?.(timelineTime, timelineLayers);
+          if (
+            !isCurrentAdapterOperation(operationToken) ||
+            !isCurrentPlaybackStart(generation) ||
+            !readyRef.current
+          ) {
+            return false;
+          }
+          if (engine.getState().playing) {
+            playbackAdapter.stopClock?.();
+            throw new TimelineMediaError(
+              'timeline-failed',
+              'Timeline playback is already controlled by another clock.'
+            );
           }
 
           clockOwnerRef.current = {
@@ -647,7 +750,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           };
           return playbackAdapter.startClock(timelineTime, engine.getPlaybackRate());
         });
-        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
+        if (
+          !isCurrentAdapterOperation(operationToken) ||
+          !isCurrentPlaybackStart(generation) ||
+          !readyRef.current
+        ) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -656,9 +763,20 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           return createPlayFailure('clock-failed', 'Media clock could not start.', onError);
         }
       } catch (clockError: unknown) {
-        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
+        if (
+          !isCurrentAdapterOperation(operationToken) ||
+          !isCurrentPlaybackStart(generation) ||
+          !readyRef.current
+        ) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
+        }
+        if (clockError instanceof TimelineMediaError && clockError.reason === 'timeline-failed') {
+          return createPlayFailure(
+            'timeline-failed',
+            'Timeline playback is already controlled by another clock.',
+            onError
+          );
         }
         if (clockOwnerRef.current?.generation === generation) {
           stopOwnedClock(generation);
@@ -675,11 +793,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
 
       let timelineStarted = false;
       try {
-        const timelineResult = await syncPlayback.play();
-        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
+        if (engine.getState().playing) {
           stopOwnedClock(generation);
-          return createCancelledPlayResult();
+          return createPlayFailure(
+            'timeline-failed',
+            'Timeline playback is already controlled by another clock.',
+            onError
+          );
         }
+        const timelineResult = await syncPlayback.play();
         if (!timelineResult.ok && timelineResult.reason === 'sync-failed') {
           stopOwnedClock(generation);
           return {
@@ -689,9 +811,21 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             ...(timelineResult.cause !== undefined ? { cause: timelineResult.cause } : {}),
           };
         }
+        if (
+          !isCurrentAdapterOperation(operationToken) ||
+          !isCurrentPlaybackStart(generation) ||
+          !readyRef.current
+        ) {
+          stopOwnedClock(generation);
+          return createCancelledPlayResult();
+        }
         timelineStarted = timelineResult.ok;
       } catch (timelineError: unknown) {
-        if (!isCurrentPlaybackStart(generation) || !readyRef.current) {
+        if (
+          !isCurrentAdapterOperation(operationToken) ||
+          !isCurrentPlaybackStart(generation) ||
+          !readyRef.current
+        ) {
           stopOwnedClock(generation);
           return createCancelledPlayResult();
         }
@@ -715,7 +849,9 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       engine,
       enqueueAdapterOperation,
       frameRate,
+      captureAdapterOperation,
       isCurrentPlaybackStart,
+      isCurrentAdapterOperation,
       layers,
       onError,
       playbackOptions,
@@ -772,16 +908,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, [cancelPendingPlaybackStart, syncPlayback]);
 
   const setPlaybackRate = useCallback(
-    (playbackRate: number) =>
-      enqueueAdapterOperation(async () => {
-        rateSynchronizationActiveRef.current = true;
-        try {
-          return await syncPlayback.setPlaybackRate(playbackRate);
-        } finally {
-          rateSynchronizationActiveRef.current = false;
-        }
-      }),
-    [enqueueAdapterOperation, syncPlayback]
+    (playbackRate: number) => syncPlayback.setPlaybackRate(playbackRate),
+    [syncPlayback]
   );
 
   return useMemo(

@@ -196,6 +196,7 @@ interface PendingSourceRecovery {
   controller: MediabunnySourceController;
   error: Error;
   previousState: MediabunnySourceState | undefined;
+  promise: Promise<TimelineMediaSourceOperationResult> | null;
 }
 
 interface PendingSourceReplacement {
@@ -203,18 +204,19 @@ interface PendingSourceReplacement {
   candidate: MediabunnySourceController | null;
   readyState: MediabunnySourceState | null;
   deferredRecovery: PendingSourceRecovery | null;
+  promise: Promise<TimelineMediaSourceOperationResult> | null;
 }
 
 interface MediabunnySourceOperationState {
   generation: number;
-  activeRequestGeneration: number;
   preloadPromise: Promise<TimelineMediaSourceOperationResult> | null;
   replacement: PendingSourceReplacement | null;
   recovery: PendingSourceRecovery | null;
 }
 
-interface MediabunnyActiveSourceOwnershipToken extends MediabunnySourceLoadToken {
-  activeRequestGeneration: number;
+interface MediabunnyOutputOperationToken {
+  generation: number;
+  canvas: HTMLCanvasElement | null;
 }
 
 /**
@@ -330,6 +332,7 @@ interface MediabunnySourceController {
   audioPlaybackGeneration: number;
   asyncId: number;
   renderingFrame: boolean;
+  currentFrameRequest: PendingFrameRequest | undefined;
   pendingFrameRequest: PendingFrameRequest | undefined;
   videoPlaybackGeneration: number;
   videoPlaybackIterator: AsyncGenerator<Mediabunny.WrappedCanvas, void, unknown> | null;
@@ -340,6 +343,7 @@ interface MediabunnySourceController {
   videoPlaybackSourceSeconds: number | null;
   videoPlaybackTargetSeconds: number | null;
   videoPlaybackCanvas: HTMLCanvasElement | null;
+  videoPlaybackIsCurrent: (() => boolean) | undefined;
   videoPlaybackOnFrame: ((timestamp: number) => void) | undefined;
   videoPlaybackOnFailure: ((error: Error) => void) | undefined;
   lastRenderedVideoTimestamp: number | null;
@@ -349,6 +353,9 @@ interface PendingFrameRequest {
   canvas: HTMLCanvasElement;
   sourceSeconds: number;
   onFrame?: (timestamp: number) => void;
+  isCurrent: () => boolean;
+  resolve: () => void;
+  reject: (error: Error) => void;
 }
 
 interface LoadedMediaInfo {
@@ -539,7 +546,6 @@ export function createMediabunnyAdapter(
   let error: Error | null = null;
   let canvas = options.canvas ?? null;
   let disposed = false;
-  let clockController: MediabunnySourceController | null = null;
   let currentPlaybackRate = 1;
   let transportTimelineTimeAtStart = 0;
   let transportAudioContextStartTime: number | null = null;
@@ -556,6 +562,9 @@ export function createMediabunnyAdapter(
   const sourceOperations = new Map<string, MediabunnySourceOperationState>();
   const activeSourceIds = new Set<string>();
   let activeVisualClip: ActiveClip | undefined;
+  let outputGeneration = 0;
+  const outputOperationsInFlight = new Set<number>();
+  let currentOutputSourceIds = new Set<string>();
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
   let mediabunnyPromise: Promise<MediabunnyModule> | null = null;
@@ -580,7 +589,6 @@ export function createMediabunnyAdapter(
     if (operation === undefined) {
       operation = {
         generation: 0,
-        activeRequestGeneration: 0,
         preloadPromise: null,
         replacement: null,
         recovery: null,
@@ -600,21 +608,53 @@ export function createMediabunnyAdapter(
   const isCurrentSourceLoad = (token: MediabunnySourceLoadToken) =>
     !disposed && getSourceOperation(token.sourceId).generation === token.generation;
 
-  const isCurrentActiveSourceRequest = (sourceId: string, activeRequestGeneration: number) =>
-    !disposed && getSourceOperation(sourceId).activeRequestGeneration === activeRequestGeneration;
+  const beginOutputOperation = (
+    sourceIds: Iterable<string> = activeSourceIds
+  ): MediabunnyOutputOperationToken => {
+    const token = {
+      generation: ++outputGeneration,
+      canvas,
+    };
+    currentOutputSourceIds = new Set(sourceIds);
+    outputOperationsInFlight.add(token.generation);
+    return token;
+  };
+
+  const completeOutputOperation = (token: MediabunnyOutputOperationToken) => {
+    outputOperationsInFlight.delete(token.generation);
+  };
+
+  const isCurrentOutputOperation = (token: MediabunnyOutputOperationToken) =>
+    !disposed && token.generation === outputGeneration && token.canvas === canvas;
 
   const isCurrentActiveSourceOwnership = (
-    ownership: readonly MediabunnyActiveSourceOwnershipToken[]
+    outputToken: MediabunnyOutputOperationToken,
+    ownership: readonly MediabunnySourceLoadToken[]
   ) =>
     !disposed &&
+    isCurrentOutputOperation(outputToken) &&
     ownership.every((token) => {
       const operation = getSourceOperation(token.sourceId);
-      return (
-        operation.generation === token.generation &&
-        operation.activeRequestGeneration === token.activeRequestGeneration &&
-        controllers.has(token.sourceId)
-      );
+      return operation.generation === token.generation && controllers.has(token.sourceId);
     });
+
+  const invalidateOutputOperations = (affectedSourceIds?: ReadonlySet<string>) => {
+    if (
+      affectedSourceIds !== undefined &&
+      ![...affectedSourceIds].some(
+        (sourceId) => currentOutputSourceIds.has(sourceId) || activeSourceIds.has(sourceId)
+      )
+    ) {
+      return;
+    }
+    outputGeneration += 1;
+    outputOperationsInFlight.clear();
+    currentOutputSourceIds.clear();
+    for (const controller of controllers.values()) {
+      invalidateFrameRendering(controller);
+      void cancelVideoPlayback(controller);
+    }
+  };
 
   const assertAdapterActive = () => {
     if (disposed) {
@@ -755,15 +795,14 @@ export function createMediabunnyAdapter(
   };
 
   const activatePendingAudioClock = () => {
-    const playbackRate = pendingAudioActivationRate;
-    if (playbackRate === null || masterGainNode === null || audioContext === null) {
+    if (pendingAudioActivationRate === null || masterGainNode === null || audioContext === null) {
       return;
     }
     if (audioContext.state === 'running') {
       const timelineSeconds = getTransportClockTime();
       pendingAudioActivationRate = null;
-      setTransportClock(timelineSeconds, playbackRate, transportPlaying);
-      setAllClocks(timelineSeconds, playbackRate, transportPlaying);
+      setTransportClock(timelineSeconds, currentPlaybackRate, transportPlaying);
+      setAllClocks(timelineSeconds, currentPlaybackRate, transportPlaying);
       audioStatus = { state: 'running' };
       notify();
       return;
@@ -807,8 +846,8 @@ export function createMediabunnyAdapter(
           stopQueuedAudio(controller);
           controller.activeAudioSyncKey = undefined;
         }
-        setTransportClock(timelineSeconds, playbackRate, transportPlaying);
-        setAllClocks(timelineSeconds, playbackRate, transportPlaying);
+        setTransportClock(timelineSeconds, currentPlaybackRate, transportPlaying);
+        setAllClocks(timelineSeconds, currentPlaybackRate, transportPlaying);
         audioStatus = { state: 'running' };
         notify();
       },
@@ -833,9 +872,9 @@ export function createMediabunnyAdapter(
 
   const clearVideoSurface = () => {
     if (canvas !== null) {
-      const controller = clockController ?? [...controllers.values()][0];
-      if (controller !== undefined) {
-        clearPreviewCanvas(controller, canvas);
+      const context = canvas.getContext('2d');
+      if (context !== null) {
+        context.clearRect(0, 0, canvas.width, canvas.height);
       }
     }
     setLastFrameTime(null);
@@ -845,39 +884,74 @@ export function createMediabunnyAdapter(
     if (disposed) {
       return;
     }
+    invalidateOutputOperations();
     activeVisualClip = undefined;
-    for (const sourceController of controllers.values()) {
-      void cancelVideoPlayback(sourceController);
-    }
     clearVideoSurface();
   };
 
-  const renderVideo = async (activeVideo: ActiveClip, _timelineTime: RationalTime) => {
+  const renderVideoForOperation = async (
+    activeVideo: ActiveClip,
+    _timelineTime: RationalTime,
+    outputToken: MediabunnyOutputOperationToken
+  ) => {
     assertAdapterActive();
+    if (!isCurrentOutputOperation(outputToken)) {
+      return;
+    }
     const controller = getController(activeVideo);
     if (controller === undefined || canvas === null) {
       return;
     }
 
-    clockController = controller;
+    const targetCanvas = canvas;
     try {
-      await renderActiveVideoFrame(controller, canvas, activeVideo, (timestamp) => {
-        if (disposed || controllers.get(controller.sourceId) !== controller) {
-          return;
+      await renderActiveVideoFrame(
+        controller,
+        targetCanvas,
+        activeVideo,
+        () =>
+          isCurrentOutputOperation(outputToken) &&
+          controllers.get(controller.sourceId) === controller,
+        (timestamp) => {
+          if (
+            !isCurrentOutputOperation(outputToken) ||
+            controllers.get(controller.sourceId) !== controller
+          ) {
+            return;
+          }
+          controller.lastRenderedVideoTimestamp = timestamp;
+          setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
         }
-        controller.lastRenderedVideoTimestamp = timestamp;
-        setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
-      });
-      if (disposed || controllers.get(controller.sourceId) !== controller) {
+      );
+      if (
+        !isCurrentOutputOperation(outputToken) ||
+        controllers.get(controller.sourceId) !== controller
+      ) {
         return;
       }
     } catch (renderError) {
-      if (disposed || controllers.get(controller.sourceId) !== controller) {
+      if (
+        !isCurrentOutputOperation(outputToken) ||
+        controllers.get(controller.sourceId) !== controller
+      ) {
         return;
       }
       const error = renderError instanceof Error ? renderError : new Error(String(renderError));
       void recoverSource(controller.sourceId, controller, error);
       throw error;
+    }
+  };
+
+  const renderVideo = async (activeVideo: ActiveClip, timelineTime: RationalTime) => {
+    assertAdapterActive();
+    const outputToken = beginOutputOperation([activeVideo.clip.sourceId]);
+    try {
+      await renderVideoForOperation(activeVideo, timelineTime, outputToken);
+      if (!isCurrentOutputOperation(outputToken)) {
+        return;
+      }
+    } finally {
+      completeOutputOperation(outputToken);
     }
   };
 
@@ -891,7 +965,6 @@ export function createMediabunnyAdapter(
       return;
     }
 
-    clockController = controller;
     syncAudioClip(controller, activeAudio, (audioError) => {
       void recoverSource(controller.sourceId, controller, audioError);
     });
@@ -961,17 +1034,11 @@ export function createMediabunnyAdapter(
     const previous = controllers.get(candidate.sourceId);
     const timelineSeconds = getTransportClockTime();
     if (previous !== undefined) {
-      if (clockController === previous) {
-        clockController = candidate;
-      }
       disposeController(previous);
     }
     controllers.set(candidate.sourceId, candidate);
     setTimelineClock(candidate, timelineSeconds, currentPlaybackRate);
     candidate.playing = transportPlaying;
-    if (candidate.audioSink !== null) {
-      activatePendingAudioClock();
-    }
     if (disposed) {
       return false;
     }
@@ -981,6 +1048,9 @@ export function createMediabunnyAdapter(
       setSourceState(readyState);
     } else {
       updateSourceStateSnapshot(readyState);
+    }
+    if (candidate.audioSink !== null) {
+      activatePendingAudioClock();
     }
     return !disposed;
   };
@@ -1144,10 +1214,24 @@ export function createMediabunnyAdapter(
         error: new Error(`Unknown source "${sourceId}".`),
       });
     }
+    const operation = getSourceOperation(sourceId);
+    const activeRecovery = operation.recovery;
+    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
+      return activeRecovery.promise;
+    }
+    const activeReplacement = operation.replacement;
+    if (
+      activeReplacement?.deferredRecovery !== null &&
+      activeReplacement?.promise !== null &&
+      activeReplacement?.promise !== undefined
+    ) {
+      return activeReplacement.promise.then((result) =>
+        result.ok ? result : ensureSource(sourceId)
+      );
+    }
     if (controllers.has(sourceId)) {
       return Promise.resolve({ ok: true, sourceId, state: 'ready' });
     }
-    const operation = getSourceOperation(sourceId);
     const existingPromise = operation.preloadPromise;
     if (existingPromise !== null) {
       return existingPromise;
@@ -1167,8 +1251,9 @@ export function createMediabunnyAdapter(
 
   const ensureActiveSources = async (
     activeVisual: ActiveClip | undefined,
-    activeAudio: ActiveClip | undefined
-  ): Promise<readonly MediabunnyActiveSourceOwnershipToken[] | null> => {
+    activeAudio: ActiveClip | undefined,
+    outputToken: MediabunnyOutputOperationToken
+  ): Promise<readonly MediabunnySourceLoadToken[] | null> => {
     const requestedSourceIds = new Set<string>();
     for (const activeClip of [activeVisual, activeAudio]) {
       if (activeClip !== undefined) {
@@ -1176,23 +1261,15 @@ export function createMediabunnyAdapter(
       }
     }
 
-    activeSourceIds.clear();
-    for (const sourceId of requestedSourceIds) {
-      activeSourceIds.add(sourceId);
-    }
-
-    const requestTokens = [...requestedSourceIds].map((sourceId) => ({
-      sourceId,
-      activeRequestGeneration: getSourceOperation(sourceId).activeRequestGeneration,
-    }));
+    const requestTokens = [...requestedSourceIds];
     const sourceResults = await Promise.all(
-      requestTokens.map(async ({ sourceId, activeRequestGeneration }) => {
+      requestTokens.map(async (sourceId) => {
         while (true) {
-          if (!isCurrentActiveSourceRequest(sourceId, activeRequestGeneration)) {
+          if (!isCurrentOutputOperation(outputToken)) {
             return false;
           }
           const result = await ensureSource(sourceId);
-          if (!isCurrentActiveSourceRequest(sourceId, activeRequestGeneration)) {
+          if (!isCurrentOutputOperation(outputToken)) {
             return false;
           }
           if (result.ok) {
@@ -1209,14 +1286,16 @@ export function createMediabunnyAdapter(
       return null;
     }
 
-    return requestTokens.map(({ sourceId, activeRequestGeneration }) => ({
+    return requestTokens.map((sourceId) => ({
       sourceId,
       generation: getSourceOperation(sourceId).generation,
-      activeRequestGeneration,
     }));
   };
 
-  const queuePausedActiveVisualRefresh = (sourceIds: ReadonlySet<string>) => {
+  const queuePausedActiveVisualRefresh = (
+    sourceIds: ReadonlySet<string>,
+    supersedeInFlight = true
+  ) => {
     const expectedVisual = activeVisualClip;
     if (
       transportPlaying ||
@@ -1226,86 +1305,92 @@ export function createMediabunnyAdapter(
     ) {
       return;
     }
+    if (!supersedeInFlight && outputOperationsInFlight.has(outputGeneration)) {
+      return;
+    }
 
     const sourceId = expectedVisual.clip.sourceId;
-    const activeRequestGeneration = getSourceOperation(sourceId).activeRequestGeneration;
+    const outputToken = beginOutputOperation([sourceId]);
     void (async () => {
-      while (true) {
+      try {
+        while (true) {
+          if (
+            disposed ||
+            transportPlaying ||
+            activeVisualClip !== expectedVisual ||
+            !isCurrentOutputOperation(outputToken) ||
+            !sourceDefinitions.has(sourceId)
+          ) {
+            return;
+          }
+
+          const result = await ensureSource(sourceId);
+          if (result.ok) {
+            break;
+          }
+          if (!isSupersededSourceLoadResult(result) || !sourceDefinitions.has(sourceId)) {
+            return;
+          }
+        }
+
+        const ownership: readonly MediabunnySourceLoadToken[] = [
+          {
+            sourceId,
+            generation: getSourceOperation(sourceId).generation,
+          },
+        ];
+        const controller = controllers.get(sourceId);
         if (
-          disposed ||
+          controller === undefined ||
           transportPlaying ||
           activeVisualClip !== expectedVisual ||
-          !isCurrentActiveSourceRequest(sourceId, activeRequestGeneration) ||
-          !sourceDefinitions.has(sourceId)
+          !isCurrentActiveSourceOwnership(outputToken, ownership)
         ) {
           return;
         }
 
-        const result = await ensureSource(sourceId);
-        if (result.ok) {
-          break;
-        }
-        if (!isSupersededSourceLoadResult(result) || !sourceDefinitions.has(sourceId)) {
+        await cancelVideoPlayback(controller);
+        if (
+          transportPlaying ||
+          activeVisualClip !== expectedVisual ||
+          !isCurrentActiveSourceOwnership(outputToken, ownership)
+        ) {
           return;
         }
+        await renderVideoForOperation(expectedVisual, expectedVisual.timelineTime, outputToken);
+      } finally {
+        completeOutputOperation(outputToken);
       }
-
-      const ownership: readonly MediabunnyActiveSourceOwnershipToken[] = [
-        {
-          sourceId,
-          generation: getSourceOperation(sourceId).generation,
-          activeRequestGeneration,
-        },
-      ];
-      const controller = controllers.get(sourceId);
-      if (
-        controller === undefined ||
-        transportPlaying ||
-        activeVisualClip !== expectedVisual ||
-        !isCurrentActiveSourceOwnership(ownership)
-      ) {
-        return;
-      }
-
-      await cancelVideoPlayback(controller);
-      if (
-        transportPlaying ||
-        activeVisualClip !== expectedVisual ||
-        !isCurrentActiveSourceOwnership(ownership)
-      ) {
-        return;
-      }
-      await renderVideo(expectedVisual, expectedVisual.timelineTime);
     })().catch(() => {
       // Source loads publish their failures and renderVideo owns runtime recovery.
     });
   };
 
-  const recoverSource = async (
+  const recoverSource = (
     sourceId: string,
     expectedController: MediabunnySourceController,
     recoveryError: Error
-  ) => {
+  ): Promise<TimelineMediaSourceOperationResult> => {
     const source = sourceDefinitions.get(sourceId);
     const controller = controllers.get(sourceId);
     const operation = getSourceOperation(sourceId);
-    if (
-      source === undefined ||
-      controller !== expectedController ||
-      operation.recovery !== null ||
-      disposed
-    ) {
-      return;
+    const activeRecovery = operation.recovery;
+    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
+      return activeRecovery.promise;
+    }
+    if (source === undefined || controller !== expectedController || disposed) {
+      return Promise.resolve(createSupersededSourceLoadResult(sourceId));
     }
     const recovery: PendingSourceRecovery = {
       controller: expectedController,
       error: recoveryError,
       previousState: sourceStateSnapshot.get(sourceId),
+      promise: null,
     };
     const pendingReplacement = operation.replacement;
     if (pendingReplacement !== null) {
       pendingReplacement.deferredRecovery ??= recovery;
-      return;
+      return Promise.resolve(createSupersededSourceLoadResult(sourceId));
     }
     operation.recovery = recovery;
     stopMediaClock(controller);
@@ -1318,21 +1403,26 @@ export function createMediabunnyAdapter(
       } as const,
     ];
     const token = beginSourceLoad(sourceId);
-    try {
-      const result = await loadSource(source, {
-        status: 'recovering',
-        token,
-        startIndex: controller.inputIndex + 1,
-        previousAttempts: attempts,
-      });
-      if (result.ok && isCurrentSourceLoad(token)) {
-        queuePausedActiveVisualRefresh(new Set([sourceId]));
+    const recoveryPromise = (async () => {
+      try {
+        const result = await loadSource(source, {
+          status: 'recovering',
+          token,
+          startIndex: controller.inputIndex + 1,
+          previousAttempts: attempts,
+        });
+        if (result.ok && isCurrentSourceLoad(token)) {
+          queuePausedActiveVisualRefresh(new Set([sourceId]), false);
+        }
+        return result;
+      } finally {
+        if (operation.recovery === recovery) {
+          operation.recovery = null;
+        }
       }
-    } finally {
-      if (operation.recovery === recovery) {
-        operation.recovery = null;
-      }
-    }
+    })();
+    recovery.promise = recoveryPromise;
+    return recoveryPromise;
   };
 
   const syncLayers = async ({
@@ -1343,70 +1433,97 @@ export function createMediabunnyAdapter(
     assertAdapterActive();
     const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
     const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
-
-    const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio);
-    if (sourceOwnership === null || !isCurrentActiveSourceOwnership(sourceOwnership)) {
-      return;
-    }
-
-    for (const activeClip of [activeVisual, activeAudio]) {
-      if (activeClip === undefined) {
-        continue;
-      }
-      const sourceState = sourceStateSnapshot.get(activeClip.clip.sourceId);
-      if (sourceState?.status === 'failed' && sourceState.error !== null) {
-        throw sourceState.error;
-      }
-    }
-
-    await stopInactiveControllerOutputs(activeVisual, activeAudio);
-    if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
-      return;
-    }
-
-    if (activeVisual !== undefined) {
-      activeVisualClip = activeVisual;
-      const controller = getController(activeVisual);
+    const outputToken = beginOutputOperation(
+      [activeVisual, activeAudio]
+        .filter((activeClip): activeClip is ActiveClip => activeClip !== undefined)
+        .map((activeClip) => activeClip.clip.sourceId)
+    );
+    try {
+      const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio, outputToken);
       if (
-        controller !== undefined &&
-        canvas !== null &&
-        (reason === 'play' || reason === 'tick' || reason === 'rate')
+        sourceOwnership === null ||
+        !isCurrentActiveSourceOwnership(outputToken, sourceOwnership)
       ) {
-        clockController = controller;
-        syncActiveVideoPlaybackFrame(
-          controller,
-          canvas,
-          activeVisual,
-          (timestamp) => {
-            setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
-          },
-          (playbackError) => {
-            void recoverSource(controller.sourceId, controller, playbackError);
+        return;
+      }
+
+      for (const activeClip of [activeVisual, activeAudio]) {
+        if (activeClip === undefined) {
+          continue;
+        }
+        const sourceState = sourceStateSnapshot.get(activeClip.clip.sourceId);
+        if (sourceState?.status === 'failed' && sourceState.error !== null) {
+          throw sourceState.error;
+        }
+      }
+
+      await stopInactiveControllerOutputs(activeVisual, activeAudio);
+      if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+        return;
+      }
+      const pausedRateSynchronization = reason === 'rate' && !transportPlaying;
+
+      if (activeVisual !== undefined) {
+        activeVisualClip = activeVisual;
+        const controller = getController(activeVisual);
+        if (
+          controller !== undefined &&
+          canvas !== null &&
+          !pausedRateSynchronization &&
+          (reason === 'play' || reason === 'tick' || reason === 'rate')
+        ) {
+          syncActiveVideoPlaybackFrame(
+            controller,
+            canvas,
+            activeVisual,
+            () => isCurrentActiveSourceOwnership(outputToken, sourceOwnership),
+            (timestamp) => {
+              if (isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+                setLastFrameTime(toLogicalSourceSeconds(controller, timestamp));
+              }
+            },
+            (playbackError) => {
+              if (isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+                void recoverSource(controller.sourceId, controller, playbackError);
+              }
+            }
+          );
+        } else {
+          if (controller !== undefined) {
+            await cancelVideoPlayback(controller);
+            if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+              return;
+            }
           }
-        );
-      } else {
-        if (controller !== undefined) {
-          await cancelVideoPlayback(controller);
-          if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
+          await renderVideoForOperation(activeVisual, timelineTime, outputToken);
+          if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
             return;
           }
         }
-        await renderVideo(activeVisual, timelineTime);
-        if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
-          return;
+      } else {
+        activeVisualClip = undefined;
+        clearVideoSurface();
+      }
+
+      if (reason === 'pause' || reason === 'gap' || pausedRateSynchronization) {
+        for (const controller of controllers.values()) {
+          stopControllerAudio(controller);
+        }
+      } else if (shouldSyncAudio(reason, activeAudio)) {
+        syncAudio(activeAudio);
+      }
+
+      if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+        return;
+      }
+      activeSourceIds.clear();
+      for (const activeClip of [activeVisual, activeAudio]) {
+        if (activeClip !== undefined) {
+          activeSourceIds.add(activeClip.clip.sourceId);
         }
       }
-    } else {
-      activeVisualClip = undefined;
-      clearVideoSurface();
-    }
-
-    if (reason === 'pause' || reason === 'gap') {
-      for (const controller of controllers.values()) {
-        stopControllerAudio(controller);
-      }
-    } else if (shouldSyncAudio(reason, activeAudio)) {
-      syncAudio(activeAudio);
+    } finally {
+      completeOutputOperation(outputToken);
     }
   };
 
@@ -1419,8 +1536,8 @@ export function createMediabunnyAdapter(
   };
 
   const releaseSource = (sourceId: string, invalidateActiveRequests = false) => {
-    if (invalidateActiveRequests) {
-      getSourceOperation(sourceId).activeRequestGeneration += 1;
+    if (invalidateActiveRequests || activeSourceIds.has(sourceId)) {
+      invalidateOutputOperations(new Set([sourceId]));
     }
     invalidateSourceLoad(sourceId);
     const controller = controllers.get(sourceId);
@@ -1428,9 +1545,6 @@ export function createMediabunnyAdapter(
       if (activeSourceIds.has(sourceId) && canvas !== null) {
         clearPreviewCanvas(controller, canvas);
         setLastFrameTime(null);
-      }
-      if (clockController === controller) {
-        clockController = null;
       }
       disposeController(controller);
       controllers.delete(sourceId);
@@ -1443,9 +1557,6 @@ export function createMediabunnyAdapter(
   ) => {
     if (controllers.get(sourceId) !== expectedController) {
       return;
-    }
-    if (clockController === expectedController) {
-      clockController = null;
     }
     disposeController(expectedController);
     controllers.delete(sourceId);
@@ -1480,6 +1591,7 @@ export function createMediabunnyAdapter(
     ) {
       return;
     }
+    invalidateOutputOperations(changedSourceIds);
 
     for (const sourceId of supersededReplacements.keys()) {
       invalidateSourceLoad(sourceId);
@@ -1550,10 +1662,7 @@ export function createMediabunnyAdapter(
       if (canvas === nextCanvas) {
         return;
       }
-      for (const controller of controllers.values()) {
-        invalidateFrameRendering(controller);
-        void cancelVideoPlayback(controller);
-      }
+      invalidateOutputOperations();
       canvas = nextCanvas;
       if (canvas !== null && !transportPlaying && activeVisualClip !== undefined) {
         void renderVideo(activeVisualClip, activeVisualClip.timelineTime).catch(() => {
@@ -1617,7 +1726,7 @@ export function createMediabunnyAdapter(
       assertAdapterActive();
       const result = await ensureSource(sourceId);
       if (result.ok) {
-        queuePausedActiveVisualRefresh(new Set([sourceId]));
+        queuePausedActiveVisualRefresh(new Set([sourceId]), false);
       }
       return result;
     },
@@ -1642,6 +1751,7 @@ export function createMediabunnyAdapter(
           error: new Error(`Unknown source "${sourceId}".`),
         };
       }
+      invalidateOutputOperations(new Set([sourceId]));
       const operation = getSourceOperation(sourceId);
       const pendingReplacement = operation.replacement;
       const recovery = operation.recovery ?? pendingReplacement?.deferredRecovery ?? null;
@@ -1683,8 +1793,9 @@ export function createMediabunnyAdapter(
           sourceId: source.sourceId,
           reason: 'invalid-source',
           error: sourceError instanceof Error ? sourceError : new Error(String(sourceError)),
-        };
+        } as const;
       }
+      invalidateOutputOperations(new Set([source.sourceId]));
       const operation = getSourceOperation(source.sourceId);
       const previousReplacement = operation.replacement;
       const activeRecovery = operation.recovery;
@@ -1695,84 +1806,92 @@ export function createMediabunnyAdapter(
         candidate: null,
         readyState: null,
         deferredRecovery: previousReplacement?.deferredRecovery ?? activeRecovery,
+        promise: null,
       };
       discardPendingSourceReplacement(source.sourceId);
       operation.replacement = replacement;
       const token = beginSourceLoad(source.sourceId);
-      try {
-        const result = await loadSource(source, {
-          status: 'loading',
-          token,
-          replacement,
-        });
-        if (!isCurrentSourceLoad(token) || operation.replacement !== replacement) {
-          return createSupersededSourceLoadResult(source.sourceId);
-        }
-        if (result.ok) {
-          if (replacement.candidate === null || replacement.readyState === null) {
-            operation.replacement = null;
-            return {
-              ok: false,
-              sourceId: source.sourceId,
-              reason: 'load-failed',
-              error: new Error(
-                `Replacement source "${source.sourceId}" did not produce a controller.`
-              ),
-            };
-          }
-          if (replacement.candidate.audioSink !== null) {
-            const audioRuntime = ensureAudioRuntime(false);
-            if (audioRuntime === null) {
-              replacement.candidate.audioSink = null;
-            } else {
-              replacement.candidate.audioContext = audioRuntime.context;
-              replacement.candidate.gainNode = audioRuntime.gainNode;
-            }
-          }
+      const replacementPromise = (async (): Promise<TimelineMediaSourceOperationResult> => {
+        try {
+          const result = await loadSource(source, {
+            status: 'loading',
+            token,
+            replacement,
+          });
           if (!isCurrentSourceLoad(token) || operation.replacement !== replacement) {
             return createSupersededSourceLoadResult(source.sourceId);
           }
-          operation.replacement = null;
-          if (!commitLoadedController(replacement.candidate, replacement.readyState, false)) {
-            return createSupersededSourceLoadResult(source.sourceId);
-          }
-          sourceDefinitions.set(source.sourceId, source);
-          ready = true;
-          notify();
-          queuePausedActiveVisualRefresh(new Set([source.sourceId]));
-        } else {
-          operation.replacement = null;
-          const nextSnapshot = new Map(sourceStateSnapshot);
-          if (replacement.previousState === undefined) {
-            nextSnapshot.delete(source.sourceId);
+          if (result.ok) {
+            if (replacement.candidate === null || replacement.readyState === null) {
+              operation.replacement = null;
+              return {
+                ok: false,
+                sourceId: source.sourceId,
+                reason: 'load-failed',
+                error: new Error(
+                  `Replacement source "${source.sourceId}" did not produce a controller.`
+                ),
+              };
+            }
+            if (replacement.candidate.audioSink !== null) {
+              const audioRuntime = ensureAudioRuntime(false);
+              if (audioRuntime === null) {
+                replacement.candidate.audioSink = null;
+              } else {
+                replacement.candidate.audioContext = audioRuntime.context;
+                replacement.candidate.gainNode = audioRuntime.gainNode;
+              }
+            }
+            if (!isCurrentSourceLoad(token) || operation.replacement !== replacement) {
+              return createSupersededSourceLoadResult(source.sourceId);
+            }
+            operation.replacement = null;
+            if (!commitLoadedController(replacement.candidate, replacement.readyState, false)) {
+              return createSupersededSourceLoadResult(source.sourceId);
+            }
+            sourceDefinitions.set(source.sourceId, source);
+            ready = true;
+            notify();
+            queuePausedActiveVisualRefresh(new Set([source.sourceId]));
           } else {
-            nextSnapshot.set(source.sourceId, replacement.previousState);
+            operation.replacement = null;
+            const nextSnapshot = new Map(sourceStateSnapshot);
+            if (replacement.previousState === undefined) {
+              nextSnapshot.delete(source.sourceId);
+            } else {
+              nextSnapshot.set(source.sourceId, replacement.previousState);
+            }
+            sourceStateSnapshot = nextSnapshot;
+            notify();
+            const deferredRecovery = replacement.deferredRecovery;
+            if (
+              deferredRecovery !== null &&
+              controllers.get(source.sourceId) === deferredRecovery.controller &&
+              sourceDefinitions.has(source.sourceId)
+            ) {
+              void recoverSource(
+                source.sourceId,
+                deferredRecovery.controller,
+                deferredRecovery.error
+              );
+            }
           }
-          sourceStateSnapshot = nextSnapshot;
-          notify();
-          const deferredRecovery = replacement.deferredRecovery;
-          if (
-            deferredRecovery !== null &&
-            controllers.get(source.sourceId) === deferredRecovery.controller &&
-            sourceDefinitions.has(source.sourceId)
-          ) {
-            void recoverSource(
-              source.sourceId,
-              deferredRecovery.controller,
-              deferredRecovery.error
-            );
+          return result;
+        } finally {
+          if (operation.replacement === replacement) {
+            discardPendingSourceReplacement(source.sourceId);
           }
         }
-        return result;
-      } finally {
-        if (operation.replacement === replacement) {
-          discardPendingSourceReplacement(source.sourceId);
-        }
-      }
+      })();
+      replacement.promise = replacementPromise;
+      return replacementPromise;
     },
     setClockRate: (playbackRate) => {
       assertAdapterActive();
       const timelineSeconds = getTransportClockTime();
+      if (pendingAudioActivationRate !== null) {
+        pendingAudioActivationRate = playbackRate;
+      }
       setTransportClock(timelineSeconds, playbackRate, transportPlaying);
       setAllClocks(timelineSeconds, playbackRate, transportPlaying);
     },
@@ -1784,42 +1903,63 @@ export function createMediabunnyAdapter(
 
       const activeVisual = findActiveClipForKinds(activeLayers, visualTrackKinds);
       const activeAudio = findActiveClipForKinds(activeLayers, audioTrackKinds);
-
-      const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio);
-      if (sourceOwnership === null || !isCurrentActiveSourceOwnership(sourceOwnership)) {
-        return;
-      }
-
-      for (const controller of controllers.values()) {
-        stopControllerAudio(controller);
-      }
-      await Promise.all([...controllers.values()].map(cancelVideoPlayback));
-      if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
-        return;
-      }
-      setTransportClock(toSeconds(timelineTime), currentPlaybackRate, false);
-      setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
-      if (activeVisual !== undefined) {
-        activeVisualClip = activeVisual;
-        await adapter.renderVideo(activeVisual, timelineTime);
-        if (!isCurrentActiveSourceOwnership(sourceOwnership)) {
+      const outputToken = beginOutputOperation(
+        [activeVisual, activeAudio]
+          .filter((activeClip): activeClip is ActiveClip => activeClip !== undefined)
+          .map((activeClip) => activeClip.clip.sourceId)
+      );
+      try {
+        const sourceOwnership = await ensureActiveSources(activeVisual, activeAudio, outputToken);
+        if (
+          sourceOwnership === null ||
+          !isCurrentActiveSourceOwnership(outputToken, sourceOwnership)
+        ) {
           return;
         }
-      } else {
-        activeVisualClip = undefined;
-        clearVideoSurface();
-      }
 
-      if (activeVisual === undefined) {
-        setStatus(
-          activeAudio ? 'Audio-only region at playhead.' : 'No active content at playhead.'
-        );
-      } else {
-        setStatus(
-          activeAudio
-            ? 'Ready. Visuals and audio are mapped from separate timeline clips.'
-            : 'Ready. Visual content is active; audio starts at its own clip offset.'
-        );
+        for (const controller of controllers.values()) {
+          stopControllerAudio(controller);
+        }
+        await Promise.all([...controllers.values()].map(cancelVideoPlayback));
+        if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+          return;
+        }
+        setTransportClock(toSeconds(timelineTime), currentPlaybackRate, false);
+        setAllClocks(toSeconds(timelineTime), currentPlaybackRate, false);
+        if (activeVisual !== undefined) {
+          activeVisualClip = activeVisual;
+          await renderVideoForOperation(activeVisual, timelineTime, outputToken);
+          if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+            return;
+          }
+        } else {
+          activeVisualClip = undefined;
+          clearVideoSurface();
+        }
+
+        if (activeVisual === undefined) {
+          setStatus(
+            activeAudio ? 'Audio-only region at playhead.' : 'No active content at playhead.'
+          );
+        } else {
+          setStatus(
+            activeAudio
+              ? 'Ready. Visuals and audio are mapped from separate timeline clips.'
+              : 'Ready. Visual content is active; audio starts at its own clip offset.'
+          );
+        }
+
+        if (!isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
+          return;
+        }
+        activeSourceIds.clear();
+        for (const activeClip of [activeVisual, activeAudio]) {
+          if (activeClip !== undefined) {
+            activeSourceIds.add(activeClip.clip.sourceId);
+          }
+        }
+      } finally {
+        completeOutputOperation(outputToken);
       }
     },
     renderVideo,
@@ -1871,6 +2011,9 @@ export function createMediabunnyAdapter(
       }
       const terminalTimelineTime = getTransportClockTime();
       disposed = true;
+      outputGeneration += 1;
+      outputOperationsInFlight.clear();
+      currentOutputSourceIds.clear();
       ready = false;
       status = 'Mediabunny adapter disposed.';
       error = null;
@@ -1932,6 +2075,7 @@ function createController(
     audioPlaybackGeneration: 0,
     asyncId: 0,
     renderingFrame: false,
+    currentFrameRequest: undefined,
     pendingFrameRequest: undefined,
     videoPlaybackGeneration: 0,
     videoPlaybackIterator: null,
@@ -1942,6 +2086,7 @@ function createController(
     videoPlaybackSourceSeconds: null,
     videoPlaybackTargetSeconds: null,
     videoPlaybackCanvas: null,
+    videoPlaybackIsCurrent: undefined,
     videoPlaybackOnFrame: undefined,
     videoPlaybackOnFailure: undefined,
     lastRenderedVideoTimestamp: null,
@@ -2198,12 +2343,14 @@ async function renderActiveVideoFrame(
   controller: MediabunnySourceController,
   canvas: HTMLCanvasElement,
   video: ActiveClip,
+  isCurrent: () => boolean,
   onFrame?: (timestamp: number) => void
 ) {
   await renderFrameAt(
     controller,
     canvas,
     toMediaSeconds(controller, toSeconds(video.sourceTime)),
+    isCurrent,
     onFrame
   );
 }
@@ -2233,6 +2380,7 @@ function resetVideoPlayback(controller: MediabunnySourceController) {
   controller.videoPlaybackSourceSeconds = null;
   controller.videoPlaybackTargetSeconds = null;
   controller.videoPlaybackCanvas = null;
+  controller.videoPlaybackIsCurrent = undefined;
   controller.videoPlaybackOnFrame = undefined;
   controller.videoPlaybackOnFailure = undefined;
   return iterator;
@@ -2250,6 +2398,9 @@ async function processVideoPlayback(controller: MediabunnySourceController, gene
   controller.videoPlaybackProcessing = true;
   try {
     while (controller.videoPlaybackGeneration === generation) {
+      if (controller.videoPlaybackIsCurrent?.() === false) {
+        return;
+      }
       const targetSeconds = controller.videoPlaybackTargetSeconds;
       const canvas = controller.videoPlaybackCanvas;
       if (targetSeconds === null || canvas === null) {
@@ -2273,6 +2424,9 @@ async function processVideoPlayback(controller: MediabunnySourceController, gene
             break;
           }
           controller.videoPlaybackFutureFrame = result.value;
+          if (controller.videoPlaybackIsCurrent?.() === false) {
+            return;
+          }
         }
 
         const latestTargetSeconds = controller.videoPlaybackTargetSeconds ?? targetSeconds;
@@ -2289,6 +2443,7 @@ async function processVideoPlayback(controller: MediabunnySourceController, gene
 
       if (
         newestDueFrame !== null &&
+        controller.videoPlaybackIsCurrent?.() !== false &&
         !Object.is(newestDueFrame.timestamp, controller.lastRenderedVideoTimestamp) &&
         paintWrappedCanvas(canvas, newestDueFrame)
       ) {
@@ -2317,6 +2472,7 @@ async function startVideoPlayback(
   controller: MediabunnySourceController,
   canvas: HTMLCanvasElement,
   activeVideo: ActiveClip,
+  isCurrent: () => boolean,
   onFrame?: (timestamp: number) => void,
   onFailure?: (error: Error) => void
 ) {
@@ -2345,6 +2501,7 @@ async function startVideoPlayback(
   controller.videoPlaybackSourceSeconds = sourceSeconds;
   controller.videoPlaybackTargetSeconds = sourceSeconds;
   controller.videoPlaybackCanvas = canvas;
+  controller.videoPlaybackIsCurrent = isCurrent;
   controller.videoPlaybackOnFrame = onFrame;
   controller.videoPlaybackOnFailure = onFailure;
   void processVideoPlayback(controller, generation);
@@ -2354,6 +2511,7 @@ function syncActiveVideoPlaybackFrame(
   controller: MediabunnySourceController,
   canvas: HTMLCanvasElement,
   activeVideo: ActiveClip,
+  isCurrent: () => boolean,
   onFrame?: (timestamp: number) => void,
   onFailure?: (error: Error) => void
 ) {
@@ -2364,13 +2522,14 @@ function syncActiveVideoPlaybackFrame(
     (controller.videoPlaybackSourceSeconds !== null &&
       sourceSeconds + VIDEO_TIMESTAMP_EPSILON < controller.videoPlaybackSourceSeconds)
   ) {
-    void startVideoPlayback(controller, canvas, activeVideo, onFrame, onFailure);
+    void startVideoPlayback(controller, canvas, activeVideo, isCurrent, onFrame, onFailure);
     return;
   }
 
   controller.videoPlaybackSourceSeconds = sourceSeconds;
   controller.videoPlaybackTargetSeconds = sourceSeconds;
   controller.videoPlaybackCanvas = canvas;
+  controller.videoPlaybackIsCurrent = isCurrent;
   controller.videoPlaybackOnFrame = onFrame;
   controller.videoPlaybackOnFailure = onFailure;
   void processVideoPlayback(controller, controller.videoPlaybackGeneration);
@@ -2543,44 +2702,81 @@ async function runAudioIterator(
 
 function invalidateFrameRendering(controller: MediabunnySourceController) {
   controller.asyncId += 1;
+  controller.currentFrameRequest?.resolve();
+  controller.pendingFrameRequest?.resolve();
+  controller.currentFrameRequest = undefined;
   controller.pendingFrameRequest = undefined;
 }
 
-async function renderFrameAt(
+function renderFrameAt(
   controller: MediabunnySourceController,
   canvas: HTMLCanvasElement,
   sourceSeconds: number,
+  isCurrent: () => boolean,
   onFrame?: (timestamp: number) => void
-) {
+): Promise<void> {
   if (controller.videoSink === null) {
-    return;
+    return Promise.resolve();
   }
 
-  if (controller.renderingFrame) {
-    controller.pendingFrameRequest = { canvas, sourceSeconds, onFrame };
-    return;
-  }
+  return new Promise<void>((resolve, reject) => {
+    const request: PendingFrameRequest = {
+      canvas,
+      sourceSeconds,
+      isCurrent,
+      resolve,
+      reject,
+      ...(onFrame !== undefined ? { onFrame } : {}),
+    };
 
-  controller.renderingFrame = true;
+    if (controller.renderingFrame) {
+      controller.pendingFrameRequest?.resolve();
+      controller.pendingFrameRequest = request;
+      return;
+    }
+
+    controller.renderingFrame = true;
+    void processFrameRequests(controller, request);
+  });
+}
+
+async function processFrameRequests(
+  controller: MediabunnySourceController,
+  initialRequest: PendingFrameRequest
+) {
+  let request: PendingFrameRequest | undefined = initialRequest;
 
   try {
-    let request: PendingFrameRequest | undefined = { canvas, sourceSeconds, onFrame };
-
     while (request !== undefined) {
       controller.pendingFrameRequest = undefined;
+      controller.currentFrameRequest = request;
       const renderId = ++controller.asyncId;
-      const wrappedCanvas = await controller.videoSink.getCanvas(request.sourceSeconds);
-      if (renderId !== controller.asyncId || wrappedCanvas === null) {
-        request = controller.pendingFrameRequest;
-        continue;
+      try {
+        const wrappedCanvas = await controller.videoSink?.getCanvas(request.sourceSeconds);
+        if (
+          renderId === controller.asyncId &&
+          wrappedCanvas !== null &&
+          wrappedCanvas !== undefined &&
+          request.isCurrent() &&
+          paintWrappedCanvas(request.canvas, wrappedCanvas)
+        ) {
+          request.onFrame?.(wrappedCanvas.timestamp);
+        }
+        request.resolve();
+      } catch (frameError) {
+        if (renderId === controller.asyncId && request.isCurrent()) {
+          request.reject(frameError instanceof Error ? frameError : new Error(String(frameError)));
+        } else {
+          request.resolve();
+        }
       }
-
-      if (paintWrappedCanvas(request.canvas, wrappedCanvas)) {
-        request.onFrame?.(wrappedCanvas.timestamp);
+      if (controller.currentFrameRequest === request) {
+        controller.currentFrameRequest = undefined;
       }
       request = controller.pendingFrameRequest;
     }
   } finally {
+    controller.currentFrameRequest = undefined;
     controller.renderingFrame = false;
   }
 }

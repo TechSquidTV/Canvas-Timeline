@@ -1,13 +1,23 @@
-const delegatedSynchronizationOptions = new WeakSet<object>();
+export interface TimelineMediaPlaybackSynchronizationRunner {
+  run: <Result>(operation: () => Promise<Result>, superseded: () => Result) => Promise<Result>;
+}
+
+const delegatedSynchronizationOptions = new WeakMap<
+  object,
+  TimelineMediaPlaybackSynchronizationRunner
+>();
 
 export function delegateTimelineMediaPlaybackSynchronization<Options extends object>(
-  options: Options
+  options: Options,
+  runner: TimelineMediaPlaybackSynchronizationRunner
 ): Options {
   const delegatedOptions: Options = { ...options };
-  delegatedSynchronizationOptions.add(delegatedOptions);
+  delegatedSynchronizationOptions.set(delegatedOptions, runner);
   return delegatedOptions;
 }
 
-export function hasDelegatedTimelineMediaPlaybackSynchronization(options: object): boolean {
-  return delegatedSynchronizationOptions.has(options);
+export function getDelegatedTimelineMediaPlaybackSynchronization(
+  options: object
+): TimelineMediaPlaybackSynchronizationRunner | undefined {
+  return delegatedSynchronizationOptions.get(options);
 }

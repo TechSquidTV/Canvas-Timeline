@@ -785,6 +785,34 @@ test('createHTMLMediaAdapter retries failed sources from their preferred input',
   expect(adapter.sourceStateById.get('source-1')?.status).toBe('ready');
 });
 
+test('createHTMLMediaAdapter preserves active playback across retry and replacement reloads', async () => {
+  const engine = createMediaSyncEngine();
+  const element = document.createElement('video');
+  const play = vi.spyOn(element, 'play').mockResolvedValue(undefined);
+  vi.spyOn(element, 'pause').mockImplementation(() => {});
+  vi.spyOn(element, 'load').mockImplementation(() => {});
+  const adapter = createHTMLMediaAdapter({
+    element,
+    sources: htmlSources('/original.mp4'),
+  });
+  const activeLayers = engine.getActiveLayers({
+    time: fromSeconds(1),
+    layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
+  });
+
+  await adapter.seek?.(fromSeconds(1), activeLayers);
+  await expect(adapter.startClock(fromSeconds(1), 1)).resolves.toBe(true);
+  play.mockClear();
+
+  await expect(adapter.retrySource('source-1')).resolves.toMatchObject({ ok: true });
+  expect(play).toHaveBeenCalledOnce();
+
+  await expect(
+    adapter.replaceSource({ sourceId: 'source-1', input: '/replacement.mp4' })
+  ).resolves.toMatchObject({ ok: true });
+  expect(play).toHaveBeenCalledTimes(2);
+});
+
 test('createHTMLMediaAdapter resets inactive source diagnostics when retrying', async () => {
   const engine = createMediaSyncEngine();
   const element = document.createElement('video');

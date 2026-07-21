@@ -79,7 +79,7 @@ Sources load on demand when their clips become active. Use `preloadSource(source
 
 `ready` means at least one source is registered, not that every project asset is decoded. Read `sourceStateById` for each source's lazy lifecycle and `audioStatus` for browser activation degradation. Caller-supplied `AudioContext` and destination nodes remain caller-owned; the adapter creates an audio graph only for a selected decodable audio track. Runtime `setVolume()` and `setMuted()` changes do not reload sources.
 
-The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock is independent of loaded source controllers, so lazy source changes and runtime fallback recovery preserve timeline time. Lazy module-loader failures are observable operation failures and `retrySource()` invokes the loader again.
+The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock is independent of loaded source controllers, so lazy source changes and runtime fallback recovery preserve timeline time. Synchronization that reaches a recovering source waits for its fallback to commit instead of using the broken controller. If recovery exhausts the fallback chain, the waiting synchronization rejects through the existing `sync-failed` path and high-level playback pauses. Lazy module-loader failures are observable operation failures and `retrySource()` invokes the loader again.
 
 Disposal is terminal. Operations already in flight release staged resources and cannot publish late state; new loading, decoding, rendering, or mutating calls after `dispose()` throw or reject. Read-only snapshots remain available, and repeated teardown calls such as `dispose()`, `stopClock()`, and `clearVideo()` remain safe.
 

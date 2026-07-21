@@ -19,7 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError } from '#react/hooks/playback/mediaError';
-import { hasDelegatedTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
+import { getDelegatedTimelineMediaPlaybackSynchronization } from '#react/hooks/playback/timelineMediaPlaybackSynchronization';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import {
   timelineCommandFail,
@@ -174,7 +174,7 @@ export interface UseTimelineMediaPlaybackResult {
 export function useTimelineMediaPlayback<LayerName extends string = string>(
   options: UseTimelineMediaPlaybackOptions<LayerName>
 ): UseTimelineMediaPlaybackResult {
-  const serializeSynchronizations = !hasDelegatedTimelineMediaPlaybackSynchronization(options);
+  const delegatedSynchronization = getDelegatedTimelineMediaPlaybackSynchronization(options);
   const { engine, state } = useTimeline();
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
@@ -207,9 +207,9 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   );
 
   const runSynchronization = useCallback(
-    <Result>(synchronize: () => Promise<Result>) => {
-      if (!serializeSynchronizations) {
-        return synchronize();
+    <Result>(synchronize: () => Promise<Result>, superseded: () => Result) => {
+      if (delegatedSynchronization !== undefined) {
+        return delegatedSynchronization.run(synchronize, superseded);
       }
 
       const pendingSynchronization = synchronizationQueueRef.current.then(synchronize, synchronize);
@@ -219,7 +219,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       );
       return pendingSynchronization;
     },
-    [serializeSynchronizations]
+    [delegatedSynchronization]
   );
 
   const enqueueBestEffortSynchronization = useCallback(
@@ -238,7 +238,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
           // Adapter cleanup should not throw during pause or unmount.
         }
       };
-      void runSynchronization(synchronize);
+      void runSynchronization(synchronize, () => undefined);
     },
     [runSynchronization]
   );
@@ -302,6 +302,37 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     [pause]
   );
 
+  const synchronizeLayersNow = useCallback(
+    async (
+      timelineTime: RationalTime,
+      reason: TimelineMediaSyncReason,
+      generation: number,
+      activeLayers: ActiveLayerResult<LayerName>
+    ): Promise<LayerSynchronizationResult<LayerName>> => {
+      if (playbackGenerationRef.current !== generation) {
+        return { activeLayers, superseded: true };
+      }
+
+      try {
+        await optionsRef.current.syncLayers?.({
+          activeLayers,
+          timelineTime,
+          reason,
+        });
+      } catch (syncError: unknown) {
+        if (playbackGenerationRef.current !== generation) {
+          return { activeLayers, superseded: true };
+        }
+        return { activeLayers, error: handleAdapterFailure(syncError, generation) };
+      }
+
+      return playbackGenerationRef.current === generation
+        ? { activeLayers }
+        : { activeLayers, superseded: true };
+    },
+    [handleAdapterFailure]
+  );
+
   const synchronizeLayers = useCallback(
     (
       timelineTime: RationalTime,
@@ -309,32 +340,12 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
       generation: number
     ): Promise<LayerSynchronizationResult<LayerName>> => {
       const activeLayers = getActiveLayers(timelineTime);
-      const synchronize = async (): Promise<LayerSynchronizationResult<LayerName>> => {
-        if (playbackGenerationRef.current !== generation) {
-          return { activeLayers, superseded: true };
-        }
-
-        try {
-          await optionsRef.current.syncLayers?.({
-            activeLayers,
-            timelineTime,
-            reason,
-          });
-        } catch (syncError: unknown) {
-          if (playbackGenerationRef.current !== generation) {
-            return { activeLayers, superseded: true };
-          }
-          return { activeLayers, error: handleAdapterFailure(syncError, generation) };
-        }
-
-        return playbackGenerationRef.current === generation
-          ? { activeLayers }
-          : { activeLayers, superseded: true };
-      };
-
-      return runSynchronization(synchronize);
+      return runSynchronization(
+        () => synchronizeLayersNow(timelineTime, reason, generation, activeLayers),
+        () => ({ activeLayers, superseded: true })
+      );
     },
-    [getActiveLayers, handleAdapterFailure, runSynchronization]
+    [getActiveLayers, runSynchronization, synchronizeLayersNow]
   );
 
   const pausePlayback = useCallback(() => {
@@ -480,51 +491,57 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
   }, [engine, getActiveLayers, handleAdapterFailure, pause, synchronizeLayers]);
 
   const setPlaybackRate = useCallback(
-    async (rate: number) => {
-      const previousRate = engine.getPlaybackRate();
-      try {
-        engine.setPlaybackRate(rate);
-      } catch (rateError: unknown) {
-        return timelineCommandInvalidInput(
-          'Playback rate must be a positive finite number.',
-          rateError
-        );
-      }
+    (rate: number) =>
+      runSynchronization(
+        async () => {
+          const previousRate = engine.getPlaybackRate();
+          try {
+            engine.setPlaybackRate(rate);
+          } catch (rateError: unknown) {
+            return timelineCommandInvalidInput(
+              'Playback rate must be a positive finite number.',
+              rateError
+            );
+          }
 
-      try {
-        optionsRef.current.setClockRate?.(rate);
-      } catch (clockError: unknown) {
-        engine.setPlaybackRate(previousRate);
-        try {
-          optionsRef.current.setClockRate?.(previousRate);
-        } catch {
-          // Preserve the original external-clock failure in the command result.
-        }
-        return timelineCommandFail(
-          'sync-failed',
-          'External media clock rate could not be updated.',
-          toMediaError(clockError)
-        );
-      }
+          try {
+            optionsRef.current.setClockRate?.(rate);
+          } catch (clockError: unknown) {
+            engine.setPlaybackRate(previousRate);
+            try {
+              optionsRef.current.setClockRate?.(previousRate);
+            } catch {
+              // Preserve the original external-clock failure in the command result.
+            }
+            return timelineCommandFail(
+              'sync-failed',
+              'External media clock rate could not be updated.',
+              toMediaError(clockError)
+            );
+          }
 
-      const synchronization = await synchronizeLayers(
-        engine.getTime(),
-        'rate',
-        playbackGenerationRef.current
-      );
-      if (synchronization.superseded === true) {
-        return timelineCommandFail('policy-rejected', 'Playback rate change was superseded.');
-      }
-      if (synchronization.error !== undefined) {
-        return timelineCommandFail(
-          'sync-failed',
-          'External media synchronization failed.',
-          synchronization.error
-        );
-      }
-      return timelineCommandOk();
-    },
-    [engine, synchronizeLayers]
+          const timelineTime = engine.getTime();
+          const synchronization = await synchronizeLayersNow(
+            timelineTime,
+            'rate',
+            playbackGenerationRef.current,
+            getActiveLayers(timelineTime)
+          );
+          if (synchronization.superseded === true) {
+            return timelineCommandFail('policy-rejected', 'Playback rate change was superseded.');
+          }
+          if (synchronization.error !== undefined) {
+            return timelineCommandFail(
+              'sync-failed',
+              'External media synchronization failed.',
+              synchronization.error
+            );
+          }
+          return timelineCommandOk();
+        },
+        () => timelineCommandFail('policy-rejected', 'Playback rate change was superseded.')
+      ),
+    [engine, getActiveLayers, runSynchronization, synchronizeLayersNow]
   );
 
   useEffect(

@@ -655,7 +655,7 @@ test('createMediabunnyAdapter loads a replacement while the previous source load
   expect(adapter.sourceStateById.get('source-1')?.metadata?.durationSeconds).toBe(9);
 });
 
-test('createMediabunnyAdapter retries an active seek after its source load is superseded', async () => {
+test('createMediabunnyAdapter lets reconciliation invalidate an active seek load', async () => {
   const previousInput = createMockInput();
   const replacementInput = createMockInput({ metadataDuration: 9 });
   let resolvePreviousTrack = (_track: MockVideoTrack | null) => {};
@@ -680,10 +680,10 @@ test('createMediabunnyAdapter retries an active seek after its source load is su
   resolvePreviousTrack(createMockVideoTrack());
 
   await expect(pendingSeek).resolves.toBeUndefined();
-  expect(replacementInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  expect(replacementInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
   expect(adapter.sourceStateById.get('source-1')).toMatchObject({
-    status: 'ready',
-    metadata: { durationSeconds: 9 },
+    status: 'idle',
+    metadata: null,
   });
 });
 
@@ -851,12 +851,20 @@ test('createMediabunnyAdapter keeps a pending replacement ahead of outgoing reco
 test('createMediabunnyAdapter resumes outgoing recovery after a replacement fails', async () => {
   const initialInput = createMockInput({ metadataDuration: 6 });
   const failedReplacementInput = createMockInput({ videoTrack: null, audioTrack: null });
+  const fallbackTrack = createMockVideoTrack();
   const fallbackInput = createMockInput({ metadataDuration: 12 });
   let resolveReplacementTrack = (_track: MockVideoTrack | null) => {};
+  let resolveFallbackTrack = (_track: MockVideoTrack | null) => {};
   failedReplacementInput.getPrimaryVideoTrack = vi.fn(
     () =>
       new Promise<MockVideoTrack | null>((resolve) => {
         resolveReplacementTrack = resolve;
+      })
+  );
+  fallbackInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveFallbackTrack = resolve;
       })
   );
   const decoderError = new Error('outgoing decoder failed');
@@ -878,6 +886,7 @@ test('createMediabunnyAdapter resumes outgoing recovery after a replacement fail
     ],
   });
   const visualClip = createActiveClip('visual', 'source-1', 1);
+  const audioClip = createActiveClip('audio', 'source-1', 1);
 
   await waitForAdapterLoad(adapter);
   const replacement = adapter.replaceSource(
@@ -889,12 +898,21 @@ test('createMediabunnyAdapter resumes outgoing recovery after a replacement fail
 
   await expect(adapter.renderVideo(visualClip, fromSeconds(1))).rejects.toBe(decoderError);
   expect(fallbackInput.getPrimaryVideoTrack).not.toHaveBeenCalled();
+  let seekSettled = false;
+  const seek = adapter.seek(fromSeconds(2), createActiveLayers([audioClip], 2)).then(() => {
+    seekSettled = true;
+  });
+  await Promise.resolve();
+  expect(seekSettled).toBe(false);
 
   resolveReplacementTrack(null);
   await expect(replacement).resolves.toMatchObject({ ok: false, reason: 'load-failed' });
   await vi.waitFor(() => {
     expect(fallbackInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
   });
+  expect(seekSettled).toBe(false);
+  resolveFallbackTrack(fallbackTrack);
+  await seek;
   await vi.waitFor(() => {
     expect(adapter.sourceStateById.get('source-1')).toMatchObject({
       status: 'ready',
@@ -1916,15 +1934,25 @@ test('createMediabunnyAdapter stops outputs that leave the active source set', a
   const firstInput = createMockInput({ audioTrack: createMockAudioTrack() });
   const secondInput = createMockInput({ audioTrack: createMockAudioTrack() });
   const audioContext = createMockAudioContext();
+  const drawImage = vi.fn();
+  const previewCanvas = document.createElement('canvas');
+  vi.spyOn(previewCanvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage,
+  } as unknown as CanvasRenderingContext2D);
   let resolveFirstFrame = (_result: IteratorResult<MockWrappedCanvas, void>) => {};
   const firstFrame = new Promise<IteratorResult<MockWrappedCanvas, void>>((resolve) => {
     resolveFirstFrame = resolve;
   });
-  const firstVideoNext = vi.fn(() => firstFrame);
-  const closeFirstVideoIterator = vi.fn(async () => ({
-    done: true as const,
-    value: undefined,
-  }));
+  const firstVideoNext = vi
+    .fn<() => Promise<IteratorResult<MockWrappedCanvas, void>>>()
+    .mockReturnValueOnce(firstFrame)
+    .mockResolvedValue({ done: true, value: undefined });
+  let resolveFirstVideoClose = (_result: IteratorResult<MockWrappedCanvas, void>) => {};
+  const firstVideoClose = new Promise<IteratorResult<MockWrappedCanvas, void>>((resolve) => {
+    resolveFirstVideoClose = resolve;
+  });
+  const closeFirstVideoIterator = vi.fn(() => firstVideoClose);
   const firstVideoIterator: AsyncGenerator<MockWrappedCanvas, void, void> = {
     next: firstVideoNext,
     return: closeFirstVideoIterator,
@@ -1963,7 +1991,7 @@ test('createMediabunnyAdapter stops outputs that leave the active source set', a
   };
   const adapter = createMediabunnyAdapter({
     audio: { context: audioContext as unknown as AudioContext },
-    canvas: document.createElement('canvas'),
+    canvas: previewCanvas,
     mediabunny: createMockMediabunny([firstInput, secondInput], { audioSink, canvasSink }).module,
     sources: [
       urlSource('source-1', 'https://media.example/one.mp4'),
@@ -1987,17 +2015,32 @@ test('createMediabunnyAdapter stops outputs that leave the active source set', a
     expect(firstVideoNext).toHaveBeenCalledOnce();
     expect(audioContext.createBufferSource).toHaveBeenCalledOnce();
   });
+  drawImage.mockClear();
   const firstAudioNode = audioContext.createBufferSource.mock.results[0]?.value;
 
-  await adapter.syncLayers({
+  const secondSynchronization = adapter.syncLayers({
     timelineTime: fromSeconds(2),
     reason: 'tick',
     activeLayers: createActiveLayers([secondVisual, secondAudio], 2),
   });
+  await vi.waitFor(() => {
+    expect(closeFirstVideoIterator).toHaveBeenCalledOnce();
+  });
+  resolveFirstFrame({
+    done: false,
+    value: {
+      canvas: document.createElement('canvas'),
+      timestamp: 1,
+      duration: 1 / 30,
+    },
+  });
+  await Promise.resolve();
+  expect(drawImage).not.toHaveBeenCalled();
+  resolveFirstVideoClose({ done: true, value: undefined });
+  await secondSynchronization;
 
   expect(closeFirstVideoIterator).toHaveBeenCalledOnce();
   expect(firstAudioNode?.stop).toHaveBeenCalledOnce();
-  resolveFirstFrame({ done: true, value: undefined });
 });
 
 test('createMediabunnyAdapter realigns active audio after a loop seek', async () => {
@@ -2085,6 +2128,39 @@ test('createMediabunnyAdapter stops audio on pause without opening another itera
     error: null,
   });
   expect(adapter.error).toBeNull();
+});
+
+test('createMediabunnyAdapter keeps paused rate synchronization out of streaming paths', async () => {
+  const input = createMockInput({ audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext();
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async (timestamp) => ({
+      canvas: document.createElement('canvas'),
+      timestamp,
+      duration: 1 / 30,
+    })),
+    canvases: vi.fn(async function* () {}),
+  };
+  const audioSink: MockAudioSink = {
+    buffers: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    canvas: document.createElement('canvas'),
+    mediabunny: createMockMediabunny([input], { audioSink, canvasSink }).module,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+  const visualClip = createActiveClip('visual', 'source-1', 1);
+  const audioClip = createActiveClip('audio', 'source-1', 1);
+  const activeLayers = createActiveLayers([visualClip, audioClip], 1);
+
+  await adapter.seek(fromSeconds(1), activeLayers);
+  adapter.setClockRate(2);
+  await adapter.syncLayers({ timelineTime: fromSeconds(1), reason: 'rate', activeLayers });
+
+  expect(canvasSink.canvases).not.toHaveBeenCalled();
+  expect(audioSink.buffers).not.toHaveBeenCalled();
+  expect(audioContext.createBufferSource).not.toHaveBeenCalled();
 });
 
 test('createMediabunnyAdapter ignores a pending audio buffer after realignment', async () => {
@@ -2480,7 +2556,7 @@ test('createMediabunnyAdapter handles audio-only content and missing render surf
   await adapter.seek(fromSeconds(2), createActiveLayers([audioClip], 2));
 
   expect(adapter.status).toBe('Audio-only region at playhead.');
-  expect(adapter.getClockTime()).toBe(2);
+  expect(adapter.getClockTime()).toBeCloseTo(2, 2);
   await adapter.renderVideo(createActiveClip('visual', 'audio-source', 2), fromSeconds(2));
   await expect(adapter.getFrame(createActiveClip('visual', 'audio-source', 2))).resolves.toBeNull();
 });
@@ -2933,4 +3009,259 @@ test('createMediabunnyAdapter falls back after a runtime video iterator failure'
   });
   nowMilliseconds = 2_000;
   expect(adapter.getClockTime()).toBe(2);
+});
+
+test('createMediabunnyAdapter lets a newer active-source request supersede a delayed request', async () => {
+  const firstInput = createMockInput();
+  const secondInput = createMockInput();
+  let resolveFirstTrack = (_track: MockVideoTrack | null) => {};
+  firstInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveFirstTrack = resolve;
+      })
+  );
+  const paintedTimestamps: number[] = [];
+  const previewCanvas = document.createElement('canvas');
+  vi.spyOn(previewCanvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage: vi.fn((_canvas: CanvasImageSource, timestamp: number) => {
+      paintedTimestamps.push(timestamp);
+    }),
+  } as unknown as CanvasRenderingContext2D);
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(async (timestamp) => ({
+      canvas: document.createElement('canvas'),
+      timestamp,
+      duration: 1 / 30,
+    })),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: previewCanvas,
+    mediabunny: createMockMediabunny([firstInput, secondInput], { canvasSink }).module,
+    sources: [
+      urlSource('source-a', 'https://media.example/a.mp4'),
+      urlSource('source-b', 'https://media.example/b.mp4'),
+    ],
+  });
+  const firstVisual = createActiveClip('visual', 'source-a', 1);
+  const secondVisual = createActiveClip('visual', 'source-b', 2);
+
+  const firstSync = adapter.syncLayers({
+    timelineTime: fromSeconds(1),
+    reason: 'pause',
+    activeLayers: createActiveLayers([firstVisual], 1),
+  });
+  await vi.waitFor(() => {
+    expect(firstInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(2),
+    reason: 'pause',
+    activeLayers: createActiveLayers([secondVisual], 2),
+  });
+  resolveFirstTrack(createMockVideoTrack());
+  await firstSync;
+
+  expect(canvasSink.getCanvas).toHaveBeenCalledTimes(1);
+  expect(adapter.lastFrameTime).toBe(12);
+});
+
+test('createMediabunnyAdapter keeps the latest rate when delayed audio activation completes', async () => {
+  const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext();
+  audioContext.state = 'suspended';
+  let resolveResume = () => {};
+  audioContext.resume = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveResume = () => {
+          audioContext.state = 'running';
+          resolve();
+        };
+      })
+  );
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([input]).module,
+    sources: [urlSource('source-1', 'https://media.example/audio.webm')],
+  });
+  const activeAudio = createActiveClip('audio', 'source-1', 0);
+
+  await adapter.seek(fromSeconds(0), createActiveLayers([activeAudio], 0));
+  adapter.requestClockActivation(1);
+  expect(adapter.startClock(fromSeconds(0), 1)).toBe(true);
+  adapter.setClockRate(2);
+  resolveResume();
+  await vi.waitFor(() => {
+    expect(adapter.audioStatus).toEqual({ state: 'running' });
+  });
+
+  audioContext.currentTime += 1;
+  expect(adapter.getClockTime()).toBeCloseTo(2, 2);
+});
+
+test('createMediabunnyAdapter prevents a pending frame from repainting after clearVideo', async () => {
+  const firstInput = createMockInput();
+  const secondInput = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
+  let resolveFrame = (_frame: MockWrappedCanvas | null) => {};
+  const pendingFrame = new Promise<MockWrappedCanvas | null>((resolve) => {
+    resolveFrame = resolve;
+  });
+  const drawImage = vi.fn();
+  const previewCanvas = document.createElement('canvas');
+  vi.spyOn(previewCanvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage,
+  } as unknown as CanvasRenderingContext2D);
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi.fn(() => pendingFrame),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: previewCanvas,
+    audio: { context: createMockAudioContext() as unknown as AudioContext },
+    mediabunny: createMockMediabunny([firstInput, secondInput], { canvasSink }).module,
+    sources: [
+      urlSource('visual-source', 'https://media.example/video.mp4'),
+      urlSource('audio-source', 'https://media.example/audio.webm'),
+    ],
+  });
+  await waitForAdapterLoad(adapter);
+
+  const render = adapter.renderVideo(
+    createActiveClip('visual', 'visual-source', 1),
+    fromSeconds(1)
+  );
+  let renderSettled = false;
+  void render.then(() => {
+    renderSettled = true;
+  });
+  await vi.waitFor(() => {
+    expect(canvasSink.getCanvas).toHaveBeenCalledOnce();
+  });
+  adapter.syncAudio(createActiveClip('audio', 'audio-source', 1), fromSeconds(1), 'play');
+  adapter.clearVideo();
+  await vi.waitFor(() => {
+    expect(renderSettled).toBe(true);
+  });
+  resolveFrame({
+    canvas: document.createElement('canvas'),
+    timestamp: 11,
+    duration: 1 / 30,
+  });
+  await render;
+
+  expect(drawImage).not.toHaveBeenCalled();
+  expect(adapter.lastFrameTime).toBeNull();
+});
+
+test('createMediabunnyAdapter awaits the newest coalesced frame request', async () => {
+  const input = createMockInput();
+  let resolveFirstFrame = (_frame: MockWrappedCanvas | null) => {};
+  const firstFrame = new Promise<MockWrappedCanvas | null>((resolve) => {
+    resolveFirstFrame = resolve;
+  });
+  const secondCanvas = document.createElement('canvas');
+  const drawImage = vi.fn();
+  const previewCanvas = document.createElement('canvas');
+  vi.spyOn(previewCanvas, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage,
+  } as unknown as CanvasRenderingContext2D);
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi
+      .fn()
+      .mockImplementationOnce(() => firstFrame)
+      .mockResolvedValueOnce({ canvas: secondCanvas, timestamp: 12, duration: 1 / 30 }),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: previewCanvas,
+    mediabunny: createMockMediabunny([input], { canvasSink }).module,
+    sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+  });
+  await waitForAdapterLoad(adapter);
+
+  const firstRender = adapter.renderVideo(
+    createActiveClip('visual', 'source-1', 1),
+    fromSeconds(1)
+  );
+  await vi.waitFor(() => {
+    expect(canvasSink.getCanvas).toHaveBeenCalledOnce();
+  });
+  let secondSettled = false;
+  const secondRender = adapter
+    .renderVideo(createActiveClip('visual', 'source-1', 2), fromSeconds(2))
+    .then(() => {
+      secondSettled = true;
+    });
+  await Promise.resolve();
+  expect(secondSettled).toBe(false);
+
+  resolveFirstFrame({
+    canvas: document.createElement('canvas'),
+    timestamp: 11,
+    duration: 1 / 30,
+  });
+  await Promise.all([firstRender, secondRender]);
+
+  expect(drawImage).toHaveBeenCalledTimes(1);
+  expect(drawImage).toHaveBeenCalledWith(secondCanvas, 0, 0);
+  expect(adapter.lastFrameTime).toBe(12);
+});
+
+test('createMediabunnyAdapter waits for active recovery before seeking the broken source', async () => {
+  const initialInput = createMockInput();
+  const fallbackInput = createMockInput();
+  let resolveFallbackTrack = (_track: MockVideoTrack | null) => {};
+  fallbackInput.getPrimaryVideoTrack = vi.fn(
+    () =>
+      new Promise<MockVideoTrack | null>((resolve) => {
+        resolveFallbackTrack = resolve;
+      })
+  );
+  const decoderError = new Error('decoder failed');
+  const canvasSink: MockCanvasSink = {
+    getCanvas: vi
+      .fn()
+      .mockRejectedValueOnce(decoderError)
+      .mockImplementation(async (timestamp) => ({
+        canvas: document.createElement('canvas'),
+        timestamp,
+        duration: 1 / 30,
+      })),
+    canvases: vi.fn(async function* () {}),
+  };
+  const adapter = createMediabunnyAdapter({
+    canvas: document.createElement('canvas'),
+    mediabunny: createMockMediabunny([initialInput, fallbackInput], { canvasSink }).module,
+    sources: [
+      {
+        sourceId: 'source-1',
+        input: { kind: 'url', url: 'https://media.example/original.mp4' },
+        fallbacks: [{ kind: 'url', url: 'https://media.example/fallback.mp4' }],
+      },
+    ],
+  });
+  const visual = createActiveClip('visual', 'source-1', 1);
+  await waitForAdapterLoad(adapter);
+
+  await expect(adapter.renderVideo(visual, fromSeconds(1))).rejects.toBe(decoderError);
+  await vi.waitFor(() => {
+    expect(fallbackInput.getPrimaryVideoTrack).toHaveBeenCalledOnce();
+  });
+  const seek = adapter.seek(fromSeconds(2), createActiveLayers([visual], 2));
+  await Promise.resolve();
+  expect(canvasSink.getCanvas).toHaveBeenCalledOnce();
+
+  resolveFallbackTrack(createMockVideoTrack());
+  await seek;
+  expect(canvasSink.getCanvas).toHaveBeenCalledTimes(2);
+  expect(adapter.sourceStateById.get('source-1')).toMatchObject({
+    status: 'ready',
+    selectedInputIndex: 1,
+  });
 });

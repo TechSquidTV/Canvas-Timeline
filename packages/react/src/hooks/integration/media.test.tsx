@@ -1630,6 +1630,47 @@ test('useTimelineMediaSync stops active playback when readiness is lost', async 
   expect(result.current.playing).toBe(false);
 });
 
+test('useTimelineMediaSync stops the owned clock when replacement and readiness loss coincide', async () => {
+  const engine = createMediaSyncEngine();
+  const stopFirstClock = vi.fn();
+  const stopSecondClock = vi.fn();
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: stopFirstClock,
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: stopSecondClock,
+  };
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+
+  const { result, rerender } = renderHook(
+    ({ adapter, ready }: { adapter: TimelineMediaSyncAdapter<'visuals'>; ready: boolean }) =>
+      useTimelineMediaSync({ ready, layers, adapter, adapterIdentity: adapter }),
+    {
+      initialProps: { adapter: firstAdapter, ready: true },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+
+  act(() => {
+    rerender({ adapter: secondAdapter, ready: false });
+  });
+
+  expect(stopFirstClock).toHaveBeenCalledOnce();
+  expect(stopSecondClock).not.toHaveBeenCalled();
+  expect(engine.getState().playing).toBe(false);
+  expect(result.current.playing).toBe(false);
+});
+
 test('useTimelineMediaSync stops a clock that resolves after playback cancellation', async () => {
   const engine = createMediaSyncEngine();
   let resolveClockStart = (_started: boolean) => {};
@@ -2084,6 +2125,138 @@ test('useTimelineMediaSync rejects playback owned by another clock', async () =>
   act(() => {
     engine.pause();
   });
+});
+
+test('useTimelineMediaSync rejects a competing engine clock that starts during adapter seek', async () => {
+  const engine = createMediaSyncEngine();
+  let resolveSeek = () => {};
+  const pendingSeek = new Promise<void>((resolve) => {
+    resolveSeek = resolve;
+  });
+  const startClock = vi.fn(() => true);
+  const stopClock = vi.fn();
+  const onError = vi.fn();
+
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          startClock,
+          stopClock,
+          seek: () => pendingSeek,
+        },
+        onError,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const playResult = result.current.play();
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(engine.play()).toBe(true);
+  resolveSeek();
+
+  await act(async () => {
+    await expect(playResult).resolves.toEqual({
+      ok: false,
+      reason: 'timeline-failed',
+      message: 'Timeline playback is already controlled by another clock.',
+    });
+  });
+
+  expect(startClock).not.toHaveBeenCalled();
+  expect(stopClock).toHaveBeenCalledOnce();
+  expect(engine.getState().playing).toBe(true);
+  expect(onError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reason: 'timeline-failed',
+      message: 'Timeline playback is already controlled by another clock.',
+    })
+  );
+  act(() => {
+    engine.pause();
+  });
+});
+
+test('useTimelineMediaSync drops queued synchronization captured from a replaced adapter', async () => {
+  const engine = createMediaSyncEngine();
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  let resolveRate = () => {};
+  const pendingRate = new Promise<void>((resolve) => {
+    resolveRate = resolve;
+  });
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const firstReasons: string[] = [];
+  const secondReasons: string[] = [];
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => clockTime,
+    startClock: () => true,
+    stopClock: vi.fn(),
+    setClockRate: vi.fn(),
+    syncLayers: ({ reason }) => {
+      firstReasons.push(reason);
+      return reason === 'rate' ? pendingRate : undefined;
+    },
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => clockTime,
+    startClock: () => true,
+    stopClock: vi.fn(),
+    setClockRate: vi.fn(),
+    syncLayers: ({ reason }) => {
+      secondReasons.push(reason);
+    },
+  };
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+
+  const { result, rerender } = renderHook(
+    ({ adapter }: { adapter: TimelineMediaSyncAdapter<'visuals'> }) =>
+      useTimelineMediaSync({ adapter, adapterIdentity: adapter, layers }),
+    {
+      initialProps: { adapter: firstAdapter },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toMatchObject({ ok: true });
+  });
+  const rateResult = result.current.setPlaybackRate(2);
+  await waitFor(() => {
+    expect(firstReasons).toContain('rate');
+  });
+
+  clockTime = 1.5;
+  act(() => {
+    tick?.(16);
+    rerender({ adapter: secondAdapter });
+  });
+  resolveRate();
+
+  await act(async () => {
+    await rateResult;
+    await Promise.resolve();
+  });
+
+  expect(firstReasons).not.toContain('tick');
+  expect(secondReasons).not.toContain('tick');
+  expect(engine.getState().playing).toBe(false);
+  rafSpy.mockRestore();
 });
 
 test('useTimelineMediaSync retains clock ownership across inline adapter rerenders', async () => {

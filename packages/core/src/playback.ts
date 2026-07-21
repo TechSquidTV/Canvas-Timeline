@@ -72,10 +72,22 @@ export class PlaybackManager {
 
   prepareStart(options: PlaybackOptions = {}): RationalTime {
     const state = this.engine.getState();
-    if ((options.respectInOut ?? true) && state.outPoint !== undefined) {
+    const respectInOut = options.respectInOut ?? true;
+    const rangeStart =
+      respectInOut && state.inPoint !== undefined
+        ? state.inPoint
+        : fromSeconds(0, state.playheadTime.r);
+    if (respectInOut && state.outPoint !== undefined) {
       if (compareRational(state.playheadTime, state.outPoint) >= 0) {
-        return state.inPoint ?? fromSeconds(0, state.playheadTime.r);
+        return rangeStart;
       }
+    }
+    if (
+      options.loop === true &&
+      state.duration !== undefined &&
+      compareRational(state.playheadTime, state.duration) >= 0
+    ) {
+      return rangeStart;
     }
     return state.playheadTime;
   }

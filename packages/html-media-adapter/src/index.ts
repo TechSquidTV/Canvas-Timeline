@@ -414,6 +414,13 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     }
   };
 
+  const resumeIntendedPlayback = () => {
+    if (!shouldPlay || clockStartPending) {
+      return;
+    }
+    void playElement().catch(() => undefined);
+  };
+
   const handleLoadedMetadata = () => {
     if (activeClip === undefined) {
       return;
@@ -493,9 +500,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     const clip = activeClip;
     loadClip(clip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true, status: 'recovering' });
     settleInputFailure(failedLoad.generation, 'advanced');
-    if (shouldPlay && !clockStartPending) {
-      void playElement().catch(() => undefined);
-    }
+    resumeIntendedPlayback();
   };
 
   const reconcileSources = (nextSources: readonly HTMLMediaSource[]) => {
@@ -563,6 +568,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     ) {
       selectedInputIndexBySourceId.set(activeSourceId, 0);
       loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
+      resumeIntendedPlayback();
     }
   };
 
@@ -648,6 +654,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       });
       if (activeClip?.clip.sourceId === sourceId) {
         loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
+        resumeIntendedPlayback();
       }
       return { ok: true, sourceId, state: 'configured' };
     },
