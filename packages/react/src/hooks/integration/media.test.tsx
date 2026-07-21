@@ -2415,6 +2415,59 @@ test('useTimelineMediaSync cancels pending startup when the adapter changes', as
   expect(engine.getState().playing).toBe(false);
 });
 
+test('useTimelineMediaSync does not stop a replacement during pending startup synchronization', async () => {
+  const engine = createMediaSyncEngine();
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+  let resolveFirstSynchronization = () => {};
+  const firstSynchronization = new Promise<void>((resolve) => {
+    resolveFirstSynchronization = resolve;
+  });
+  const stopFirstClock = vi.fn();
+  const stopSecondClock = vi.fn();
+  const firstSyncLayers = vi.fn(({ reason }: { reason: string }) =>
+    reason === 'play' ? firstSynchronization : Promise.resolve()
+  );
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: stopFirstClock,
+    syncLayers: firstSyncLayers,
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    stopClock: stopSecondClock,
+  };
+
+  const { result, rerender } = renderHook(
+    ({ adapter }: { adapter: TimelineMediaSyncAdapter<'visuals'> }) =>
+      useTimelineMediaSync({ layers, adapter, adapterIdentity: adapter }),
+    {
+      initialProps: { adapter: firstAdapter },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const pendingPlay = result.current.play();
+  await waitFor(() => {
+    expect(firstSyncLayers).toHaveBeenCalledWith(expect.objectContaining({ reason: 'play' }));
+  });
+
+  rerender({ adapter: secondAdapter });
+  expect(stopFirstClock).toHaveBeenCalledOnce();
+  expect(stopSecondClock).not.toHaveBeenCalled();
+
+  resolveFirstSynchronization();
+  await act(async () => {
+    await expect(pendingPlay).resolves.toMatchObject({ ok: false, reason: 'cancelled' });
+  });
+  expect(stopFirstClock).toHaveBeenCalledOnce();
+  expect(stopSecondClock).not.toHaveBeenCalled();
+  expect(engine.getState().playing).toBe(false);
+});
+
 test('useTimelineMediaSync seeks paused preview on initial ready mount', async () => {
   const engine = createMediaSyncEngine();
   let previewTick: FrameRequestCallback | undefined;

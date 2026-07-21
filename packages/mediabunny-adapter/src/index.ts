@@ -389,6 +389,12 @@ function validateSources(sources: readonly MediabunnySource[]) {
   }
 }
 
+function assertValidMediabunnyVolume(volume: number) {
+  if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
+    throw new RangeError('volume must be a finite number from 0 to 1.');
+  }
+}
+
 function validateMediabunnyTiming(sourceId: string, timing: TimelineMediaSourceTiming | undefined) {
   if (
     timing !== undefined &&
@@ -539,6 +545,8 @@ export function createMediabunnyAdapter(
   if (options.audio?.destination !== undefined && options.audio.context === undefined) {
     throw new Error('An audio context is required when an audio destination is provided.');
   }
+  const initialVolume = options.audio?.volume ?? 0.7;
+  assertValidMediabunnyVolume(initialVolume);
   let ready = options.sources.length > 0;
   let status = ready
     ? 'Sources registered. Mediabunny loads active media on demand.'
@@ -577,7 +585,7 @@ export function createMediabunnyAdapter(
   let audioContext: AudioContext | null = options.audio?.context ?? null;
   let ownsAudioContext = false;
   let masterGainNode: GainNode | null = null;
-  let volume = options.audio?.volume ?? 0.7;
+  let volume = initialVolume;
   let muted = options.audio?.muted ?? false;
   let audioStatus: MediabunnyAudioStatus = { state: 'unavailable' };
   let activationGeneration = 0;
@@ -1708,9 +1716,7 @@ export function createMediabunnyAdapter(
     },
     setVolume: (nextVolume) => {
       assertAdapterActive();
-      if (!Number.isFinite(nextVolume) || nextVolume < 0 || nextVolume > 1) {
-        throw new RangeError('volume must be a finite number from 0 to 1.');
-      }
+      assertValidMediabunnyVolume(nextVolume);
       volume = nextVolume;
       updateMasterGain();
       notify();
@@ -2099,7 +2105,10 @@ async function loadMediabunnySourceController(
   source: MediabunnySource,
   sourceInput: MediabunnySourceInput,
   selectTracks: CreateMediabunnyAdapterOptions['selectTracks'],
-  ensureAudioRuntime: () => { context: AudioContext; gainNode: GainNode } | null,
+  ensureAudioRuntime: (notifyChange?: boolean) => {
+    context: AudioContext;
+    gainNode: GainNode;
+  } | null,
   isCurrentLoad: () => boolean,
   deferAudioRuntime: boolean
 ): Promise<LoadedMediaInfo> {
@@ -2206,7 +2215,7 @@ async function loadMediabunnySourceController(
     assertCurrentLoad();
     controller.audioSink = new mediabunny.AudioBufferSink(audioTrack);
     if (!deferAudioRuntime) {
-      const audioRuntime = ensureAudioRuntime();
+      const audioRuntime = ensureAudioRuntime(false);
       if (audioRuntime === null) {
         controller.audioSink = null;
       } else {

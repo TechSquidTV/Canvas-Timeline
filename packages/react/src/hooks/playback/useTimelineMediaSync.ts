@@ -311,8 +311,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     invalidateAdapterOperations();
     const owner = clockOwnerRef.current;
     clockOwnerRef.current = null;
-    const clockAdapter = owner?.adapter ?? adapterRef.current;
-    clockAdapter.stopClock?.();
+    owner?.adapter.stopClock?.();
   }, [invalidateAdapterOperations]);
 
   const adapterSyncLayers = adapter.syncLayers;

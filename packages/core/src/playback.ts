@@ -105,41 +105,40 @@ export class PlaybackManager {
     const timelineStart = fromSeconds(0, nextTime.r);
     const inLimit = this.respectInOut ? (state.inPoint ?? timelineStart) : timelineStart;
 
-    if (
-      this.respectInOut &&
-      state.outPoint !== undefined &&
-      compareRational(nextTime, state.outPoint) >= 0
-    ) {
-      if (this.loopRange) {
-        this.engine.updatePlayhead(inLimit);
-        return { time: this.engine.getTime(), action: 'loop', reason: 'in-out' };
+    let boundaryTime: RationalTime | undefined;
+    let boundaryReason: NonNullable<ExternalPlaybackUpdate['reason']> | undefined;
+    const considerBoundary = (
+      time: RationalTime | undefined,
+      reason: NonNullable<ExternalPlaybackUpdate['reason']>
+    ) => {
+      if (
+        time === undefined ||
+        compareRational(nextTime, time) < 0 ||
+        (boundaryTime !== undefined && compareRational(time, boundaryTime) >= 0)
+      ) {
+        return;
       }
-      this.engine.updatePlayhead(state.outPoint);
-      const time = this.engine.getTime();
-      this.pause();
-      return { time, action: 'pause', reason: 'in-out' };
-    }
+      boundaryTime = time;
+      boundaryReason = reason;
+    };
 
-    if (state.duration !== undefined && compareRational(nextTime, state.duration) >= 0) {
-      if (this.loopRange) {
+    if (this.respectInOut) {
+      considerBoundary(state.outPoint, 'in-out');
+    }
+    considerBoundary(state.duration, 'duration');
+    considerBoundary(this.playbackTargetTime, 'target');
+
+    if (boundaryTime !== undefined && boundaryReason !== undefined) {
+      if (boundaryReason !== 'target' && this.loopRange) {
         this.engine.updatePlayhead(inLimit);
-        return { time: this.engine.getTime(), action: 'loop', reason: 'duration' };
+        return { time: this.engine.getTime(), action: 'loop', reason: boundaryReason };
       }
-      this.engine.updatePlayhead(state.duration);
-      const time = this.engine.getTime();
-      this.pause();
-      return { time, action: 'pause', reason: 'duration' };
-    }
 
-    if (
-      this.playbackTargetTime !== undefined &&
-      compareRational(nextTime, this.playbackTargetTime) >= 0
-    ) {
-      this.engine.updatePlayhead(this.playbackTargetTime);
+      this.engine.updatePlayhead(boundaryTime);
       const time = this.engine.getTime();
-      if (this.playbackAutoEnd) {
+      if (boundaryReason !== 'target' || this.playbackAutoEnd) {
         this.pause();
-        return { time, action: 'pause', reason: 'target' };
+        return { time, action: 'pause', reason: boundaryReason };
       }
       return { time, action: 'continue' };
     }
