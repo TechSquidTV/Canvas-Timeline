@@ -67,6 +67,7 @@ export interface UseTimelineMediaPlaybackOptions<LayerName extends string = stri
   /**
    * Enables looping and realigns the external clock after Core returns to the range start.
    * The callback is invoked once per loop transition until the clock re-enters range.
+   * Its presence and implementation are captured when each playback run begins.
    */
   loop?: (
     timelineTime: RationalTime,
@@ -362,11 +363,12 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
     playbackGenerationRef.current = generation;
     playbackStartGenerationRef.current = generation;
     const currentOptions = optionsRef.current;
+    const loop = currentOptions.loop;
     loopTransitionRef.current = null;
     const currentTime = engine.getTime();
     const playbackOptions = {
       ...currentOptions.playbackOptions,
-      loop: currentOptions.loop !== undefined,
+      loop: loop !== undefined,
     };
     const resolvedStartTime = engine.getPlaybackStartTime(playbackOptions);
     const startTime = quantizeTimelineTimeToFrame(resolvedStartTime, currentOptions.frameRate);
@@ -456,7 +458,7 @@ export function useTimelineMediaPlayback<LayerName extends string = string>(
         const transition = {};
         loopTransitionRef.current = transition;
         try {
-          await currentOptions.loop?.(update.time, nextActiveLayers);
+          await loop?.(update.time, nextActiveLayers);
         } catch (loopError: unknown) {
           if (loopTransitionRef.current === transition) {
             handleAdapterFailure(loopError, generation);

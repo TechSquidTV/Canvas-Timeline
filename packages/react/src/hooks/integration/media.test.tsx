@@ -458,6 +458,67 @@ test('useTimelineMediaPlayback invokes one loop transition until the clock re-en
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaPlayback keeps loop policy fixed for each playback run', async () => {
+  const engine = createMediaSyncEngine();
+  engine.setInPoint(fromSeconds(1), false);
+  engine.setOutPoint(fromSeconds(4), false);
+  let clockTime = 1;
+  let tick: FrameRequestCallback | undefined;
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    tick = callback;
+    return 1;
+  });
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const onLoop = vi.fn(() => {
+    clockTime = 1;
+  });
+
+  const { result, rerender } = renderHook(
+    ({ loop }: { loop: boolean }) =>
+      useTimelineMediaPlayback({
+        getClockTime: () => clockTime,
+        layers: mediaSyncLayers,
+        playbackOptions: { respectInOut: true },
+        ...(loop && { loop: onLoop }),
+      }),
+    {
+      initialProps: { loop: true },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true });
+  });
+  rerender({ loop: false });
+
+  clockTime = 4.25;
+  await act(async () => {
+    tick?.(16);
+  });
+  expect(onLoop).toHaveBeenCalledOnce();
+  expect(engine.getState().playing).toBe(true);
+  expect(engine.getTime()).toEqual(fromSeconds(1));
+
+  act(() => {
+    result.current.pause();
+  });
+  await act(async () => {
+    await expect(result.current.play()).resolves.toEqual({ ok: true });
+  });
+  clockTime = 4.25;
+  await act(async () => {
+    tick?.(32);
+  });
+
+  expect(onLoop).toHaveBeenCalledOnce();
+  expect(engine.getState().playing).toBe(false);
+  expect(engine.getTime()).toEqual(fromSeconds(4));
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
+});
+
 test('useTimelineMediaSync reports loop clock restart failures', async () => {
   const engine = createMediaSyncEngine();
   engine.setInPoint(fromSeconds(1), false);
@@ -2317,6 +2378,65 @@ test('useTimelineMediaSync retains clock ownership across inline adapter rerende
   act(() => {
     engine.pause();
   });
+});
+
+test('useTimelineMediaSync completes pending startup through the latest inline facade', async () => {
+  const engine = createMediaSyncEngine();
+  const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  let resolveInitialSeek = () => {};
+  const initialSeek = new Promise<void>((resolve) => {
+    resolveInitialSeek = resolve;
+  });
+  const firstSeek = vi.fn(() => initialSeek);
+  const latestSeek = vi.fn();
+  const firstStartClock = vi.fn(() => true);
+  const latestStartClock = vi.fn(() => true);
+  const firstStopClock = vi.fn();
+  const latestStopClock = vi.fn();
+
+  const { result, rerender } = renderHook(
+    ({ revision }: { revision: number }) =>
+      useTimelineMediaSync({
+        layers: {
+          visuals: { trackKind: 'visual', sourceId: 'source-1' },
+        },
+        adapter: {
+          getClockTime: () => 1,
+          seek: revision === 0 ? firstSeek : latestSeek,
+          startClock: revision === 0 ? firstStartClock : latestStartClock,
+          stopClock: revision === 0 ? firstStopClock : latestStopClock,
+        },
+      }),
+    {
+      initialProps: { revision: 0 },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const pendingPlay = result.current.play();
+  await waitFor(() => {
+    expect(firstSeek).toHaveBeenCalledOnce();
+  });
+
+  rerender({ revision: 1 });
+  resolveInitialSeek();
+  await act(async () => {
+    await expect(pendingPlay).resolves.toMatchObject({ ok: true });
+  });
+
+  expect(latestSeek).not.toHaveBeenCalled();
+  expect(firstStartClock).not.toHaveBeenCalled();
+  expect(latestStartClock).toHaveBeenCalledOnce();
+
+  act(() => {
+    result.current.pause();
+  });
+  expect(firstStopClock).not.toHaveBeenCalled();
+  expect(latestStopClock).toHaveBeenCalledOnce();
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test('useTimelineMediaSync pauses an owned clock when the adapter changes', async () => {

@@ -52,7 +52,7 @@ export interface UseTimelineMediaSyncOptions<LayerName extends string = string> 
   ready?: boolean;
   /** Optional sequence frame rate used to lock media playback to project frames. */
   frameRate?: UseTimelineMediaPlaybackOptions<LayerName>['frameRate'];
-  /** Core playback range and looping policy applied to the external media clock. */
+  /** Core playback range and looping policy captured when each playback run begins. */
   playbackOptions?: Omit<PlaybackOptions, 'clock'>;
   /** Named active layer selectors used by the external media surface. */
   layers: Record<LayerName, ActiveLayerSelector>;
@@ -421,9 +421,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const playingRef = useRef(syncPlayback.playing);
 
   useEffect(() => {
+    const sameAdapterIdentity = Object.is(adapterIdentityRef.current, adapterIdentity);
     const owner = clockOwnerRef.current;
-    if (owner !== null && Object.is(owner.identity, adapterIdentity)) {
+    if (owner !== null && sameAdapterIdentity) {
       owner.adapter = adapter;
+    }
+    const pendingStart = pendingPlaybackStartRef.current;
+    if (pendingStart !== null && sameAdapterIdentity) {
+      pendingStart.adapter = adapter;
     }
     adapterRef.current = adapter;
     layersRef.current = layers;
@@ -644,16 +649,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   );
 
   const startPlayback = useCallback(
-    async (
-      generation: number,
-      playbackAdapter: TimelineMediaSyncAdapter<LayerName>
-    ): Promise<TimelineMediaPlayResult> => {
+    async (generation: number): Promise<TimelineMediaPlayResult> => {
       const operationToken = captureAdapterOperation();
+      let startupAdapter = adapterRef.current;
       if (!isCurrentPlaybackStart(generation)) {
         return createCancelledPlayResult();
       }
       if (!readyRef.current) {
-        return createPlayFailure('not-ready', 'Media adapter is not ready.', onError);
+        return createPlayFailure('not-ready', 'Media adapter is not ready.', onErrorRef.current);
       }
       if (engine.getState().playing) {
         if (clockOwnerRef.current !== null) {
@@ -662,7 +665,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return createPlayFailure(
           'timeline-failed',
           'Timeline playback is already controlled by another clock.',
-          onError
+          onErrorRef.current
         );
       }
 
@@ -700,7 +703,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             });
         if (firstContentTime === undefined) {
           if (engine.getFirstContentTime({ layers }) === undefined) {
-            return createPlayFailure('no-content', 'No timeline content is available.', onError);
+            return createPlayFailure(
+              'no-content',
+              'No timeline content is available.',
+              onErrorRef.current
+            );
           }
         } else {
           timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
@@ -716,17 +723,19 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return createPlayFailure(
           'no-active-content',
           'No active timeline content is available.',
-          onError
+          onErrorRef.current
         );
       }
 
-      playbackAdapter.requestClockActivation?.(engine.getPlaybackRate());
+      startupAdapter = adapterRef.current;
+      startupAdapter.requestClockActivation?.(engine.getPlaybackRate());
       try {
         const clockStarted = await enqueueAdapterOperation(async () => {
           if (!isCurrentAdapterOperation(operationToken)) {
             return false;
           }
-          await playbackAdapter.seek?.(timelineTime, timelineLayers);
+          startupAdapter = adapterRef.current;
+          await startupAdapter.seek?.(timelineTime, timelineLayers);
           if (
             !isCurrentAdapterOperation(operationToken) ||
             !isCurrentPlaybackStart(generation) ||
@@ -735,19 +744,21 @@ export function useTimelineMediaSync<LayerName extends string = string>(
             return false;
           }
           if (engine.getState().playing) {
-            playbackAdapter.stopClock?.();
+            startupAdapter = adapterRef.current;
+            startupAdapter.stopClock?.();
             throw new TimelineMediaError(
               'timeline-failed',
               'Timeline playback is already controlled by another clock.'
             );
           }
 
+          startupAdapter = adapterRef.current;
           clockOwnerRef.current = {
             generation,
-            adapter: playbackAdapter,
+            adapter: startupAdapter,
             identity: adapterIdentityRef.current,
           };
-          return playbackAdapter.startClock(timelineTime, engine.getPlaybackRate());
+          return startupAdapter.startClock(timelineTime, engine.getPlaybackRate());
         });
         if (
           !isCurrentAdapterOperation(operationToken) ||
@@ -759,7 +770,11 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         }
         if (!clockStarted) {
           stopOwnedClock(generation);
-          return createPlayFailure('clock-failed', 'Media clock could not start.', onError);
+          return createPlayFailure(
+            'clock-failed',
+            'Media clock could not start.',
+            onErrorRef.current
+          );
         }
       } catch (clockError: unknown) {
         if (
@@ -774,18 +789,18 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           return createPlayFailure(
             'timeline-failed',
             'Timeline playback is already controlled by another clock.',
-            onError
+            onErrorRef.current
           );
         }
         if (clockOwnerRef.current?.generation === generation) {
           stopOwnedClock(generation);
         } else {
-          playbackAdapter.stopClock?.();
+          startupAdapter.stopClock?.();
         }
         return createPlayFailure(
           'clock-failed',
           'Media clock could not start.',
-          onError,
+          onErrorRef.current,
           toMediaError(clockError)
         );
       }
@@ -797,7 +812,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
           return createPlayFailure(
             'timeline-failed',
             'Timeline playback is already controlled by another clock.',
-            onError
+            onErrorRef.current
           );
         }
         const timelineResult = await syncPlayback.play();
@@ -832,14 +847,18 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return createPlayFailure(
           'timeline-failed',
           'Timeline playback could not start.',
-          onError,
+          onErrorRef.current,
           toMediaError(timelineError)
         );
       }
 
       if (!timelineStarted) {
         stopOwnedClock(generation);
-        return createPlayFailure('timeline-failed', 'Timeline playback could not start.', onError);
+        return createPlayFailure(
+          'timeline-failed',
+          'Timeline playback could not start.',
+          onErrorRef.current
+        );
       }
 
       return { ok: true, time: timelineTime };
@@ -852,7 +871,6 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       isCurrentPlaybackStart,
       isCurrentAdapterOperation,
       layers,
-      onError,
       playbackOptions,
       stopOwnedClock,
       syncPlayback,
@@ -868,7 +886,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         createPlayFailure(
           'timeline-failed',
           'Timeline playback is already controlled by another clock.',
-          onError
+          onErrorRef.current
         )
       );
     }
@@ -881,7 +899,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     cancelScheduledSeek();
     const generation = playbackStartGenerationRef.current + 1;
     playbackStartGenerationRef.current = generation;
-    const promise = playbackStartBarrierRef.current.then(() => startPlayback(generation, adapter));
+    const promise = playbackStartBarrierRef.current.then(() => startPlayback(generation));
     playbackStartBarrierRef.current = promise.then(
       () => {},
       () => {}
@@ -895,7 +913,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     };
     void promise.then(clearPendingStart, clearPendingStart);
     return promise;
-  }, [adapter, cancelScheduledSeek, engine, onError, startPlayback]);
+  }, [adapter, cancelScheduledSeek, engine, startPlayback]);
 
   const pause = useCallback(() => {
     const cancelledPendingStart = cancelPendingPlaybackStart();
