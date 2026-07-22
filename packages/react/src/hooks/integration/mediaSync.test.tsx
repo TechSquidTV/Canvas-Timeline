@@ -1536,10 +1536,9 @@ test('useTimelineMediaSync rejects a competing engine clock that starts during a
     await Promise.resolve();
   });
 
-  expect(engine.play()).toBe(true);
-  resolveSeek();
-
   await act(async () => {
+    expect(engine.play()).toBe(true);
+    resolveSeek();
     await expect(playResult).resolves.toEqual({
       ok: false,
       reason: 'timeline-failed',
