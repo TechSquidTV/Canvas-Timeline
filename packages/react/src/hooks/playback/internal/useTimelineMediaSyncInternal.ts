@@ -243,16 +243,12 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const adapterIdentityRef = useRef(adapterIdentity);
   const layersRef = useRef(layers);
   const pausedPreviewPrimedRef = useRef(false);
-  const previewSchedulerRef = useRef<PausedMediaPreviewScheduler | null>(null);
-  previewSchedulerRef.current ??= new PausedMediaPreviewScheduler();
-  const previewScheduler = previewSchedulerRef.current;
+  const previewScheduler = useRef(new PausedMediaPreviewScheduler()).current;
   const readyRef = useRef(ready);
   const onErrorRef = useRef(onError);
   const playbackStartGenerationRef = useRef(0);
   const clockOwnershipRef = useRef(new MediaClockOwnership<LayerName, TimelineMediaPlayResult>());
-  const adapterOperationQueueRef = useRef<MediaSynchronizationQueue | null>(null);
-  adapterOperationQueueRef.current ??= new MediaSynchronizationQueue();
-  const adapterOperationQueue = adapterOperationQueueRef.current;
+  const adapterOperationQueue = useRef(new MediaSynchronizationQueue()).current;
   const { loop: shouldLoop = false, ...externalPlaybackOptions } = playbackOptions ?? {};
 
   const captureAdapterOperation = useCallback(

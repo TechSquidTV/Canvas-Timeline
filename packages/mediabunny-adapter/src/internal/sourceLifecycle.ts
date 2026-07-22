@@ -60,7 +60,7 @@ export function createIdleSourceState(sourceId: string): MediabunnySourceState {
   };
 }
 
-export class SupersededSourceLoadError extends Error {
+class SupersededSourceLoadError extends Error {
   override readonly name = 'SupersededSourceLoadError';
 
   constructor(sourceId: string) {

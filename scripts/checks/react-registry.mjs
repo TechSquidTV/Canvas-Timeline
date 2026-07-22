@@ -12,7 +12,12 @@ const hookMetadataPath = resolve(repoRoot, 'apps/www/src/data/react-hook-metadat
 const hooksDirPath = resolve(repoRoot, 'packages/react/src/hooks');
 const rangeScrollbarIndexPath = resolve(repoRoot, 'packages/react/src/rangeScrollbar/index.ts');
 const outputDir = resolve(repoRoot, 'apps/www/.generated/react-registry-snippets');
-const internalHookAllowlist = new Set(['useTimelineExternalStore', 'useTimelineGeometryRevision']);
+const internalHookAllowlist = new Set([
+  'useTimelineExternalStore',
+  'useTimelineGeometryRevision',
+  'useTimelineMediaPlaybackInternal',
+  'useTimelineMediaSyncInternal',
+]);
 const tsconfigPathAliases = loadTsconfigPathAliases();
 const publicReactEntrypoints = new Map([
   ['@techsquidtv/canvas-timeline-react', reactIndexPath],
