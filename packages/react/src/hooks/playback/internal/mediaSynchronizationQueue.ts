@@ -34,7 +34,7 @@ export class MediaSynchronizationQueue {
       try {
         const result = await operation();
         return this.isCurrent(token, getIdentity()) ? result : superseded();
-      } catch (operationError: unknown) {
+      } catch (operationError) {
         if (!this.isCurrent(token, getIdentity())) {
           return superseded();
         }

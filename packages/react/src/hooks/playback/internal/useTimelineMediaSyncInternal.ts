@@ -2,37 +2,27 @@ import type {
   ActiveLayerSelector,
   ActiveLayerResult,
   PlaybackOptions,
-  TimelineMediaPlayFailureReason,
   TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
 import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
-import {
-  compareRational,
-  rationalEquals,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
-import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
-import { MediaClockOwnership } from '#react/hooks/playback/internal/mediaClockOwnership';
+import {
+  MediaClockOwnership,
+  startMediaClockPlayback,
+} from '#react/hooks/playback/internal/mediaClockOwnership';
+import {
+  createMediaPlayFailure,
+  type TimelineMediaPlayResult,
+} from '#react/hooks/playback/internal/mediaPlayResult';
 import { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
-import { PausedMediaPreviewScheduler } from '#react/hooks/playback/internal/pausedMediaPreviewScheduler';
+import { usePausedMediaPreviewSynchronization } from '#react/hooks/playback/internal/pausedMediaPreviewScheduler';
 import type { UseTimelineMediaPlaybackOptions } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimelineMediaPlaybackInternal } from '#react/hooks/playback/internal/useTimelineMediaPlaybackInternal';
 import { useTimeline } from '#react/hooks/core/useTimeline';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-
-function getEarliestTimelineTime(
-  times: readonly (RationalTime | undefined)[]
-): RationalTime | undefined {
-  return times.reduce<RationalTime | undefined>((earliest, time) => {
-    if (time === undefined || (earliest !== undefined && compareRational(earliest, time) <= 0)) {
-      return earliest;
-    }
-    return time;
-  }, undefined);
-}
 
 /**
  * Options for high-level timeline media synchronization.
@@ -79,20 +69,7 @@ export interface UseTimelineMediaSyncOptions<LayerName extends string = string> 
  * `TimelineCommandResult` because failures include user-facing adapter messages
  * in addition to machine-readable reasons.
  */
-export type TimelineMediaPlayResult =
-  /** Playback started successfully at the returned timeline time. */
-  | { ok: true; time: RationalTime }
-  /** Playback failed before the timeline and external media clock could run together. */
-  | {
-      /** Discriminant for a failed media play command. */
-      ok: false;
-      /** Machine-readable play failure category. */
-      reason: TimelineMediaPlayFailureReason;
-      /** Human-readable failure detail suitable for status UI or logs. */
-      message: string;
-      /** Underlying adapter or decoder failure, when one was thrown. */
-      cause?: Error;
-    };
+export type { TimelineMediaPlayResult } from '#react/hooks/playback/internal/mediaPlayResult';
 
 /**
  * Result returned by `useTimelineMediaSync`.
@@ -119,36 +96,6 @@ export interface UseTimelineMediaSyncResult<LayerName extends string = string> {
   pause: () => TimelineCommandResult;
   /** Updates both clock rates and resolves after active layers resynchronize. */
   setPlaybackRate: (playbackRate: number) => Promise<TimelineCommandResult>;
-}
-
-type MediaClockStartupResult =
-  | { state: 'cancelled' }
-  | { state: 'competing-clock' }
-  | { state: 'started'; started: boolean };
-
-function createPlayFailure(
-  reason: TimelineMediaPlayFailureReason,
-  message: string,
-  onError: UseTimelineMediaSyncOptions['onError'],
-  cause?: Error
-): TimelineMediaPlayResult {
-  const error = new TimelineMediaError(reason, withMediaCauseMessage(message, cause), { cause });
-  const result = {
-    ok: false,
-    reason,
-    message: error.message,
-    ...(cause !== undefined ? { cause } : {}),
-  } as const;
-  onError?.(error);
-  return result;
-}
-
-function createCancelledPlayResult(): TimelineMediaPlayResult {
-  return {
-    ok: false,
-    reason: 'cancelled',
-    message: 'Media playback start was cancelled.',
-  };
 }
 
 /**
@@ -236,17 +183,12 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     playbackOptions,
     ready = true,
   } = options;
-  const adapterCanSeek = adapter.seek !== undefined;
   const { engine } = useTimeline();
   const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
   const adapterIdentityRef = useRef(adapterIdentity);
-  const layersRef = useRef(layers);
-  const pausedPreviewPrimedRef = useRef(false);
-  const [previewScheduler] = useState(() => new PausedMediaPreviewScheduler());
   const readyRef = useRef(ready);
   const onErrorRef = useRef(onError);
-  const playbackStartGenerationRef = useRef(0);
   const [clockOwnership] = useState(
     () => new MediaClockOwnership<LayerName, TimelineMediaPlayResult>()
   );
@@ -284,9 +226,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   );
 
   const stopSynchronizedClock = useCallback(() => {
-    const owner = clockOwnershipRef.current.owner;
-    clockOwnershipRef.current.owner = null;
-    owner?.adapter.stopClock?.();
+    clockOwnershipRef.current.stopOwnedClock();
   }, []);
 
   const adapterSyncLayers = adapter.syncLayers;
@@ -309,7 +249,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
               }
               try {
                 await adapterRef.current.syncLayers?.(details);
-              } catch (syncError: unknown) {
+              } catch (syncError) {
                 if (!isCurrentAdapterOperation(token)) {
                   return;
                 }
@@ -356,7 +296,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
               return;
             }
             restarted = await loopOwner.adapter.startClock(timelineTime, engine.getPlaybackRate());
-          } catch (loopError: unknown) {
+          } catch (loopError) {
             if (!stillOwnsClock()) {
               return;
             }
@@ -385,160 +325,35 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   };
   const syncPlayback = useTimelineMediaPlaybackInternal(syncPlaybackOptions, synchronizationRunner);
   const pauseSynchronizedPlayback = syncPlayback.pause;
-  const playingRef = useRef(syncPlayback.playing);
 
   useEffect(() => {
     const sameAdapterIdentity = Object.is(adapterIdentityRef.current, adapterIdentity);
-    const owner = clockOwnershipRef.current.owner;
-    if (owner !== null && sameAdapterIdentity) {
-      owner.adapter = adapter;
-    }
-    const pendingStart = clockOwnershipRef.current.pending;
-    if (pendingStart !== null && sameAdapterIdentity) {
-      pendingStart.adapter = adapter;
-    }
+    clockOwnershipRef.current.updateAdapter(adapter, sameAdapterIdentity);
     adapterRef.current = adapter;
-    layersRef.current = layers;
-    playingRef.current = syncPlayback.playing;
     readyRef.current = ready;
     onErrorRef.current = onError;
   }, [adapter, adapterIdentity, layers, onError, ready, syncPlayback.playing]);
 
   useEffect(() => {
-    if (!syncPlayback.playing && clockOwnershipRef.current.pending === null) {
-      clockOwnershipRef.current.owner = null;
-    }
+    clockOwnershipRef.current.clearOwnerWhenIdle(syncPlayback.playing);
   }, [syncPlayback.playing]);
 
-  const cancelScheduledSeek = useCallback(() => {
-    previewScheduler.cancel();
-  }, [previewScheduler]);
-
-  const canSeekPausedPreview = useCallback(
-    () =>
-      clockOwnershipRef.current.pending === null &&
-      readyRef.current &&
-      !playingRef.current &&
-      adapterRef.current.seek !== undefined,
-    []
-  );
-
-  const schedulePausedPreviewSeek = useCallback(() => {
-    if (!canSeekPausedPreview()) {
-      return;
-    }
-    previewScheduler.schedule((generation) => {
-      if (!canSeekPausedPreview()) {
-        return;
-      }
-
-      const timelineTime = engine.getTime();
-      const currentActiveLayers = engine.getActiveLayers({
-        time: timelineTime,
-        layers: layersRef.current,
-      });
-      const operationToken = adapterOperationQueue.capture(adapterIdentityRef.current);
-      void enqueueAdapterOperation(async () => {
-        if (
-          !previewScheduler.isCurrent(generation) ||
-          !adapterOperationQueue.isCurrent(operationToken, adapterIdentityRef.current) ||
-          !canSeekPausedPreview()
-        ) {
-          return;
-        }
-        const currentAdapter = adapterRef.current;
-        try {
-          await currentAdapter.seek?.(timelineTime, currentActiveLayers);
-        } catch (seekError: unknown) {
-          if (
-            !previewScheduler.isCurrent(generation) ||
-            !adapterOperationQueue.isCurrent(operationToken, adapterIdentityRef.current) ||
-            !canSeekPausedPreview()
-          ) {
-            return;
-          }
-          const cause = toMediaError(seekError);
-          onErrorRef.current?.(
-            new TimelineMediaError(
-              'seek-failed',
-              withMediaCauseMessage('Media seek failed.', cause),
-              {
-                cause,
-              }
-            )
-          );
-        }
-      });
-    });
-  }, [
-    canSeekPausedPreview,
-    adapterOperationQueue,
+  const hasPendingPlaybackStart = useCallback(() => clockOwnershipRef.current.pending !== null, []);
+  const pausedPreview = usePausedMediaPreviewSynchronization({
     engine,
-    enqueueAdapterOperation,
-    previewScheduler,
-  ]);
-
-  useEffect(() => {
-    const unsubscribers = [
-      engine.on('playhead:scrub', schedulePausedPreviewSeek),
-      engine.on('content:change', schedulePausedPreviewSeek),
-      engine.on('playback:state', (playing) => {
-        playingRef.current = playing;
-        if (playing) {
-          cancelScheduledSeek();
-        } else {
-          schedulePausedPreviewSeek();
-        }
-      }),
-    ];
-
-    return () => {
-      cancelScheduledSeek();
-      for (const unsubscribe of unsubscribers) {
-        unsubscribe();
-      }
-    };
-  }, [cancelScheduledSeek, engine, schedulePausedPreviewSeek]);
-
-  useEffect(() => {
-    if (!ready || !adapterCanSeek) {
-      pausedPreviewPrimedRef.current = false;
-      return;
-    }
-
-    if (pausedPreviewPrimedRef.current) {
-      return;
-    }
-
-    pausedPreviewPrimedRef.current = true;
-    schedulePausedPreviewSeek();
-  }, [adapterCanSeek, ready, schedulePausedPreviewSeek]);
-
-  const isCurrentPlaybackStart = useCallback((generation: number) => {
-    return clockOwnershipRef.current.pending?.generation === generation;
-  }, []);
-
-  const stopOwnedClock = useCallback((generation: number) => {
-    const owner = clockOwnershipRef.current.owner;
-    if (owner?.generation !== generation) {
-      return;
-    }
-
-    clockOwnershipRef.current.owner = null;
-    owner.adapter.stopClock?.();
-  }, []);
+    adapter,
+    adapterIdentity,
+    layers,
+    ready,
+    playing: syncPlayback.playing,
+    hasPendingPlaybackStart,
+    operationQueue: adapterOperationQueue,
+    onError,
+  });
+  const cancelScheduledSeek = pausedPreview.cancel;
 
   const cancelPendingPlaybackStart = useCallback(() => {
-    const pendingStart = clockOwnershipRef.current.pending;
-    if (pendingStart === null) {
-      return false;
-    }
-
-    playbackStartGenerationRef.current += 1;
-    invalidateAdapterOperations();
-    clockOwnershipRef.current.pending = null;
-    pendingStart.adapter.stopClock?.();
-    return true;
+    return clockOwnershipRef.current.cancelPendingStart(invalidateAdapterOperations);
   }, [invalidateAdapterOperations]);
 
   useEffect(() => {
@@ -551,7 +366,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     const cancelledPendingStart = cancelPendingPlaybackStart();
     if (clockOwnershipRef.current.owner !== null) {
       if (cancelledPendingStart) {
-        clockOwnershipRef.current.owner = null;
+        clockOwnershipRef.current.clearOwner();
       }
       pauseSynchronizedPlayback();
     }
@@ -571,28 +386,22 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     adapterIdentityRef.current = adapterIdentity;
     invalidateAdapterOperations();
     const shouldPrimeAdapter = ready && adapter.seek !== undefined;
-    pausedPreviewPrimedRef.current = shouldPrimeAdapter;
-    cancelScheduledSeek();
+    pausedPreview.resetForAdapter(shouldPrimeAdapter);
     const cancelledPendingStart = cancelPendingPlaybackStart();
     const previousOwner = clockOwnershipRef.current.owner;
     if (previousOwner !== null) {
       if (cancelledPendingStart) {
-        clockOwnershipRef.current.owner = null;
+        clockOwnershipRef.current.clearOwner();
       }
       pauseSynchronizedPlayback();
-    }
-    if (shouldPrimeAdapter && !engine.getState().playing) {
-      schedulePausedPreviewSeek();
     }
   }, [
     adapter,
     adapterIdentity,
     cancelPendingPlaybackStart,
-    cancelScheduledSeek,
-    engine,
     invalidateAdapterOperations,
+    pausedPreview,
     ready,
-    schedulePausedPreviewSeek,
     pauseSynchronizedPlayback,
   ]);
 
@@ -605,235 +414,22 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   );
 
   const startPlayback = useCallback(
-    async (generation: number): Promise<TimelineMediaPlayResult> => {
-      const operationToken = captureAdapterOperation();
-      let startupAdapter = adapterRef.current;
-      if (!isCurrentPlaybackStart(generation)) {
-        return createCancelledPlayResult();
-      }
-      if (!readyRef.current) {
-        return createPlayFailure('not-ready', 'Media adapter is not ready.', onErrorRef.current);
-      }
-      if (engine.getState().playing) {
-        if (clockOwnershipRef.current.owner !== null) {
-          return { ok: true, time: engine.getTime() };
-        }
-        return createPlayFailure(
-          'timeline-failed',
-          'Timeline playback is already controlled by another clock.',
-          onErrorRef.current
-        );
-      }
-
-      const currentTime = engine.getTime();
-      const resolvedStartTime = engine.getPlaybackStartTime(playbackOptions);
-      let timelineTime = quantizeTimelineTimeToFrame(resolvedStartTime, frameRate);
-      if (!rationalEquals(currentTime, timelineTime)) {
-        engine.setTime(timelineTime);
-      }
-      let timelineLayers = engine.getActiveLayers({
-        time: timelineTime,
+    (generation: number) =>
+      startMediaClockPlayback({
+        engine,
+        generation,
+        frameRate,
         layers,
-      });
-
-      if (!timelineLayers.hasActiveClips) {
-        const state = engine.getState();
-        const playbackStartTime =
-          (playbackOptions?.respectInOut ?? true) ? state.inPoint : undefined;
-        const playbackEndTime = getEarliestTimelineTime([
-          playbackOptions?.toTime,
-          state.duration,
-          (playbackOptions?.respectInOut ?? true) ? state.outPoint : undefined,
-        ]);
-        const playbackStartsInContent =
-          playbackStartTime !== undefined &&
-          (playbackEndTime === undefined ||
-            compareRational(playbackStartTime, playbackEndTime) < 0) &&
-          engine.getActiveLayers({ time: playbackStartTime, layers }).hasActiveClips;
-        const firstContentTime = playbackStartsInContent
-          ? playbackStartTime
-          : engine.getFirstContentTime({
-              layers,
-              atOrAfter: playbackStartTime,
-              before: playbackEndTime,
-            });
-        if (firstContentTime === undefined) {
-          if (engine.getFirstContentTime({ layers }) === undefined) {
-            return createPlayFailure(
-              'no-content',
-              'No timeline content is available.',
-              onErrorRef.current
-            );
-          }
-        } else {
-          timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
-          engine.setTime(timelineTime);
-          timelineLayers = engine.getActiveLayers({
-            time: timelineTime,
-            layers,
-          });
-        }
-      }
-
-      if (!timelineLayers.hasActiveClips) {
-        return createPlayFailure(
-          'no-active-content',
-          'No active timeline content is available.',
-          onErrorRef.current
-        );
-      }
-
-      try {
-        startupAdapter = adapterRef.current;
-        startupAdapter.requestClockActivation?.(engine.getPlaybackRate());
-        const clockStartup = await enqueueAdapterOperation(
-          async (): Promise<MediaClockStartupResult> => {
-            if (!isCurrentAdapterOperation(operationToken)) {
-              return { state: 'cancelled' };
-            }
-            startupAdapter = adapterRef.current;
-            await startupAdapter.seek?.(timelineTime, timelineLayers);
-            if (
-              !isCurrentAdapterOperation(operationToken) ||
-              !isCurrentPlaybackStart(generation) ||
-              !readyRef.current
-            ) {
-              return { state: 'cancelled' };
-            }
-            if (engine.getState().playing) {
-              startupAdapter = adapterRef.current;
-              startupAdapter.stopClock?.();
-              return { state: 'competing-clock' };
-            }
-
-            startupAdapter = adapterRef.current;
-            clockOwnershipRef.current.owner = {
-              generation,
-              adapter: startupAdapter,
-              identity: adapterIdentityRef.current,
-            };
-            return {
-              state: 'started',
-              started: await startupAdapter.startClock(timelineTime, engine.getPlaybackRate()),
-            };
-          }
-        );
-        if (
-          clockStartup.state === 'cancelled' ||
-          !isCurrentAdapterOperation(operationToken) ||
-          !isCurrentPlaybackStart(generation) ||
-          !readyRef.current
-        ) {
-          stopOwnedClock(generation);
-          return createCancelledPlayResult();
-        }
-        if (clockStartup.state === 'competing-clock') {
-          return createPlayFailure(
-            'timeline-failed',
-            'Timeline playback is already controlled by another clock.',
-            onErrorRef.current
-          );
-        }
-        if (!clockStartup.started) {
-          stopOwnedClock(generation);
-          return createPlayFailure(
-            'clock-failed',
-            'Media clock could not start.',
-            onErrorRef.current
-          );
-        }
-      } catch (clockError: unknown) {
-        if (
-          !isCurrentAdapterOperation(operationToken) ||
-          !isCurrentPlaybackStart(generation) ||
-          !readyRef.current
-        ) {
-          stopOwnedClock(generation);
-          return createCancelledPlayResult();
-        }
-        if (clockOwnershipRef.current.owner?.generation === generation) {
-          stopOwnedClock(generation);
-        } else {
-          startupAdapter.stopClock?.();
-        }
-        return createPlayFailure(
-          'clock-failed',
-          'Media clock could not start.',
-          onErrorRef.current,
-          toMediaError(clockError)
-        );
-      }
-
-      let timelineStarted = false;
-      try {
-        if (engine.getState().playing) {
-          stopOwnedClock(generation);
-          return createPlayFailure(
-            'timeline-failed',
-            'Timeline playback is already controlled by another clock.',
-            onErrorRef.current
-          );
-        }
-        const timelineResult = await syncPlayback.play();
-        if (!timelineResult.ok && timelineResult.reason === 'sync-failed') {
-          stopOwnedClock(generation);
-          return {
-            ok: false,
-            reason: 'sync-failed',
-            message: withMediaCauseMessage('Media synchronization failed.', timelineResult.cause),
-            ...(timelineResult.cause !== undefined ? { cause: timelineResult.cause } : {}),
-          };
-        }
-        if (
-          !isCurrentAdapterOperation(operationToken) ||
-          !isCurrentPlaybackStart(generation) ||
-          !readyRef.current
-        ) {
-          stopOwnedClock(generation);
-          return createCancelledPlayResult();
-        }
-        timelineStarted = timelineResult.ok;
-      } catch (timelineError: unknown) {
-        if (
-          !isCurrentAdapterOperation(operationToken) ||
-          !isCurrentPlaybackStart(generation) ||
-          !readyRef.current
-        ) {
-          stopOwnedClock(generation);
-          return createCancelledPlayResult();
-        }
-        stopOwnedClock(generation);
-        return createPlayFailure(
-          'timeline-failed',
-          'Timeline playback could not start.',
-          onErrorRef.current,
-          toMediaError(timelineError)
-        );
-      }
-
-      if (!timelineStarted) {
-        stopOwnedClock(generation);
-        return createPlayFailure(
-          'timeline-failed',
-          'Timeline playback could not start.',
-          onErrorRef.current
-        );
-      }
-
-      return { ok: true, time: timelineTime };
-    },
-    [
-      engine,
-      enqueueAdapterOperation,
-      frameRate,
-      captureAdapterOperation,
-      isCurrentAdapterOperation,
-      isCurrentPlaybackStart,
-      layers,
-      playbackOptions,
-      stopOwnedClock,
-      syncPlayback,
-    ]
+        playbackOptions,
+        ownership: clockOwnershipRef.current,
+        operationQueue: adapterOperationQueue,
+        getAdapter: () => adapterRef.current,
+        getAdapterIdentity: () => adapterIdentityRef.current,
+        isReady: () => readyRef.current,
+        playTimeline: syncPlayback.play,
+        onError: onErrorRef.current,
+      }),
+    [adapterOperationQueue, engine, frameRate, layers, playbackOptions, syncPlayback.play]
   );
 
   const play = useCallback((): Promise<TimelineMediaPlayResult> => {
@@ -842,7 +438,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
         return Promise.resolve({ ok: true, time: engine.getTime() });
       }
       return Promise.resolve(
-        createPlayFailure(
+        createMediaPlayFailure(
           'timeline-failed',
           'Timeline playback is already controlled by another clock.',
           onErrorRef.current
@@ -850,28 +446,8 @@ export function useTimelineMediaSync<LayerName extends string = string>(
       );
     }
 
-    const pendingStart = clockOwnershipRef.current.pending;
-    if (pendingStart !== null) {
-      return pendingStart.promise;
-    }
-
     cancelScheduledSeek();
-    const generation = playbackStartGenerationRef.current + 1;
-    playbackStartGenerationRef.current = generation;
-    const promise = clockOwnershipRef.current.barrier.then(() => startPlayback(generation));
-    clockOwnershipRef.current.barrier = promise.then(
-      () => {},
-      () => {}
-    );
-    clockOwnershipRef.current.pending = { generation, adapter, promise };
-
-    const clearPendingStart = () => {
-      if (clockOwnershipRef.current.pending?.promise === promise) {
-        clockOwnershipRef.current.pending = null;
-      }
-    };
-    void promise.then(clearPendingStart, clearPendingStart);
-    return promise;
+    return clockOwnershipRef.current.queueStart(adapter, startPlayback);
   }, [adapter, cancelScheduledSeek, engine, startPlayback]);
 
   const pause = useCallback(() => {
@@ -879,7 +455,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     const cancelledPendingStart = cancelPendingPlaybackStart();
     const result = syncPlayback.pause();
     if (!cancelledPendingStart) {
-      clockOwnershipRef.current.owner = null;
+      clockOwnershipRef.current.clearOwner();
     }
     return result;
   }, [cancelPendingPlaybackStart, invalidateAdapterOperations, syncPlayback]);
