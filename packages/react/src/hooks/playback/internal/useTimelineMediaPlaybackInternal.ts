@@ -422,6 +422,13 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
       return timelineCommandFail('content-gap');
     }
 
+    if (engine.getState().playing) {
+      if (playbackStartGenerationRef.current === generation) {
+        playbackStartGenerationRef.current = null;
+      }
+      return ownsPlaybackRef.current ? timelineCommandOk() : createCompetingClockFailure();
+    }
+
     const started = engine.play({ ...playbackOptions, clock: 'external' });
     if (!started) {
       if (playbackStartGenerationRef.current === generation) {

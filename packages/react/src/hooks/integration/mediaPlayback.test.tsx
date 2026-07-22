@@ -741,6 +741,52 @@ test('useTimelineMediaPlayback cancels pending media startup without pausing a c
   });
 });
 
+test('useTimelineMediaPlayback rejects a competing clock that starts during synchronization', async () => {
+  const engine = createMediaSyncEngine();
+  const stopClock = vi.fn();
+  let resolveStartup = () => {};
+  const startup = new Promise<void>((resolve) => {
+    resolveStartup = resolve;
+  });
+  const syncLayers = vi.fn(({ reason }: { reason: string }) =>
+    reason === 'play' ? startup : Promise.resolve()
+  );
+  const { result } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => 1,
+        layers: mediaSyncLayers,
+        stopClock,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const pendingPlay = result.current.play();
+  await waitFor(() => {
+    expect(syncLayers).toHaveBeenCalledWith(expect.objectContaining({ reason: 'play' }));
+  });
+  act(() => {
+    expect(engine.play({ clock: 'external' })).toBe(true);
+  });
+  resolveStartup();
+
+  await act(async () => {
+    await expect(pendingPlay).resolves.toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Timeline playback is already controlled by another clock.',
+    });
+  });
+  expect(engine.getState().playing).toBe(true);
+  expect(stopClock).not.toHaveBeenCalled();
+  act(() => {
+    engine.pause();
+  });
+});
+
 test('useTimelineMediaPlayback pauses on content gaps and runs cleanup callbacks', async () => {
   const engine = createMediaSyncEngine();
   let clockTime = 1;
