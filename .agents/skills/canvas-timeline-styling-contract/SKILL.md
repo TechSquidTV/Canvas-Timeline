@@ -28,14 +28,14 @@ timeline behavior.
 
 Open the relevant source before changing behavior:
 
-- [Styling docs](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/styling.mdx) for the public styling contract.
-- [Canvas renderer customization docs](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/renderer-customization.mdx) for renderer styling overrides and custom dense layers.
-- [System architecture docs](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/architecture.mdx) for the DOM/canvas architecture split.
-- [React base CSS](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/base.css) for mechanics, geometry, hit targets, and affordance shapes.
-- [React theme CSS](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/theme.css) for shadcn-token visual treatment and `--timeline-*` aliases.
-- [Renderer theme resolver](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/renderer/src/theme.ts) and [CanvasRenderer](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/renderer/src/CanvasRenderer.tsx) for CSS-variable-to-worker behavior.
-- [CSS export tests](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/styles-exports.test.ts) for guardrails around package CSS and docs drift.
-- [React DOM timeline demo](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/demos/react-dom-timeline/ReactDOMTimeline.tsx) for DOM implementation parity.
+- [Styling docs](../../../apps/www/src/content/docs/styling.mdx) for the public styling contract.
+- [Canvas renderer customization docs](../../../apps/www/src/content/docs/renderer-customization.mdx) for renderer styling overrides and custom dense layers.
+- [System architecture docs](../../../apps/www/src/content/docs/architecture.mdx) for the DOM/canvas architecture split.
+- [React base CSS](../../../packages/react/src/base.css) for mechanics, geometry, hit targets, and affordance shapes.
+- [React theme CSS](../../../packages/react/src/theme.css) for shadcn-token visual treatment and `--timeline-*` aliases.
+- [Renderer theme resolver](../../../packages/renderer/src/theme.ts) and [CanvasRenderer](../../../packages/renderer/src/CanvasRenderer.tsx) for CSS-variable-to-worker behavior.
+- [CSS export tests](../../../packages/react/src/styles-exports.test.ts) for guardrails around package CSS and docs drift.
+- [React DOM timeline demo](../../../apps/www/src/demos/react-dom-timeline/ReactDOMTimeline.tsx) for DOM implementation parity.
 
 ## DOM vs Canvas Boundary
 
