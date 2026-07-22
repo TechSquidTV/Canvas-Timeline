@@ -3,6 +3,7 @@ import type * as Mediabunny from 'mediabunny';
 
 export interface MediabunnySourceController {
   sourceId: string;
+  disposed: boolean;
   input: Mediabunny.Input | null;
   ownsInput: boolean;
   inputIndex: number;
@@ -100,6 +101,44 @@ export interface PendingFrameRequest {
   reject: (error: Error) => void;
 }
 
+interface MediabunnySourceControllerLifecycleDependencies {
+  getPlaybackSeconds: (controller: MediabunnySourceController) => number;
+  cancelVideoPlayback: (controller: MediabunnySourceController) => void;
+  stopAudio: (controller: MediabunnySourceController) => void;
+  invalidateFrameRendering: (controller: MediabunnySourceController) => void;
+}
+
+export class MediabunnySourceControllerLifecycle {
+  readonly #dependencies: MediabunnySourceControllerLifecycleDependencies;
+
+  constructor(dependencies: MediabunnySourceControllerLifecycleDependencies) {
+    this.#dependencies = dependencies;
+  }
+
+  stop(controller: MediabunnySourceController) {
+    const currentTime = this.#dependencies.getPlaybackSeconds(controller);
+    controller.timelineTimeAtStart = currentTime;
+    controller.playing = false;
+    controller.audioContextStartTime = null;
+    controller.audioClockReady = false;
+    controller.wallClockStartTime = null;
+    this.#dependencies.cancelVideoPlayback(controller);
+    this.#dependencies.stopAudio(controller);
+  }
+
+  dispose(controller: MediabunnySourceController) {
+    if (controller.disposed) {
+      return;
+    }
+    controller.disposed = true;
+    this.stop(controller);
+    this.#dependencies.invalidateFrameRendering(controller);
+    if (controller.ownsInput) {
+      controller.input?.dispose();
+    }
+  }
+}
+
 export function createController(
   sourceId: string,
   inputIndex: number,
@@ -107,6 +146,7 @@ export function createController(
 ): MediabunnySourceController {
   return {
     sourceId,
+    disposed: false,
     inputIndex,
     mediaTimeOffsetSeconds:
       timing === undefined ? 0 : timing.mediaTimeSeconds - timing.sourceTimeSeconds,

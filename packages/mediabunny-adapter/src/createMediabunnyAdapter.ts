@@ -2,41 +2,26 @@ import type {
   ActiveClip,
   ActiveLayerResult,
   TimelineLayerSyncDetails,
-  TimelineMediaSourceAttempt,
-  TimelineMediaSourceOperationResult,
   TimelineMediaSyncReason,
 } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type * as Mediabunny from 'mediabunny';
-import type {
-  CreateMediabunnyAdapterOptions,
-  MediabunnyAdapter,
-  MediabunnyModule,
-  MediabunnySource,
-  MediabunnySourceState,
-} from '#mediabunny-adapter/types';
+import type { CreateMediabunnyAdapterOptions, MediabunnyAdapter } from '#mediabunny-adapter/types';
 import {
   MediabunnyAudioRuntime,
   stopControllerAudio,
   syncAudioClip,
 } from '#mediabunny-adapter/internal/audioRuntime';
 import {
-  createController,
+  MediabunnySourceControllerLifecycle,
   type MediabunnySourceController,
   toLogicalSourceSeconds,
   toMediaSeconds,
 } from '#mediabunny-adapter/internal/sourceController';
 import {
-  areMediabunnySourcesEqual,
   assertValidMediabunnyVolume,
-  createIdleSourceState,
-  createSupersededSourceLoadResult,
-  isSupersededSourceLoadResult,
-  loadMediabunnySourceController,
   MediabunnySourceLifecycle,
   type MediabunnySourceLoadToken,
-  type PendingSourceRecovery,
-  type PendingSourceReplacement,
   validateSources,
 } from '#mediabunny-adapter/internal/sourceLifecycle';
 import {
@@ -53,13 +38,6 @@ import {
   renderActiveVideoFrame,
   syncActiveVideoPlaybackFrame,
 } from '#mediabunny-adapter/internal/videoOutput';
-interface MediabunnySourceLoadOptions {
-  status: 'loading' | 'recovering';
-  token: MediabunnySourceLoadToken;
-  startIndex?: number;
-  previousAttempts?: readonly TimelineMediaSourceAttempt[];
-  replacement?: PendingSourceReplacement;
-}
 
 /**
  * Format a timeline or source-media time value for Mediabunny adapter status text.
@@ -113,30 +91,24 @@ export function createMediabunnyAdapter(
   }
   const initialVolume = options.audio?.volume ?? 0.7;
   assertValidMediabunnyVolume(initialVolume);
-  let ready = options.sources.length > 0;
-  let status = ready
-    ? 'Sources registered. Mediabunny loads active media on demand.'
-    : 'No Mediabunny sources are configured.';
-  let error: Error | null = null;
   let disposed = false;
+  const notify = () => {
+    if (!disposed) {
+      options.onChange?.();
+    }
+  };
   const transportClock = new MediabunnyTransportClock();
-  const sourceLifecycle = new MediabunnySourceLifecycle(
-    options.sources,
-    () => (typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny),
-    () => !disposed
-  );
   const videoOutput = new MediabunnyVideoOutput(options.canvas ?? null, () => !disposed);
+  const controllerLifecycle = new MediabunnySourceControllerLifecycle({
+    getPlaybackSeconds: getTimelinePlaybackSeconds,
+    cancelVideoPlayback: (controller) => {
+      void cancelVideoPlayback(controller);
+    },
+    stopAudio: stopControllerAudio,
+    invalidateFrameRendering,
+  });
   const visualTrackKinds = new Set(options.visualTrackKinds ?? ['visual']);
   const audioTrackKinds = new Set(options.audioTrackKinds ?? ['audio']);
-
-  const getSourceOperation = (sourceId: string) => sourceLifecycle.getOperation(sourceId);
-
-  const beginSourceLoad = (sourceId: string): MediabunnySourceLoadToken => {
-    return sourceLifecycle.beginLoad(sourceId);
-  };
-
-  const isCurrentSourceLoad = (token: MediabunnySourceLoadToken) =>
-    sourceLifecycle.isCurrentLoad(token);
 
   const beginOutputOperation = (
     sourceIds: Iterable<string> = sourceLifecycle.activeSourceValues()
@@ -154,12 +126,7 @@ export function createMediabunnyAdapter(
   ) =>
     !disposed &&
     isCurrentOutputOperation(outputToken) &&
-    ownership.every((token) => {
-      const operation = getSourceOperation(token.sourceId);
-      return (
-        operation.generation === token.generation && sourceLifecycle.hasController(token.sourceId)
-      );
-    });
+    sourceLifecycle.isCurrentOwnership(ownership);
 
   const invalidateOutputOperations = (affectedSourceIds?: ReadonlySet<string>) => {
     if (!videoOutput.invalidate(affectedSourceIds, sourceLifecycle.activeSourceValues())) {
@@ -171,46 +138,23 @@ export function createMediabunnyAdapter(
     }
   };
 
-  const assertAdapterActive = () => {
-    if (disposed) {
-      throw new Error('Mediabunny adapter has been disposed.');
-    }
-  };
-
-  const notify = () => {
-    if (disposed) {
-      return;
-    }
-    options.onChange?.();
-  };
+  const assertAdapterActive = () => sourceLifecycle.assertActive();
 
   const setLastFrameTime = (timestamp: number | null) => videoOutput.setLastFrameTime(timestamp);
 
-  const setStatus = (nextStatus: string) => {
-    if (disposed) {
-      return;
+  const setStatus = (nextStatus: string) => sourceLifecycle.setStatus(nextStatus);
+
+  const audioRuntime: MediabunnyAudioRuntime = new MediabunnyAudioRuntime(
+    options.audio,
+    initialVolume,
+    transportClock,
+    {
+      isActive: () => !disposed,
+      notify,
+      controllerValues: (): Iterable<MediabunnySourceController> =>
+        sourceLifecycle.controllerValues(),
     }
-    status = nextStatus;
-    notify();
-  };
-
-  const updateSourceStateSnapshot = (state: MediabunnySourceState) => {
-    if (disposed) {
-      return;
-    }
-    sourceLifecycle.updateState(state);
-  };
-
-  const setSourceState = (state: MediabunnySourceState) => {
-    updateSourceStateSnapshot(state);
-    notify();
-  };
-
-  const audioRuntime = new MediabunnyAudioRuntime(options.audio, initialVolume, transportClock, {
-    isActive: () => !disposed,
-    notify,
-    controllerValues: () => sourceLifecycle.controllerValues(),
-  });
+  );
 
   const getTransportClockTime = () => transportClock.getTime(audioRuntime.clockContext);
 
@@ -218,7 +162,39 @@ export function createMediabunnyAdapter(
     transportClock.set(timelineSeconds, playbackRate, playing, audioRuntime.clockContext);
   };
 
-  const ensureAudioRuntime = (notifyChange = true) => audioRuntime.ensure(notifyChange);
+  const ensureAudioRuntime = (notifyChange = true): ReturnType<MediabunnyAudioRuntime['ensure']> =>
+    audioRuntime.ensure(notifyChange);
+
+  const sourceLifecycle: MediabunnySourceLifecycle = new MediabunnySourceLifecycle(
+    options.sources,
+    () => (typeof options.mediabunny === 'function' ? options.mediabunny() : options.mediabunny),
+    options.selectTracks,
+    {
+      ensureAudioRuntime,
+      getTransportState: () => ({
+        timelineSeconds: getTransportClockTime(),
+        playbackRate: transportClock.playbackRate,
+        playing: transportClock.playing,
+      }),
+      activatePendingAudioClock: () => audioRuntime.activatePendingClock(),
+      stopController: (controller) => controllerLifecycle.stop(controller),
+      disposeController: (controller) => controllerLifecycle.dispose(controller),
+    },
+    {
+      invalidateOperations: invalidateOutputOperations,
+      clearPreview: (controller) => {
+        const canvas = videoOutput.canvas;
+        if (canvas !== null) {
+          clearPreviewCanvas(controller, canvas);
+          setLastFrameTime(null);
+        }
+      },
+      refreshPausedVisual: (sourceIds, supersedeInFlight) =>
+        queuePausedActiveVisualRefresh(sourceIds, supersedeInFlight),
+    },
+    () => !disposed,
+    notify
+  );
 
   const getController = (activeClip: ActiveClip | undefined) => {
     if (activeClip === undefined) {
@@ -234,8 +210,6 @@ export function createMediabunnyAdapter(
       controller.playing = playing;
     }
   };
-
-  const activatePendingAudioClock = () => audioRuntime.activatePendingClock();
 
   const clearVideoSurface = () => {
     const canvas = videoOutput.canvas;
@@ -306,7 +280,7 @@ export function createMediabunnyAdapter(
         return;
       }
       const error = renderError instanceof Error ? renderError : new Error(String(renderError));
-      void recoverSource(controller.sourceId, controller, error);
+      void sourceLifecycle.recoverSource(controller.sourceId, controller, error);
       throw error;
     }
   };
@@ -335,7 +309,7 @@ export function createMediabunnyAdapter(
     }
 
     syncAudioClip(controller, activeAudio, (audioError) => {
-      void recoverSource(controller.sourceId, controller, audioError);
+      void sourceLifecycle.recoverSource(controller.sourceId, controller, audioError);
     });
   };
 
@@ -382,292 +356,23 @@ export function createMediabunnyAdapter(
     return controller?.activeAudioSyncKey !== activeAudio.syncKey;
   };
 
-  const discardPendingSourceReplacement = (sourceId: string) => {
-    const operation = getSourceOperation(sourceId);
-    const replacement = operation.replacement;
-    if (replacement?.candidate !== null && replacement?.candidate !== undefined) {
-      disposeController(replacement.candidate);
-    }
-    operation.replacement = null;
-  };
-
-  const commitLoadedController = (
-    candidate: MediabunnySourceController,
-    readyState: MediabunnySourceState,
-    notifyReady: boolean
-  ): boolean => {
-    if (disposed) {
-      disposeController(candidate);
-      return false;
-    }
-    const previous = sourceLifecycle.getController(candidate.sourceId);
-    const timelineSeconds = getTransportClockTime();
-    if (previous !== undefined) {
-      disposeController(previous);
-    }
-    sourceLifecycle.setController(candidate);
-    setTimelineClock(candidate, timelineSeconds, transportClock.playbackRate);
-    candidate.playing = transportClock.playing;
-    if (disposed) {
-      return false;
-    }
-    error = null;
-    status = 'Ready. Mediabunny can drive timeline video and audio.';
-    if (notifyReady) {
-      setSourceState(readyState);
-    } else {
-      updateSourceStateSnapshot(readyState);
-    }
-    if (candidate.audioSink !== null) {
-      activatePendingAudioClock();
-    }
-    return !disposed;
-  };
-
-  const loadSource = async (
-    source: MediabunnySource,
-    loadOptions: MediabunnySourceLoadOptions
-  ): Promise<TimelineMediaSourceOperationResult> => {
-    const {
-      status: loadStatus,
-      token,
-      startIndex = 0,
-      previousAttempts = [],
-      replacement,
-    } = loadOptions;
-    const inputs = [source.input, ...(source.fallbacks ?? [])];
-    const isCurrentLoad = () => isCurrentSourceLoad(token);
-    if (!isCurrentLoad()) {
-      return createSupersededSourceLoadResult(source.sourceId);
-    }
-    setSourceState({
-      sourceId: source.sourceId,
-      status: loadStatus,
-      selectedInputIndex: null,
-      attempts: previousAttempts,
-      metadata: null,
-      error: null,
-    });
-
-    const modulePromise = sourceLifecycle.loadModule();
-    let mediabunny: MediabunnyModule;
-    try {
-      mediabunny = await modulePromise;
-    } catch (moduleError: unknown) {
-      sourceLifecycle.resetModule(modulePromise);
-      const loadError = moduleError instanceof Error ? moduleError : new Error(String(moduleError));
-      if (!isCurrentLoad()) {
-        return createSupersededSourceLoadResult(source.sourceId);
-      }
-      if (replacement === undefined) {
-        error = loadError;
-        status = loadError.message;
-        setSourceState({
-          sourceId: source.sourceId,
-          status: 'failed',
-          selectedInputIndex: null,
-          attempts: previousAttempts,
-          metadata: null,
-          error: loadError,
-        });
-      }
-      return {
-        ok: false,
-        sourceId: source.sourceId,
-        reason: 'load-failed',
-        error: loadError,
-      };
-    }
-    if (!isCurrentLoad()) {
-      return createSupersededSourceLoadResult(source.sourceId);
-    }
-    const attempts = [...previousAttempts];
-    let finalError = new Error(
-      `No remaining inputs are available for source "${source.sourceId}".`
-    );
-
-    for (let inputIndex = startIndex; inputIndex < inputs.length; inputIndex += 1) {
-      const sourceInput = inputs[inputIndex];
-      if (sourceInput === undefined) {
-        continue;
-      }
-      const candidate = createController(source.sourceId, inputIndex, source.timing);
-      try {
-        const loaded = await loadMediabunnySourceController(
-          candidate,
-          mediabunny,
-          source,
-          sourceInput,
-          options.selectTracks,
-          ensureAudioRuntime,
-          isCurrentLoad,
-          replacement !== undefined
-        );
-        if (!isCurrentLoad()) {
-          disposeController(candidate);
-          return createSupersededSourceLoadResult(source.sourceId);
-        }
-
-        attempts.push({ inputIndex, status: 'ready', error: null });
-        const readyState: MediabunnySourceState = {
-          sourceId: source.sourceId,
-          status: 'ready',
-          selectedInputIndex: inputIndex,
-          attempts,
-          metadata: loaded.metadata,
-          error: null,
-        };
-        if (replacement !== undefined) {
-          replacement.candidate = candidate;
-          replacement.readyState = readyState;
-        } else if (!commitLoadedController(candidate, readyState, true)) {
-          return createSupersededSourceLoadResult(source.sourceId);
-        }
-        return {
-          ok: true,
-          sourceId: source.sourceId,
-          state: 'ready',
-        };
-      } catch (sourceError) {
-        disposeController(candidate);
-        if (!isCurrentLoad()) {
-          return createSupersededSourceLoadResult(source.sourceId);
-        }
-        finalError = sourceError instanceof Error ? sourceError : new Error(String(sourceError));
-        attempts.push({
-          inputIndex,
-          status: 'failed',
-          error: finalError,
-        });
-      }
-    }
-
-    if (!isCurrentLoad()) {
-      return createSupersededSourceLoadResult(source.sourceId);
-    }
-
-    const previous = sourceLifecycle.getController(source.sourceId);
-    if (loadStatus === 'recovering' && previous !== undefined) {
-      disposeController(previous);
-      sourceLifecycle.deleteController(source.sourceId);
-    }
-    if (replacement === undefined) {
-      error = finalError;
-      status = finalError.message;
-      setSourceState({
-        sourceId: source.sourceId,
-        status: 'failed',
-        selectedInputIndex: null,
-        attempts,
-        metadata: null,
-        error: finalError,
-      });
-    }
-    return {
-      ok: false,
-      sourceId: source.sourceId,
-      reason: 'load-failed',
-      error: finalError,
-    };
-  };
-
-  const ensureSource = (sourceId: string): Promise<TimelineMediaSourceOperationResult> => {
-    const operation = sourceLifecycle.getExistingOperation(sourceId);
-    const activeRecovery = operation?.recovery;
-    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
-      return activeRecovery.promise;
-    }
-    const activeReplacement = operation?.replacement ?? null;
-    if (activeReplacement !== null) {
-      if (sourceLifecycle.hasController(sourceId) && activeReplacement.deferredRecovery === null) {
-        return Promise.resolve({ ok: true, sourceId, state: 'ready' });
-      }
-      if (activeReplacement.promise === null) {
-        return Promise.resolve().then(() => ensureSource(sourceId));
-      }
-      return activeReplacement.promise.then((result) => {
-        if (result.ok || !sourceLifecycle.hasDefinition(sourceId)) {
-          return result;
-        }
-        return ensureSource(sourceId);
-      });
-    }
-    const source = sourceLifecycle.getDefinition(sourceId);
-    if (source === undefined) {
-      return Promise.resolve({
-        ok: false,
-        sourceId,
-        reason: 'unknown-source',
-        error: new Error(`Unknown source "${sourceId}".`),
-      });
-    }
-    const sourceOperation = operation ?? getSourceOperation(sourceId);
-    if (sourceLifecycle.hasController(sourceId)) {
-      return Promise.resolve({ ok: true, sourceId, state: 'ready' });
-    }
-    const existingPromise = sourceOperation.preloadPromise;
-    if (existingPromise !== null) {
-      return existingPromise;
-    }
-
-    sourceOperation.recovery = null;
-    const token = beginSourceLoad(sourceId);
-    const loadPromise = loadSource(source, { status: 'loading', token }).finally(() => {
-      if (sourceOperation.preloadPromise === loadPromise) {
-        sourceOperation.preloadPromise = null;
-      }
-    });
-    sourceOperation.preloadPromise = loadPromise;
-    return loadPromise;
-  };
-
   const ensureActiveSources = async (
     activeVisual: ActiveClip | undefined,
     activeAudio: ActiveClip | undefined,
     outputToken: MediabunnyOutputOperationToken
   ): Promise<readonly MediabunnySourceLoadToken[] | null> => {
-    const requestedSourceIds = new Set<string>();
-    for (const activeClip of [activeVisual, activeAudio]) {
-      if (activeClip !== undefined) {
-        requestedSourceIds.add(activeClip.clip.sourceId);
-      }
-    }
-
-    const requestTokens = [...requestedSourceIds];
-    const sourceResults = await Promise.all(
-      requestTokens.map(async (sourceId) => {
-        while (true) {
-          if (!isCurrentOutputOperation(outputToken)) {
-            return false;
-          }
-          const result = await ensureSource(sourceId);
-          if (!isCurrentOutputOperation(outputToken)) {
-            return false;
-          }
-          if (result.ok) {
-            return true;
-          }
-          if (isSupersededSourceLoadResult(result) && sourceLifecycle.hasDefinition(sourceId)) {
-            continue;
-          }
-          throw result.error;
-        }
-      })
+    return sourceLifecycle.ensureSources(
+      [activeVisual, activeAudio]
+        .filter((activeClip): activeClip is ActiveClip => activeClip !== undefined)
+        .map((activeClip) => activeClip.clip.sourceId),
+      () => isCurrentOutputOperation(outputToken)
     );
-    if (sourceResults.some((sourceReady) => !sourceReady)) {
-      return null;
-    }
-
-    return requestTokens.map((sourceId) => ({
-      sourceId,
-      generation: getSourceOperation(sourceId).generation,
-    }));
   };
 
-  const queuePausedActiveVisualRefresh = (
+  function queuePausedActiveVisualRefresh(
     sourceIds: ReadonlySet<string>,
     supersedeInFlight = true
-  ) => {
+  ) {
     const expectedVisual = videoOutput.activeVisual;
     if (
       transportClock.playing ||
@@ -685,32 +390,18 @@ export function createMediabunnyAdapter(
     const outputToken = beginOutputOperation([sourceId]);
     void (async () => {
       try {
-        while (true) {
-          if (
-            disposed ||
-            transportClock.playing ||
-            videoOutput.activeVisual !== expectedVisual ||
-            !isCurrentOutputOperation(outputToken) ||
-            !sourceLifecycle.hasDefinition(sourceId)
-          ) {
-            return;
-          }
-
-          const result = await ensureSource(sourceId);
-          if (result.ok) {
-            break;
-          }
-          if (!isSupersededSourceLoadResult(result) || !sourceLifecycle.hasDefinition(sourceId)) {
-            return;
-          }
+        const ownership = await sourceLifecycle.ensureSources([sourceId], () => {
+          return (
+            !disposed &&
+            !transportClock.playing &&
+            videoOutput.activeVisual === expectedVisual &&
+            isCurrentOutputOperation(outputToken) &&
+            sourceLifecycle.hasDefinition(sourceId)
+          );
+        });
+        if (ownership === null) {
+          return;
         }
-
-        const ownership: readonly MediabunnySourceLoadToken[] = [
-          {
-            sourceId,
-            generation: getSourceOperation(sourceId).generation,
-          },
-        ];
         const controller = sourceLifecycle.getController(sourceId);
         if (
           controller === undefined ||
@@ -736,66 +427,7 @@ export function createMediabunnyAdapter(
     })().catch(() => {
       // Source loads publish their failures and renderVideo owns runtime recovery.
     });
-  };
-
-  const recoverSource = (
-    sourceId: string,
-    expectedController: MediabunnySourceController,
-    recoveryError: Error
-  ): Promise<TimelineMediaSourceOperationResult> => {
-    const source = sourceLifecycle.getDefinition(sourceId);
-    const controller = sourceLifecycle.getController(sourceId);
-    const operation = getSourceOperation(sourceId);
-    const activeRecovery = operation.recovery;
-    if (activeRecovery?.promise !== null && activeRecovery?.promise !== undefined) {
-      return activeRecovery.promise;
-    }
-    if (source === undefined || controller !== expectedController || disposed) {
-      return Promise.resolve(createSupersededSourceLoadResult(sourceId));
-    }
-    const recovery: PendingSourceRecovery = {
-      controller: expectedController,
-      error: recoveryError,
-      previousState: sourceLifecycle.getState(sourceId),
-      promise: null,
-    };
-    const pendingReplacement = operation.replacement;
-    if (pendingReplacement !== null) {
-      pendingReplacement.deferredRecovery ??= recovery;
-      return Promise.resolve(createSupersededSourceLoadResult(sourceId));
-    }
-    operation.recovery = recovery;
-    stopMediaClock(controller);
-    const attempts = [
-      ...(recovery.previousState?.attempts ?? []),
-      {
-        inputIndex: controller.inputIndex,
-        status: 'failed',
-        error: recoveryError,
-      } as const,
-    ];
-    const token = beginSourceLoad(sourceId);
-    const recoveryPromise = (async () => {
-      try {
-        const result = await loadSource(source, {
-          status: 'recovering',
-          token,
-          startIndex: controller.inputIndex + 1,
-          previousAttempts: attempts,
-        });
-        if (result.ok && isCurrentSourceLoad(token)) {
-          queuePausedActiveVisualRefresh(new Set([sourceId]), false);
-        }
-        return result;
-      } finally {
-        if (operation.recovery === recovery) {
-          operation.recovery = null;
-        }
-      }
-    })();
-    recovery.promise = recoveryPromise;
-    return recoveryPromise;
-  };
+  }
 
   const syncLayers = async ({
     activeLayers,
@@ -857,7 +489,7 @@ export function createMediabunnyAdapter(
             },
             (playbackError) => {
               if (isCurrentActiveSourceOwnership(outputToken, sourceOwnership)) {
-                void recoverSource(controller.sourceId, controller, playbackError);
+                void sourceLifecycle.recoverSource(controller.sourceId, controller, playbackError);
               }
             }
           );
@@ -899,113 +531,15 @@ export function createMediabunnyAdapter(
     }
   };
 
-  const invalidateSourceLoad = (sourceId: string) => {
-    const operation = getSourceOperation(sourceId);
-    operation.generation += 1;
-    operation.preloadPromise = null;
-    operation.recovery = null;
-    discardPendingSourceReplacement(sourceId);
-  };
-
-  const releaseSource = (sourceId: string, invalidateActiveRequests = false) => {
-    if (invalidateActiveRequests || sourceLifecycle.hasActiveSource(sourceId)) {
-      invalidateOutputOperations(new Set([sourceId]));
-    }
-    invalidateSourceLoad(sourceId);
-    const controller = sourceLifecycle.getController(sourceId);
-    if (controller !== undefined) {
-      if (sourceLifecycle.hasActiveSource(sourceId) && videoOutput.canvas !== null) {
-        clearPreviewCanvas(controller, videoOutput.canvas);
-        setLastFrameTime(null);
-      }
-      disposeController(controller);
-      sourceLifecycle.deleteController(sourceId);
-    }
-  };
-
-  const discardCurrentController = (
-    sourceId: string,
-    expectedController: MediabunnySourceController
-  ) => {
-    if (sourceLifecycle.getController(sourceId) !== expectedController) {
-      return;
-    }
-    disposeController(expectedController);
-    sourceLifecycle.deleteController(sourceId);
-  };
-
-  const reconcileSources = (nextSources: readonly MediabunnySource[]) => {
-    assertAdapterActive();
-    validateSources(nextSources);
-    const nextDefinitions = new Map(nextSources.map((source) => [source.sourceId, source]));
-    const supersededReplacements = new Map<string, PendingSourceReplacement>();
-    for (const [sourceId, operation] of sourceLifecycle.operationEntries()) {
-      if (operation.replacement !== null) {
-        supersededReplacements.set(sourceId, operation.replacement);
-      }
-    }
-    const changedSourceIds = new Set<string>();
-    for (const [sourceId, source] of sourceLifecycle.definitionEntries()) {
-      const nextSource = nextDefinitions.get(sourceId);
-      if (nextSource === undefined || !areMediabunnySourcesEqual(source, nextSource)) {
-        changedSourceIds.add(sourceId);
-      }
-    }
-    for (const sourceId of nextDefinitions.keys()) {
-      if (!sourceLifecycle.hasDefinition(sourceId)) {
-        changedSourceIds.add(sourceId);
-      }
-    }
-    if (
-      changedSourceIds.size === 0 &&
-      sourceLifecycle.sourceCount === nextDefinitions.size &&
-      supersededReplacements.size === 0
-    ) {
-      return;
-    }
-    invalidateOutputOperations(changedSourceIds);
-
-    for (const sourceId of supersededReplacements.keys()) {
-      invalidateSourceLoad(sourceId);
-    }
-
-    for (const sourceId of changedSourceIds) {
-      releaseSource(sourceId, !nextDefinitions.has(sourceId));
-    }
-    const previousSnapshot = sourceLifecycle.sourceStateById;
-    sourceLifecycle.replaceDefinitions(nextSources);
-    sourceLifecycle.replaceSnapshot(
-      new Map(
-        nextSources.map((source) => {
-          const previousState = previousSnapshot.get(source.sourceId);
-          const replacementState = supersededReplacements.get(source.sourceId)?.previousState;
-          return [
-            source.sourceId,
-            changedSourceIds.has(source.sourceId)
-              ? createIdleSourceState(source.sourceId)
-              : (replacementState ?? previousState ?? createIdleSourceState(source.sourceId)),
-          ];
-        })
-      )
-    );
-    ready = nextSources.length > 0;
-    error = null;
-    status = ready
-      ? 'Sources registered. Mediabunny loads active media on demand.'
-      : 'No Mediabunny sources are configured.';
-    notify();
-    queuePausedActiveVisualRefresh(changedSourceIds);
-  };
-
   const adapter: MediabunnyAdapter = {
     get ready() {
-      return ready;
+      return sourceLifecycle.ready;
     },
     get status() {
-      return status;
+      return sourceLifecycle.status;
     },
     get error() {
-      return error;
+      return sourceLifecycle.error;
     },
     get lastFrameTime() {
       return videoOutput.lastFrameTime;
@@ -1045,7 +579,7 @@ export function createMediabunnyAdapter(
       assertAdapterActive();
       const activeSourceIds = [...sourceLifecycle.activeSourceValues()];
       if (
-        !ready ||
+        !sourceLifecycle.ready ||
         activeSourceIds.length === 0 ||
         activeSourceIds.some((sourceId) => !sourceLifecycle.hasController(sourceId))
       ) {
@@ -1064,7 +598,7 @@ export function createMediabunnyAdapter(
       setTransportClock(timelineSeconds, transportClock.playbackRate, false);
       audioRuntime.cancelPendingActivation();
       for (const controller of sourceLifecycle.controllerValues()) {
-        stopMediaClock(controller);
+        controllerLifecycle.stop(controller);
       }
     },
     requestClockActivation: (playbackRate) => {
@@ -1082,171 +616,11 @@ export function createMediabunnyAdapter(
       audioRuntime.setMuted(nextMuted);
       notify();
     },
-    setSources: reconcileSources,
-    preloadSource: async (sourceId) => {
-      assertAdapterActive();
-      const result = await ensureSource(sourceId);
-      if (result.ok) {
-        queuePausedActiveVisualRefresh(new Set([sourceId]), false);
-      }
-      return result;
-    },
-    unloadSource: (sourceId) => {
-      assertAdapterActive();
-      if (!sourceLifecycle.hasDefinition(sourceId)) {
-        return false;
-      }
-      releaseSource(sourceId, true);
-      status = 'Source unloaded. It will reload when active or explicitly preloaded.';
-      setSourceState(createIdleSourceState(sourceId));
-      return true;
-    },
-    retrySource: async (sourceId) => {
-      assertAdapterActive();
-      const source = sourceLifecycle.getDefinition(sourceId);
-      if (source === undefined) {
-        return {
-          ok: false,
-          sourceId,
-          reason: 'unknown-source',
-          error: new Error(`Unknown source "${sourceId}".`),
-        };
-      }
-      invalidateOutputOperations(new Set([sourceId]));
-      const operation = getSourceOperation(sourceId);
-      const pendingReplacement = operation.replacement;
-      const recovery = operation.recovery ?? pendingReplacement?.deferredRecovery ?? null;
-      operation.recovery = null;
-      discardPendingSourceReplacement(sourceId);
-      const previousState =
-        recovery?.previousState ??
-        pendingReplacement?.previousState ??
-        sourceLifecycle.getState(sourceId);
-      const previousController = sourceLifecycle.getController(sourceId);
-      const previousStatus = status;
-      const previousError = error;
-      const token = beginSourceLoad(sourceId);
-      const result = await loadSource(source, { status: 'loading', token });
-      if (!isCurrentSourceLoad(token)) {
-        return createSupersededSourceLoadResult(sourceId);
-      }
-      if (!result.ok && previousController !== undefined) {
-        if (recovery !== null) {
-          discardCurrentController(sourceId, previousController);
-        } else if (previousState !== undefined) {
-          status = previousStatus;
-          error = previousError;
-          setSourceState(previousState);
-        }
-      }
-      if (result.ok) {
-        queuePausedActiveVisualRefresh(new Set([sourceId]));
-      }
-      return result;
-    },
-    replaceSource: async (source) => {
-      assertAdapterActive();
-      try {
-        validateSources([source]);
-      } catch (sourceError) {
-        return {
-          ok: false,
-          sourceId: source.sourceId,
-          reason: 'invalid-source',
-          error: sourceError instanceof Error ? sourceError : new Error(String(sourceError)),
-        } as const;
-      }
-      invalidateOutputOperations(new Set([source.sourceId]));
-      const operation = getSourceOperation(source.sourceId);
-      const previousReplacement = operation.replacement;
-      const activeRecovery = operation.recovery;
-      operation.recovery = null;
-      const replacement: PendingSourceReplacement = {
-        previousState:
-          previousReplacement?.previousState ?? sourceLifecycle.getState(source.sourceId),
-        candidate: null,
-        readyState: null,
-        deferredRecovery: previousReplacement?.deferredRecovery ?? activeRecovery,
-        promise: null,
-      };
-      discardPendingSourceReplacement(source.sourceId);
-      operation.replacement = replacement;
-      const token = beginSourceLoad(source.sourceId);
-      const replacementPromise = (async (): Promise<TimelineMediaSourceOperationResult> => {
-        try {
-          const result = await loadSource(source, {
-            status: 'loading',
-            token,
-            replacement,
-          });
-          if (!isCurrentSourceLoad(token) || operation.replacement !== replacement) {
-            return createSupersededSourceLoadResult(source.sourceId);
-          }
-          if (result.ok) {
-            if (replacement.candidate === null || replacement.readyState === null) {
-              operation.replacement = null;
-              return {
-                ok: false,
-                sourceId: source.sourceId,
-                reason: 'load-failed',
-                error: new Error(
-                  `Replacement source "${source.sourceId}" did not produce a controller.`
-                ),
-              };
-            }
-            if (replacement.candidate.audioSink !== null) {
-              const audioNodes = ensureAudioRuntime(false);
-              if (audioNodes === null) {
-                replacement.candidate.audioSink = null;
-              } else {
-                replacement.candidate.audioContext = audioNodes.context;
-                replacement.candidate.gainNode = audioNodes.gainNode;
-              }
-            }
-            if (!isCurrentSourceLoad(token) || operation.replacement !== replacement) {
-              return createSupersededSourceLoadResult(source.sourceId);
-            }
-            operation.replacement = null;
-            if (!commitLoadedController(replacement.candidate, replacement.readyState, false)) {
-              return createSupersededSourceLoadResult(source.sourceId);
-            }
-            sourceLifecycle.setDefinition(source);
-            ready = true;
-            notify();
-            queuePausedActiveVisualRefresh(new Set([source.sourceId]));
-          } else {
-            operation.replacement = null;
-            const nextSnapshot = new Map(sourceLifecycle.sourceStateById);
-            if (replacement.previousState === undefined) {
-              nextSnapshot.delete(source.sourceId);
-            } else {
-              nextSnapshot.set(source.sourceId, replacement.previousState);
-            }
-            sourceLifecycle.replaceSnapshot(nextSnapshot);
-            notify();
-            const deferredRecovery = replacement.deferredRecovery;
-            if (
-              deferredRecovery !== null &&
-              sourceLifecycle.getController(source.sourceId) === deferredRecovery.controller &&
-              sourceLifecycle.hasDefinition(source.sourceId)
-            ) {
-              void recoverSource(
-                source.sourceId,
-                deferredRecovery.controller,
-                deferredRecovery.error
-              );
-            }
-          }
-          return result;
-        } finally {
-          if (operation.replacement === replacement) {
-            discardPendingSourceReplacement(source.sourceId);
-          }
-        }
-      })();
-      replacement.promise = replacementPromise;
-      return replacementPromise;
-    },
+    setSources: (sources) => sourceLifecycle.setSources(sources),
+    preloadSource: (sourceId) => sourceLifecycle.preloadSource(sourceId),
+    unloadSource: (sourceId) => sourceLifecycle.unloadSource(sourceId),
+    retrySource: (sourceId) => sourceLifecycle.retrySource(sourceId),
+    replaceSource: (source) => sourceLifecycle.replaceSource(source),
     setClockRate: (playbackRate) => {
       assertAdapterActive();
       const timelineSeconds = getTransportClockTime();
@@ -1256,7 +630,7 @@ export function createMediabunnyAdapter(
     },
     seek: async (timelineTime, activeLayers) => {
       assertAdapterActive();
-      if (!ready) {
+      if (!sourceLifecycle.ready) {
         return;
       }
 
@@ -1347,7 +721,7 @@ export function createMediabunnyAdapter(
         );
       } catch (frameError) {
         const error = frameError instanceof Error ? frameError : new Error(String(frameError));
-        void recoverSource(controller.sourceId, controller, error);
+        void sourceLifecycle.recoverSource(controller.sourceId, controller, error);
         return null;
       }
       if (
@@ -1368,46 +742,13 @@ export function createMediabunnyAdapter(
         return;
       }
       const terminalTimelineTime = getTransportClockTime();
-      disposed = true;
       videoOutput.dispose();
-      ready = false;
-      status = 'Mediabunny adapter disposed.';
-      error = null;
       setTransportClock(terminalTimelineTime, transportClock.playbackRate, false);
       audioRuntime.dispose();
-      for (const controller of sourceLifecycle.controllerValues()) {
-        disposeController(controller);
-      }
-      sourceLifecycle.clearControllers();
-      for (const [sourceId, operation] of sourceLifecycle.operationEntries()) {
-        operation.generation += 1;
-        operation.preloadPromise = null;
-        operation.recovery = null;
-        discardPendingSourceReplacement(sourceId);
-      }
-      sourceLifecycle.clearSnapshot();
+      sourceLifecycle.dispose();
+      disposed = true;
     },
   };
 
   return adapter;
-}
-
-function stopMediaClock(controller: MediabunnySourceController) {
-  const currentTime = getTimelinePlaybackSeconds(controller);
-  controller.timelineTimeAtStart = currentTime;
-  controller.playing = false;
-  controller.audioContextStartTime = null;
-  controller.audioClockReady = false;
-  controller.wallClockStartTime = null;
-
-  void cancelVideoPlayback(controller);
-  stopControllerAudio(controller);
-}
-
-function disposeController(controller: MediabunnySourceController) {
-  stopMediaClock(controller);
-  invalidateFrameRendering(controller);
-  if (controller.ownsInput) {
-    controller.input?.dispose();
-  }
 }
