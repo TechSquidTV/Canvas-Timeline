@@ -791,6 +791,51 @@ test('useTimelineMediaPlayback does not pause a competing clock when it unmounts
   });
 });
 
+test('useTimelineMediaPlayback rejects commands owned by a competing clock', async () => {
+  const engine = createMediaSyncEngine();
+  const stopClock = vi.fn();
+  const syncLayers = vi.fn();
+  const { result, unmount } = renderHook(
+    () =>
+      useTimelineMediaPlayback({
+        getClockTime: () => 1,
+        layers: mediaSyncLayers,
+        stopClock,
+        syncLayers,
+      }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  act(() => {
+    expect(engine.play({ clock: 'external' })).toBe(true);
+  });
+
+  await expect(result.current.play()).resolves.toEqual({
+    ok: false,
+    reason: 'policy-rejected',
+    message: 'Timeline playback is already controlled by another clock.',
+  });
+
+  act(() => {
+    expect(result.current.pause()).toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Timeline playback is already controlled by another clock.',
+    });
+  });
+  unmount();
+
+  expect(engine.getState().playing).toBe(true);
+  expect(stopClock).not.toHaveBeenCalled();
+  expect(syncLayers).not.toHaveBeenCalled();
+
+  act(() => {
+    engine.pause();
+  });
+});
+
 test('useTimelineMediaPlayback cancels pending media startup without pausing a competing clock', async () => {
   const engine = createMediaSyncEngine();
   const stopClock = vi.fn();

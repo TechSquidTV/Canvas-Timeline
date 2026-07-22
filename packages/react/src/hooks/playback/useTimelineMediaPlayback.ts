@@ -99,6 +99,13 @@ function getPlaybackFrameNumber(seconds: number, frameRate: TimecodeFrameRate) {
   return { frameNumber, frameRate: resolvedFrameRate };
 }
 
+function createCompetingClockFailure(): TimelineCommandResult {
+  return timelineCommandFail(
+    'policy-rejected',
+    'Timeline playback is already controlled by another clock.'
+  );
+}
+
 /**
  * Result returned by `useTimelineMediaPlayback`.
  *
@@ -270,6 +277,7 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
       }
 
       pausingRef.current = true;
+      const ownedEnginePlayback = ownsPlaybackRef.current;
       const generation = playbackGenerationRef.current + 1;
       playbackGenerationRef.current = generation;
       playbackStartGenerationRef.current = null;
@@ -290,7 +298,7 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
           },
           generation
         );
-        if (engine.getState().playing) {
+        if (ownedEnginePlayback && engine.getState().playing) {
           engine.pause();
         }
         currentOptions.onStatus?.(status);
@@ -361,13 +369,20 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
   );
 
   const pausePlayback = useCallback(() => {
+    if (
+      engine.getState().playing &&
+      !ownsPlaybackRef.current &&
+      playbackStartGenerationRef.current === null
+    ) {
+      return createCompetingClockFailure();
+    }
     pause('paused');
     return timelineCommandOk();
-  }, [pause]);
+  }, [engine, pause]);
 
   const play = useCallback(async () => {
     if (engine.getState().playing) {
-      return timelineCommandOk();
+      return ownsPlaybackRef.current ? timelineCommandOk() : createCompetingClockFailure();
     }
 
     const generation = playbackGenerationRef.current + 1;
