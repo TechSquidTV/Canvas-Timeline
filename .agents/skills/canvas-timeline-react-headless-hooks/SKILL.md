@@ -20,7 +20,7 @@ Before editing hook APIs, inspect:
 - [React editor hooks docs](../../../apps/www/src/content/docs/react-hooks.mdx)
 
 For `useTimelineMediaSync`, `useTimelineMediaPlayback`, or adapter React hooks,
-also use [canvas-timeline-media-adapters](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills/canvas-timeline-media-adapters/SKILL.md).
+also use [canvas-timeline-media-adapters](../canvas-timeline-media-adapters/SKILL.md).
 
 ## Hook Shape
 

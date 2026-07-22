@@ -17,11 +17,11 @@ compatibility aliases, or fallback APIs for removed shapes.
 
 ## Inspect Before Editing
 
-- Read the canonical [media adapter guide](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/media-adapters.mdx) and, for breaking work, the [migration guide](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/media-adapter-migration.mdx).
-- Inspect shared contracts in [core/media.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/core/src/media.ts) and external range handling in [core/playback.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/core/src/playback.ts).
-- Inspect transport orchestration in [useTimelineMediaSync.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks/playback/useTimelineMediaSync.ts) and [useTimelineMediaPlayback.ts](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks/playback/useTimelineMediaPlayback.ts).
+- Read the canonical [media adapter guide](../../../apps/www/src/content/docs/media-adapters.mdx) and, for breaking work, the [migration guide](../../../apps/www/src/content/docs/media-adapter-migration.mdx).
+- Inspect shared contracts in [core/media.ts](../../../packages/core/src/media.ts) and external range handling in [core/playback.ts](../../../packages/core/src/playback.ts).
+- Inspect transport orchestration in [useTimelineMediaSync.ts](../../../packages/react/src/hooks/playback/useTimelineMediaSync.ts) and [useTimelineMediaPlayback.ts](../../../packages/react/src/hooks/playback/useTimelineMediaPlayback.ts).
 - Inspect both the imperative and React entrypoints for the adapter being changed.
-- Use [manage-live-demos](file:///Users/techsquidtv/Documents/Git/canvas-timeline/.agents/skills/manage-live-demos/SKILL.md) as well when changing media demos or their registries.
+- Use [manage-live-demos](../manage-live-demos/SKILL.md) as well when changing media demos or their registries.
 
 ## Package Boundaries
 
