@@ -8,7 +8,7 @@ import type { MediabunnyAdapter } from '#mediabunny-adapter/index';
 
 afterEach(() => {
   vi.doUnmock('react');
-  vi.doUnmock('./index');
+  vi.doUnmock('#mediabunny-adapter/createMediabunnyAdapter');
   vi.doUnmock('@techsquidtv/canvas-timeline-react');
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -148,7 +148,7 @@ test('useMediabunnyAdapter creates, updates, and disposes the browser adapter', 
   const createMediabunnyAdapter = vi.fn(() => adapter);
   const mediabunny = () => Promise.resolve({} as never);
 
-  vi.doMock('./index', async () => ({
+  vi.doMock('#mediabunny-adapter/createMediabunnyAdapter', async () => ({
     createMediabunnyAdapter,
   }));
 
@@ -236,7 +236,9 @@ test('useMediabunnyAdapter keeps StrictMode updates on the currently owned adapt
     records.push(record as (typeof records)[number]);
     return adapter;
   });
-  vi.doMock('./index', async () => ({ createMediabunnyAdapter }));
+  vi.doMock('#mediabunny-adapter/createMediabunnyAdapter', async () => ({
+    createMediabunnyAdapter,
+  }));
   const { useMediabunnyAdapter: useMockedMediabunnyAdapter } =
     await import('#mediabunny-adapter/react');
   const initialCanvas = document.createElement('canvas');
@@ -380,7 +382,7 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
     audio: { trackKind: 'audio', sourceId: 'source-1' },
   } as const;
 
-  vi.doMock('./index', async () => ({
+  vi.doMock('#mediabunny-adapter/createMediabunnyAdapter', async () => ({
     createMediabunnyAdapter,
   }));
 
@@ -465,7 +467,7 @@ test('useMediabunnyTimelineMedia accepts an explicit Mediabunny loader', async (
   const explicitLoader = () => Promise.resolve({} as never);
   const engine = createMediaSyncEngine();
 
-  vi.doMock('./index', async () => ({
+  vi.doMock('#mediabunny-adapter/createMediabunnyAdapter', async () => ({
     createMediabunnyAdapter,
   }));
 

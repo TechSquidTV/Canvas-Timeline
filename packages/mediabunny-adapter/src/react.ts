@@ -12,12 +12,12 @@ import {
   type UseTimelineMediaSyncOptions,
   type UseTimelineMediaSyncResult,
 } from '@techsquidtv/canvas-timeline-react';
-import {
-  createMediabunnyAdapter,
-  type CreateMediabunnyAdapterOptions,
-  type MediabunnyAdapter,
-  type MediabunnyModule,
-} from '#mediabunny-adapter/index';
+import { createMediabunnyAdapter } from '#mediabunny-adapter/createMediabunnyAdapter';
+import type {
+  CreateMediabunnyAdapterOptions,
+  MediabunnyAdapter,
+  MediabunnyModule,
+} from '#mediabunny-adapter/types';
 
 /**
  * Options for creating a Mediabunny adapter from React.

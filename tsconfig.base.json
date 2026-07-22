@@ -19,6 +19,7 @@
       "#full-editor/*": ["./apps/full-editor-demo/src/*"],
       "#html-media-adapter/*": ["./packages/html-media-adapter/src/*"],
       "#mediabunny-adapter/*": ["./packages/mediabunny-adapter/src/*"],
+      "#mediabunny-adapter-test/*": ["./packages/mediabunny-adapter/test/*"],
       "#react/*": ["./packages/react/src/*"],
       "#renderer/*": ["./packages/renderer/src/*"],
       "#test-utils/*": ["./test-utils/*"],
