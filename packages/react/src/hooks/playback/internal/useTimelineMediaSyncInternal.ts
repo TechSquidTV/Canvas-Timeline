@@ -11,7 +11,7 @@ import {
   rationalEquals,
   type RationalTime,
 } from '@techsquidtv/canvas-timeline-utils';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
 import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
@@ -243,12 +243,15 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   const adapterIdentityRef = useRef(adapterIdentity);
   const layersRef = useRef(layers);
   const pausedPreviewPrimedRef = useRef(false);
-  const previewScheduler = useRef(new PausedMediaPreviewScheduler()).current;
+  const [previewScheduler] = useState(() => new PausedMediaPreviewScheduler());
   const readyRef = useRef(ready);
   const onErrorRef = useRef(onError);
   const playbackStartGenerationRef = useRef(0);
-  const clockOwnershipRef = useRef(new MediaClockOwnership<LayerName, TimelineMediaPlayResult>());
-  const adapterOperationQueue = useRef(new MediaSynchronizationQueue()).current;
+  const [clockOwnership] = useState(
+    () => new MediaClockOwnership<LayerName, TimelineMediaPlayResult>()
+  );
+  const clockOwnershipRef = useRef(clockOwnership);
+  const [adapterOperationQueue] = useState(() => new MediaSynchronizationQueue());
   const { loop: shouldLoop = false, ...externalPlaybackOptions } = playbackOptions ?? {};
 
   const captureAdapterOperation = useCallback(
