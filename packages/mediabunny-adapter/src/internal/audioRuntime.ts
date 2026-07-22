@@ -279,7 +279,7 @@ export function stopControllerAudio(controller: MediabunnyAudioController) {
   stopQueuedAudio(controller);
 }
 
-export function stopQueuedAudio(controller: MediabunnyAudioController) {
+function stopQueuedAudio(controller: MediabunnyAudioController) {
   for (const node of controller.queuedAudioNodes) {
     try {
       node.stop();
@@ -290,7 +290,7 @@ export function stopQueuedAudio(controller: MediabunnyAudioController) {
   controller.queuedAudioNodes.clear();
 }
 
-export function stopAudioIterator(controller: MediabunnyAudioController) {
+function stopAudioIterator(controller: MediabunnyAudioController) {
   controller.audioPlaybackGeneration += 1;
   void controller.audioBufferIterator?.return();
   controller.audioBufferIterator = null;
