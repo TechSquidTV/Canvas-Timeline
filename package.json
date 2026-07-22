@@ -61,7 +61,7 @@
     "knip": "^6.26.0",
     "publint": "^0.3.21",
     "tsx": "^4.23.0",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
