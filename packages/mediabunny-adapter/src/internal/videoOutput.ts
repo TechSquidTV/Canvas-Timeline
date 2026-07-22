@@ -2,13 +2,128 @@ import type { ActiveClip } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type * as Mediabunny from 'mediabunny';
 import {
-  type MediabunnySourceController,
   type PendingFrameRequest,
+  type MediabunnyVideoController,
   toMediaSeconds,
 } from '#mediabunny-adapter/internal/sourceController';
 
+export interface MediabunnyOutputOperationToken {
+  generation: number;
+  canvas: HTMLCanvasElement | null;
+}
+
+export class MediabunnyVideoOutput {
+  readonly #isActive: () => boolean;
+  readonly #frameListeners = new Set<() => void>();
+  readonly #operationsInFlight = new Set<number>();
+  #canvas: HTMLCanvasElement | null;
+  #activeVisual: ActiveClip | undefined;
+  #lastFrameTime: number | null = null;
+  #generation = 0;
+  #currentSourceIds = new Set<string>();
+
+  constructor(canvas: HTMLCanvasElement | null, isActive: () => boolean) {
+    this.#canvas = canvas;
+    this.#isActive = isActive;
+  }
+
+  get canvas() {
+    return this.#canvas;
+  }
+
+  get activeVisual() {
+    return this.#activeVisual;
+  }
+
+  set activeVisual(activeVisual: ActiveClip | undefined) {
+    this.#activeVisual = activeVisual;
+  }
+
+  get lastFrameTime() {
+    return this.#lastFrameTime;
+  }
+
+  setCanvas(canvas: HTMLCanvasElement | null) {
+    if (this.#canvas === canvas) {
+      return false;
+    }
+    this.#canvas = canvas;
+    return true;
+  }
+
+  subscribe(listener: () => void) {
+    this.#frameListeners.add(listener);
+    return () => {
+      this.#frameListeners.delete(listener);
+    };
+  }
+
+  setLastFrameTime(timestamp: number | null) {
+    if (!this.#isActive() || Object.is(this.#lastFrameTime, timestamp)) {
+      return;
+    }
+    this.#lastFrameTime = timestamp;
+    for (const listener of this.#frameListeners) {
+      listener();
+    }
+  }
+
+  begin(sourceIds: Iterable<string>): MediabunnyOutputOperationToken {
+    const token = {
+      generation: ++this.#generation,
+      canvas: this.#canvas,
+    };
+    this.#currentSourceIds = new Set(sourceIds);
+    this.#operationsInFlight.add(token.generation);
+    return token;
+  }
+
+  complete(token: MediabunnyOutputOperationToken) {
+    this.#operationsInFlight.delete(token.generation);
+  }
+
+  isCurrent(token: MediabunnyOutputOperationToken) {
+    return (
+      this.#isActive() && token.generation === this.#generation && token.canvas === this.#canvas
+    );
+  }
+
+  invalidate(
+    affectedSourceIds: ReadonlySet<string> | undefined,
+    activeSourceIds: Iterable<string>
+  ) {
+    if (affectedSourceIds !== undefined) {
+      const activeSources = new Set(activeSourceIds);
+      if (
+        ![...affectedSourceIds].some(
+          (sourceId) => this.#currentSourceIds.has(sourceId) || activeSources.has(sourceId)
+        )
+      ) {
+        return false;
+      }
+    }
+    this.#generation += 1;
+    this.#operationsInFlight.clear();
+    this.#currentSourceIds.clear();
+    return true;
+  }
+
+  hasCurrentOperationInFlight() {
+    return this.#operationsInFlight.has(this.#generation);
+  }
+
+  dispose() {
+    this.#generation += 1;
+    this.#operationsInFlight.clear();
+    this.#currentSourceIds.clear();
+    this.#activeVisual = undefined;
+    this.#lastFrameTime = null;
+    this.#frameListeners.clear();
+  }
+}
+
 export async function renderActiveVideoFrame(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   canvas: HTMLCanvasElement,
   video: ActiveClip,
   isCurrent: () => boolean,
@@ -25,7 +140,7 @@ export async function renderActiveVideoFrame(
 
 const VIDEO_TIMESTAMP_EPSILON = 1e-9;
 
-export async function cancelVideoPlayback(controller: MediabunnySourceController) {
+export async function cancelVideoPlayback(controller: MediabunnyVideoController) {
   const iterator = resetVideoPlayback(controller);
 
   if (iterator !== null) {
@@ -37,7 +152,7 @@ export async function cancelVideoPlayback(controller: MediabunnySourceController
   }
 }
 
-function resetVideoPlayback(controller: MediabunnySourceController) {
+function resetVideoPlayback(controller: MediabunnyVideoController) {
   const iterator = controller.videoPlaybackIterator;
   controller.videoPlaybackGeneration += 1;
   controller.videoPlaybackIterator = null;
@@ -54,7 +169,7 @@ function resetVideoPlayback(controller: MediabunnySourceController) {
   return iterator;
 }
 
-async function processVideoPlayback(controller: MediabunnySourceController, generation: number) {
+async function processVideoPlayback(controller: MediabunnyVideoController, generation: number) {
   if (
     controller.videoPlaybackProcessing ||
     controller.videoPlaybackEnded ||
@@ -137,7 +252,7 @@ async function processVideoPlayback(controller: MediabunnySourceController, gene
 }
 
 async function startVideoPlayback(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   canvas: HTMLCanvasElement,
   activeVideo: ActiveClip,
   isCurrent: () => boolean,
@@ -176,7 +291,7 @@ async function startVideoPlayback(
 }
 
 export function syncActiveVideoPlaybackFrame(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   canvas: HTMLCanvasElement,
   activeVideo: ActiveClip,
   isCurrent: () => boolean,
@@ -204,7 +319,7 @@ export function syncActiveVideoPlaybackFrame(
 }
 
 export function clearPreviewCanvas(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   canvas: HTMLCanvasElement
 ) {
   invalidateFrameRendering(controller);
@@ -216,7 +331,7 @@ export function clearPreviewCanvas(
   }
 }
 
-export function invalidateFrameRendering(controller: MediabunnySourceController) {
+export function invalidateFrameRendering(controller: MediabunnyVideoController) {
   controller.asyncId += 1;
   controller.currentFrameRequest?.resolve();
   controller.pendingFrameRequest?.resolve();
@@ -225,7 +340,7 @@ export function invalidateFrameRendering(controller: MediabunnySourceController)
 }
 
 function renderFrameAt(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   canvas: HTMLCanvasElement,
   sourceSeconds: number,
   isCurrent: () => boolean,
@@ -257,7 +372,7 @@ function renderFrameAt(
 }
 
 async function processFrameRequests(
-  controller: MediabunnySourceController,
+  controller: MediabunnyVideoController,
   initialRequest: PendingFrameRequest
 ) {
   let request: PendingFrameRequest | undefined = initialRequest;

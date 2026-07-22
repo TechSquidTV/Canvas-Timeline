@@ -20,6 +20,189 @@ interface LoadedMediaInfo {
   metadata: MediabunnySourceMetadata;
 }
 
+export interface MediabunnySourceLoadToken {
+  sourceId: string;
+  generation: number;
+}
+
+export interface PendingSourceRecovery {
+  controller: MediabunnySourceController;
+  error: Error;
+  previousState: MediabunnySourceState | undefined;
+  promise: Promise<TimelineMediaSourceOperationResult> | null;
+}
+
+export interface PendingSourceReplacement {
+  previousState: MediabunnySourceState | undefined;
+  candidate: MediabunnySourceController | null;
+  readyState: MediabunnySourceState | null;
+  deferredRecovery: PendingSourceRecovery | null;
+  promise: Promise<TimelineMediaSourceOperationResult> | null;
+}
+
+export interface MediabunnySourceOperationState {
+  generation: number;
+  preloadPromise: Promise<TimelineMediaSourceOperationResult> | null;
+  replacement: PendingSourceReplacement | null;
+  recovery: PendingSourceRecovery | null;
+}
+
+export class MediabunnySourceLifecycle {
+  readonly #isActive: () => boolean;
+  readonly #loadModule: () => MediabunnyModule | Promise<MediabunnyModule>;
+  readonly #controllers = new Map<string, MediabunnySourceController>();
+  readonly #definitions: Map<string, MediabunnySource>;
+  readonly #operations = new Map<string, MediabunnySourceOperationState>();
+  readonly #activeSourceIds = new Set<string>();
+  #snapshot: ReadonlyMap<string, MediabunnySourceState>;
+  #modulePromise: Promise<MediabunnyModule> | null = null;
+
+  constructor(
+    sources: readonly MediabunnySource[],
+    loadModule: () => MediabunnyModule | Promise<MediabunnyModule>,
+    isActive: () => boolean
+  ) {
+    this.#isActive = isActive;
+    this.#loadModule = loadModule;
+    this.#definitions = new Map(sources.map((source) => [source.sourceId, source]));
+    this.#snapshot = new Map(
+      sources.map((source) => [source.sourceId, createIdleSourceState(source.sourceId)])
+    );
+  }
+
+  get sourceStateById() {
+    return this.#snapshot;
+  }
+
+  get sourceCount() {
+    return this.#definitions.size;
+  }
+
+  getController(sourceId: string) {
+    return this.#controllers.get(sourceId);
+  }
+
+  hasController(sourceId: string) {
+    return this.#controllers.has(sourceId);
+  }
+
+  controllerValues() {
+    return this.#controllers.values();
+  }
+
+  setController(controller: MediabunnySourceController) {
+    this.#controllers.set(controller.sourceId, controller);
+  }
+
+  deleteController(sourceId: string) {
+    this.#controllers.delete(sourceId);
+  }
+
+  clearControllers() {
+    this.#controllers.clear();
+  }
+
+  getDefinition(sourceId: string) {
+    return this.#definitions.get(sourceId);
+  }
+
+  hasDefinition(sourceId: string) {
+    return this.#definitions.has(sourceId);
+  }
+
+  definitionEntries() {
+    return this.#definitions.entries();
+  }
+
+  replaceDefinitions(sources: readonly MediabunnySource[]) {
+    this.#definitions.clear();
+    for (const source of sources) {
+      this.#definitions.set(source.sourceId, source);
+    }
+  }
+
+  setDefinition(source: MediabunnySource) {
+    this.#definitions.set(source.sourceId, source);
+  }
+
+  getState(sourceId: string) {
+    return this.#snapshot.get(sourceId);
+  }
+
+  updateState(state: MediabunnySourceState) {
+    const nextSnapshot = new Map(this.#snapshot);
+    nextSnapshot.set(state.sourceId, state);
+    this.#snapshot = nextSnapshot;
+  }
+
+  replaceSnapshot(snapshot: ReadonlyMap<string, MediabunnySourceState>) {
+    this.#snapshot = snapshot;
+  }
+
+  clearSnapshot() {
+    this.#snapshot = new Map();
+  }
+
+  getExistingOperation(sourceId: string) {
+    return this.#operations.get(sourceId);
+  }
+
+  getOperation(sourceId: string) {
+    let operation = this.#operations.get(sourceId);
+    if (operation === undefined) {
+      operation = {
+        generation: 0,
+        preloadPromise: null,
+        replacement: null,
+        recovery: null,
+      };
+      this.#operations.set(sourceId, operation);
+    }
+    return operation;
+  }
+
+  operationEntries() {
+    return this.#operations.entries();
+  }
+
+  beginLoad(sourceId: string): MediabunnySourceLoadToken {
+    const operation = this.getOperation(sourceId);
+    operation.generation += 1;
+    operation.preloadPromise = null;
+    return { sourceId, generation: operation.generation };
+  }
+
+  isCurrentLoad(token: MediabunnySourceLoadToken) {
+    return this.#isActive() && this.getOperation(token.sourceId).generation === token.generation;
+  }
+
+  hasActiveSource(sourceId: string) {
+    return this.#activeSourceIds.has(sourceId);
+  }
+
+  activeSourceValues() {
+    return this.#activeSourceIds.values();
+  }
+
+  replaceActiveSources(sourceIds: Iterable<string>) {
+    this.#activeSourceIds.clear();
+    for (const sourceId of sourceIds) {
+      this.#activeSourceIds.add(sourceId);
+    }
+  }
+
+  loadModule() {
+    this.#modulePromise ??= Promise.resolve().then(this.#loadModule);
+    return this.#modulePromise;
+  }
+
+  resetModule(modulePromise: Promise<MediabunnyModule>) {
+    if (this.#modulePromise === modulePromise) {
+      this.#modulePromise = null;
+    }
+  }
+}
+
 export function validateSources(sources: readonly MediabunnySource[]) {
   const sourceIds = new Set<string>();
   for (const source of sources) {

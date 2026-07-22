@@ -1,7 +1,80 @@
-import type { MediabunnySourceController } from '#mediabunny-adapter/internal/sourceController';
+import type { MediabunnyTransportController } from '#mediabunny-adapter/internal/sourceController';
+
+interface TimelinePlaybackClockState {
+  timelineTimeAtStart: number;
+  audioContextStartTime: number | null;
+  audioClockReady: boolean;
+  wallClockStartTime: number | null;
+  playbackRate: number;
+  playing: boolean;
+}
+
+function readTimelinePlaybackSeconds(
+  clock: TimelinePlaybackClockState,
+  audioContext: AudioContext | null
+) {
+  if (
+    clock.playing &&
+    audioContext !== null &&
+    clock.audioContextStartTime !== null &&
+    clock.audioClockReady &&
+    audioContext.state === 'running'
+  ) {
+    return (
+      clock.timelineTimeAtStart +
+      (audioContext.currentTime - clock.audioContextStartTime) * clock.playbackRate
+    );
+  }
+
+  if (clock.playing && clock.wallClockStartTime !== null) {
+    return (
+      clock.timelineTimeAtStart +
+      (performance.now() / 1000 - clock.wallClockStartTime) * clock.playbackRate
+    );
+  }
+
+  return clock.timelineTimeAtStart;
+}
+
+export class MediabunnyTransportClock {
+  readonly #state: TimelinePlaybackClockState = {
+    timelineTimeAtStart: 0,
+    audioContextStartTime: null,
+    audioClockReady: false,
+    wallClockStartTime: null,
+    playbackRate: 1,
+    playing: false,
+  };
+
+  get playbackRate() {
+    return this.#state.playbackRate;
+  }
+
+  get playing() {
+    return this.#state.playing;
+  }
+
+  getTime(audioContext: AudioContext | null) {
+    return readTimelinePlaybackSeconds(this.#state, audioContext);
+  }
+
+  set(
+    timelineSeconds: number,
+    playbackRate: number,
+    playing: boolean,
+    audioContext: AudioContext | null
+  ) {
+    this.#state.timelineTimeAtStart = timelineSeconds;
+    this.#state.audioContextStartTime = audioContext?.currentTime ?? null;
+    this.#state.audioClockReady = audioContext?.state === 'running';
+    this.#state.wallClockStartTime = playing ? performance.now() / 1000 : null;
+    this.#state.playing = playing;
+    this.#state.playbackRate = playbackRate;
+  }
+}
 
 export function setTimelineClock(
-  controller: MediabunnySourceController,
+  controller: MediabunnyTransportController,
   timelineSeconds: number,
   playbackRate: number
 ) {
@@ -12,27 +85,6 @@ export function setTimelineClock(
   controller.playbackRate = playbackRate;
 }
 
-export function getTimelinePlaybackSeconds(controller: MediabunnySourceController) {
-  if (
-    controller.playing &&
-    controller.audioContext !== null &&
-    controller.audioContextStartTime !== null &&
-    controller.audioClockReady &&
-    controller.audioContext.state === 'running'
-  ) {
-    return (
-      controller.timelineTimeAtStart +
-      (controller.audioContext.currentTime - controller.audioContextStartTime) *
-        controller.playbackRate
-    );
-  }
-
-  if (controller.playing && controller.wallClockStartTime !== null) {
-    return (
-      controller.timelineTimeAtStart +
-      (performance.now() / 1000 - controller.wallClockStartTime) * controller.playbackRate
-    );
-  }
-
-  return controller.timelineTimeAtStart;
+export function getTimelinePlaybackSeconds(controller: MediabunnyTransportController) {
+  return readTimelinePlaybackSeconds(controller, controller.audioContext);
 }

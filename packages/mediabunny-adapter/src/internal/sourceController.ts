@@ -40,6 +40,57 @@ export interface MediabunnySourceController {
   lastRenderedVideoTimestamp: number | null;
 }
 
+export type MediabunnySourceTimeController = Pick<
+  MediabunnySourceController,
+  'mediaTimeOffsetSeconds'
+>;
+
+export type MediabunnyTransportController = Pick<
+  MediabunnySourceController,
+  | 'timelineTimeAtStart'
+  | 'audioContextStartTime'
+  | 'audioClockReady'
+  | 'wallClockStartTime'
+  | 'playbackRate'
+  | 'playing'
+  | 'audioContext'
+>;
+
+export type MediabunnyAudioController = MediabunnySourceTimeController &
+  MediabunnyTransportController &
+  Pick<
+    MediabunnySourceController,
+    | 'audioSink'
+    | 'gainNode'
+    | 'audioBufferIterator'
+    | 'queuedAudioNodes'
+    | 'activeAudioSyncKey'
+    | 'audioPlaybackGeneration'
+  >;
+
+export type MediabunnyVideoController = MediabunnySourceTimeController &
+  Pick<
+    MediabunnySourceController,
+    | 'videoSink'
+    | 'asyncId'
+    | 'renderingFrame'
+    | 'currentFrameRequest'
+    | 'pendingFrameRequest'
+    | 'videoPlaybackGeneration'
+    | 'videoPlaybackIterator'
+    | 'videoPlaybackFutureFrame'
+    | 'videoPlaybackProcessing'
+    | 'videoPlaybackEnded'
+    | 'videoPlaybackSyncKey'
+    | 'videoPlaybackSourceSeconds'
+    | 'videoPlaybackTargetSeconds'
+    | 'videoPlaybackCanvas'
+    | 'videoPlaybackIsCurrent'
+    | 'videoPlaybackOnFrame'
+    | 'videoPlaybackOnFailure'
+    | 'lastRenderedVideoTimestamp'
+  >;
+
 export interface PendingFrameRequest {
   canvas: HTMLCanvasElement;
   sourceSeconds: number;
@@ -95,12 +146,12 @@ export function createController(
   };
 }
 
-export function toMediaSeconds(controller: MediabunnySourceController, sourceSeconds: number) {
+export function toMediaSeconds(controller: MediabunnySourceTimeController, sourceSeconds: number) {
   return sourceSeconds + controller.mediaTimeOffsetSeconds;
 }
 
 export function toLogicalSourceSeconds(
-  controller: MediabunnySourceController,
+  controller: MediabunnySourceTimeController,
   mediaSeconds: number
 ) {
   return mediaSeconds - controller.mediaTimeOffsetSeconds;
