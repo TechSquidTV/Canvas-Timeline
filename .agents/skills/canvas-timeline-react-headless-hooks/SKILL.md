@@ -13,11 +13,11 @@ without making the hook depend on visual implementation details.
 
 Before editing hook APIs, inspect:
 
-- [React hooks](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/hooks)
-- [React component chrome](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/components)
-- [Provider](file:///Users/techsquidtv/Documents/Git/canvas-timeline/packages/react/src/Provider.tsx)
-- [System architecture docs](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/architecture.mdx)
-- [React editor hooks docs](file:///Users/techsquidtv/Documents/Git/canvas-timeline/apps/www/src/content/docs/react-hooks.mdx)
+- [React hooks](../../../packages/react/src/hooks)
+- [React component chrome](../../../packages/react/src/components)
+- [Provider](../../../packages/react/src/Provider.tsx)
+- [System architecture docs](../../../apps/www/src/content/docs/architecture.mdx)
+- [React editor hooks docs](../../../apps/www/src/content/docs/react-hooks.mdx)
 
 ## Hook Shape
 

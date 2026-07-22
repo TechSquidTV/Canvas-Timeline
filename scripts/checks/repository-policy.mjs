@@ -5,9 +5,10 @@ import ts from 'typescript';
 
 const repoRootUrl = new URL('../../', import.meta.url);
 const repoRootPath = fileURLToPath(repoRootUrl);
-const localPathPattern = /(['"`])\/(?:Users|home)\//;
+const localPathPattern = /(?:file:\/\/\/|\/(?:Users|home)\/[^/\s]+\/|[a-z]:\\Users\\[^\\\s]+\\)/i;
 const sourceFilePattern = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/;
 const contentImportFilePattern = /\.(?:astro|mdx)$/;
+const skillFilePattern = /^\.agents\/skills\/.*\/SKILL\.md$/;
 const relativeContentImportPattern =
   /^\s*import(?:\s+[\s\S]*?\s+from)?\s+['"](?<specifier>\.{1,2}\/[^'"]+)['"]/gm;
 const hookFilePattern = /\.(?:cts|mts|ts|tsx)$/;
@@ -75,13 +76,21 @@ const failures = [];
 checkRemovedPublicApiGuards();
 
 for (const file of files) {
-  if (!sourceFilePattern.test(file) && !contentImportFilePattern.test(file)) {
+  if (
+    !sourceFilePattern.test(file) &&
+    !contentImportFilePattern.test(file) &&
+    !skillFilePattern.test(file)
+  ) {
     continue;
   }
 
   const sourceText = readFileSync(resolveRepoFile(file), 'utf8');
   if (localPathPattern.test(sourceText)) {
     failures.push(`${file}: contains a hardcoded local absolute path`);
+  }
+
+  if (skillFilePattern.test(file)) {
+    continue;
   }
 
   if (contentImportFilePattern.test(file)) {

@@ -162,6 +162,7 @@ export default defineConfig({
       'custom:rules': {
         command: 'node scripts/checks/repository-policy.mjs',
         input: [
+          '.agents/skills/**',
           '.github/**',
           'apps/www/src/**/*.astro',
           'apps/www/src/**/*.mdx',
