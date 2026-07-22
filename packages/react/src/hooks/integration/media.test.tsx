@@ -2316,6 +2316,115 @@ test('useTimelineMediaSync keeps a rate change ahead of a later paused preview s
   cancelSpy.mockRestore();
 });
 
+test('useTimelineMediaSync rejects a paused rate change superseded by readiness loss', async () => {
+  const engine = createMediaSyncEngine();
+  let resolveRate = () => {};
+  const pendingRate = new Promise<void>((resolve) => {
+    resolveRate = resolve;
+  });
+  const setClockRate = vi.fn();
+  const syncLayers = vi.fn(({ reason }: { reason: string }) =>
+    reason === 'rate' ? pendingRate : undefined
+  );
+  const onError = vi.fn();
+  const adapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    setClockRate,
+    syncLayers,
+  };
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+
+  const { result, rerender } = renderHook(
+    ({ ready }: { ready: boolean }) => useTimelineMediaSync({ adapter, layers, onError, ready }),
+    {
+      initialProps: { ready: true },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const rateResult = result.current.setPlaybackRate(2);
+  await waitFor(() => {
+    expect(syncLayers).toHaveBeenCalledWith(expect.objectContaining({ reason: 'rate' }));
+  });
+
+  act(() => {
+    rerender({ ready: false });
+  });
+  resolveRate();
+
+  await act(async () => {
+    await expect(rateResult).resolves.toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Playback rate change was superseded.',
+    });
+  });
+
+  expect(setClockRate).toHaveBeenCalledOnce();
+  expect(onError).not.toHaveBeenCalled();
+  expect(engine.getState().playing).toBe(false);
+});
+
+test('useTimelineMediaSync rejects a paused rate failure from a replaced adapter', async () => {
+  const engine = createMediaSyncEngine();
+  let rejectRate = (_error: Error) => {};
+  const pendingRate = new Promise<void>((_resolve, reject) => {
+    rejectRate = reject;
+  });
+  const staleError = new Error('replaced adapter failed');
+  const firstSetClockRate = vi.fn();
+  const secondSetClockRate = vi.fn();
+  const onError = vi.fn();
+  const firstAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    setClockRate: firstSetClockRate,
+    syncLayers: ({ reason }) => (reason === 'rate' ? pendingRate : undefined),
+  };
+  const secondAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    setClockRate: secondSetClockRate,
+  };
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+
+  const { result, rerender } = renderHook(
+    ({ adapter }: { adapter: TimelineMediaSyncAdapter<'visuals'> }) =>
+      useTimelineMediaSync({ adapter, adapterIdentity: adapter, layers, onError }),
+    {
+      initialProps: { adapter: firstAdapter },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const rateResult = result.current.setPlaybackRate(2);
+  await waitFor(() => {
+    expect(firstSetClockRate).toHaveBeenCalledWith(2);
+  });
+
+  act(() => {
+    rerender({ adapter: secondAdapter });
+  });
+  rejectRate(staleError);
+
+  await act(async () => {
+    await expect(rateResult).resolves.toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Playback rate change was superseded.',
+    });
+  });
+
+  expect(secondSetClockRate).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+  expect(engine.getState().playing).toBe(false);
+});
+
 test('useTimelineMediaSync rejects playback owned by another clock', async () => {
   const engine = createMediaSyncEngine();
   engine.play({ clock: 'external' });

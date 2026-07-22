@@ -303,20 +303,31 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     () => ({
       run: <Result>(operation: () => Promise<Result>, superseded: () => Result) => {
         const token = captureAdapterOperation();
-        return enqueueAdapterOperation(() =>
-          isCurrentAdapterOperation(token) ? operation() : Promise.resolve(superseded())
-        );
+        return enqueueAdapterOperation(async () => {
+          if (!isCurrentAdapterOperation(token)) {
+            return superseded();
+          }
+
+          try {
+            const result = await operation();
+            return isCurrentAdapterOperation(token) ? result : superseded();
+          } catch (operationError: unknown) {
+            if (!isCurrentAdapterOperation(token)) {
+              return superseded();
+            }
+            throw operationError;
+          }
+        });
       },
     }),
     [captureAdapterOperation, enqueueAdapterOperation, isCurrentAdapterOperation]
   );
 
   const stopSynchronizedClock = useCallback(() => {
-    invalidateAdapterOperations();
     const owner = clockOwnerRef.current;
     clockOwnerRef.current = null;
     owner?.adapter.stopClock?.();
-  }, [invalidateAdapterOperations]);
+  }, []);
 
   const adapterSyncLayers = adapter.syncLayers;
 
@@ -915,13 +926,14 @@ export function useTimelineMediaSync<LayerName extends string = string>(
   }, [adapter, cancelScheduledSeek, engine, startPlayback]);
 
   const pause = useCallback(() => {
+    invalidateAdapterOperations();
     const cancelledPendingStart = cancelPendingPlaybackStart();
     const result = syncPlayback.pause();
     if (!cancelledPendingStart) {
       clockOwnerRef.current = null;
     }
     return result;
-  }, [cancelPendingPlaybackStart, syncPlayback]);
+  }, [cancelPendingPlaybackStart, invalidateAdapterOperations, syncPlayback]);
 
   const setPlaybackRate = useCallback(
     (playbackRate: number) => syncPlayback.setPlaybackRate(playbackRate),
