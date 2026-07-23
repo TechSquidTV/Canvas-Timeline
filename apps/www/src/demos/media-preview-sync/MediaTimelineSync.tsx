@@ -29,6 +29,7 @@ const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
   audio: { trackKind: 'audio', sourceId: sampleSourceId },
 } as const;
+const sources = [sampleMediaSource] as const;
 
 function formatRenderedFrame(seconds: number | null) {
   return seconds === null ? 'Pending' : formatMediabunnyTime(seconds);
@@ -54,33 +55,32 @@ function TimelineLayers() {
 
 function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const playheadTime = useTimelinePlayheadTime();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaLoadStartedAtRef = useRef(performance.now());
   const decodeMetricReportedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   // The source id joins app-owned media descriptors to timeline clips without storing media in timeline state.
-  const sources = useMemo(() => [sampleMediaSource], []);
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     frameRate: 30,
     sources,
     layers: previewLayerSelectors,
-    onError: (message) => {
+    onError: (error) => {
       metrics?.onMediaLoadFailed?.({
         demoId: 'media-sync',
         adapter: 'mediabunny',
         mediaType: 'video_audio',
       });
-      setPlaybackError(message);
+      setPlaybackError(error.message);
     },
   });
   const lastFrameTime = useMediabunnyFrameTime(media.adapter);
-  const { ready, status, durationBySourceId, playing, playbackRate, play, pause, setPlaybackRate } =
+  const { ready, status, sourceStateById, playing, playbackRate, play, pause, setPlaybackRate } =
     media;
+  const sourceState = sourceStateById.get(sampleSourceId);
+  const sourceReady = sourceState?.status === 'ready';
 
   useEffect(() => {
-    if (!ready || decodeMetricReportedRef.current) {
+    if (!sourceReady || decodeMetricReportedRef.current) {
       return;
     }
 
@@ -93,7 +93,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       },
       performance.now() - mediaLoadStartedAtRef.current
     );
-  }, [metrics, ready]);
+  }, [metrics, sourceReady]);
 
   // Transport controls
   const handlePlayPause = useCallback(async () => {
@@ -112,13 +112,13 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       }
     }
   }, [metrics, pause, play, playing]);
-  const mediaDuration = durationBySourceId.get(sampleSourceId) ?? null;
+  const mediaDuration = sourceState?.metadata?.durationSeconds ?? null;
 
   return (
     <div className="media-sync-demo">
       <div className="media-sync-preview">
         <div className="media-sync-monitor">
-          <canvas ref={canvasRef} className="media-sync-canvas" width={1280} height={720} />
+          <canvas ref={media.canvasRef} className="media-sync-canvas" width={1280} height={720} />
           <button
             type="button"
             className="media-sync-button media-sync-play-button"
@@ -147,7 +147,7 @@ function MediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
                 className={`media-sync-button${
                   playbackRate === rate ? ' media-sync-button-active' : ''
                 }`}
-                onClick={() => setPlaybackRate(rate)}
+                onClick={() => void setPlaybackRate(rate)}
                 disabled={!ready}
               >
                 {rate}x

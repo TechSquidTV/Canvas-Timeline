@@ -13,12 +13,12 @@
 pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 ```
 
-`mediabunny` and React are peer dependencies. The high-level React hook can lazy-load Mediabunny in the browser by default, while lower-level APIs can receive an explicit module or loader.
+`mediabunny` is a peer dependency. React and the Canvas Timeline React package are optional peers used only by the `./react` export. The framework-free root does not import React.
 
 ## Choosing an API
 
 - Start with `useMediabunnyTimelineMedia` in React apps. It creates the adapter, connects it to timeline playback, and returns play/pause/rate controls plus decoded-frame status.
-- Use `useMediabunnyAdapter` only when you want React lifecycle management but will wire `adapter.syncAdapter` into `useTimelineMediaSync` yourself.
+- Use `useMediabunnyAdapter` only when you want React lifecycle management but will wire the returned adapter into `useTimelineMediaSync` yourself.
 - Use `createMediabunnyAdapter` outside React or when custom infrastructure owns canvas assignment, transport wiring, and disposal.
 - Use the HTML media adapter instead when one native `<video>` or `<audio>` element is enough.
 
@@ -31,17 +31,23 @@ import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabu
 - Use Mediabunny to decode video frames and audio buffers, then keep canvas drawing and Web Audio playback aligned with timeline clips.
 - Map `clip.sourceId` values to Mediabunny sources without storing heavy media objects in timeline state.
 - Build a custom timeline preview monitor without storing files, blobs, or decoded frames in timeline state.
+- Load only active or explicitly preloaded sources and release decoder resources without removing definitions.
+- Select alternate video/audio tracks and inspect timing, dimensions, frame-rate, audio, and fallback diagnostics.
 
 ## Quick Start
 
 ```tsx
-import { useRef } from 'react';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
 const sourceId = 'clip-source-main';
-const sources = [{ id: sourceId, url: '/media/preview.mp4' }] as const;
+const sources = [
+  {
+    sourceId,
+    input: '/media/preview.mp4',
+  },
+] as const;
 const previewLayers = {
   visuals: { trackKind: 'visual', sourceId },
   audio: { trackKind: 'audio', sourceId },
@@ -56,23 +62,35 @@ export function DecodedPreviewApp({ engine }: { engine: TimelineEngine }) {
 }
 
 function DecodedPreview() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     sources,
     layers: previewLayers,
   });
 
-  return <canvas ref={canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
+  return (
+    <canvas ref={media.canvasRef} width={1280} height={720} onClick={() => void media.play()} />
+  );
 }
 ```
 
-Each item in `sources` uses an `id` that matches timeline clip `sourceId` values. For local files or custom Mediabunny setup, replace the URL descriptor with a `blob`, `input`, or `createInput` descriptor that keeps the same join key.
+Each item in `sources` uses a `sourceId` matching timeline clips and one app-resolved `input`. Common inputs can be passed directly as a URL string, `URL`, `Request`, `Blob`, or `File`; use the object descriptors for custom URL formats/options, supplied inputs, and factories. Add `fallbacks` only for equivalent ways to load the resolved media. Keep original/proxy policy in your media library and switch choices with `replaceSource(...)`, including a `timing` anchor when timestamps differ from logical source time. The adapter exposes input attempts, timing, dimensions, and frame-rate metadata through `sourceStateById`.
+
+Sources load on demand when their clips become active. Use `preloadSource(sourceId)` to warm likely next clips and `unloadSource(sourceId)` to release decoder resources without removing the source. React source arrays do not need stable identity for ordinary URL descriptors; keep factories, selectors, and custom option objects stable because their identity represents executable policy.
+
+`ready` means at least one source is registered, not that every project asset is decoded. Read `sourceStateById` for each source's lazy lifecycle and `audioStatus` for browser activation degradation. Caller-supplied `AudioContext` and destination nodes remain caller-owned; the adapter creates an audio graph only for a selected decodable audio track. Runtime `setVolume()` and `setMuted()` changes do not reload sources.
+
+The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock is independent of loaded source controllers, so lazy source changes and runtime fallback recovery preserve timeline time. Synchronization that reaches a recovering source waits for its fallback to commit instead of using the broken controller. If recovery exhausts the fallback chain, the waiting synchronization rejects through the existing `sync-failed` path and high-level playback pauses. Lazy module-loader failures are observable operation failures and `retrySource()` invokes the loader again.
+
+Disposal is terminal. Operations already in flight release staged resources and cannot publish late state; new loading, decoding, rendering, or mutating calls after `dispose()` throw or reject. Read-only snapshots remain available, and repeated teardown calls such as `dispose()`, `stopClock()`, and `clearVideo()` remain safe.
+
+High-level React playback applies Core in/out and loop policy to the external clock. Paused preview, startup, loop, tick, pause, and rate operations are ordered so delayed lazy loading or decoding cannot overwrite a newer position. Concurrent `play()` calls share one pending startup; `pause()` cancels pending work with a non-error `cancelled` play result. `onError` receives a `TimelineMediaError` with a stable `reason`, including `sync-failed` for rendering or scheduling failures. Audio activation is requested without blocking visual transport, retained until a decodable audio track loads, and never resumes a supplied context for video-only media. If activation completes after visual playback has advanced, queued audio is discarded and scheduled again from the current transport position.
 
 ## Documentation
 
 - [Package docs](https://canvastimeline.com/packages/mediabunny-adapter/)
 - [API reference](https://canvastimeline.com/packages/mediabunny-adapter/api)
+- [Media adapter guide](https://canvastimeline.com/docs/media-adapters)
+- [Breaking migration guide](https://canvastimeline.com/docs/media-adapter-migration)
 - [Mediabunny adapter demo](https://canvastimeline.com/demos/media-preview-sync)
 - [Demos](https://canvastimeline.com/demos/)
 - [Mediabunny docs](https://mediabunny.dev/)

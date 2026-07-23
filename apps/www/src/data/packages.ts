@@ -65,7 +65,7 @@ export const packageDocs: PackageDoc[] = [
     installCommand: 'pnpm add @techsquidtv/canvas-timeline',
     overview: [
       'The main package is the easiest way to start a Canvas Timeline editor. It re-exports the core engine, React bindings, renderer, and time utilities from one dependency so early app code can stay focused on the editor experience.',
-      'As your project grows, you can keep using this package or switch individual imports to the focused packages below. The runtime pieces are the same; the split package paths are there when you want sharper ownership boundaries.',
+      'As your project grows, you can keep using this package or switch individual imports to the focused packages below. Media React hooks remain in each focused adapter `./react` entry point so imperative package roots stay framework-free.',
     ],
     useCasesTitle: 'Start here when',
     useCases: [
@@ -119,6 +119,7 @@ export function Editor() {
         links: [
           { title: 'Getting started', href: '/docs/getting-started' },
           { title: 'Packages overview', href: '/docs/packages-overview' },
+          { title: 'Media adapter guide', href: '/docs/media-adapters' },
         ],
       },
       packageLinks('timeline'),
@@ -133,7 +134,7 @@ export function Editor() {
       'Use the core package when your integration needs the timeline model and editing operations without React or canvas rendering concerns.',
     installCommand: 'pnpm add @techsquidtv/canvas-timeline-core',
     overview: [
-      'The core package is the timeline model and editor brain without a view layer. It owns tracks, clips, markers, selections, edits, playback state, snapping, history, and active-content queries.',
+      'The core package is the timeline model and editor brain without a view layer. It owns tracks, clips, markers, selections, edits, playback state, snapping, history, active-content queries, and the framework-neutral external media protocol.',
       'Use it directly when React is not the right boundary, or when you want tests and non-visual logic to run without pulling in DOM components.',
     ],
     useCasesTitle: 'Reach for core when',
@@ -141,6 +142,7 @@ export function Editor() {
       'You are building a timeline in another UI framework or platform.',
       'You want isolated tests for edits, snapping, history, or playback behavior.',
       'You need to keep timeline state serializable and separate from app-owned media metadata.',
+      'You are implementing a custom decoder or external clock against shared media lifecycle and error contracts.',
     ],
     usage: {
       title: 'Own the model, bring your own UI',
@@ -176,6 +178,7 @@ if (preview.valid) {
         links: [
           { title: 'System architecture', href: '/docs/architecture' },
           { title: 'Tracks and clips', href: '/docs/tracks-and-clips' },
+          { title: 'Media adapter guide', href: '/docs/media-adapters' },
         ],
       },
       packageLinks('core'),
@@ -190,7 +193,7 @@ if (preview.valid) {
       'Use the React package when you want to bind a TimelineEngine to React controls while keeping rendering choices flexible.',
     installCommand: 'pnpm add @techsquidtv/canvas-timeline-react',
     overview: [
-      'The React package connects a `TimelineEngine` to React components and hooks. It provides the provider, timeline namespace components, interaction layers, scrollbars, range controls, and focused hooks that product UI can compose.',
+      'The React package connects a `TimelineEngine` to React components and hooks. It provides the provider, timeline namespace components, interaction layers, scrollbars, range controls, media clock coordination, and focused hooks that product UI can compose.',
       'It does not force a particular renderer. Pair it with the canvas renderer for the default high-performance surface, or use the hooks and interaction primitives with custom rendering.',
     ],
     useCasesTitle: 'Use React bindings for',
@@ -198,6 +201,7 @@ if (preview.valid) {
       'You already have a `TimelineEngine` and want React components to observe and control it.',
       'You need package-owned interaction chrome such as playhead grabbers, clip handles, range controls, or scrollbars.',
       'You want headless hooks for editing, selection, keyframes, playback, viewport, and track state.',
+      'You need to coordinate a custom media decoder or external clock while keeping the adapter framework-neutral.',
     ],
     usage: {
       title: 'Bind the engine to React',
@@ -252,6 +256,7 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
         links: [
           { title: 'React editor hooks', href: '/docs/react-hooks' },
           { title: 'React registry', href: '/packages/react/registry' },
+          { title: 'Media adapter guide', href: '/docs/media-adapters' },
           { title: 'Demos overview', href: '/docs/demos-overview' },
         ],
       },
@@ -267,7 +272,7 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
       'Use the HTML media adapter when one native video or audio element should follow Canvas Timeline playback.',
     installCommand: 'pnpm add @techsquidtv/canvas-timeline-html-media-adapter',
     overview: [
-      'The HTML media adapter maps timeline clips to one mounted `HTMLMediaElement`. It seeks the element to the active clip source time, lets the native media clock drive playback, and keeps object URLs out of timeline state.',
+      'The HTML media adapter maps timeline clips to one mounted `HTMLMediaElement`. It seeks the element to the active clip source time, lets the native media clock drive playback, and keeps object URLs out of timeline state. The package root is imperative and framework-free; React hooks are published from `./react`.',
       'This is the right adapter for straightforward previews. If you need decoded frames on a canvas, custom Mediabunny inputs, or timeline-clocked audio playback outside a native media element, use the Mediabunny adapter instead.',
     ],
     useCasesTitle: 'Choose this adapter for',
@@ -278,34 +283,39 @@ export function TimelineChrome({ engine }: { engine: TimelineEngine }) {
     ],
     usage: {
       title: 'Connect one media element to timeline playback',
-      body: 'Use `useHTMLTimelineMedia` for the normal React path. It creates the adapter, wires it to timeline playback, and returns transport helpers for play, pause, and rate controls.',
+      body: 'Use `useHTMLTimelineMedia` from the `./react` entry point for the normal React path. It creates the adapter, wires it to timeline playback, returns transport helpers, and exposes immutable source lifecycle snapshots.',
       steps: [
         'Give each media clip a stable `sourceId`.',
-        'Create a `sources` record where each key is a source id and each value is a URL, `Blob`, or `File`.',
-        'Attach a ref to one `<video>` or `<audio>` element.',
-        'Pass the ref, sources, and layer selector to `useHTMLTimelineMedia` inside a `TimelineProvider`.',
+        'Create a `sources` array of `{ sourceId, input }` descriptors, one per logical source.',
+        'Resolve originals or proxies in your media library, then pass equivalent load `fallbacks` only when needed.',
+        'Create the hook with sources and a layer selector inside a `TimelineProvider`.',
+        'Attach the returned `mediaRef` to one `<video>` or `<audio>` element.',
+        'Treat `ready` as element-connection readiness and inspect `sourceStateById` for native source loading or recovery.',
       ],
     },
     example: {
       title: 'Native video preview',
       lang: 'tsx',
-      code: `import { useRef } from 'react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+      code: `import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 
-const sources = { 'clip-source-main': '/media/preview.mp4' };
+const sources = [
+  {
+    sourceId: 'clip-source-main',
+    input: '/media/preview.mp4',
+  },
+] as const;
 const layers = {
   visuals: { trackKind: 'visual', sourceId: 'clip-source-main' },
 } as const;
 
 export function NativePreview() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const media = useHTMLTimelineMedia({
-    ref: videoRef,
     sources,
     layers,
+    onError: (error) => console.error(error.reason, error.message),
   });
 
-  return <video ref={videoRef} playsInline onClick={() => void media.play()} />;
+  return <video ref={media.mediaRef} playsInline onClick={() => void media.play()} />;
 }`,
     },
     linkGroups: [
@@ -318,6 +328,8 @@ export function NativePreview() {
             description:
               'A source-backed demo of one native video element following timeline playback.',
           },
+          { title: 'Media adapter guide', href: '/docs/media-adapters' },
+          { title: 'Breaking migration guide', href: '/docs/media-adapter-migration' },
           { title: 'System architecture', href: '/docs/architecture' },
         ],
       },
@@ -333,42 +345,45 @@ export function NativePreview() {
       'Use the Mediabunny adapter when your editor needs decoded canvas frames, local media inputs, or a timeline-aware media monitor instead of one native media element.',
     installCommand: 'pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny',
     overview: [
-      'The Mediabunny adapter is for timeline preview monitors that need decoded media, not just a mounted `<video>` tag. It uses Mediabunny to open sources and decode frames and audio buffers, paints video frames to a canvas, queues decoded audio through Web Audio against the timeline clock, and exposes frame and duration state for monitor UI.',
-      'In React, start with `useMediabunnyTimelineMedia`. It creates the adapter and connects it to timeline playback. Drop down to `useMediabunnyAdapter` or `createMediabunnyAdapter` only when you are building custom sync, sharing an adapter between controls, or owning lifecycle outside React.',
+      'The Mediabunny adapter is for timeline preview monitors that need decoded media, not just a mounted `<video>` tag. It opens registered sources only when active or explicitly preloaded, paints decoded video frames to a canvas, queues audio through Web Audio, and exposes per-source timing and track metadata.',
+      'In React, start with `useMediabunnyTimelineMedia` from `./react`. It creates the adapter and connects it to timeline playback. The package root stays framework-free for imperative integrations. Drop down to `useMediabunnyAdapter` or `createMediabunnyAdapter` only when you are building custom sync, sharing an adapter between controls, or owning lifecycle outside React.',
     ],
     usage: {
       title: 'Decode media without putting media in timeline state',
       body: 'Timeline clips keep lightweight `sourceId` values. Your app keeps the actual files, URLs, or Mediabunny inputs outside the timeline and passes matching source descriptors to the adapter.',
       steps: [
         'Give each media clip a stable `sourceId`.',
-        'Create a `sources` array where each descriptor has an `id` matching a clip source id.',
-        'Attach a canvas ref for decoded video frames.',
-        'Pass the canvas ref, sources, and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
-        'Use the returned transport helpers for playback and the returned duration/frame state for preview UI.',
+        'Create a `sources` array where each logical source has a matching `sourceId` and app-resolved `input`.',
+        'Resolve originals or proxies in app state and use `fallbacks` only for equivalent transport failover.',
+        'Pass sources and visual/audio layer selectors to `useMediabunnyTimelineMedia` inside a `TimelineProvider`.',
+        'Attach the returned `canvasRef` to the canvas that receives decoded video frames.',
+        'Use `sourceStateById` for lazy loading and source metadata; preload likely next clips and unload resources no longer needed.',
+        'Use the returned transport helpers for playback and `useMediabunnyFrameTime` only for UI that needs live decoded-frame timestamps.',
       ],
     },
     example: {
       title: 'Decoded canvas preview',
       lang: 'tsx',
-      code: `import { useRef } from 'react';
-import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+      code: `import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
 
 const sourceId = 'clip-source-main';
-const sources = [{ id: sourceId, url: '/media/preview.mp4' }] as const;
+const sources = [{
+  sourceId,
+  input: '/media/preview.mp4',
+}] as const;
 const layers = {
   visuals: { trackKind: 'visual', sourceId },
   audio: { trackKind: 'audio', sourceId },
 } as const;
 
 export function DecodedPreview() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const media = useMediabunnyTimelineMedia({
-    canvasRef,
     sources,
     layers,
+    onError: (error) => console.error(error.reason, error.message),
   });
 
-  return <canvas ref={canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
+  return <canvas ref={media.canvasRef} width={1280} height={720} onClick={() => void media.play()} />;
 }`,
     },
     linkGroups: [
@@ -381,6 +396,8 @@ export function DecodedPreview() {
             description:
               'A source-backed demo of decoded canvas frames, timeline-clocked audio, and transport controls.',
           },
+          { title: 'Media adapter guide', href: '/docs/media-adapters' },
+          { title: 'Breaking migration guide', href: '/docs/media-adapter-migration' },
           { title: 'Mediabunny docs', href: 'https://mediabunny.dev/' },
           { title: 'System architecture', href: '/docs/architecture' },
         ],

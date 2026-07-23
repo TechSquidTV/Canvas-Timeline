@@ -283,13 +283,13 @@ importers:
       '@techsquidtv/canvas-timeline-core':
         specifier: workspace:*
         version: link:../core
-      '@techsquidtv/canvas-timeline-react':
-        specifier: workspace:*
-        version: link:../react
       '@techsquidtv/canvas-timeline-utils':
         specifier: workspace:*
         version: link:../utils
     devDependencies:
+      '@techsquidtv/canvas-timeline-react':
+        specifier: workspace:*
+        version: link:../react
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -302,13 +302,13 @@ importers:
       '@techsquidtv/canvas-timeline-core':
         specifier: workspace:*
         version: link:../core
-      '@techsquidtv/canvas-timeline-react':
-        specifier: workspace:*
-        version: link:../react
       '@techsquidtv/canvas-timeline-utils':
         specifier: workspace:*
         version: link:../utils
     devDependencies:
+      '@techsquidtv/canvas-timeline-react':
+        specifier: workspace:*
+        version: link:../react
       mediabunny:
         specifier: ^1.50.8
         version: 1.50.8

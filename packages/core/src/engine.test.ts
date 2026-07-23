@@ -576,6 +576,189 @@ describe('TimelineEngine', () => {
 
       rafSpy.mockRestore();
     });
+
+    it('applies in/out boundaries to externally clocked playback', () => {
+      engine.setInPoint(fromSeconds(2), false);
+      engine.setOutPoint(fromSeconds(4), false);
+      engine.setTime(fromSeconds(3));
+
+      expect(engine.play({ clock: 'external', respectInOut: true })).toBe(true);
+      expect(engine.updateExternalPlaybackTime(fromSeconds(4.5))).toMatchObject({
+        action: 'pause',
+        reason: 'in-out',
+      });
+      expect(toSeconds(engine.getTime())).toBe(4);
+      expect(engine.getState().playing).toBe(false);
+    });
+
+    it('stops external playback at an earlier target before later range boundaries', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(20),
+      });
+      rangedEngine.setOutPoint(fromSeconds(10), false);
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(
+        rangedEngine.play({
+          clock: 'external',
+          toTime: fromSeconds(5),
+          autoEnd: true,
+          loop: true,
+        })
+      ).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(12))).toMatchObject({
+        action: 'pause',
+        reason: 'target',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
+    });
+
+    it.each([
+      {
+        name: 'out point',
+        duration: 20,
+        outPoint: 5,
+        target: 10,
+        reason: 'in-out',
+      },
+      {
+        name: 'duration',
+        duration: 5,
+        outPoint: 10,
+        target: 12,
+        reason: 'duration',
+      },
+    ] as const)(
+      'loops at an earlier $name before later playback boundaries',
+      ({ duration, outPoint, target, reason }) => {
+        const rangedEngine = new TimelineEngine({
+          tracks: [mockTrack],
+          duration: fromSeconds(duration),
+        });
+        rangedEngine.setOutPoint(fromSeconds(outPoint), false);
+        rangedEngine.setTime(fromSeconds(4));
+
+        expect(
+          rangedEngine.play({
+            clock: 'external',
+            toTime: fromSeconds(target),
+            autoEnd: true,
+            loop: true,
+          })
+        ).toBe(true);
+        expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(15))).toMatchObject({
+          action: 'loop',
+          reason,
+        });
+        expect(toSeconds(rangedEngine.getTime())).toBe(0);
+        expect(rangedEngine.getState().playing).toBe(true);
+      }
+    );
+
+    it('preserves range precedence when an out point and target are equal', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(20),
+      });
+      rangedEngine.setOutPoint(fromSeconds(5), false);
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(
+        rangedEngine.play({
+          clock: 'external',
+          toTime: fromSeconds(5),
+          autoEnd: true,
+          loop: true,
+        })
+      ).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(6))).toMatchObject({
+        action: 'loop',
+        reason: 'in-out',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
+
+    it('stops internal playback at an earlier target before later range boundaries', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(20),
+      });
+      rangedEngine.setOutPoint(fromSeconds(10), false);
+      rangedEngine.setTime(fromSeconds(4));
+      let playbackFrame: FrameRequestCallback | undefined;
+      const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(0);
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        playbackFrame = callback;
+        return 1;
+      });
+
+      expect(
+        rangedEngine.play({
+          toTime: fromSeconds(5),
+          autoEnd: true,
+          loop: true,
+        })
+      ).toBe(true);
+      playbackFrame?.(8_000);
+
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
+      expect(rafSpy).toHaveBeenCalledOnce();
+      nowSpy.mockRestore();
+      rafSpy.mockRestore();
+    });
+
+    it('loops external playback and resets playback started at the out point', () => {
+      engine.setInPoint(fromSeconds(2), false);
+      engine.setOutPoint(fromSeconds(4), false);
+      engine.setTime(fromSeconds(4));
+
+      expect(engine.getPlaybackStartTime({ respectInOut: true })).toEqual(fromSeconds(2));
+      expect(engine.play({ clock: 'external', respectInOut: true, loop: true })).toBe(true);
+      expect(toSeconds(engine.getTime())).toBe(2);
+      expect(engine.updateExternalPlaybackTime(fromSeconds(4.25))).toMatchObject({
+        action: 'loop',
+        reason: 'in-out',
+      });
+      expect(toSeconds(engine.getTime())).toBe(2);
+      expect(engine.getState().playing).toBe(true);
+    });
+
+    it('loops external playback to zero when in/out boundaries are ignored', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(10),
+      });
+      rangedEngine.setInPoint(fromSeconds(2), false);
+      rangedEngine.setTime(fromSeconds(9));
+
+      expect(rangedEngine.play({ clock: 'external', respectInOut: false, loop: true })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(10.25))).toMatchObject({
+        action: 'loop',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
+
+    it('resets external loop playback started at duration', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+        duration: fromSeconds(10),
+      });
+      rangedEngine.setInPoint(fromSeconds(2), false);
+      rangedEngine.setTime(fromSeconds(10));
+
+      expect(rangedEngine.getPlaybackStartTime({ respectInOut: true, loop: true })).toEqual(
+        fromSeconds(2)
+      );
+      expect(rangedEngine.play({ clock: 'external', respectInOut: true, loop: true })).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(2);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
   });
 
   describe('Snapping', () => {
@@ -1067,6 +1250,30 @@ describe('TimelineEngine', () => {
             muted: { sourceId: 'source-muted' },
             disabled: { sourceId: 'source-disabled' },
           },
+        })
+      ).toBeUndefined();
+
+      expect(
+        toSeconds(
+          expectDefined(
+            engine.getFirstContentTime({
+              layers: {
+                visuals: { trackKind: 'visual' },
+              },
+              atOrAfter: fromSeconds(1.25),
+              before: fromSeconds(2),
+            }),
+            'bounded first content time'
+          )
+        )
+      ).toBeCloseTo(1.5);
+
+      expect(
+        engine.getFirstContentTime({
+          layers: {
+            visuals: { trackKind: 'visual' },
+          },
+          atOrAfter: fromSeconds(2),
         })
       ).toBeUndefined();
     });

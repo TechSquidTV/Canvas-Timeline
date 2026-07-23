@@ -38,7 +38,7 @@ describe('demo code examples', () => {
     const source = [
       "import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';",
       "import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';",
-      "import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';",
+      "import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';",
       "import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';",
     ].join('\n');
 
@@ -50,7 +50,7 @@ describe('demo code examples', () => {
       'CanvasRenderer',
     ]);
     expect(
-      namedImportsFrom(copyableSource, '@techsquidtv/canvas-timeline-html-media-adapter')
+      namedImportsFrom(copyableSource, '@techsquidtv/canvas-timeline-html-media-adapter/react')
     ).toEqual(['useHTMLTimelineMedia']);
   });
 
@@ -86,13 +86,14 @@ describe('demo code examples', () => {
       'toSeconds',
     ]);
     expect(
-      namedImportsFrom(htmlMediaSyncSource, '@techsquidtv/canvas-timeline-html-media-adapter')
+      namedImportsFrom(htmlMediaSyncSource, '@techsquidtv/canvas-timeline-html-media-adapter/react')
     ).toEqual(['useHTMLTimelineMedia']);
 
     for (const packageName of [
       '@techsquidtv/canvas-timeline-mediabunny-adapter',
       '@techsquidtv/canvas-timeline-mediabunny-adapter/react',
       '@techsquidtv/canvas-timeline-html-media-adapter',
+      '@techsquidtv/canvas-timeline-html-media-adapter/react',
     ]) {
       const importedNames = [
         ...namedImportsFrom(mediaSyncSource, packageName),

@@ -1,15 +1,23 @@
-import { useEffect, useReducer, useState, useSyncExternalStore, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefCallback,
+} from 'react';
 import {
   useTimelineMediaSync,
   type UseTimelineMediaSyncOptions,
   type UseTimelineMediaSyncResult,
 } from '@techsquidtv/canvas-timeline-react';
-import {
-  createMediabunnyAdapter,
-  type CreateMediabunnyAdapterOptions,
-  type MediabunnyAdapter,
-  type MediabunnyModule,
-} from '#mediabunny-adapter/index';
+import { createMediabunnyAdapter } from '#mediabunny-adapter/createMediabunnyAdapter';
+import type {
+  CreateMediabunnyAdapterOptions,
+  MediabunnyAdapter,
+  MediabunnyModule,
+} from '#mediabunny-adapter/types';
 
 /**
  * Options for creating a Mediabunny adapter from React.
@@ -25,8 +33,8 @@ export interface UseMediabunnyAdapterOptions extends Omit<
   CreateMediabunnyAdapterOptions,
   'canvas' | 'onChange'
 > {
-  /** Canvas ref that receives decoded visual frames. */
-  canvasRef?: RefObject<HTMLCanvasElement | null>;
+  /** Resolved canvas element that receives decoded visual frames. */
+  canvas?: HTMLCanvasElement | null;
 }
 
 /**
@@ -34,8 +42,9 @@ export interface UseMediabunnyAdapterOptions extends Omit<
  *
  * @remarks
  *
- * Provide timeline sources, a canvas ref for visual frames, and named active
- * layer selectors. The hook creates a {@link MediabunnyAdapter}, uses
+ * Provide timeline sources and named active layer selectors; the hook returns
+ * the callback ref used to connect a canvas for visual frames. It creates a
+ * {@link MediabunnyAdapter}, uses
  * {@link useTimelineMediaSync} for external-clock playback, and keeps decoded
  * frames and audio scheduling aligned with the timeline playhead.
  *
@@ -46,8 +55,11 @@ export interface UseMediabunnyAdapterOptions extends Omit<
  */
 export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = string>
   extends
-    Omit<UseMediabunnyAdapterOptions, 'mediabunny'>,
-    Pick<UseTimelineMediaSyncOptions<LayerName>, 'frameRate' | 'layers' | 'onError'> {
+    Omit<UseMediabunnyAdapterOptions, 'canvas' | 'mediabunny'>,
+    Pick<
+      UseTimelineMediaSyncOptions<LayerName>,
+      'frameRate' | 'layers' | 'onError' | 'playbackOptions'
+    > {
   /** Mediabunny module instance or lazy browser loader. Defaults to a browser import. */
   mediabunny?: CreateMediabunnyAdapterOptions['mediabunny'];
 }
@@ -61,14 +73,18 @@ export interface UseMediabunnyTimelineMediaOptions<LayerName extends string = st
 export interface UseMediabunnyTimelineMediaResult<
   LayerName extends string = string,
 > extends UseTimelineMediaSyncResult<LayerName> {
-  /** Whether at least one Mediabunny source is loaded and ready for playback. */
+  /** Stable callback ref that connects the preview canvas to the adapter. */
+  canvasRef: RefCallback<HTMLCanvasElement>;
+  /** Currently connected preview canvas. */
+  canvas: HTMLCanvasElement | null;
+  /** Whether at least one Mediabunny source is registered for lazy loading. */
   ready: boolean;
   /** Human-readable loading, playback, or error status. */
   status: string;
   /** Last source loading error, when one is active. */
   error: Error | null;
-  /** Loaded media duration by source id, in seconds. */
-  durationBySourceId: ReadonlyMap<string, number>;
+  /** Loading, input attempts, metadata, and recovery by source id. */
+  sourceStateById: MediabunnyAdapter['sourceStateById'];
   /** Underlying low-level Mediabunny adapter. */
   adapter: MediabunnyAdapter;
 }
@@ -78,28 +94,67 @@ const noopAdapter: MediabunnyAdapter = {
   status: 'Mediabunny is waiting for the browser.',
   error: null,
   lastFrameTime: null,
-  durationBySourceId: new Map(),
+  sourceStateById: new Map(),
+  volume: 0.7,
+  muted: false,
+  audioStatus: { state: 'unavailable' },
   subscribeFrame: () => () => {},
-  syncAdapter: {
-    getClockTime: () => 0,
-    startClock: () => false,
-  },
   setCanvas: () => {},
   getClockTime: () => 0,
   startClock: () => false,
   stopClock: () => {},
-  resumeClock: () => Promise.resolve(),
+  requestClockActivation: () => {},
+  setVolume: () => {},
+  setMuted: () => {},
+  setSources: () => {},
+  preloadSource: (sourceId) =>
+    Promise.resolve({
+      ok: false,
+      sourceId,
+      reason: 'unknown-source',
+      error: new Error('Mediabunny is unavailable.'),
+    }),
+  unloadSource: () => false,
+  retrySource: (sourceId) =>
+    Promise.resolve({
+      ok: false,
+      sourceId,
+      reason: 'unknown-source',
+      error: new Error('Mediabunny is unavailable.'),
+    }),
+  replaceSource: (source) =>
+    Promise.resolve({
+      ok: false,
+      sourceId: source.sourceId,
+      reason: 'load-failed',
+      error: new Error('Mediabunny is unavailable.'),
+    }),
   setClockRate: () => {},
   seek: () => Promise.resolve(),
   renderVideo: () => Promise.resolve(),
   syncAudio: () => {},
   syncLayers: () => Promise.resolve(),
+  onStatus: () => {},
   clearVideo: () => {},
   getFrame: () => Promise.resolve(null),
   dispose: () => {},
 };
 
 const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
+
+function useStableStringArray(values: readonly string[] | undefined) {
+  const valuesRef = useRef(values);
+  const previous = valuesRef.current;
+  if (
+    previous === undefined ||
+    values === undefined ||
+    previous.length !== values.length ||
+    previous.some((value, index) => value !== values[index])
+  ) {
+    valuesRef.current = values;
+  }
+  return valuesRef.current;
+}
 
 /**
  * Create and dispose a Mediabunny timeline adapter from React state.
@@ -109,24 +164,36 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
  * Use this hook when your app wants to manage transport with
  * {@link useTimelineMediaSync} manually, inspect decoded frame state, or share
  * one adapter across custom preview controls. For a ready-made transport hook,
- * use {@link useMediabunnyTimelineMedia}.
+ * use {@link useMediabunnyTimelineMedia}. Ordinary URL source arrays are
+ * reconciled by value; keep factories, track selectors, and custom option
+ * objects stable because their identity represents executable policy. Pass the
+ * currently resolved canvas element; changing it updates the adapter without
+ * recreating source inputs.
  *
- * @param options - Mediabunny sources, optional canvas ref, audio options, and module loader.
+ * @param options - Mediabunny sources, optional resolved canvas, audio options, and module loader.
  * @returns The current Mediabunny adapter, including readiness, status, decoded frame state, and sync callbacks.
  *
  * @example
  * ```tsx
- * import { useMemo, useRef } from 'react';
- * import { useMediabunnyAdapter } from '#mediabunny-adapter/react';
+ * import { useState } from 'react';
+ * import { useMediabunnyAdapter } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+ *
+ * const sources = [{
+ *   sourceId: 'source-1',
+ *   input: '/media/sample.mp4',
+ * }];
  *
  * export function DecoderStatus() {
- *   const canvasRef = useRef<HTMLCanvasElement>(null);
- *   const sources = useMemo(() => [{ id: 'source-1', url: '/media/sample.mp4' }], []);
- *   const adapter = useMediabunnyAdapter({ canvasRef, sources });
+ *   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+ *   const adapter = useMediabunnyAdapter({
+ *     canvas,
+ *     sources,
+ *     mediabunny: () => import('mediabunny'),
+ *   });
  *
  *   return (
  *     <>
- *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <canvas ref={setCanvas} width={1280} height={720} />
  *       <p>{adapter.status}</p>
  *     </>
  *   );
@@ -137,9 +204,15 @@ const loadMediabunny = () => import('mediabunny') as Promise<MediabunnyModule>;
  * @see {@link useMediabunnyTimelineMedia}
  */
 export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): MediabunnyAdapter {
-  const { audio, audioTrackKinds, canvasRef, mediabunny, sources, visualTrackKinds } = options;
+  const { audio, audioTrackKinds, canvas, mediabunny, selectTracks, sources, visualTrackKinds } =
+    options;
+  const stableAudioTrackKinds = useStableStringArray(audioTrackKinds);
+  const stableVisualTrackKinds = useStableStringArray(visualTrackKinds);
+  const sourcesRef = useRef(sources);
+  const runtimeValuesRef = useRef({ volume: audio?.volume, muted: audio?.muted });
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [adapter, setAdapter] = useState<MediabunnyAdapter>(noopAdapter);
+  const ownedAdapterRef = useRef<MediabunnyAdapter>(noopAdapter);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -147,23 +220,73 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
     }
 
     const nextAdapter = createMediabunnyAdapter({
-      audio,
-      audioTrackKinds,
+      audio: {
+        context: audio?.context,
+        destination: audio?.destination,
+        activationTimeoutMs: audio?.activationTimeoutMs,
+        volume: runtimeValuesRef.current.volume,
+        muted: runtimeValuesRef.current.muted,
+      },
+      audioTrackKinds: stableAudioTrackKinds,
       mediabunny,
-      sources,
-      visualTrackKinds,
+      selectTracks,
+      sources: sourcesRef.current,
+      visualTrackKinds: stableVisualTrackKinds,
       onChange: forceUpdate,
     });
+    ownedAdapterRef.current = nextAdapter;
     setAdapter(nextAdapter);
 
     return () => {
+      if (ownedAdapterRef.current === nextAdapter) {
+        ownedAdapterRef.current = noopAdapter;
+      }
       nextAdapter.dispose();
     };
-  }, [audio, audioTrackKinds, mediabunny, sources, visualTrackKinds]);
+  }, [
+    audio?.activationTimeoutMs,
+    audio?.context,
+    audio?.destination,
+    mediabunny,
+    selectTracks,
+    stableAudioTrackKinds,
+    stableVisualTrackKinds,
+  ]);
 
   useEffect(() => {
-    adapter.setCanvas(canvasRef?.current ?? null);
-  }, [adapter, canvasRef]);
+    if (ownedAdapterRef.current === adapter) {
+      adapter.setSources(sources);
+    }
+  }, [adapter, sources]);
+
+  useEffect(() => {
+    if (
+      ownedAdapterRef.current === adapter &&
+      audio?.volume !== undefined &&
+      adapter.volume !== audio.volume
+    ) {
+      adapter.setVolume(audio.volume);
+    }
+  }, [adapter, audio?.volume]);
+
+  useEffect(() => {
+    if (
+      ownedAdapterRef.current === adapter &&
+      audio?.muted !== undefined &&
+      adapter.muted !== audio.muted
+    ) {
+      adapter.setMuted(audio.muted);
+    }
+  }, [adapter, audio?.muted]);
+
+  useEffect(() => {
+    if (ownedAdapterRef.current === adapter) {
+      adapter.setCanvas(canvas ?? null);
+    }
+  }, [adapter, canvas]);
+
+  sourcesRef.current = sources;
+  runtimeValuesRef.current = { volume: audio?.volume, muted: audio?.muted };
 
   return adapter;
 }
@@ -188,20 +311,20 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  * @remarks
  *
  * This is the high-level React hook for decoded media previews. It is the same
- * shape used by the media sync demo and the full editor demo: define stable
+ * shape used by the media sync demo and the full editor demo: define named
  * `visuals` and `audio` layers, pass sources keyed by timeline clip `sourceId`,
  * and drive toolbar buttons from the returned `play`, `pause`, and
- * `setPlaybackRate` commands.
+ * `setPlaybackRate` commands. `ready` means at least one source is registered;
+ * inspect `sourceStateById` for per-source idle, loading, and ready state.
  *
- * @param options - Mediabunny sources, active layers, optional canvas ref, and sync options.
+ * @param options - Mediabunny sources, active layers, and sync options.
  * @template LayerName - Named media layer keys inferred from `options.layers`,
  * such as `"visuals" | "audio"`.
- * @returns Timeline transport state, active layer data, decoded frame status, source durations, and the low-level adapter.
+ * @returns Timeline transport state, active layer data, source diagnostics, and the low-level adapter.
  *
  * @example
  * ```tsx
- * import { useMemo, useRef } from 'react';
- * import { useMediabunnyTimelineMedia } from '#mediabunny-adapter/react';
+ * import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
  *
  * type PreviewLayerName = 'visuals' | 'audio';
  *
@@ -209,20 +332,21 @@ export function useMediabunnyFrameTime(adapter: MediabunnyAdapter): number | nul
  *   visuals: { trackKind: 'visual' },
  *   audio: { trackKind: 'audio' },
  * } as const;
+ * const sources = [{
+ *   sourceId: 'source-1',
+ *   input: '/media/interview.mp4',
+ * }];
  *
  * export function DecodedPreview() {
- *   const canvasRef = useRef<HTMLCanvasElement>(null);
- *   const sources = useMemo(() => [{ id: 'source-1', url: '/media/interview.mp4' }], []);
  *   const media = useMediabunnyTimelineMedia<PreviewLayerName>({
- *     canvasRef,
  *     sources,
  *     layers: previewLayers,
- *     onError: console.error,
+ *     onError: (error) => console.error(error.reason, error.message),
  *   });
  *
  *   return (
  *     <>
- *       <canvas ref={canvasRef} width={1280} height={720} />
+ *       <canvas ref={media.canvasRef} width={1280} height={720} />
  *       <button type="button" disabled={!media.ready} onClick={() => void media.play()}>
  *         {media.playing ? 'Playing' : 'Play'}
  *       </button>
@@ -242,19 +366,25 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
   const {
     audio,
     audioTrackKinds,
-    canvasRef,
     frameRate,
     layers,
     mediabunny = loadMediabunny,
     onError,
+    playbackOptions,
+    selectTracks,
     sources,
     visualTrackKinds,
   } = options;
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const canvasRef = useCallback<RefCallback<HTMLCanvasElement>>((nextCanvas) => {
+    setCanvas(nextCanvas);
+  }, []);
   const adapter = useMediabunnyAdapter({
     audio,
     audioTrackKinds,
-    canvasRef,
+    canvas,
     mediabunny,
+    selectTracks,
     sources,
     visualTrackKinds,
   });
@@ -262,16 +392,20 @@ export function useMediabunnyTimelineMedia<LayerName extends string = string>(
     ready: adapter.ready,
     frameRate,
     layers,
-    adapter: adapter.syncAdapter,
+    adapter,
+    adapterIdentity: adapter,
     onError,
+    playbackOptions,
   });
 
   return {
     ...mediaSync,
+    canvasRef,
+    canvas,
     ready: adapter.ready,
     status: adapter.status,
     error: adapter.error,
-    durationBySourceId: adapter.durationBySourceId,
+    sourceStateById: adapter.sourceStateById,
     adapter,
   };
 }

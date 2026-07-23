@@ -5,7 +5,7 @@ import {
   useTimeline,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -24,6 +24,7 @@ const playbackRates = [0.5, 1, 2] as const;
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
 } as const;
+const sources = [{ sourceId: sampleSourceId, input: sampleMediaUrl }] as const;
 
 interface MediaReadout {
   status: string;
@@ -57,7 +58,6 @@ function TimelineLayers() {
 // HTML media preview and timeline sync
 function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   const playheadTime = useTimelinePlayheadTime();
-  const videoRef = useRef<HTMLVideoElement>(null);
   const mediaLoadStartedAtRef = useRef(performance.now());
   const decodeMetricReportedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -68,39 +68,36 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
   });
 
   // Adapter setup
-  const sources = useMemo(
-    () => ({
-      [sampleSourceId]: sampleMediaUrl,
-    }),
-    []
-  );
-  const { playing, playbackRate, play, pause, setPlaybackRate, ready } = useHTMLTimelineMedia({
-    ref: videoRef,
-    sources,
-    layers: previewLayerSelectors,
-    onError: (message) => {
-      metrics?.onMediaLoadFailed?.({
-        demoId: 'html-media-sync',
-        adapter: 'html-media',
-        mediaType: 'video',
-      });
-      setPlaybackError(message);
-    },
-  });
+  const { element, mediaRef, playing, playbackRate, play, pause, setPlaybackRate, ready } =
+    useHTMLTimelineMedia({
+      sources,
+      layers: previewLayerSelectors,
+      onError: (error) => {
+        metrics?.onMediaLoadFailed?.({
+          demoId: 'html-media-sync',
+          adapter: 'html-media',
+          mediaType: 'video',
+        });
+        setPlaybackError(error.message);
+      },
+    });
 
   // Native media element readout
-  const updateMediaReadout = useCallback((status?: string) => {
-    const video = videoRef.current;
-    if (video === null) {
-      return;
-    }
+  const updateMediaReadout = useCallback(
+    (status?: string) => {
+      const video = element;
+      if (video === null) {
+        return;
+      }
 
-    setMediaReadout((currentReadout) => ({
-      status: status ?? currentReadout.status,
-      sourceDuration: Number.isFinite(video.duration) ? video.duration : null,
-      sourceTime: video.currentTime,
-    }));
-  }, []);
+      setMediaReadout((currentReadout) => ({
+        status: status ?? currentReadout.status,
+        sourceDuration: Number.isFinite(video.duration) ? video.duration : null,
+        sourceTime: video.currentTime,
+      }));
+    },
+    [element]
+  );
 
   const recordDecodeTime = useCallback(() => {
     if (decodeMetricReportedRef.current) {
@@ -150,7 +147,7 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
       <div className="media-sync-preview">
         <div className="media-sync-monitor">
           <video
-            ref={videoRef}
+            ref={mediaRef}
             className="media-sync-video"
             preload="metadata"
             playsInline
@@ -195,7 +192,7 @@ function HTMLMediaSyncSurface({ metrics }: { metrics?: DemoMetrics }) {
                 className={`media-sync-button${
                   playbackRate === rate ? ' media-sync-button-active' : ''
                 }`}
-                onClick={() => setPlaybackRate(rate)}
+                onClick={() => void setPlaybackRate(rate)}
                 disabled={!ready}
               >
                 {rate}x

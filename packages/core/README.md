@@ -25,6 +25,7 @@ import {
 
 - Build a timeline in a non-React environment and own rendering yourself.
 - Manage track models, edit history, snapping, clipboard operations, and playback without UI dependencies.
+- Implement external media clocks against framework-neutral sync, source, lifecycle, and structured-error contracts.
 - Write isolated unit tests around timeline business logic without loading browser DOM or canvas layers.
 
 ## Usage
@@ -58,5 +59,6 @@ import { SnapIndex } from '@techsquidtv/canvas-timeline-core/snapping';
 - [Package docs](https://canvastimeline.com/packages/core/)
 - [API reference](https://canvastimeline.com/packages/core/api)
 - [System architecture](https://canvastimeline.com/docs/architecture)
+- [Media adapter guide](https://canvastimeline.com/docs/media-adapters)
 - [Demos](https://canvastimeline.com/demos/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/core)

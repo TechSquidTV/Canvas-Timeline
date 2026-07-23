@@ -82,8 +82,8 @@ focused packages when you need a lower-level layer:
 | `@techsquidtv/canvas-timeline-react`              | Provider, hooks, and delegated interaction layers.                 | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/react/README.md)              |
 | `@techsquidtv/canvas-timeline-renderer`           | Canvas drawing, theme resolution, and worker-backed rendering.     | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/renderer/README.md)           |
 | `@techsquidtv/canvas-timeline-utils`              | Rational time and shared timeline math.                            | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/utils/README.md)              |
-| `@techsquidtv/canvas-timeline-html-media-adapter` | Native HTML media element sync.                                    | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/html-media-adapter/README.md) |
-| `@techsquidtv/canvas-timeline-mediabunny-adapter` | Optional Mediabunny-powered media integration.                     | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/mediabunny-adapter/README.md) |
+| `@techsquidtv/canvas-timeline-html-media-adapter` | Framework-free native sync with optional `./react` hooks.          | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/html-media-adapter/README.md) |
+| `@techsquidtv/canvas-timeline-mediabunny-adapter` | Lazy decoded media integration with optional `./react` hooks.      | [README](https://github.com/techsquidtv/canvas-timeline/blob/main/packages/mediabunny-adapter/README.md) |
 
 ## Repository
 

@@ -24,8 +24,8 @@
   "scripts": {
     "build": "vp run repo:build",
     "changeset": "changeset",
-    "changeset:status": "changeset status --since=origin/main",
-    "changeset:version": "changeset version",
+    "changeset:status": "node scripts/release/run-lockstep-changeset.mjs status --since=origin/main",
+    "changeset:version": "node scripts/release/run-lockstep-changeset.mjs version",
     "check": "vp run ci",
     "check:quick": "vp run repo:check",
     "clean": "vp run repo:clean",
