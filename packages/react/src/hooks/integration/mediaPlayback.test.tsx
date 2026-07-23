@@ -654,6 +654,7 @@ test('useTimelineMediaPlayback does not pause a competing clock when it unmounts
 test('useTimelineMediaPlayback rejects commands owned by a competing clock', async () => {
   const engine = createMediaSyncEngine();
   const stopClock = vi.fn();
+  const setClockRate = vi.fn();
   const syncLayers = vi.fn();
   const { result, unmount } = renderHook(
     () =>
@@ -661,6 +662,7 @@ test('useTimelineMediaPlayback rejects commands owned by a competing clock', asy
         getClockTime: () => 1,
         layers: mediaSyncLayers,
         stopClock,
+        setClockRate,
         syncLayers,
       }),
     {
@@ -685,10 +687,17 @@ test('useTimelineMediaPlayback rejects commands owned by a competing clock', asy
       message: 'Timeline playback is already controlled by another clock.',
     });
   });
+  await expect(result.current.setPlaybackRate(2)).resolves.toEqual({
+    ok: false,
+    reason: 'policy-rejected',
+    message: 'Timeline playback is already controlled by another clock.',
+  });
   unmount();
 
   expect(engine.getState().playing).toBe(true);
+  expect(engine.getPlaybackRate()).toBe(1);
   expect(stopClock).not.toHaveBeenCalled();
+  expect(setClockRate).not.toHaveBeenCalled();
   expect(syncLayers).not.toHaveBeenCalled();
 
   act(() => {
@@ -744,6 +753,7 @@ test('useTimelineMediaPlayback cancels pending media startup without pausing a c
 test('useTimelineMediaPlayback rejects a competing clock that starts during synchronization', async () => {
   const engine = createMediaSyncEngine();
   const stopClock = vi.fn();
+  const setClockRate = vi.fn();
   let resolveStartup = () => {};
   const startup = new Promise<void>((resolve) => {
     resolveStartup = resolve;
@@ -757,6 +767,7 @@ test('useTimelineMediaPlayback rejects a competing clock that starts during sync
         getClockTime: () => 1,
         layers: mediaSyncLayers,
         stopClock,
+        setClockRate,
         syncLayers,
       }),
     {
@@ -768,6 +779,7 @@ test('useTimelineMediaPlayback rejects a competing clock that starts during sync
   await waitFor(() => {
     expect(syncLayers).toHaveBeenCalledWith(expect.objectContaining({ reason: 'play' }));
   });
+  const pendingRateChange = result.current.setPlaybackRate(2);
   act(() => {
     expect(engine.play({ clock: 'external' })).toBe(true);
   });
@@ -779,9 +791,17 @@ test('useTimelineMediaPlayback rejects a competing clock that starts during sync
       reason: 'policy-rejected',
       message: 'Timeline playback is already controlled by another clock.',
     });
+    await expect(pendingRateChange).resolves.toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Timeline playback is already controlled by another clock.',
+    });
   });
   expect(engine.getState().playing).toBe(true);
+  expect(engine.getPlaybackRate()).toBe(1);
   expect(stopClock).not.toHaveBeenCalled();
+  expect(setClockRate).not.toHaveBeenCalled();
+  expect(syncLayers).not.toHaveBeenCalledWith(expect.objectContaining({ reason: 'rate' }));
   act(() => {
     engine.pause();
   });

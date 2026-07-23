@@ -214,6 +214,11 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
     }
   }, []);
 
+  const hasCompetingClock = useCallback(
+    () => engine.getState().playing && !ownsPlaybackRef.current,
+    [engine]
+  );
+
   const getActiveLayers = useCallback(
     (time: RationalTime) => {
       return engine.getActiveLayers({
@@ -369,20 +374,16 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
   );
 
   const pausePlayback = useCallback(() => {
-    if (
-      engine.getState().playing &&
-      !ownsPlaybackRef.current &&
-      playbackStartGenerationRef.current === null
-    ) {
+    if (hasCompetingClock() && playbackStartGenerationRef.current === null) {
       return createCompetingClockFailure();
     }
     pause('paused');
     return timelineCommandOk();
-  }, [engine, pause]);
+  }, [hasCompetingClock, pause]);
 
   const play = useCallback(async () => {
     if (engine.getState().playing) {
-      return ownsPlaybackRef.current ? timelineCommandOk() : createCompetingClockFailure();
+      return hasCompetingClock() ? createCompetingClockFailure() : timelineCommandOk();
     }
 
     const generation = playbackGenerationRef.current + 1;
@@ -426,7 +427,17 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
       if (playbackStartGenerationRef.current === generation) {
         playbackStartGenerationRef.current = null;
       }
-      return ownsPlaybackRef.current ? timelineCommandOk() : createCompetingClockFailure();
+      return hasCompetingClock() ? createCompetingClockFailure() : timelineCommandOk();
+    }
+
+    try {
+      optionsRef.current.setClockRate?.(engine.getPlaybackRate());
+    } catch (clockError) {
+      return timelineCommandFail(
+        'sync-failed',
+        'External media clock rate could not be updated.',
+        handleAdapterFailure(clockError, generation)
+      );
     }
 
     const started = engine.play({ ...playbackOptions, clock: 'external' });
@@ -524,12 +535,16 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
       void tick();
     });
     return timelineCommandOk();
-  }, [engine, getActiveLayers, handleAdapterFailure, pause, synchronizeLayers]);
+  }, [engine, getActiveLayers, handleAdapterFailure, hasCompetingClock, pause, synchronizeLayers]);
 
   const setPlaybackRate = useCallback(
     (rate: number) =>
       runSynchronization(
         async () => {
+          if (hasCompetingClock()) {
+            return createCompetingClockFailure();
+          }
+
           const previousRate = engine.getPlaybackRate();
           try {
             engine.setPlaybackRate(rate);
@@ -577,7 +592,7 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
         },
         () => timelineCommandFail('policy-rejected', 'Playback rate change was superseded.')
       ),
-    [engine, getActiveLayers, runSynchronization, synchronizeLayersNow]
+    [engine, getActiveLayers, hasCompetingClock, runSynchronization, synchronizeLayersNow]
   );
 
   useEffect(

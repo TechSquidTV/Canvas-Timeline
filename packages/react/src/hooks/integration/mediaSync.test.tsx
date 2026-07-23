@@ -6,7 +6,7 @@ import {
   TimelineMediaError,
   type TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fromSeconds, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import { useTimelineMediaSync, type TimelineMediaPlayResult } from '#react/hooks';
 import { createMediaSyncEngine, mediaSyncLayers } from '#react/hooks/integration/testHelpers';
@@ -1290,6 +1290,72 @@ test('useTimelineMediaSync applies a rate change after pending startup adapter w
   expect(engine.getPlaybackRate()).toBe(2);
   act(() => {
     result.current.pause();
+  });
+});
+
+test('useTimelineMediaSync reconciles the owning clock after a competing startup rate change', async () => {
+  const engine = createMediaSyncEngine();
+  let resolveOwnerStart = (_started: boolean) => {};
+  const ownerStart = new Promise<boolean>((resolve) => {
+    resolveOwnerStart = resolve;
+  });
+  const ownerStartClock = vi.fn((_timelineTime: RationalTime, _playbackRate: number) => ownerStart);
+  const ownerSetClockRate = vi.fn();
+  const competitorSetClockRate = vi.fn();
+  const layers = {
+    visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  } as const;
+  const ownerAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: ownerStartClock,
+    stopClock: vi.fn(),
+    setClockRate: ownerSetClockRate,
+  };
+  const competitorAdapter: TimelineMediaSyncAdapter<'visuals'> = {
+    getClockTime: () => 1,
+    startClock: () => true,
+    setClockRate: competitorSetClockRate,
+  };
+
+  const { result } = renderHook(
+    () => ({
+      owner: useTimelineMediaSync({
+        adapter: ownerAdapter,
+        adapterIdentity: ownerAdapter,
+        layers,
+      }),
+      competitor: useTimelineMediaSync({
+        adapter: competitorAdapter,
+        adapterIdentity: competitorAdapter,
+        layers,
+      }),
+    }),
+    {
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+
+  const playResult = result.current.owner.play();
+  await waitFor(() => {
+    expect(ownerStartClock).toHaveBeenCalledWith(fromSeconds(1), 1);
+  });
+
+  await act(async () => {
+    await expect(result.current.competitor.setPlaybackRate(2)).resolves.toEqual({ ok: true });
+  });
+  expect(competitorSetClockRate).toHaveBeenCalledWith(2);
+  expect(ownerSetClockRate).not.toHaveBeenCalled();
+
+  resolveOwnerStart(true);
+  await act(async () => {
+    await expect(playResult).resolves.toMatchObject({ ok: true });
+  });
+
+  expect(ownerSetClockRate).toHaveBeenCalledWith(2);
+  expect(engine.getPlaybackRate()).toBe(2);
+  expect(engine.getState().playing).toBe(true);
+  act(() => {
+    result.current.owner.pause();
   });
 });
 
