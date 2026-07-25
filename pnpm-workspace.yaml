@@ -13,7 +13,7 @@ allowBuilds:
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.4
   vitest: 4.1.10
-  vite-plus: 0.2.4
+  vite-plus: 0.2.5
   '@vitest/coverage-v8': 4.1.10
 overrides:
   sharp: ^0.35.0
