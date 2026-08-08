@@ -28,12 +28,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.15.0
+        uses: voidzero-dev/setup-vp@v1.16.1
         with:
           node-version: '24'
           cache: true
@@ -55,12 +55,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.15.0
+        uses: voidzero-dev/setup-vp@v1.16.1
         with:
           node-version: '24'
           cache: true
@@ -98,12 +98,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.15.0
+        uses: voidzero-dev/setup-vp@v1.16.1
         with:
           node-version: '24'
           cache: true
@@ -163,10 +163,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.15.0
+        uses: voidzero-dev/setup-vp@v1.16.1
         with:
           node-version: '24'
           run-install: false
