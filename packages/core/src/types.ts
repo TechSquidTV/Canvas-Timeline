@@ -301,7 +301,7 @@ export interface TrackHitTestInput extends TimelineTrackGeometryOptions {
  */
 export interface TimelineTrackHitTestResult<TrackKind = string> {
   /** Track under the queried point. */
-  track: Track<TrackKind>;
+  track: TimelineReadonly<Track<TrackKind>>;
   /** Zero-based track index in timeline order. */
   trackIndex: number;
   /** Viewport-space track row bounds. */
@@ -311,9 +311,9 @@ export interface TimelineTrackHitTestResult<TrackKind = string> {
 /** Hit-test result for a clip pointer target. */
 export interface ClipHitTestResult {
   /** Track containing the matched clip. */
-  track: Track;
+  track: TimelineReadonly<Track>;
   /** Clip matched by the pointer query. */
-  clip: Clip;
+  clip: TimelineReadonly<Clip>;
   /** Zero-based track index in timeline order. */
   trackIndex: number;
   /** Zero-based clip index inside the containing track. */
@@ -354,7 +354,7 @@ export interface TimelineKeyframePropertyDefinition<PropertyId extends string = 
   /** Optional app-facing formatter for inspectors and labels. */
   formatValue?: (value: number) => string;
   /** Optional source of a clip-specific base value when no keyframes exist. */
-  getBaseValue?: (clip: Clip) => number;
+  getBaseValue?: (clip: TimelineReadonly<Clip>) => number;
 }
 
 /** Immutable scalar keyframe property definition stored by the engine registry. */
@@ -510,7 +510,7 @@ export interface TimelineKeyframeHitTestInput extends TimelineKeyframeGeometryOp
  */
 export interface TimelineKeyframeRect<TrackKind = string> extends TimelineClipEntry<TrackKind> {
   /** Raw keyframe represented by this entry. */
-  keyframe: TimelineKeyframe;
+  keyframe: TimelineReadonly<TimelineKeyframe>;
   /** Zero-based keyframe index inside the containing clip. */
   keyframeIndex: number;
   /** Keyframe bounds in viewport CSS pixels. */
@@ -532,7 +532,7 @@ export interface TimelineKeyframeTangentHandle<
   /** Keyframe side mutated by this tangent. */
   side: TimelineKeyframeSide;
   /** Anchor keyframe whose side data is edited by this tangent. */
-  keyframe: TimelineKeyframe;
+  keyframe: TimelineReadonly<TimelineKeyframe>;
   /** Zero-based index of `keyframe` inside the containing clip. */
   keyframeIndex: number;
   /** Segment endpoint this control handle is visually anchored to. */
@@ -564,9 +564,9 @@ export interface TimelineKeyframeSegment<TrackKind = string> extends TimelineCli
   /** Property animated by the segment. */
   property: TimelineKeyframePropertyId;
   /** Left keyframe in the segment. */
-  startKeyframe: TimelineKeyframe;
+  startKeyframe: TimelineReadonly<TimelineKeyframe>;
   /** Right keyframe in the segment. */
-  endKeyframe: TimelineKeyframe;
+  endKeyframe: TimelineReadonly<TimelineKeyframe>;
   /** Zero-based start keyframe index inside the containing clip. */
   startKeyframeIndex: number;
   /** Zero-based end keyframe index inside the containing clip. */
@@ -807,10 +807,9 @@ export interface TimelineSnapTarget {
   /**
    * Lightweight application metadata for custom snap targets.
    *
-   * Values stay `unknown` because the core engine snapshots and carries this
-   * record without interpreting app-owned domain data.
+   * Uses the same plain-data contract as clip metadata.
    */
-  metadata?: Record<string, unknown>;
+  metadata?: TimelineMetadata;
 }
 
 /** Transient snap feedback consumed by canvas rendering and focused hooks. */
@@ -1387,10 +1386,9 @@ export interface TimelineEditPreview {
   /**
    * Lightweight app/UI metadata for custom edit guides.
    *
-   * Values stay `unknown` because the core engine forwards this record without
-   * interpreting app-owned domain data.
+   * Uses the same plain-data contract as clip metadata.
    */
-  guideMetadata?: Record<string, unknown>;
+  guideMetadata?: TimelineMetadata;
 }
 
 /** Result returned after committing an edit command. */
@@ -1401,6 +1399,25 @@ export interface TimelineEditCommitResult {
   preview: TimelineEditPreview;
   /** Whether the command committed. */
   committed: boolean;
+}
+
+/** Lightweight application data supported by timeline snapshots and history. */
+export type TimelineMetadataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | TimelineMetadataArray
+  | TimelineMetadata;
+
+/** Readonly list of lightweight metadata values. */
+// oxlint-disable-next-line typescript/no-empty-object-type -- A recursive interface prevents excessive instantiation in TimelineReadonly.
+export interface TimelineMetadataArray extends ReadonlyArray<TimelineMetadataValue> {}
+
+/** Plain metadata record. Numbers must be finite; cycles and host objects are rejected. */
+export interface TimelineMetadata {
+  readonly [key: string]: TimelineMetadataValue;
 }
 
 /**
@@ -1445,10 +1462,11 @@ export interface Clip {
   /**
    * Arbitrary custom application metadata attached to this clip.
    *
-   * Values stay `unknown` because Canvas Timeline preserves this record through
-   * snapshots and edits while leaving the schema to the host application.
+   * Use plain objects, arrays, strings, finite numbers, booleans, null, or undefined.
+   * Store Maps, Sets, Dates, buffers, and other domain objects outside the engine.
+   * Metadata is copied on input and deeply frozen in public snapshots.
    */
-  metadata?: Record<string, unknown>;
+  metadata?: TimelineMetadata;
 }
 
 /**
@@ -1457,10 +1475,10 @@ export interface Clip {
  * @template TrackKind - App-defined track kind.
  */
 export interface TimelineClipEntry<TrackKind = string> {
-  /** Raw timeline clip represented by this entry. */
-  clip: Clip;
+  /** Readonly timeline clip represented by this entry. */
+  clip: TimelineReadonly<Clip>;
   /** Track containing the clip. */
-  track: Track<TrackKind>;
+  track: TimelineReadonly<Track<TrackKind>>;
   /** Zero-based track index in timeline order. */
   trackIndex: number;
   /** Zero-based clip index inside the containing track. */
@@ -1634,9 +1652,9 @@ export type TimelineRulerTickOptions = TimelineRulerGeometryOptions & TimelineRu
  */
 export interface ActiveClip<TrackKind = string> {
   /** Track containing the active clip. */
-  track: Track<TrackKind>;
+  track: TimelineReadonly<Track<TrackKind>>;
   /** Clip active under the playhead or inspected timeline time. */
-  clip: Clip;
+  clip: TimelineReadonly<Clip>;
   /** Timeline time used for the lookup. */
   timelineTime: RationalTime;
   /** Source-media time corresponding to `timelineTime`. */

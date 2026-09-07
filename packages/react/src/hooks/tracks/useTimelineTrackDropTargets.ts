@@ -26,7 +26,7 @@ import { useCallback, useMemo } from 'react';
  */
 export interface TimelineTrackDropContext {
   /** Clip being moved. */
-  clip: Clip;
+  clip: TimelineReadonly<Clip>;
   /** Track that contained the clip at drag start. */
   sourceTrack: TimelineReadonly<Track>;
   /** Candidate destination track. */
@@ -85,11 +85,9 @@ export interface UseTimelineTrackDropTargetsOptions extends TimelineTrackGeometr
  */
 export interface UseTimelineTrackDropTargetsResult {
   /** Viewport-space track rows in timeline order. */
-  trackTargets: TimelineReadonly<TimelineTrackHitTestResult>[];
+  trackTargets: TimelineTrackHitTestResult[];
   /** Hit-tests timeline tracks in viewport coordinates. */
-  getTrackAtViewportPoint: (
-    input: TrackHitTestInput
-  ) => TimelineReadonly<TimelineTrackHitTestResult> | null;
+  getTrackAtViewportPoint: (input: TrackHitTestInput) => TimelineTrackHitTestResult | null;
   /** Resolves whether one clip may drop on one candidate track. */
   canDropClipOnTrack: (
     clipId: string,
@@ -105,8 +103,8 @@ const acceptedDropResult: TimelineTrackDropResult = {
 };
 
 function isTrackDropTarget(
-  target: TimelineReadonly<TimelineTrackHitTestResult> | null
-): target is TimelineReadonly<TimelineTrackHitTestResult> {
+  target: TimelineTrackHitTestResult | null
+): target is TimelineTrackHitTestResult {
   return target !== null;
 }
 

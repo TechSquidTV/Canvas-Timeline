@@ -149,7 +149,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
   const selectedInputIndexBySourceId = new Map<string, number>();
   const objectUrlsBySourceId = new Map<string, Map<string, string>>();
   let activeClip: ActiveClip | undefined;
-  let timelineTimeAtStart = 0;
+  let timelineTimeAtStart: RationalTime = { v: 0, r: 1 };
   let playbackRate = 1;
   let shouldPlay = false;
   let clockStartPending = false;
@@ -316,7 +316,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       });
     }
     activeClip = clip;
-    timelineTimeAtStart = toSeconds(timelineTime);
+    timelineTimeAtStart = { ...timelineTime };
     element.playbackRate = playbackRate;
 
     if (
@@ -520,7 +520,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       error: null,
     });
     const clip = activeClip;
-    loadClip(clip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true, status: 'recovering' });
+    loadClip(clip, timelineTimeAtStart, { forceReload: true, status: 'recovering' });
     resumeIntendedPlayback();
   };
 
@@ -589,7 +589,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       changedSourceIds.has(activeSourceId)
     ) {
       selectedInputIndexBySourceId.set(activeSourceId, 0);
-      loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
+      loadClip(activeClip, timelineTimeAtStart, { forceReload: true });
       resumeIntendedPlayback();
     }
   };
@@ -610,7 +610,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
     setSources: reconcileSources,
     getClockTime: () => {
       if (activeClip === undefined) {
-        return timelineTimeAtStart;
+        return toSeconds(timelineTimeAtStart);
       }
 
       const sourceInputs = getSourceInputs(activeClip.clip.sourceId);
@@ -625,7 +625,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
       );
     },
     startClock: async (timelineTime, rate) => {
-      timelineTimeAtStart = toSeconds(timelineTime);
+      timelineTimeAtStart = { ...timelineTime };
       playbackRate = rate;
       shouldPlay = true;
       element.playbackRate = rate;
@@ -678,7 +678,7 @@ export function createHTMLMediaAdapter(options: CreateHTMLMediaAdapterOptions): 
         error: null,
       });
       if (activeClip?.clip.sourceId === sourceId) {
-        loadClip(activeClip, { v: timelineTimeAtStart, r: 1 }, { forceReload: true });
+        loadClip(activeClip, timelineTimeAtStart, { forceReload: true });
         resumeIntendedPlayback();
       }
       return { ok: true, sourceId, state: 'configured' };

@@ -46,7 +46,7 @@ export interface TimelineSelectionState<TrackKind = string> {
  */
 export function flattenTimelineClips<TrackKind>(
   tracks: readonly TimelineReadonly<Track<TrackKind>>[]
-): TimelineReadonly<TimelineClipEntry<TrackKind>>[] {
+): TimelineClipEntry<TrackKind>[] {
   return tracks.flatMap((track, trackIndex) =>
     track.clips.map((clip, clipIndex) => ({
       clip,

@@ -5,7 +5,6 @@ import {
   mapSourceTimeToTimelineTime,
   mapTimelineTimeToSourceTime,
 } from '#core/engine/media-sync';
-import type { TimelineClipLookup } from '#core/engine/types';
 import type {
   ActiveClip,
   ActiveClipQuery,
@@ -16,23 +15,28 @@ import type {
   TimelineReadonly,
   ClipSourceRange,
   FirstContentTimeOptions,
-  TimelineState,
+  TimelineStateSnapshot,
+  TimelineClipEntry,
   Track,
 } from '#core/types';
 import { compareRational } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 interface MediaContext {
-  getState: () => TimelineState;
-  getClip: (id: string) => TimelineClipLookup | undefined;
+  getState: () => TimelineStateSnapshot;
+  getClip: (id: string) => TimelineClipEntry | undefined;
 }
 
 /** Indexed active-media queries and source-time mapping. */
 export class TimelineMediaQueries {
   constructor(private context: MediaContext) {}
 
-  private timeIndexes = new WeakMap<Track, { revision: number; index: ClipTimeIndex }>();
+  private timeIndexes = new WeakMap<TimelineReadonly<Track>, ClipTimeIndex>();
   private activeMediaCache:
-    | { revision: number; time: RationalTime; entries: Pick<ActiveClip, 'track' | 'clip'>[] }
+    | {
+        tracks: TimelineStateSnapshot['tracks'];
+        time: RationalTime;
+        entries: Pick<ActiveClip, 'track' | 'clip'>[];
+      }
     | undefined;
 
   /**
@@ -48,9 +52,8 @@ export class TimelineMediaQueries {
    */
   getActiveClips(time: RationalTime = this.context.getState().playheadTime): ActiveClip[] {
     const state = this.context.getState();
-    const revision = state.contentRevision;
     if (
-      this.activeMediaCache?.revision !== revision ||
+      this.activeMediaCache?.tracks !== state.tracks ||
       compareRational(this.activeMediaCache.time, time) !== 0
     ) {
       const entries: Pick<ActiveClip, 'track' | 'clip'>[] = [];
@@ -59,18 +62,18 @@ export class TimelineMediaQueries {
           continue;
         }
         let cached = this.timeIndexes.get(track);
-        if (!cached || cached.revision !== revision) {
-          cached = { revision, index: new ClipTimeIndex(track.clips) };
+        if (!cached) {
+          cached = new ClipTimeIndex(track.clips);
           this.timeIndexes.set(track, cached);
         }
-        for (const clip of cached.index.at(time)) {
+        for (const clip of cached.at(time)) {
           if (!clip.disabled) {
             entries.push({ track, clip });
           }
         }
       }
       // Cache membership only; caller-owned times and public result objects must stay outside it.
-      this.activeMediaCache = { revision, time: { ...time }, entries };
+      this.activeMediaCache = { tracks: state.tracks, time: { ...time }, entries };
     }
     const activeClips: ActiveClip[] = [];
     for (const { track, clip } of this.activeMediaCache.entries) {
@@ -232,8 +235,8 @@ export class TimelineMediaQueries {
   }
 
   private createActiveClip(
-    track: Track,
-    clip: Clip,
+    track: TimelineReadonly<Track>,
+    clip: TimelineReadonly<Clip>,
     timelineTime: RationalTime
   ): ActiveClip | undefined {
     const sourceTime = this.timelineTimeToSourceTime(clip, timelineTime);

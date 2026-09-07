@@ -1,4 +1,4 @@
-import type { Clip } from '#core/types';
+import type { Clip, TimelineReadonly } from '#core/types';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 /** Ordered starts plus prefix maximum ends preserve overlapping clip intervals. */
@@ -6,7 +6,7 @@ export class ClipTimeIndex {
   private readonly entries;
   private readonly maximumEnds: number[];
 
-  constructor(clips: readonly Clip[]) {
+  constructor(clips: readonly TimelineReadonly<Clip>[]) {
     this.entries = clips
       .map((clip, order) => ({
         clip,
@@ -19,7 +19,7 @@ export class ClipTimeIndex {
     this.maximumEnds = this.entries.map(({ end }) => (maximum = Math.max(maximum, end)));
   }
 
-  at(time: RationalTime): Clip[] {
+  at(time: RationalTime): TimelineReadonly<Clip>[] {
     const seconds = toSeconds(time);
     let low = 0;
     let high = this.entries.length;

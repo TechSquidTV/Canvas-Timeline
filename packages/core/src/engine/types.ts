@@ -2,17 +2,16 @@ import type { ClipCreatedReason, ClipRemovedReason } from '#core/events';
 import type {
   Clip,
   TimelineClipGroup,
+  TimelineClipEntry,
   TimelineClipMoveResult,
   TimelineEditPreview,
   TimelineEditValidationResult,
   TimelineSnapResult,
   Track,
 } from '#core/types';
-export interface TimelineClipLookup {
+export interface TimelineClipLookup extends TimelineClipEntry {
   track: Track;
   clip: Clip;
-  trackIndex: number;
-  clipIndex: number;
 }
 
 export interface TimelineResolvedEdit {

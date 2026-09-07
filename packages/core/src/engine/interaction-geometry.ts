@@ -1,3 +1,4 @@
+import { findClipInTracks } from '#core/engine/clip-lookup';
 import {
   defaultTimelineViewportWidth,
   normalizeViewportCoordinate,
@@ -14,7 +15,9 @@ import type {
   TimelineClipGeometryOptions,
   TimelineClipRect,
   TimelineInteractionGeometry,
-  TimelineState,
+  TimelineStateSnapshot,
+  TimelineReadonly,
+  TimelineClipEntry,
   TimelineTrackGeometryOptions,
   TimelineTrackHitTestResult,
   TimelineTrackRect,
@@ -32,8 +35,8 @@ import {
 } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 interface GeometryContext {
-  getState: () => TimelineState;
-  getRenderState: () => TimelineState;
+  getState: () => TimelineStateSnapshot;
+  getRenderState: () => TimelineStateSnapshot;
   timeToPixel: (time: RationalTime) => number;
   pixelToTime: (pixel: number, rate?: number) => RationalTime;
 }
@@ -48,19 +51,8 @@ export class TimelineGeometry {
    * @param clipId - Clip id to look up.
    * @returns Clip lookup details, or `undefined` when the clip is not found.
    */
-  getClip(
-    clipId: string
-  ): { track: Track; clip: Clip; trackIndex: number; clipIndex: number } | undefined {
-    for (let trackIndex = 0; trackIndex < this.context.getState().tracks.length; trackIndex++) {
-      const track = this.context.getState().tracks[trackIndex];
-      for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
-        const clip = track.clips[clipIndex];
-        if (clip.id === clipId) {
-          return { track, clip, trackIndex, clipIndex };
-        }
-      }
-    }
-    return undefined;
+  getClip(clipId: string): TimelineClipEntry | undefined {
+    return findClipInTracks(this.context.getState().tracks, clipId);
   }
 
   /**
@@ -306,7 +298,10 @@ export class TimelineGeometry {
   }
 
   /** @internal Shared row geometry for engine services. */
-  getTrackViewportHeight(track: Track, geometry: ResolvedTimelineInteractionGeometry): number {
+  getTrackViewportHeight(
+    track: TimelineReadonly<Track>,
+    geometry: ResolvedTimelineInteractionGeometry
+  ): number {
     return Math.floor(
       track.collapsed ? geometry.collapsedTrackHeight : (track.height ?? geometry.trackHeight)
     );
@@ -316,8 +311,8 @@ export class TimelineGeometry {
   forEachTimelineClipGeometry(
     options: TimelineClipGeometryOptions,
     visit: (
-      track: Track,
-      clip: Clip,
+      track: TimelineReadonly<Track>,
+      clip: TimelineReadonly<Clip>,
       trackIndex: number,
       clipIndex: number,
       rect: ClipViewportRect
@@ -353,7 +348,7 @@ export class TimelineGeometry {
   }
 
   private findClipHitInTrack(
-    track: Track,
+    track: TimelineReadonly<Track>,
     trackIndex: number,
     trackY: number,
     trackHeight: number,
@@ -415,8 +410,8 @@ export class TimelineGeometry {
   }
 
   private createClipViewportRect(
-    track: Track,
-    clip: Clip,
+    track: TimelineReadonly<Track>,
+    clip: TimelineReadonly<Clip>,
     trackIndex: number,
     clipIndex: number,
     y: number,
@@ -438,7 +433,7 @@ export class TimelineGeometry {
   }
 
   private createTrackViewportRect(
-    track: Track,
+    track: TimelineReadonly<Track>,
     trackIndex: number,
     y: number,
     height: number,
@@ -455,8 +450,8 @@ export class TimelineGeometry {
   }
 
   private createTimelineClipRect(
-    track: Track,
-    clip: Clip,
+    track: TimelineReadonly<Track>,
+    clip: TimelineReadonly<Clip>,
     trackIndex: number,
     clipIndex: number,
     rect: ClipViewportRect

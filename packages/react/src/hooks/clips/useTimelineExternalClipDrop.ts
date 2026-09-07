@@ -7,6 +7,7 @@ import type {
   TimelineEditRejectionReason,
   TimelineInteractionGeometry,
   Track,
+  TimelineReadonly,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
@@ -46,7 +47,7 @@ export interface TimelineExternalClipDropContext<DragData> {
   /** Native browser data transfer payload. */
   dataTransfer: DataTransfer;
   /** Track currently under the pointer. */
-  targetTrack: Track<string>;
+  targetTrack: TimelineReadonly<Track>;
   /** Zero-based index of the target track. */
   targetTrackIndex: number;
   /** Timeline time under the pointer. */
@@ -164,7 +165,7 @@ export interface UseTimelineExternalClipDropResult {
   /** Valid target track id currently accepting the payload. */
   targetTrackId: string | null;
   /** Valid target track currently accepting the payload. */
-  targetTrack: Track<string> | null;
+  targetTrack: TimelineReadonly<Track> | null;
   /** Timeline time under the pointer, when a track is resolved. */
   dropTime: RationalTime | null;
   /** Timeline seconds under the pointer, when a track is resolved. */
@@ -183,7 +184,7 @@ interface ExternalDropFeedback {
   dragging: boolean;
   hoveredTrackId: string | null;
   targetTrackId: string | null;
-  targetTrack: Track<string> | null;
+  targetTrack: TimelineReadonly<Track> | null;
   dropTime: RationalTime | null;
   dropSeconds: number | null;
   valid: boolean;
