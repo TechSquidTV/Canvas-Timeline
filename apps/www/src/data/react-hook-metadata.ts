@@ -278,6 +278,13 @@ export const timelineHookMetadata = [
     description: 'Subscribes to shared command-layer edit preview validity and command state.',
   },
   {
+    name: 'useTimelineClipTrim',
+    group: 'editing-hooks',
+    category: 'drag-drop',
+    reactivity: 'imperative',
+    description: 'Provides headless clip-edge trim previews, snapping, commit, and cancellation.',
+  },
+  {
     name: 'useTimelineClipDrag',
     group: 'editing-hooks',
     category: 'drag-drop',

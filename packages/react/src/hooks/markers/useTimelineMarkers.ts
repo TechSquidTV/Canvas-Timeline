@@ -1,15 +1,16 @@
-import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
-import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
   Marker,
   TimelineReadonly,
 } from '@techsquidtv/canvas-timeline-core';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import { compareRational } from '@techsquidtv/canvas-timeline-utils';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useCallback, useMemo } from 'react';
+import {
+  createTimelineMarkersCommands,
+  sortTimelineMarkers,
+} from '#react/hooks/markers/createTimelineMarkersCommands';
+import { useMemo } from 'react';
 /** Editable marker fields accepted by `useTimelineMarkers().updateMarker`. */
 export type TimelineMarkerUpdate = Partial<
   Pick<Marker, 'time' | 'label' | 'color' | 'description'>
@@ -58,120 +59,8 @@ export interface UseTimelineMarkersResult {
  */
 export function useTimelineMarkers(): UseTimelineMarkersResult {
   const engine = useTimelineEngine();
-  const state = useTimelineSelector((state) => ({ markers: state.markers }));
-  const markers = useMemo(
-    () => [...(state.markers || [])].sort((left, right) => compareRational(left.time, right.time)),
-    [state.markers]
-  );
-
-  const findPreviousMarker = useCallback(
-    (time: RationalTime) =>
-      [...markers].reverse().find((marker) => compareRational(marker.time, time) < 0) ?? null,
-    [markers]
-  );
-
-  const findNextMarker = useCallback(
-    (time: RationalTime) =>
-      markers.find((marker) => compareRational(marker.time, time) > 0) ?? null,
-    [markers]
-  );
-
-  const addMarker = useCallback(
-    (time: RationalTime, label?: string, color?: string, description?: string) =>
-      runTimelineCommand(() => {
-        const marker = engine.addMarker(time, label, color, description);
-        return timelineCommandOk(marker);
-      }),
-    [engine]
-  );
-
-  const addMarkerAtPlayhead = useCallback(
-    (label?: string, color?: string, description?: string) =>
-      runTimelineCommand(() => {
-        const marker = engine.addMarker(engine.playheadTime, label, color, description);
-        return timelineCommandOk(marker);
-      }),
-    [engine]
-  );
-
-  const removeMarker = useCallback(
-    (id: string) =>
-      runTimelineCommand(() =>
-        engine.removeMarker(id) ? timelineCommandOk() : timelineCommandFail('not-found')
-      ),
-    [engine]
-  );
-
-  const updateMarker = useCallback(
-    (id: string, updates: TimelineMarkerUpdate) =>
-      runTimelineCommand(() => {
-        const marker = engine.updateMarker(id, updates);
-        return marker
-          ? timelineCommandOk(marker)
-          : timelineCommandFail<TimelineReadonly<Marker>>('not-found');
-      }),
-    [engine]
-  );
-
-  const seekToMarker = useCallback(
-    (id: string) =>
-      runTimelineCommand(() => {
-        const marker = markers.find((candidate) => candidate.id === id);
-        if (!marker) {
-          return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
-        }
-        engine.updatePlayhead(marker.time);
-        return timelineCommandOk(marker);
-      }),
-    [engine, markers]
-  );
-
-  const seekToNextMarker = useCallback(
-    () =>
-      runTimelineCommand(() => {
-        const nextMarker = findNextMarker(engine.playheadTime);
-        if (!nextMarker) {
-          return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
-        }
-        engine.updatePlayhead(nextMarker.time);
-        return timelineCommandOk(nextMarker);
-      }),
-    [engine, findNextMarker]
-  );
-
-  const seekToPreviousMarker = useCallback(
-    () =>
-      runTimelineCommand(() => {
-        const previousMarker = findPreviousMarker(engine.playheadTime);
-        if (!previousMarker) {
-          return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
-        }
-        engine.updatePlayhead(previousMarker.time);
-        return timelineCommandOk(previousMarker);
-      }),
-    [engine, findPreviousMarker]
-  );
-
-  return useMemo(
-    () => ({
-      markers,
-      addMarker,
-      addMarkerAtPlayhead,
-      removeMarker,
-      updateMarker,
-      seekToMarker,
-      seekToNextMarker,
-      seekToPreviousMarker,
-    }),
-    [
-      addMarker,
-      addMarkerAtPlayhead,
-      markers,
-      removeMarker,
-      seekToMarker,
-      seekToNextMarker,
-      seekToPreviousMarker,
-      updateMarker,
-    ]
-  );
+  const state = useTimelineSelector((state) => state.markers, Object.is);
+  const markers = useMemo(() => sortTimelineMarkers(state), [state]);
+  const commands = useMemo(() => createTimelineMarkersCommands(engine), [engine]);
+  return useMemo(() => ({ markers, ...commands }), [markers, commands]);
 }

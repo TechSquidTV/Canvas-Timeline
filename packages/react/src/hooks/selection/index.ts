@@ -3,3 +3,4 @@ export * from '#react/hooks/selection/useTimelineHistory';
 export * from '#react/hooks/selection/useTimelineKeyboard';
 export * from '#react/hooks/selection/useTimelineRangeSelection';
 export * from '#react/hooks/selection/useTimelineSelection';
+export type * from '#react/hooks/selection/timelineKeyboardModel';

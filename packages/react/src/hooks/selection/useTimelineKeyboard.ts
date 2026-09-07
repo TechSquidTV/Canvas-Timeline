@@ -1,109 +1,22 @@
+import type {
+  TimelineKeyboardCommand,
+  TimelineKeyboardPlatform,
+  TimelineKeyBinding,
+  TimelineKeyboardBindings,
+  TimelineKeyboardEventLike,
+  TimelineKeyboardBindingOptions,
+  TimelineKeyboardCommandResult,
+  TimelineKeyboardOptions,
+  UseTimelineKeyboardResult,
+} from '#react/hooks/selection/timelineKeyboardModel';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
-import { useTimelineMarkers } from '#react/hooks/markers/useTimelineMarkers';
-import { useTimelinePlayback } from '#react/hooks/playback/useTimelinePlayback';
-import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
+import { createTimelinePlaybackCommands } from '#react/hooks/playback/createTimelinePlaybackCommands';
+import { createTimelineMarkersCommands } from '#react/hooks/markers/createTimelineMarkersCommands';
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import { resolveTimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 import type { TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 import React, { useCallback, useMemo } from 'react';
-/** Named shortcut presets for `useTimelineKeyboard`. */
-export type TimelineKeyboardPreset = 'professionalEditor' | 'minimal';
-
-/** Timeline command names supported by the keyboard scope. */
-export type TimelineKeyboardCommand =
-  | 'togglePlayback'
-  | 'stepBackward'
-  | 'stepForward'
-  | 'setInPoint'
-  | 'setOutPoint'
-  | 'clearInOutPoints'
-  | 'addMarker'
-  | 'seekToNextMarker'
-  | 'seekToPreviousMarker'
-  | 'toggleSnapping'
-  | 'zoomIn'
-  | 'zoomOut';
-
-/** Platform bucket used for platform-specific professional editor bindings. */
-export type TimelineKeyboardPlatform = 'mac' | 'windows' | 'linux' | 'other';
-
-/** Single keyboard chord mapped to a timeline command. */
-export interface TimelineKeyBinding {
-  /** `KeyboardEvent.key` value. Use `Space` or a literal space for the spacebar. */
-  key: string;
-  /** Whether Alt/Option must be held. Defaults to `false`. */
-  altKey?: boolean;
-  /** Whether Ctrl must be held. Defaults to `false`. */
-  ctrlKey?: boolean;
-  /** Whether Meta/Command must be held. Defaults to `false`. */
-  metaKey?: boolean;
-  /** Whether Shift must be held. Defaults to `false`. */
-  shiftKey?: boolean;
-}
-
-/** Command-to-bindings map accepted by `useTimelineKeyboard`. */
-export type TimelineKeyboardBindings = Partial<
-  Record<TimelineKeyboardCommand, readonly TimelineKeyBinding[]>
->;
-
-/** Keyboard-event fields used by the pure shortcut matcher. */
-export interface TimelineKeyboardEventLike {
-  /** `KeyboardEvent.key` value from a browser event or test double. */
-  key: string;
-  /** Whether Alt/Option was held. */
-  altKey?: boolean;
-  /** Whether Ctrl was held. */
-  ctrlKey?: boolean;
-  /** Whether Meta/Command was held. */
-  metaKey?: boolean;
-  /** Whether Shift was held. */
-  shiftKey?: boolean;
-}
-
-/** Options for creating preset timeline keyboard bindings. */
-export interface TimelineKeyboardBindingOptions {
-  /** Preset to create. Defaults to `professionalEditor`. */
-  preset?: TimelineKeyboardPreset;
-  /** Sequence frame rate. Enables frame-step bindings when supplied. */
-  frameRate?: TimecodeFrameRate;
-  /** Platform for platform-specific shortcuts. Defaults to the current browser platform. */
-  platform?: TimelineKeyboardPlatform;
-}
-
-/** Options for `useTimelineKeyboard`. */
-export interface TimelineKeyboardOptions {
-  /** Preset used when `bindings` is not supplied. Defaults to `professionalEditor`. */
-  preset?: TimelineKeyboardPreset;
-  /** Platform used for platform-specific preset bindings. Defaults to the current browser platform. */
-  platform?: TimelineKeyboardPlatform;
-  /** Custom command bindings. Passing `false` disables all shortcut handling. */
-  bindings?: TimelineKeyboardBindings | false;
-  /** Disables keyboard handling while preserving returned scope props. */
-  disabled?: boolean;
-  /** Sequence frame rate used for exact frame stepping. */
-  frameRate?: TimecodeFrameRate;
-  /** Number of frames moved by step commands. Defaults to `1`. */
-  frameStepCount?: number;
-  /** Multiplicative zoom step used by zoom commands. Defaults to `1.2`. */
-  zoomStepRatio?: number;
-  /** Prevents browser defaults after a shortcut is claimed. Defaults to `true`. */
-  preventDefault?: boolean;
-  /** Stops propagation after a shortcut is claimed. Defaults to `false`. */
-  stopPropagation?: boolean;
-  /** Accessible label for the default scope props. */
-  label?: string;
-}
-
-/** Result returned by `useTimelineKeyboard`. */
-export interface UseTimelineKeyboardResult {
-  /** Bindings currently used by the scope. */
-  bindings: TimelineKeyboardBindings;
-  /** Props for a focus-scoped keyboard shortcut container. */
-  scopeProps: React.HTMLAttributes<HTMLDivElement>;
-  /** Resolves a keyboard event to a command using the current bindings. */
-  getCommandForEvent: (event: TimelineKeyboardEventLike) => TimelineKeyboardCommand | null;
-}
-
 const timelineKeyboardCommandOrder = [
   'togglePlayback',
   'stepBackward',
@@ -300,15 +213,28 @@ function scopeContainsActiveElement(scope: HTMLElement) {
  *
  * The hook never installs global listeners. It handles shortcuts only from the
  * element that spreads `scopeProps` or one of that element's descendants.
+ * Commands read current engine state without subscribing to document or viewport updates.
+ * Use `commandHandlers.togglePlayback` to compose media-aware transport.
+ *
+ * @example
+ * ```tsx
+ * const keyboard = useTimelineKeyboard({
+ *   commandHandlers: { togglePlayback: () => media.playing ? media.pause() : media.play() },
+ * });
+ * return <div {...keyboard.scopeProps}>Timeline surface</div>;
+ * ```
  *
  * @param options - Keyboard preset, custom bindings, frame rate, and event handling options.
- * @returns Current bindings, scope props, and a pure shortcut matcher.
+ * @returns Current bindings, scope props, a shortcut matcher, and a command executor.
  */
 export function useTimelineKeyboard(
   options: TimelineKeyboardOptions = {}
 ): UseTimelineKeyboardResult {
   const {
     bindings: optionBindings,
+    commandHandlers,
+    onCommandResult,
+    onCommandError,
     disabled = false,
     frameRate,
     frameStepCount = 1,
@@ -320,10 +246,8 @@ export function useTimelineKeyboard(
     zoomStepRatio = 1.2,
   } = options;
   const engine = useTimelineEngine();
-  const playback = useTimelinePlayback();
-  const markers = useTimelineMarkers();
-  const snapping = useTimelineSnapping();
-  const viewport = useTimelineViewport();
+  const playback = useMemo(() => createTimelinePlaybackCommands(engine), [engine]);
+  const markers = useMemo(() => createTimelineMarkersCommands(engine), [engine]);
 
   const bindings = useMemo(
     () =>
@@ -344,59 +268,74 @@ export function useTimelineKeyboard(
   );
 
   const stepByFrames = useCallback(
-    (direction: -1 | 1) => {
-      if (frameRate === undefined) {
-        return false;
-      }
-
-      const frameRateValue = resolveTimecodeFrameRate(frameRate);
-      const amountSeconds = (frameStepCount * direction) / frameRateValue;
-      const result =
-        direction > 0
+    (direction: -1 | 1) =>
+      runTimelineCommand(() => {
+        if (frameRate === undefined) {
+          return timelineCommandFail('unsupported', 'A frame rate is required for frame stepping.');
+        }
+        if (!Number.isSafeInteger(frameStepCount) || frameStepCount < 1) {
+          return timelineCommandFail('invalid-input', 'frameStepCount must be a positive integer.');
+        }
+        const amountSeconds = frameStepCount / resolveTimecodeFrameRate(frameRate);
+        return direction > 0
           ? playback.stepForward(amountSeconds)
-          : playback.stepBackward(Math.abs(amountSeconds));
-      return result.ok;
-    },
+          : playback.stepBackward(amountSeconds);
+      }),
     [frameRate, frameStepCount, playback]
   );
 
   const executeCommand = useCallback(
-    (command: TimelineKeyboardCommand) => {
+    (
+      command: TimelineKeyboardCommand
+    ): TimelineKeyboardCommandResult | Promise<TimelineKeyboardCommandResult> => {
+      const handler = commandHandlers?.[command];
+      if (handler) {
+        return handler();
+      }
       switch (command) {
         case 'togglePlayback':
-          return playback.togglePlayback().ok;
+          return playback.togglePlayback();
         case 'stepBackward':
           return stepByFrames(-1);
         case 'stepForward':
           return stepByFrames(1);
         case 'setInPoint':
-          return playback.setInPoint().ok;
+          return playback.setInPoint();
         case 'setOutPoint':
-          return playback.setOutPoint().ok;
+          return playback.setOutPoint();
         case 'clearInOutPoints':
-          return playback.clearInOutPoints().ok;
+          return playback.clearInOutPoints();
         case 'addMarker':
-          return markers.addMarkerAtPlayhead().ok;
+          return markers.addMarkerAtPlayhead();
         case 'seekToNextMarker':
-          return markers.seekToNextMarker().ok;
+          return markers.seekToNextMarker();
         case 'seekToPreviousMarker':
-          return markers.seekToPreviousMarker().ok;
+          return markers.seekToPreviousMarker();
         case 'toggleSnapping':
-          return snapping.setEnabled(!snapping.enabled).ok;
-        case 'zoomIn': {
-          const result = viewport.setZoomScale(viewport.zoomScale * zoomStepRatio);
-          engine.settle();
-          return result.ok;
-        }
-        case 'zoomOut': {
-          const safeZoomStepRatio = Math.max(zoomStepRatio, Number.MIN_VALUE);
-          const result = viewport.setZoomScale(viewport.zoomScale / safeZoomStepRatio);
-          engine.settle();
-          return result.ok;
-        }
+          return runTimelineCommand(() => {
+            engine.setSnappingEnabled(!engine.getState().snapEnabled);
+            return timelineCommandOk();
+          });
+        case 'zoomIn':
+        case 'zoomOut':
+          return runTimelineCommand(() => {
+            if (!Number.isFinite(zoomStepRatio) || zoomStepRatio <= 0) {
+              return timelineCommandFail(
+                'invalid-input',
+                'zoomStepRatio must be positive and finite.'
+              );
+            }
+            engine.setZoomScale(
+              command === 'zoomIn'
+                ? engine.zoomScale * zoomStepRatio
+                : engine.zoomScale / zoomStepRatio
+            );
+            engine.settle();
+            return timelineCommandOk();
+          });
       }
     },
-    [engine, markers, playback, snapping, stepByFrames, viewport, zoomStepRatio]
+    [commandHandlers, engine, markers, playback, stepByFrames, zoomStepRatio]
   );
 
   const handleKeyDown = useCallback(
@@ -428,9 +367,34 @@ export function useTimelineKeyboard(
         return;
       }
 
-      executeCommand(command);
+      const reportFailure = (cause: unknown) => {
+        const error = cause instanceof Error ? cause : new Error(String(cause));
+        if (onCommandError) {
+          onCommandError(error, command);
+        } else if (typeof globalThis.reportError === 'function') {
+          globalThis.reportError(error);
+        } else {
+          console.error(error);
+        }
+      };
+      try {
+        void Promise.resolve(executeCommand(command))
+          .then((result) => onCommandResult?.(command, result))
+          .catch(reportFailure);
+      } catch (cause) {
+        reportFailure(cause);
+      }
     },
-    [disabled, executeCommand, getCommandForEvent, optionBindings, preventDefault, stopPropagation]
+    [
+      disabled,
+      executeCommand,
+      getCommandForEvent,
+      onCommandResult,
+      onCommandError,
+      optionBindings,
+      preventDefault,
+      stopPropagation,
+    ]
   );
 
   const scopeProps = useMemo<React.HTMLAttributes<HTMLDivElement>>(
@@ -448,7 +412,8 @@ export function useTimelineKeyboard(
       bindings,
       scopeProps,
       getCommandForEvent,
+      executeCommand,
     }),
-    [bindings, getCommandForEvent, scopeProps]
+    [bindings, getCommandForEvent, scopeProps, executeCommand]
   );
 }

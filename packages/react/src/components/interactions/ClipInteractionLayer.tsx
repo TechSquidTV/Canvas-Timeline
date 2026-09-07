@@ -1,5 +1,5 @@
 import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-import { useTimelineClipDrag, useTimelineClipNavigation } from '#react/hooks';
+import { useTimelineClipDrag, useTimelineClipTrim, useTimelineClipNavigation } from '#react/hooks';
 import type { TimelineClipNavigationOptions } from '#react/hooks';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
@@ -24,9 +24,7 @@ interface OverlayState {
 interface ActiveEdit {
   clipId: string;
   region: ClipHitRegion;
-  startClientX: number;
-  startLeft: number;
-  startRight: number;
+  viewportTop: number;
   dragging: boolean;
 }
 
@@ -152,6 +150,8 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       touchEdgeThreshold,
     });
 
+    const { startClipTrim, moveClipTrim, endClipTrim, cancelClipTrim } = useTimelineClipTrim();
+
     const geometry = useMemo(
       () => ({
         rulerHeight,
@@ -261,11 +261,11 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           if (activeEditRef.current.region === 'body') {
             cancelClipDrag();
           } else {
-            engine.cancelEdit();
+            cancelClipTrim();
           }
         }
       };
-    }, [cancelClipDrag, engine]);
+    }, [cancelClipDrag, cancelClipTrim]);
 
     const handleActivePointerMove = useCallback(
       (event: PointerEvent) => {
@@ -274,35 +274,16 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           return;
         }
 
-        const deltaX = event.clientX - activeEdit.startClientX;
-        if (activeEdit.region === 'start-edge') {
-          engine.previewEdit({
-            type: 'trim',
-            overwrite: true,
-            clipId: activeEdit.clipId,
-            edge: 'start',
-            newTime: engine.pixelToTime(activeEdit.startLeft + deltaX),
-          });
-        } else if (activeEdit.region === 'end-edge') {
-          engine.previewEdit({
-            type: 'trim',
-            overwrite: true,
-            clipId: activeEdit.clipId,
-            edge: 'end',
-            newTime: engine.pixelToTime(activeEdit.startRight + deltaX),
-          });
+        if (activeEdit.region !== 'body') {
+          moveClipTrim({ clientX: event.clientX });
         } else {
-          const point = getViewportPoint(event);
-          if (!point) {
-            return;
-          }
           moveClipDrag({
             clientX: event.clientX,
-            viewportY: point.y,
+            viewportY: event.clientY - activeEdit.viewportTop + geometry.rulerHeight,
           });
         }
       },
-      [engine, getViewportPoint, moveClipDrag]
+      [geometry.rulerHeight, moveClipDrag, moveClipTrim]
     );
 
     const stopActiveEdit = useCallback(
@@ -324,11 +305,11 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
               endClipDrag();
             }
           } else {
-            const command = engine.getEditPreview()?.command;
-            if (command && event.type !== 'pointercancel') {
-              engine.commitEdit(command);
+            if (event.type === 'pointercancel') {
+              cancelClipTrim();
+            } else {
+              endClipTrim();
             }
-            engine.cancelEdit();
           }
         }
 
@@ -337,7 +318,8 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       [
         cancelClipDrag,
         endClipDrag,
-        engine,
+        cancelClipTrim,
+        endClipTrim,
         hoveredClipId,
         hoveredRegion,
         refreshOverlay,
@@ -461,25 +443,28 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
         return;
       }
 
-      internalRef.current?.setPointerCapture(event.pointerId);
-      if (hit.region === 'body') {
-        startClipDrag({
-          clipId: hit.clip.id,
-          clientX: event.clientX,
-          viewportY: point.y,
-          clipRect: hit.rect,
-        });
-      } else {
-        engine.prepareSnapping(hit.clip.id);
-        engine.cancelEdit();
+      const started =
+        hit.region === 'body'
+          ? startClipDrag({
+              clipId: hit.clip.id,
+              clientX: event.clientX,
+              viewportY: point.y,
+              clipRect: hit.rect,
+            })
+          : startClipTrim({
+              clipId: hit.clip.id,
+              edge: hit.region === 'start-edge' ? 'start' : 'end',
+              clientX: event.clientX,
+            });
+      if (!started.ok) {
+        return;
       }
+      internalRef.current?.setPointerCapture(event.pointerId);
 
       activeEditRef.current = {
         clipId: hit.clip.id,
         region: hit.region,
-        startClientX: event.clientX,
-        startLeft: hit.rect.x,
-        startRight: hit.rect.x + hit.rect.width,
+        viewportTop: event.clientY - point.y + geometry.rulerHeight,
         dragging: true,
       };
     };

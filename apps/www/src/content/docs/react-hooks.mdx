@@ -299,3 +299,56 @@ edits.deleteSelectedClips(); // Reads selection when invoked.
 ```
 
 Rename, reorder, and collapse each create one undo step. Unchanged values create none. Bulk deletion includes linked clip groups and validates all affected tracks before mutation; a locked track rejects the entire operation. Subscribe to `useTimelineSelection()` separately for button availability.
+
+### Headless clip trimming
+
+`useTimelineClipTrim()` provides `startClipTrim`, `moveClipTrim`, `endClipTrim`, and `cancelClipTrim`. It captures the clip edge and zoom once, previews through Core without mutating the document, and revalidates the final edit before committing one history step. It cancels its preview on unmount and preserves previews replaced by another interaction. The packaged `Timeline.ClipInteractionLayer` uses this same hook.
+
+```tsx
+const trim = useTimelineClipTrim();
+
+<button
+  aria-label="Trim clip end"
+  onPointerDown={(event) => {
+    const started = trim.startClipTrim({ clipId, edge: 'end', clientX: event.clientX });
+    if (started.ok) event.currentTarget.setPointerCapture(event.pointerId);
+  }}
+  onPointerMove={(event) => {
+    trim.moveClipTrim({ clientX: event.clientX });
+  }}
+  onPointerUp={() => {
+    trim.endClipTrim();
+  }}
+  onPointerCancel={() => {
+    trim.cancelClipTrim();
+  }}
+  onLostPointerCapture={() => {
+    trim.cancelClipTrim();
+  }}
+/>;
+```
+
+Keep touch drag handles at `touch-action: none`. Use `useTimelineEditPreview()` for live preview details. `trimming` only changes at lifecycle boundaries; pointer moves do not cause this hook to rerender. For programmatic edits without a gesture, use `useTimelineEditCommands().trimClip()`.
+
+### Keyboard command composition
+
+`useTimelineKeyboard()` and `Timeline.KeyboardScope` accept `commandHandlers` to replace individual command implementations. Unspecified commands retain the preset behavior. Commands read current engine state without subscribing to timeline updates.
+
+```tsx
+<Timeline.KeyboardScope
+  frameRate={24}
+  commandHandlers={{
+    togglePlayback: () => (media.playing ? media.pause() : media.play()),
+  }}
+  onCommandResult={(command, result) => {
+    if (result && !result.ok) showStatus(command, result.message);
+  }}
+  onCommandError={(error) => showError(error.message)}
+>
+  {/* Focusable timeline surface */}
+</Timeline.KeyboardScope>
+```
+
+Use the transport returned by `useTimelineMediaSync()` or an adapter hook for media-aware playback. Async handlers preserve their pending operation and structured media result; repeated Space keydown events are ignored. Handlers may also return `void` when the app owns status reporting. Unexpected errors go to `onCommandError`, or browser error reporting when omitted.
+
+The hook's `executeCommand(command)` uses the same implementations and returns their result or promise for custom menus. It does not apply keyboard focus rules or invoke the keyboard result/error callbacks; the caller handles that result. Native inputs, buttons, and other interactive controls retain their own shortcuts.
