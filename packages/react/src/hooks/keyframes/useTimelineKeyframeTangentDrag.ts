@@ -10,6 +10,7 @@ import type {
   TimelineKeyframeSegmentGeometryOptions,
   TimelineKeyframeSide,
   TimelineKeyframeTangentHandle,
+  TimelineKeyframeSegment,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,6 +32,10 @@ export interface TimelineKeyframeTangentDragIdStartInput {
 export interface TimelineKeyframeTangentDragHandleStartInput {
   /** Tangent entry from the initiating hit test. */
   tangentHandle: TimelineKeyframeTangentHandle;
+  /** Initial pointer position, used to preserve the padded grab offset. */
+  viewportX?: number;
+  /** Initial pointer position, used to preserve the padded grab offset. */
+  viewportY?: number;
 }
 
 /** Pointer data needed to begin a Bezier tangent handle drag. */
@@ -64,7 +69,7 @@ export interface UseTimelineKeyframeTangentDragResult {
   ) => TimelineCommandResult<TimelineKeyframeTangentDragUpdate>;
   /** Ends the active Bezier tangent handle drag and settles history. */
   endKeyframeTangentDrag: () => TimelineCommandResult;
-  /** Cancels pointer handling for the active drag and settles current preview state. */
+  /** Cancels the drag and restores committed state without an undo entry. */
   cancelKeyframeTangentDrag: () => TimelineCommandResult;
 }
 
@@ -83,6 +88,11 @@ export interface TimelineKeyframeTangentDragUpdate {
 }
 
 interface ActiveTangentDrag {
+  segment: TimelineKeyframeSegment;
+  valueTop: number;
+  valueHeight: number;
+  offsetX: number;
+  offsetY: number;
   clipId: string;
   segmentId: string;
   keyframeId: string;
@@ -117,8 +127,7 @@ export function useTimelineKeyframeTangentDrag(
 
       activeDragRef.current = null;
       setDragging(false);
-      engine.endDrag();
-      engine.settle();
+      engine.cancelEdit();
     };
   }, [engine]);
 
@@ -189,8 +198,26 @@ export function useTimelineKeyframeTangentDrag(
         return timelineCommandFail('locked');
       }
 
-      engine.startDrag();
+      const segment = engine.keyframes
+        .getKeyframeSegments(geometry)
+        .find((candidate) => candidate.segmentId === handle.segmentId);
+      const clipRect = engine.geometry.getClipRect(handle.clip.id, geometry);
+      if (!segment || !clipRect) {
+        return timelineCommandFail('not-found');
+      }
+      engine.cancelEdit();
       activeDragRef.current = {
+        segment,
+        valueTop: clipRect.y + (options.keyframeValuePadding ?? 7),
+        valueHeight: Math.max(1, clipRect.height - 2 * (options.keyframeValuePadding ?? 7)),
+        offsetX:
+          input.tangentHandle !== undefined && input.viewportX !== undefined
+            ? input.viewportX - handle.point.x
+            : 0,
+        offsetY:
+          input.tangentHandle !== undefined && input.viewportY !== undefined
+            ? input.viewportY - handle.point.y
+            : 0,
         clipId: handle.clip.id,
         segmentId: handle.segmentId,
         keyframeId: handle.keyframe.id,
@@ -200,7 +227,7 @@ export function useTimelineKeyframeTangentDrag(
 
       return timelineCommandOk();
     },
-    [engine, findTangentHandle]
+    [engine, findTangentHandle, geometry, options.keyframeValuePadding]
   );
 
   const moveKeyframeTangentDrag = useCallback(
@@ -218,29 +245,17 @@ export function useTimelineKeyframeTangentDrag(
         );
       }
 
-      const segment = engine.keyframes
-        .getKeyframeSegments(geometry)
-        .find(
-          (candidate) =>
-            candidate.clip.id === activeDrag.clipId && candidate.segmentId === activeDrag.segmentId
-        );
-      if (!segment) {
-        return timelineCommandFail<TimelineKeyframeTangentDragUpdate>('not-found');
-      }
-
+      const segment = activeDrag.segment;
       const deltaX = segment.endPoint.x - segment.startPoint.x;
       if (Math.abs(deltaX) < 0.000001) {
-        return timelineCommandFail<TimelineKeyframeTangentDragUpdate>('unsupported');
+        return timelineCommandFail('unsupported');
       }
-
-      const deltaY = segment.endPoint.y - segment.startPoint.y;
-      const nextX = clampRatio((input.viewportX - segment.startPoint.x) / deltaX);
-      const current =
-        activeDrag.side === 'outgoing' ? segment.outgoing.handle : segment.incoming.handle;
-      const yValue =
-        Math.abs(deltaY) < 0.000001
-          ? (current?.y ?? (activeDrag.side === 'outgoing' ? 0 : 1))
-          : clampRatio((input.viewportY - segment.startPoint.y) / deltaY);
+      const nextX = clampRatio(
+        (input.viewportX - activeDrag.offsetX - segment.startPoint.x) / deltaX
+      );
+      const yValue = clampRatio(
+        1 - (input.viewportY - activeDrag.offsetY - activeDrag.valueTop) / activeDrag.valueHeight
+      );
       const nextHandle = { x: nextX, y: yValue };
 
       let keyframe: ReturnType<typeof engine.keyframes.updateClipKeyframeSide>;
@@ -276,7 +291,7 @@ export function useTimelineKeyframeTangentDrag(
         handle: side.handle,
       });
     },
-    [engine, geometry]
+    [engine]
   );
 
   const endKeyframeTangentDrag = useCallback((): TimelineCommandResult => {
@@ -286,8 +301,11 @@ export function useTimelineKeyframeTangentDrag(
 
     activeDragRef.current = null;
     setDragging(false);
-    engine.endDrag();
-    engine.settle();
+    const preview = engine.getEditPreview();
+    if (preview?.valid && preview.command.type === 'keyframes') {
+      engine.commitEdit(preview.command);
+    }
+    engine.cancelEdit();
     return timelineCommandOk();
   }, [engine]);
 
@@ -298,8 +316,7 @@ export function useTimelineKeyframeTangentDrag(
 
     activeDragRef.current = null;
     setDragging(false);
-    engine.endDrag();
-    engine.settle();
+    engine.cancelEdit();
     return timelineCommandOk();
   }, [engine]);
 

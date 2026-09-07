@@ -10,8 +10,9 @@ import Callout from '#www/components/Callout.astro';
 Keyframes are generic scalar animation data stored on clips and evaluated by the core engine. The engine does not reserve `opacity`, `volume`, `scale`, or any other property id. Apps register the properties they want to keyframe, then the same engine, React hooks, and renderer geometry work for every registered property.
 
 <Callout kind="warning" title="Breaking keyframe API">
-  Keyframes use side-aware `incoming` and `outgoing` interpolation data. The old keyframe-level
-  `interpolation` and `easing` fields are intentionally removed.
+  Bezier handle Y now uses normalized property value, and previews no longer mutate persisted state.
+  Selection and React geometry APIs have changed. See the migration instructions below before
+  loading existing animation data.
 </Callout>
 
 ```ts
@@ -56,14 +57,14 @@ const tracks: Track<'visual'>[] = [
             property: 'opacity',
             time: fromSeconds(6),
             value: 1,
-            outgoing: { interpolation: 'bezier', handle: { x: 0.42, y: 0 } },
+            outgoing: { interpolation: 'bezier', handle: { x: 0.42, y: 1 } },
           },
           {
             id: 'fade-out-end',
             property: 'opacity',
             time: fromSeconds(8),
             value: 0,
-            incoming: { interpolation: 'bezier', handle: { x: 0.58, y: 1 } },
+            incoming: { interpolation: 'bezier', handle: { x: 0.58, y: 0 } },
           },
         ],
       },
@@ -114,14 +115,35 @@ engine.keyframes.updateClipKeyframeSides({
   keyframeId: 'fade-out-end',
   incoming: {
     interpolation: 'bezier',
-    handle: { x: 0.58, y: 1 },
+    handle: { x: 0.58, y: 0 },
   },
 });
 
 const opacity = engine.keyframes.getClipPropertyValueAtTime('intro', 'opacity', fromSeconds(3.5));
 ```
 
-`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. New keyframes do not inherit side data from neighbors; missing side data normalizes to linear during evaluation. Use `updateClipKeyframe()`, `updateClipKeyframeSide()`, `updateClipKeyframeSides()`, and `removeClipKeyframe()` for existing keyframes. Pass `handle: null` in a side patch to reset a Bezier tangent to its deterministic default instead of preserving the current handle.
+`setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. To insert without changing the animation, pass the evaluated value at that time. The engine subdivides the existing curve and preserves both surrounding segments. Trimming and splitting insert boundary keys before removing out-of-range data, preserving the retained animation, including constant extrapolation.
+
+Use `updateClipKeyframe()`, `updateClipKeyframeSide()`, `updateClipKeyframeSides()`, and `removeClipKeyframe()` for individual edits. Moving onto another key rejects the edit; it never silently deletes the neighbor. Moves outside the clip are rejected. Set operations without an explicit ID clamp to the clip range.
+
+Group edits and inspector gestures use the same command pipeline as clip editing:
+
+```ts
+const command = {
+  type: 'keyframes' as const,
+  edits: [
+    { type: 'update' as const, clipId: 'intro', keyframeId: 'fade-in-start', value: 0.2 },
+    { type: 'update' as const, clipId: 'intro', keyframeId: 'fade-in-end', value: 0.9 },
+  ],
+};
+const preview = engine.previewEdit(command);
+if (preview.valid) engine.commitEdit(preview.command); // one undo step
+// Or discard a gesture with engine.cancelEdit().
+```
+
+The entire batch is validated before any state or keyframe event is published. Locked tracks, missing keys, malformed input, collisions, and application edit-policy rejection leave committed data unchanged. Previews are available through render geometry and keyframe queries; `engine.getState()` remains the persistence snapshot. Commit only at the end of a gesture. Escape, pointer cancellation, lost capture, and unmount discard an active drag.
+
+Select across clips with `engine.keyframes.selectKeyframes(references, mode)`, where references contain `clipId` and `keyframeId`, and mode is `replace`, `add`, or `toggle`. `getSelectedKeyframes()` returns references. `copyKeyframes()` creates a keyframe-only clipboard preserving relative timing, values, and sides; `createPasteCommand(clipboard, time, optionalClipId)` creates an atomic paste command. It rejects collisions and keys that do not fit the destination clip.
 
 ## Segment Semantics
 
@@ -133,11 +155,13 @@ A segment is formed by a left `startKeyframe` and a right `endKeyframe`.
 | `hold`   | `startKeyframe.outgoing`               | Holds the start value until the next keyframe.                   |
 | `bezier` | Either side is `bezier`                | Uses start `outgoing.handle` and end `incoming.handle` tangents. |
 
-Dragging an outgoing tangent mutates the anchor keyframe's `outgoing` side. Dragging an incoming tangent mutates the anchor keyframe's `incoming` side. Missing Bezier handles use deterministic defaults.
+Handle `x` is normalized time across its segment. Handle `y` is the normalized value within the registered property range, independent of the segment endpoints. This supports curves between equal-valued keys and overshoot beyond endpoint values while remaining inside the property range. Missing outgoing/incoming handles resolve to `{ x: 0.42, y: normalizedStartValue }` and `{ x: 0.58, y: normalizedEndValue }`.
+
+Dragging a handle updates its anchor's corresponding side. Set `tangentMode: 'linked'` on a key to preserve the slope of the opposite handle when editing a tangent, accounting for unequal segment durations. `broken` allows independent handles. Use `handle: null` in a side patch to restore the dynamic default. Apps own preset names; applying a preset should update both endpoints of that segment in one batch. The demo recognizes the actual pair of handles and shows “Custom” for unrecognized curves.
 
 ## React Hooks
 
-Use `useTimelineKeyframes()` for keyframe state, geometry, evaluation, and commands. Compose `useTimelineKeyframeDrag()` when you want custom point dragging.
+Use `useTimelineKeyframes()` for settled keyframe state, selection, evaluation, and commands. It does not subscribe to live drag or viewport changes. Use `useTimelineKeyframeGeometry()` for live point geometry, optionally scoped with `clipId` and `property`. It computes matching rectangles once per geometry revision and derives visible keys from those rectangles. Compose `useTimelineKeyframeDrag()` for custom point dragging; preserve the initiating pointer position and call its move/end/cancel helpers throughout the gesture.
 
 For segment and tangent editing, use `useTimelineKeyframeSegments()` and `useTimelineKeyframeTangentDrag()`:
 
@@ -192,12 +216,40 @@ import { CanvasRenderer, Timeline } from '@techsquidtv/canvas-timeline';
 </Timeline.Root>;
 ```
 
-The tangent layer uses padded hit targets, pointer capture with document-level fallback listeners, focus handling, and ARIA labels. Apps still decide when to convert sides to Bezier, reset handles, link tangents, or apply presets.
+Each layer has one keyboard focus surface and one active DOM affordance. Dense points, curves, and selected tangent guides are drawn on canvas. Pointer handling is delegated on the shared stage, with a single active pointer, bounds cached at pointer-down, and document fallback listeners only when capture fails. Padded grabs retain the original offset.
+
+| Gesture                           | Action                                                                          |
+| :-------------------------------- | :------------------------------------------------------------------------------ |
+| Click / Shift, Ctrl, or Cmd-click | Select / toggle a key in the selection.                                         |
+| Shift-drag blank space            | Marquee selection; Ctrl/Cmd adds to the selection.                              |
+| Drag selected key                 | Move the selected group while preserving relative timing and values.            |
+| Shift-drag / Alt-drag             | Lock the dominant axis / move at one-tenth sensitivity.                         |
+| Ctrl/Cmd-drag                     | Bypass frame and timeline snapping.                                             |
+| Left/Right / Up/Down              | Nudge one configured frame / one percent of the property range.                 |
+| Shift-arrow / Alt-arrow           | Ten-times / one-tenth nudge.                                                    |
+| `[` / `]`, Home / End             | Navigate keys and seek; navigate tangent handles on the tangent layer.          |
+| Ctrl/Cmd-A, C, V, D               | Select all, copy, paste at playhead, duplicate one frame after the focused key. |
+| Delete / Backspace                | Delete selected keys, unless overridden by the app.                             |
+| Escape                            | Cancel the active gesture.                                                      |
+| Tangent arrows / Home             | Adjust the handle / reset the handle.                                           |
+
+Set the engine's `zoomConstraints.frameRate` or the layer's `frameRate` to match the project. With no configured rate, keyframe controls use 30 fps. App callbacks can customize double-click and deletion behavior. The demo provides exact timecode/value fields, previous/next navigation, independent incoming/outgoing presets, linked/reset tangents, and a taller curve lane.
 
 ## Custom Renderers
 
-Keyframe behavior is not tied to the built-in canvas renderer. DOM renderers can read `keyframeRects` or `visibleKeyframes` from `useTimelineKeyframes()`, and `segments` or `visibleTangentHandles` from `useTimelineKeyframeSegments()`. Custom canvas layers can call the engine geometry APIs directly.
+Keyframe behavior is not tied to the built-in canvas renderer. DOM renderers can read `keyframeRects` or `visibleKeyframes` from `useTimelineKeyframeGeometry()`, and `segments` or `visibleTangentHandles` from `useTimelineKeyframeSegments()`. Custom canvas layers can call the engine geometry APIs directly.
 
 Set `showKeyframes={false}` on `CanvasRenderer` when you want to draw keyframe visuals yourself while keeping the same engine and hook APIs.
 
 The [Opacity Keyframes demo](/demos/keyframe-opacity) shows opacity registered explicitly as an example property, canvas-rendered segments, DOM drag handles, Bezier preset editing, tangent dragging, and an HTML video preview whose opacity follows the current playhead.
+
+## Migrating existing keyframe editors
+
+This is a breaking release; there are no compatibility aliases or automatic persisted-data conversions.
+
+- **Stored handles:** for every segment, convert each explicit old handle Y using `newY = normalize(left.value) + (normalize(right.value) - normalize(left.value)) * oldY`. Apply this to the left outgoing and right incoming handle. X is unchanged. Convert saved projects once, before constructing the engine; do not repeatedly convert already-migrated data. Omitted handles can remain omitted. Boundary sides without a neighboring segment can be reset to omitted handles.
+- **Previews:** replace `startDrag()` / `endDrag()` and in-place `{ commit: false }` assumptions with `previewEdit`, `commitEdit(preview.command)`, and `cancelEdit`. The individual keyframe mutation helpers still accept `{ commit: false }`, but they now create an engine preview without mutating `getState()`.
+- **Selection:** replace `selectClipKeyframe()` with `selectKeyframes([{ clipId, keyframeId }])`. The `keyframe:select` payload is now `{ keyframes: TimelineKeyframeReference[] }`.
+- **Hooks:** move `keyframeRects`, `visibleKeyframes`, and geometry options from `useTimelineKeyframes()` to `useTimelineKeyframeGeometry()`. Selection results are keyframe references rather than a single selected ID.
+- **Geometry:** calls to `getTimelineKeyframeBezierControlPoints()` must supply the fifth argument `{ top, height }`, describing the property's value lane in viewport coordinates. `getTimelineKeyframeBezierProgress()` remains a unit easing helper; use engine property evaluation for property-space curves.
+- **Interaction callbacks and focus:** double-click details now carry a native `PointerEvent`. Each layer exposes one navigable group instead of one tab stop per key. Custom tests and CSS targeting per-key buttons need updating.

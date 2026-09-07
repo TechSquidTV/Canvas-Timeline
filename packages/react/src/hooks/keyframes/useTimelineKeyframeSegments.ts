@@ -88,6 +88,7 @@ export function useTimelineKeyframeSegments(
 
   const geometry = useMemo(
     () => ({
+      clipId,
       collapsedTrackHeight,
       edgeThreshold,
       keyframeSize,
@@ -104,6 +105,7 @@ export function useTimelineKeyframeSegments(
       viewportWidth,
     }),
     [
+      clipId,
       collapsedTrackHeight,
       edgeThreshold,
       keyframeSize,
@@ -131,9 +133,9 @@ export function useTimelineKeyframeSegments(
   const visibleSegments = useMemo(() => {
     void revision;
     return engine.keyframes
-      .getVisibleKeyframeSegments(geometry)
+      .getVisibleKeyframeSegments(geometry, segments)
       .filter((entry) => clipId === undefined || entry.clip.id === clipId);
-  }, [clipId, engine, geometry, revision]);
+  }, [clipId, engine, geometry, revision, segments]);
 
   const tangentHandles = useMemo(() => segments.flatMap((segment) => segment.handles), [segments]);
   const visibleTangentHandles = useMemo(

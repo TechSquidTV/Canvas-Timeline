@@ -380,10 +380,7 @@ describe('TimelineEngine keyframes', () => {
         side: 'outgoing',
         patch: { interpolation: 'bezier', handle: null },
       });
-      expect(defaultedHandle?.outgoing).toEqual({
-        interpolation: 'bezier',
-        handle: { x: 0.42, y: 0 },
-      });
+      expect(defaultedHandle?.outgoing).toEqual({ interpolation: 'bezier' });
 
       const reset = engine.keyframes.updateClipKeyframeSide({
         clipId: 'clip1',
@@ -397,7 +394,7 @@ describe('TimelineEngine keyframes', () => {
       expect(updateEvent).toHaveBeenCalledTimes(5);
     });
 
-    it('does not inherit side interpolation from neighboring keyframes', () => {
+    it('subdivides neighboring curves and accepts explicit side overrides', () => {
       const first = engine.keyframes.setClipKeyframe({
         clipId: 'clip1',
         property: 'opacity',
@@ -421,8 +418,8 @@ describe('TimelineEngine keyframes', () => {
         time: fromSeconds(2),
         value: 0.5,
       });
-      expect(independent?.incoming).toBeUndefined();
-      expect(independent?.outgoing).toBeUndefined();
+      expect(independent?.incoming?.interpolation).toBe('bezier');
+      expect(independent?.outgoing?.interpolation).toBe('bezier');
 
       const explicit = engine.keyframes.setClipKeyframe({
         clipId: 'clip1',
@@ -432,7 +429,7 @@ describe('TimelineEngine keyframes', () => {
         incoming: { interpolation: 'linear' },
       });
       expect(explicit?.incoming?.interpolation).toBe('linear');
-      expect(explicit?.outgoing).toBeUndefined();
+      expect(explicit?.outgoing?.interpolation).toBe('bezier');
     });
 
     it('rejects unregistered keyframe properties', () => {
@@ -465,7 +462,7 @@ describe('TimelineEngine keyframes', () => {
         { commit: false }
       );
 
-      expect(toSeconds(expectDefined(preview, 'preview keyframe').time)).toBe(3);
+      expect(preview).toBeNull();
       expect(keyframeSeconds(previewEngine.geometry.getClip('kf-clip')?.clip)).toEqual([2, 3]);
 
       const committed = previewEngine.keyframes.updateClipKeyframe({
@@ -474,8 +471,8 @@ describe('TimelineEngine keyframes', () => {
         time: fromSeconds(2),
       });
 
-      expect(toSeconds(expectDefined(committed, 'committed keyframe').time)).toBe(2);
-      expect(keyframeSeconds(previewEngine.geometry.getClip('kf-clip')?.clip)).toEqual([2]);
+      expect(committed).toBeNull();
+      expect(keyframeSeconds(previewEngine.geometry.getClip('kf-clip')?.clip)).toEqual([2, 3]);
     });
 
     it('clones side interpolation state without property-specific fallbacks', () => {
@@ -514,7 +511,6 @@ describe('TimelineEngine keyframes', () => {
       });
       expect(sideEngine.keyframes.getClipKeyframes('clip1')[1].incoming).toEqual({
         interpolation: 'bezier',
-        handle: { x: 0.58, y: 1 },
       });
     });
 
@@ -528,7 +524,7 @@ describe('TimelineEngine keyframes', () => {
       const selectedKeyframe = expectDefined(keyframe, 'selected keyframe');
 
       engine.selectClip('clip1');
-      engine.keyframes.selectClipKeyframe('clip1', selectedKeyframe.id);
+      engine.keyframes.selectKeyframes([{ clipId: 'clip1', keyframeId: selectedKeyframe.id }]);
       const rects = engine.keyframes.getKeyframeRects({
         selectedClipOnly: true,
         rulerHeight: 32,
@@ -671,7 +667,8 @@ describe('TimelineEngine keyframes', () => {
         segments[0].startPoint,
         segments[0].endPoint,
         { x: 0.2, y: 0.8 },
-        { x: 0.8, y: 0.2 }
+        { x: 0.8, y: 0.2 },
+        { top: 39, height: 34 }
       );
 
       expect(segments[0].controlPoint1).toEqual(expectedControlPoints.controlPoint1);
@@ -838,21 +835,22 @@ describe('TimelineEngine keyframes', () => {
         handle: { x: 0.8, y: 0.2 },
       });
 
+      const beforeSplit = [4.5, 5.5].map((time) =>
+        engine.keyframes.getClipPropertyValueAtTime('clip1', 'opacity', fromSeconds(time))
+      );
       expect(
         engine.commitEdit({ type: 'split', clipIds: ['clip1'], time: fromSeconds(5) }).committed
       ).toBe(true);
       const clips = engine.getState().tracks[0].clips;
       expect(clips).toHaveLength(2);
-      expect(clips[0].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([4]);
-      expect(clips[1].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([6]);
-      expect(clips[0].keyframes?.[0].outgoing).toEqual({
-        interpolation: 'bezier',
-        handle: { x: 0.2, y: 0.8 },
-      });
-      expect(clips[1].keyframes?.[0].incoming).toEqual({
-        interpolation: 'bezier',
-        handle: { x: 0.8, y: 0.2 },
-      });
+      expect(clips[0].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([4, 5]);
+      expect(clips[1].keyframes?.map((keyframe) => toSeconds(keyframe.time))).toEqual([5, 6]);
+      expect(
+        engine.keyframes.getClipPropertyValueAtTime(clips[0].id, 'opacity', fromSeconds(4.5))
+      ).toBeCloseTo(beforeSplit[0] ?? 0);
+      expect(
+        engine.keyframes.getClipPropertyValueAtTime(clips[1].id, 'opacity', fromSeconds(5.5))
+      ).toBeCloseTo(beforeSplit[1] ?? 0);
     });
 
     it('removes out-of-range keyframes when clips are trimmed directly', () => {
@@ -867,7 +865,7 @@ describe('TimelineEngine keyframes', () => {
         edge: 'start',
         newTime: fromSeconds(2),
       });
-      expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([3, 5, 8]);
+      expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([2, 3, 5, 8]);
 
       trimEngine.commitEdit({
         type: 'trim',
@@ -875,7 +873,7 @@ describe('TimelineEngine keyframes', () => {
         edge: 'end',
         newTime: fromSeconds(6),
       });
-      expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([3, 5]);
+      expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([2, 3, 5, 6]);
     });
 
     it('preserves selected clip keyframes through cut and shifts them on paste', () => {
@@ -915,7 +913,7 @@ describe('TimelineEngine keyframes', () => {
       );
       expect(toSeconds(rippleTrimmed.timelineStart)).toBe(0);
       expect(toSeconds(rippleTrimmed.timelineEnd)).toBe(7);
-      expect(keyframeSeconds(rippleTrimmed)).toEqual([1, 5]);
+      expect(keyframeSeconds(rippleTrimmed)).toEqual([0, 1, 5]);
 
       const liftRangeEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('lift-victim', 0, 10, [2, 6, 8])])],
@@ -935,7 +933,7 @@ describe('TimelineEngine keyframes', () => {
       );
       expect(toSeconds(endTrimmed.timelineStart)).toBe(0);
       expect(toSeconds(endTrimmed.timelineEnd)).toBe(7);
-      expect(keyframeSeconds(endTrimmed)).toEqual([2, 6]);
+      expect(keyframeSeconds(endTrimmed)).toEqual([2, 6, 7]);
     });
 
     it('filters keyframes when overwrite edits trim clip edges', () => {
@@ -957,7 +955,7 @@ describe('TimelineEngine keyframes', () => {
         'start trimmed victim'
       );
       expect(toSeconds(startTrimmed.timelineStart)).toBe(3);
-      expect(keyframeSeconds(startTrimmed)).toEqual([4, 8]);
+      expect(keyframeSeconds(startTrimmed)).toEqual([3, 4, 8]);
 
       const overwriteEndEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('end-victim', 0, 10, [1, 4, 8])])],
@@ -977,7 +975,7 @@ describe('TimelineEngine keyframes', () => {
         'end trimmed victim'
       );
       expect(toSeconds(endTrimmed.timelineEnd)).toBe(7);
-      expect(keyframeSeconds(endTrimmed)).toEqual([1, 4]);
+      expect(keyframeSeconds(endTrimmed)).toEqual([1, 4, 7]);
     });
   });
 });

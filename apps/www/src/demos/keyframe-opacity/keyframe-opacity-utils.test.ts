@@ -1,7 +1,9 @@
 import {
   findClipContainingTime,
-  findOpacityKeyframeNearTime,
+  findOpacityKeyframeAtTime,
   opacityKeyframeProperty,
+  createCurvePresetCommand,
+  getCurvePresetId,
   toggleOpacityKeyframeAtTime,
 } from '#www/demos/keyframe-opacity/keyframe-opacity-utils';
 import {
@@ -38,8 +40,8 @@ describe('keyframe opacity demo utilities', () => {
       (0.42 - 0.82) *
         getTimelineKeyframeBezierProgress(
           0.5,
-          peakKeyframe?.outgoing?.handle,
-          nextKeyframe?.incoming?.handle
+          { x: peakKeyframe?.outgoing?.handle?.x ?? 0.16, y: 1 },
+          { x: nextKeyframe?.incoming?.handle?.x ?? 0.3, y: 1 }
         );
 
     expect(
@@ -53,7 +55,7 @@ describe('keyframe opacity demo utilities', () => {
     ).toBe(0.42);
   });
 
-  it('finds the playhead clip and toggles nearby opacity keyframes', () => {
+  it('finds the playhead clip and toggles exact opacity keyframes', () => {
     const engine = createEngine();
     const track = engine.tracks[0];
     const clip = findClipContainingTime(track, fromSeconds(7));
@@ -61,10 +63,9 @@ describe('keyframe opacity demo utilities', () => {
     expect(clip?.id).toBe(opacityClipId);
     expect(toggleOpacityKeyframeAtTime(engine, opacityClipId, fromSeconds(7), 0.42)).toBe(true);
     expect(
-      findOpacityKeyframeNearTime(
+      findOpacityKeyframeAtTime(
         engine.geometry.getClip(opacityClipId)?.clip ?? track.clips[0],
-        fromSeconds(7),
-        32
+        fromSeconds(7)
       )?.value
     ).toBe(0.42);
 
@@ -73,4 +74,30 @@ describe('keyframe opacity demo utilities', () => {
       engine.keyframes.getClipKeyframes(opacityClipId).map((keyframe) => toSeconds(keyframe.time))
     ).not.toContain(7);
   });
+});
+
+it('recognizes custom curves and applies both segment endpoints in one undo step', () => {
+  const engine = createEngine();
+  const keys = engine.keyframes.getClipKeyframes(opacityClipId, 'opacity');
+  expect(getCurvePresetId(keys[2], keys[3])).toBe('custom');
+  const before = engine.getState().tracks;
+  expect(
+    engine.commitEdit(createCurvePresetCommand(opacityClipId, keys[2], keys[3], 'ease-in'))
+      .committed
+  ).toBe(true);
+  const updated = engine.keyframes.getClipKeyframes(opacityClipId, 'opacity');
+  expect(getCurvePresetId(updated[2], updated[3])).toBe('ease-in');
+  engine.undo();
+  expect(engine.getState().tracks).toEqual(before);
+});
+
+it('inserts near an existing key without deleting it at different zoom levels', () => {
+  for (const zoom of [32, 100, 1000]) {
+    const engine = createEngine();
+    engine.setZoomScale(zoom);
+    toggleOpacityKeyframeAtTime(engine, opacityClipId, fromSeconds(5.01), 0.28);
+    expect(
+      engine.keyframes.getClipKeyframes(opacityClipId).map((key) => toSeconds(key.time))
+    ).toEqual([0, 5, 5.01, 10, 15, 24]);
+  }
 });

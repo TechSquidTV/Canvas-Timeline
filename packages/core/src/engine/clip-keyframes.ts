@@ -1,7 +1,7 @@
 import type { Clip } from '#core/types';
 import { hasTimelineKeyframes } from '#core/snapshot';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { addRational, compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { addRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 
 /**
  * Shifts all keyframes on a clip by a timeline delta.
@@ -18,16 +18,4 @@ export function shiftClipKeyframes(clip: Clip, deltaTime: RationalTime) {
     ...keyframe,
     time: addRational(keyframe.time, deltaTime),
   }));
-}
-
-export function filterClipKeyframesToClipRange(clip: Clip) {
-  if (!hasTimelineKeyframes(clip)) {
-    return;
-  }
-
-  clip.keyframes = clip.keyframes?.filter(
-    (keyframe) =>
-      compareRational(keyframe.time, clip.timelineStart) >= 0 &&
-      compareRational(keyframe.time, clip.timelineEnd) <= 0
-  );
 }

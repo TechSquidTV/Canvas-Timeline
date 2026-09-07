@@ -79,6 +79,19 @@ function drawClipKeyframes(renderContext: ClipRenderContext) {
 
   const handleSize = 6;
   drawPreparedKeyframeSegments(renderContext, clipGeometry);
+  ctx.strokeStyle = theme.colors.keyframe.strokeSelected;
+  ctx.fillStyle = theme.colors.keyframe.fill;
+  ctx.lineWidth = 1;
+  for (const segment of clipGeometry.segments) {
+    for (const handle of segment.tangentHandles ?? []) {
+      ctx.beginPath();
+      ctx.moveTo(handle.anchorPoint.x, handle.anchorPoint.y);
+      ctx.lineTo(handle.point.x, handle.point.y);
+      ctx.stroke();
+      ctx.fillRect(handle.point.x - 3.5, handle.point.y - 3.5, 7, 7);
+      ctx.strokeRect(handle.point.x - 3.5, handle.point.y - 3.5, 7, 7);
+    }
+  }
 
   for (const keyframe of clipGeometry.points) {
     const point = keyframe.point;

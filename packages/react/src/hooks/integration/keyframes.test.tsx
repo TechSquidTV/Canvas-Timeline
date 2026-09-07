@@ -1,6 +1,7 @@
 import {
   useTimelineKeyframeDrag,
   useTimelineKeyframes,
+  useTimelineKeyframeGeometry,
   useTimelineKeyframeSegments,
   useTimelineKeyframeTangentDrag,
 } from '#react/hooks';
@@ -16,8 +17,8 @@ import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { act, renderHook } from '@testing-library/react';
 import React from 'react';
-import { expect, test } from 'vite-plus/test';
-test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands', () => {
+import { expect, test, vi } from 'vite-plus/test';
+test('useTimelineKeyframes exposes settled keyframe state, evaluation, and commands', () => {
   const engine = new TimelineEngine({
     tracks: [
       createTrack('video-1', [
@@ -44,7 +45,6 @@ test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands',
         clipId: 'intro',
         property: 'opacity',
         selectedClipOnly: true,
-        keyframeSize: 12,
       }),
     {
       wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
@@ -52,7 +52,6 @@ test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands',
   );
 
   expect(result.current.keyframes).toHaveLength(1);
-  expect(result.current.visibleKeyframes[0].rect.width).toBe(12);
 
   act(() => {
     result.current.setKeyframe({
@@ -88,7 +87,7 @@ test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands',
   });
 
   act(() => {
-    result.current.selectKeyframe('intro', 'opacity-start');
+    result.current.selectKeyframes([{ clipId: 'intro', keyframeId: 'opacity-start' }]);
   });
 
   expect(result.current.keyframes[0].selected).toBe(true);
@@ -250,7 +249,6 @@ test('useTimelineKeyframeSegments exposes tangent geometry for non-opacity prope
 
   expect(engine.keyframes.getClipKeyframes('intro', 'level')[0].outgoing).toEqual({
     interpolation: 'bezier',
-    handle: { x: 0.42, y: 0 },
   });
 });
 
@@ -462,7 +460,7 @@ test('useTimelineKeyframeTangentDrag previews Bezier tangent handle changes', ()
     y: 0.8,
   });
   expect(updatedIncoming?.x).toBeCloseTo(0.6);
-  expect(updatedIncoming?.y).toBeCloseTo(0.4);
+  expect(updatedIncoming?.y).toBeCloseTo(0.45);
 
   act(() => {
     result.current.endKeyframeTangentDrag();
@@ -538,7 +536,7 @@ test('useTimelineKeyframeTangentDrag reports invalid pointer coordinates', () =>
   });
 });
 
-test('useTimelineKeyframeTangentDrag preserves vertical handle value for flat segments', () => {
+test('useTimelineKeyframeTangentDrag edits vertical handles for flat segments', () => {
   const engine = new TimelineEngine({
     tracks: [
       createTrack('video-1', [
@@ -597,6 +595,109 @@ test('useTimelineKeyframeTangentDrag preserves vertical handle value for flat se
 
   expect(engine.keyframes.getClipKeyframes('intro')[0].outgoing).toEqual({
     interpolation: 'bezier',
-    handle: { x: 0.4, y: 0.75 },
+    handle: { x: 0.4, y: 0 },
   });
+});
+
+test('settled keyframe state ignores previews and scrolling while scoped geometry stays live', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('track', [
+        createClip('clip', 0, 4, {
+          keyframes: [{ id: 'key', property: 'opacity', time: fromSeconds(1), value: 0.5 }],
+        }),
+      ]),
+    ],
+    keyframeProperties: [opacityKeyframeProperty],
+  });
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(TimelineProvider, { engine }, children);
+  const stateRender = vi.fn();
+  const geometryRender = vi.fn();
+  renderHook(
+    () => {
+      stateRender();
+      return useTimelineKeyframes({ clipId: 'clip' });
+    },
+    { wrapper }
+  );
+  const rects = vi.spyOn(engine.keyframes, 'getKeyframeRects');
+  const { result } = renderHook(
+    () => {
+      geometryRender();
+      return useTimelineKeyframeGeometry({ clipId: 'clip', property: 'opacity' });
+    },
+    { wrapper }
+  );
+  expect(rects).toHaveBeenCalledTimes(1);
+  stateRender.mockClear();
+  geometryRender.mockClear();
+  act(() => {
+    engine.previewEdit({
+      type: 'keyframes',
+      edits: [{ type: 'update', clipId: 'clip', keyframeId: 'key', value: 0.75 }],
+    });
+  });
+  expect(stateRender).not.toHaveBeenCalled();
+  expect(geometryRender).toHaveBeenCalled();
+  expect(result.current.keyframeRects[0].keyframe.value).toBe(0.75);
+  act(() => {
+    engine.updatePlayhead(fromSeconds(2));
+    engine.setScrollLeft(10);
+  });
+  expect(stateRender).not.toHaveBeenCalled();
+  act(() => {
+    engine.cancelEdit();
+  });
+  expect(result.current.keyframeRects[0].keyframe.value).toBe(0.5);
+  act(() => {
+    engine.keyframes.updateClipKeyframe({ clipId: 'clip', keyframeId: 'key', value: 0.8 });
+  });
+  expect(stateRender).toHaveBeenCalled();
+});
+
+test('group dragging preserves spacing across timebases with fine and axis controls', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('track', [
+        createClip('clip', 0, 10, {
+          keyframes: [
+            { id: 'a', property: 'opacity', time: { v: 24, r: 24 }, value: 0.4, selected: true },
+            { id: 'b', property: 'opacity', time: { v: 90, r: 30 }, value: 0.6, selected: true },
+          ],
+        }),
+      ]),
+    ],
+    keyframeProperties: [opacityKeyframeProperty],
+    zoomScale: 100,
+  });
+  const { result, unmount } = renderHook(() => useTimelineKeyframeDrag(), {
+    wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+  });
+  act(() => {
+    result.current.startKeyframeDrag({
+      clipId: 'clip',
+      keyframeId: 'a',
+      clientX: 100,
+      viewportY: 50,
+    });
+  });
+  act(() => {
+    result.current.moveKeyframeDrag({
+      clientX: 123,
+      viewportY: 10,
+      snap: false,
+      axis: 'time',
+      fine: true,
+    });
+  });
+  const keys = engine.keyframes.getClipKeyframes('clip');
+  expect(toSeconds(keys[0].time)).toBeCloseTo(1.023, 6);
+  expect(toSeconds(keys[1].time) - toSeconds(keys[0].time)).toBeCloseTo(2, 8);
+  expect(keys.map((key) => key.value)).toEqual([0.4, 0.6]);
+  unmount();
+  expect(engine.keyframes.getClipKeyframes('clip').map((key) => toSeconds(key.time))).toEqual([
+    1, 3,
+  ]);
+  expect(engine.canUndo).toBe(false);
 });

@@ -640,6 +640,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       },
       state: this.state,
       editPolicy: this.editPolicy,
+      keyframeProperties: this.keyframeProperties,
       resolveSnap: (time, publish) => this.resolveSnap(time, publish),
     };
   }
@@ -802,7 +803,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private createEditImpactsFromPreview(preview: TimelineEditPreview): TimelineEditImpacts | null {
-    if (preview.impacts.length === 0) {
+    if (preview.impacts.length === 0 || preview.command.type === 'keyframes') {
       return null;
     }
 
@@ -830,6 +831,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       case 'delete-range':
       case 'lift-range':
         return null;
+      case 'keyframes':
       case 'move':
       case 'trim':
       case 'ripple-trim':
@@ -845,6 +847,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   private emitEditCommitEvents(resolved: TimelineResolvedEdit) {
+    for (const change of resolved.keyframeChanges ?? []) {
+      this.emit(change.type, { clipId: change.clipId, keyframe: change.keyframe });
+    }
     for (const removed of resolved.removedClipEvents) {
       this.emit('clip:removed', {
         clip: removed.clip,
@@ -1149,8 +1154,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       keyframeProperties: this.keyframeProperties,
       emit: this.emit.bind(this),
       timeToPixel: (time) => this.timeToPixel(time),
-      invalidateContent: () => this.invalidateContent(),
-      snapshot: () => this.snapshot(),
+      getRenderState: () => this.getRenderState(),
+      commitEdit: (command) => this.commitEdit(command),
+      previewEdit: (command) => this.previewEdit(command),
     });
     this.media = new TimelineMediaQueries({
       getState: () => this.getState(),
@@ -1184,9 +1190,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     return this.getState().clipGroups;
   }
 
-  /**
-   * Monotonic revision for changes that can affect active layer lookup.
-   */
+  /** Configured timeline frame rate for frame-accurate editing controls. */
+  get frameRate() {
+    return this.zoomConstraints.frameRate;
+  }
+
+  /** Monotonic revision for changes that can affect active layer lookup. */
   get contentRevision() {
     return this.state.contentRevision;
   }
@@ -2014,32 +2023,6 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     this.activeClips = currentActive;
-  }
-
-  /**
-   * Clears edit feedback before a live keyframe interaction.
-   */
-  startDrag() {
-    this.editImpacts = null;
-  }
-
-  /**
-   * Ends live drag preview and clears temporary cut flags.
-   */
-  endDrag() {
-    this.editImpacts = null;
-    this.editPreview = null;
-    this.clearClipDropFeedback();
-    for (const track of this.state.tracks) {
-      for (const clip of track.clips) {
-        delete clip.editPreview;
-      }
-    }
-    this.invalidateContent();
-    this.emit('render');
-    this.emit('state:preview');
-    this.emit('edit:preview', null);
-    this.emit('edit:impacts', null);
   }
 
   /**

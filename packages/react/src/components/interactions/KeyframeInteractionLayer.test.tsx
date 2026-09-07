@@ -1,289 +1,142 @@
-import { TimelineProvider } from '#react/Provider';
 import { KeyframeInteractionLayer } from '#react/components/interactions/KeyframeInteractionLayer';
 import { resetTimelineTapState } from '#react/components/interactions/tapState';
 import {
-  createTimelineScalarKeyframeProperty,
-  TimelineEngine,
-} from '@techsquidtv/canvas-timeline-core';
-import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+  createKeyframeInteractionEngine,
+  installKeyframePointerMocks,
+  pointer,
+  renderKeyframeLayer,
+} from '#react/hooks/integration/keyframeInteractionTestHelpers';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { fireEvent, render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-function getElementPrototypeMethod<
-  K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',
->(name: K): Element[K] | undefined {
-  const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, name);
-  return typeof descriptor?.value === 'function' ? (descriptor.value as Element[K]) : undefined;
-}
+import { fireEvent } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 
-function restoreElementPrototypeMethod<
-  K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',
->(name: K, method: Element[K] | undefined): void {
-  if (method) {
-    Element.prototype[name] = method;
-    return;
-  }
-  Reflect.deleteProperty(Element.prototype, name);
-}
+installKeyframePointerMocks();
+beforeEach(resetTimelineTapState);
 
-const originalGetBoundingClientRect = getElementPrototypeMethod('getBoundingClientRect');
-const originalSetPointerCapture = getElementPrototypeMethod('setPointerCapture');
-const originalReleasePointerCapture = getElementPrototypeMethod('releasePointerCapture');
-const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
-  id: 'opacity',
-  min: 0,
-  max: 1,
-  defaultValue: 1,
-});
-
-beforeEach(() => {
-  resetTimelineTapState();
-  Element.prototype.getBoundingClientRect = vi.fn(() => ({
-    width: 1000,
-    height: 200,
-    top: 32,
-    left: 0,
-    bottom: 232,
-    right: 1000,
-    x: 0,
-    y: 32,
-    toJSON: () => {},
-  }));
-  Element.prototype.setPointerCapture = vi.fn();
-  Element.prototype.releasePointerCapture = vi.fn();
-});
-
-afterEach(() => {
-  restoreElementPrototypeMethod('getBoundingClientRect', originalGetBoundingClientRect);
-  restoreElementPrototypeMethod('setPointerCapture', originalSetPointerCapture);
-  restoreElementPrototypeMethod('releasePointerCapture', originalReleasePointerCapture);
-  vi.restoreAllMocks();
-});
-
-function createEngine() {
-  const clip: Clip = {
-    id: 'clip-1',
-    sourceId: 'source-clip-1',
-    timelineStart: fromSeconds(1),
-    timelineEnd: fromSeconds(5),
-    sourceStart: fromSeconds(0),
-    selected: true,
-    keyframes: [
-      {
-        id: 'opacity-start',
+describe('delegated keyframe editing', () => {
+  it('passes blank presses through and keeps a constant DOM size for dense timelines', () => {
+    const engine = createKeyframeInteractionEngine(
+      Array.from({ length: 5000 }, (_, index) => ({
+        id: `key-${index}`,
         property: 'opacity',
-        time: fromSeconds(1),
-        value: 1,
-      },
-      {
-        id: 'opacity-middle',
-        property: 'opacity',
-        time: fromSeconds(3),
+        time: fromSeconds(1 + (index * 4) / 5000),
         value: 0.5,
-      },
-      {
-        id: 'opacity-end',
-        property: 'opacity',
-        time: fromSeconds(5),
-        value: 0,
-      },
-    ],
-  };
-  const track: Track = {
-    id: 'track-1',
-    kind: 'visual',
-    clips: [clip],
-    selected: false,
-    locked: false,
-    muted: false,
-    visible: true,
-  };
-
-  return new TimelineEngine({
-    tracks: [track],
-    playheadTime: fromSeconds(0),
-    zoomScale: 100,
-    keyframeProperties: [opacityKeyframeProperty],
-  });
-}
-
-describe('KeyframeInteractionLayer', () => {
-  it('does not handle blank overlay pointer presses', () => {
-    const engine = createEngine();
-    const startDrag = vi.spyOn(engine, 'startDrag');
-
-    const { container } = render(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer property="opacity" selectedClipOnly />
-      </TimelineProvider>
+      }))
     );
-
-    const layer = container.querySelector('.timeline-keyframe-interaction-layer') as Element;
-    const allowed = fireEvent.pointerDown(layer, {
-      clientX: 50,
-      clientY: 40,
-      pointerType: 'mouse',
-      button: 0,
-      pointerId: 1,
-    });
-
-    expect(allowed).toBe(true);
-    expect(startDrag).not.toHaveBeenCalled();
+    const preview = vi.spyOn(engine, 'previewEdit');
+    const { container, stage } = renderKeyframeLayer(
+      engine,
+      <KeyframeInteractionLayer property="opacity" />
+    );
+    expect(container.querySelectorAll('.timeline-keyframe-handle')).toHaveLength(1);
+    fireEvent.pointerDown(stage, pointer(20, 150));
+    expect(preview).not.toHaveBeenCalled();
+    expect(engine.keyframes.getSelectedKeyframes()).toEqual([]);
   });
 
-  it('renders padded hit targets around exact-size keyframe shapes', () => {
-    const engine = createEngine();
-
-    const { container } = render(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer
-          property="opacity"
-          selectedClipOnly
-          keyframeSize={6}
-          hitPadding={9}
-        />
-      </TimelineProvider>
+  it('preserves both grab offsets, updates once per event, and caches bounds during dragging', () => {
+    const engine = createKeyframeInteractionEngine();
+    const { stage, getByRole } = renderKeyframeLayer(
+      engine,
+      <KeyframeInteractionLayer property="opacity" hitPadding={10} />
     );
-
-    const rect = engine.keyframes
-      .getKeyframeRects({ keyframeSize: 6 })
-      .find((entry) => entry.keyframe.id === 'opacity-middle')?.rect;
-    const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
-    const shape = handle.querySelector('.timeline-keyframe-handle-shape') as HTMLElement;
-
-    expect(rect).toBeDefined();
-    expect(handle.style.width).toBe(`${(rect?.width ?? 0) + 18}px`);
-    expect(handle.style.height).toBe(`${(rect?.height ?? 0) + 18}px`);
-    expect(handle.style.transform).toContain(`translate(${(rect?.x ?? 0) - 9}px,`);
-    expect(handle.style.transform).not.toContain('rotate');
-    expect(shape.style.width).toBe(`${rect?.width ?? 0}px`);
-    expect(shape.style.height).toBe(`${rect?.height ?? 0}px`);
+    const layer = getByRole('group');
+    const rect = engine.keyframes.getKeyframeRects()[0].rect;
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height / 2 + 5;
+    const preview = vi.spyOn(engine, 'previewEdit');
+    fireEvent.pointerDown(stage, pointer(x, y));
+    const bounds = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+    bounds.mockClear();
+    fireEvent.pointerMove(layer, pointer(x + 100, y));
+    expect(preview).toHaveBeenCalledTimes(1);
+    expect(bounds).not.toHaveBeenCalled();
+    expect(engine.keyframes.getClipKeyframes('clip')[0].value).toBe(1);
+    expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[0].time)).toBe(2);
+    expect(
+      toSeconds(engine.getState().tracks[0].clips[0].keyframes?.[0].time ?? fromSeconds(0))
+    ).toBe(1);
+    fireEvent.pointerUp(layer, pointer(x + 100, y));
+    expect(
+      toSeconds(engine.getState().tracks[0].clips[0].keyframes?.[0].time ?? fromSeconds(0))
+    ).toBe(2);
+    engine.undo();
+    expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[0].time)).toBe(1);
+    expect(engine.canUndo).toBe(false);
   });
 
-  it('drags a clamped edge keyframe from its actual timeline time', () => {
-    const engine = createEngine();
+  it.each(['pointerCancel', 'lostPointerCapture', 'Escape'] as const)(
+    'rolls back on %s and ignores unrelated pointers',
+    (ending) => {
+      const engine = createKeyframeInteractionEngine();
+      const { stage, getByRole } = renderKeyframeLayer(
+        engine,
+        <KeyframeInteractionLayer property="opacity" />
+      );
+      const layer = getByRole('group');
+      fireEvent.pointerDown(stage, pointer(300, 56));
+      fireEvent.pointerMove(layer, pointer(340, 50, 2));
+      expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[1].time)).toBe(3);
+      fireEvent.pointerMove(layer, pointer(340, 50));
+      expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[1].time)).toBeGreaterThan(3);
+      if (ending === 'Escape') {
+        fireEvent.keyDown(layer, { key: 'Escape' });
+      } else {
+        fireEvent[ending](layer, pointer(340, 50));
+      }
+      expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[1].time)).toBe(3);
+      expect(engine.canUndo).toBe(false);
+    }
+  );
 
-    const { container } = render(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer property="opacity" selectedClipOnly keyframeSize={12} />
-      </TimelineProvider>
+  it('supports marquee selection, additive clicks, group movement and frame-aware keyboard nudges', () => {
+    const engine = createKeyframeInteractionEngine();
+    const { stage, getByRole } = renderKeyframeLayer(
+      engine,
+      <KeyframeInteractionLayer property="opacity" />
     );
-
-    const handle = container.querySelector('[data-keyframe-id="opacity-start"]') as HTMLElement;
-
-    fireEvent.pointerDown(handle, {
-      clientX: 100,
-      clientY: 40,
-      pointerType: 'mouse',
-      button: 0,
-      pointerId: 1,
-    });
-    fireEvent.pointerMove(document, {
-      clientX: 200,
-      clientY: 40,
-      pointerType: 'mouse',
-      pointerId: 1,
-    });
-    fireEvent.pointerUp(document, {
-      clientX: 200,
-      clientY: 40,
-      pointerType: 'mouse',
-      pointerId: 1,
-    });
-
-    const keyframes = engine.keyframes.getClipKeyframes('clip-1') as Array<{
-      id: string;
-      time: { v: number; r: number };
-    }>;
-    const keyframe = keyframes.find((candidate) => candidate.id === 'opacity-start');
-    expect(keyframe ? toSeconds(keyframe.time) : null).toBe(2);
+    const layer = getByRole('group');
+    fireEvent.pointerDown(stage, { ...pointer(80, 85), shiftKey: true });
+    fireEvent.pointerMove(layer, pointer(330, 30));
+    fireEvent.pointerUp(layer, pointer(330, 30));
+    expect(engine.keyframes.getSelectedKeyframes().map((ref) => ref.keyframeId)).toEqual([
+      'a',
+      'b',
+    ]);
+    fireEvent.pointerDown(stage, pointer(300, 56));
+    fireEvent.pointerMove(layer, { ...pointer(325, 56), shiftKey: true });
+    fireEvent.pointerUp(layer, pointer(325, 56));
+    expect(
+      engine.keyframes
+        .getClipKeyframes('clip')
+        .slice(0, 2)
+        .map((key) => toSeconds(key.time))
+    ).toEqual([1.25, 3.25]);
+    fireEvent.keyDown(layer, { key: 'ArrowRight' });
+    expect(toSeconds(engine.keyframes.getClipKeyframes('clip')[0].time)).toBeCloseTo(
+      1.25 + 1 / 24,
+      4
+    );
+    fireEvent.keyDown(layer, { key: 'ArrowDown' });
+    expect(engine.keyframes.getClipKeyframes('clip')[1].value).toBeCloseTo(0.49);
+    fireEvent.keyDown(layer, { key: 'Delete' });
+    expect(engine.keyframes.getClipKeyframes('clip').map((key) => key.id)).toEqual(['c']);
+    engine.undo();
+    expect(engine.keyframes.getClipKeyframes('clip')).toHaveLength(3);
   });
 
-  it('reports keyframe double-click gestures', () => {
-    const engine = createEngine();
-    const onKeyframeDoubleClick = vi.fn();
-
-    const { container } = render(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer
-          property="opacity"
-          selectedClipOnly
-          onKeyframeDoubleClick={onKeyframeDoubleClick}
-        />
-      </TimelineProvider>
+  it('keeps double-click policy customizable and focuses the keyboard surface', () => {
+    const engine = createKeyframeInteractionEngine();
+    const doubleClick = vi.fn();
+    const { stage, getByRole } = renderKeyframeLayer(
+      engine,
+      <KeyframeInteractionLayer property="opacity" onKeyframeDoubleClick={doubleClick} />
     );
-
-    const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
-    fireEvent.pointerDown(handle, {
-      clientX: 300,
-      clientY: 56,
-      pointerType: 'mouse',
-      button: 0,
-      pointerId: 1,
-      timeStamp: 1000,
-    });
-    fireEvent.pointerUp(handle, {
-      clientX: 300,
-      clientY: 56,
-      pointerType: 'mouse',
-      pointerId: 1,
-    });
-    fireEvent.pointerDown(handle, {
-      clientX: 300,
-      clientY: 56,
-      pointerType: 'mouse',
-      button: 0,
-      pointerId: 2,
-      timeStamp: 1100,
-    });
-
-    expect(onKeyframeDoubleClick).toHaveBeenCalledTimes(1);
-    expect(onKeyframeDoubleClick).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clip: expect.objectContaining({ id: 'clip-1' }),
-        keyframe: expect.objectContaining({ id: 'opacity-middle' }),
-      }),
-      expect.objectContaining({ engine })
-    );
-  });
-
-  it('leaves keyboard delete policy to the caller', () => {
-    const engine = createEngine();
-
-    const { container, rerender } = render(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer property="opacity" selectedClipOnly />
-      </TimelineProvider>
-    );
-
-    const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
-    fireEvent.keyDown(handle, { key: 'Delete' });
-
-    expect(engine.keyframes.getClipKeyframes('clip-1')).toHaveLength(3);
-
-    const onKeyframeDelete = vi.fn();
-    rerender(
-      <TimelineProvider engine={engine}>
-        <KeyframeInteractionLayer
-          property="opacity"
-          selectedClipOnly
-          onKeyframeDelete={onKeyframeDelete}
-        />
-      </TimelineProvider>
-    );
-
-    const nextHandle = container.querySelector(
-      '[data-keyframe-id="opacity-middle"]'
-    ) as HTMLElement;
-    fireEvent.keyDown(nextHandle, { key: 'Backspace' });
-
-    expect(engine.keyframes.getClipKeyframes('clip-1')).toHaveLength(3);
-    expect(onKeyframeDelete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clip: expect.objectContaining({ id: 'clip-1' }),
-        keyframe: expect.objectContaining({ id: 'opacity-middle' }),
-      }),
-      expect.objectContaining({ engine })
-    );
+    fireEvent.pointerDown(stage, pointer(300, 56));
+    fireEvent.pointerUp(getByRole('group'), pointer(300, 56));
+    fireEvent.pointerDown(stage, pointer(300, 56));
+    expect(doubleClick).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(getByRole('group'));
+    expect(getByRole('group').getAttribute('aria-label')).toContain('0.5');
   });
 });

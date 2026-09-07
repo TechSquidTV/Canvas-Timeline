@@ -27,7 +27,7 @@ export interface TimelineKeyframePointInput {
 }
 
 /**
- * Default outgoing tangent used when a Bezier keyframe side omits its handle.
+ * Default outgoing tangent for unit easing curves. Property curves use the normalized start value.
  */
 export const defaultTimelineOutgoingBezierHandle: TimelineKeyframeBezierHandle = {
   x: 0.42,
@@ -35,7 +35,7 @@ export const defaultTimelineOutgoingBezierHandle: TimelineKeyframeBezierHandle =
 };
 
 /**
- * Default incoming tangent used when a Bezier keyframe side omits its handle.
+ * Default incoming tangent for unit easing curves. Property curves use the normalized end value.
  */
 export const defaultTimelineIncomingBezierHandle: TimelineKeyframeBezierHandle = {
   x: 0.58,
@@ -53,14 +53,46 @@ function clampUnitInterval(value: number, label: string) {
   return Math.max(0, Math.min(1, value));
 }
 
-function cubicBezierCoordinate(p1: number, p2: number, t: number) {
+/** Evaluates one coordinate of a cubic Bezier without allocating intermediate points. */
+export function evaluateTimelineCubicBezier(
+  start: number,
+  control1: number,
+  control2: number,
+  end: number,
+  t: number
+): number {
   const inverse = 1 - t;
-  return 3 * inverse * inverse * t * p1 + 3 * inverse * t * t * p2 + t * t * t;
+  return (
+    inverse * inverse * inverse * start +
+    3 * inverse * inverse * t * control1 +
+    3 * inverse * t * t * control2 +
+    t * t * t * end
+  );
 }
 
-function cubicBezierDerivative(p1: number, p2: number, t: number) {
-  const inverse = 1 - t;
-  return 3 * inverse * inverse * p1 + 6 * inverse * t * (p2 - p1) + 3 * t * t * (1 - p2);
+/** Resolves a monotonic normalized time coordinate to its Bezier parameter. */
+export function getTimelineKeyframeBezierParameter(
+  progress: number,
+  outgoingX: number,
+  incomingX: number
+): number {
+  const target = clampUnitInterval(progress, 'progress');
+  const x1 = clampUnitInterval(outgoingX, 'outgoingX');
+  const x2 = clampUnitInterval(incomingX, 'incomingX');
+  if (target === 0 || target === 1) {
+    return target;
+  }
+  let lower = 0;
+  let upper = 1;
+  for (let iteration = 0; iteration < 45; iteration++) {
+    const middle = (lower + upper) / 2;
+    if (evaluateTimelineCubicBezier(0, x1, x2, 1, middle) < target) {
+      lower = middle;
+    } else {
+      upper = middle;
+    }
+  }
+  return (lower + upper) / 2;
 }
 
 /**
@@ -108,7 +140,7 @@ export function normalizeTimelineKeyframeSideInterpolation(
   fallbackHandle: TimelineKeyframeBezierHandle
 ): TimelineKeyframeSideInterpolation {
   const interpolation = normalizeTimelineKeyframeInterpolation(side?.interpolation);
-  if (interpolation !== 'bezier') {
+  if (interpolation !== 'bezier' || side?.handle === undefined) {
     return { interpolation };
   }
   return {
@@ -191,36 +223,37 @@ export function getTimelineKeyframeValuePoint(
  * @param endPoint - Viewport-space point for the segment's ending keyframe.
  * @param outgoing - Optional normalized outgoing tangent handle from the start keyframe.
  * @param incoming - Optional normalized incoming tangent handle from the end keyframe.
+ * @param valueLane - Viewport-space top and height of the normalized property range.
  * @returns Viewport-space control points for the segment curve.
  */
 export function getTimelineKeyframeBezierControlPoints(
   startPoint: TimelineKeyframePoint,
   endPoint: TimelineKeyframePoint,
   outgoing: TimelineKeyframeBezierHandle | undefined,
-  incoming: TimelineKeyframeBezierHandle | undefined
+  incoming: TimelineKeyframeBezierHandle | undefined,
+  valueLane: { top: number; height: number }
 ): {
   controlPoint1: TimelineKeyframePoint;
   controlPoint2: TimelineKeyframePoint;
 } {
-  const outgoingHandle = normalizeTimelineKeyframeBezierHandle(
-    outgoing,
-    defaultTimelineOutgoingBezierHandle
-  );
-  const incomingHandle = normalizeTimelineKeyframeBezierHandle(
-    incoming,
-    defaultTimelineIncomingBezierHandle
-  );
+  const outgoingHandle = normalizeTimelineKeyframeBezierHandle(outgoing, {
+    x: 0.42,
+    y: (valueLane.top + valueLane.height - startPoint.y) / Math.max(1, valueLane.height),
+  });
+  const incomingHandle = normalizeTimelineKeyframeBezierHandle(incoming, {
+    x: 0.58,
+    y: (valueLane.top + valueLane.height - endPoint.y) / Math.max(1, valueLane.height),
+  });
   const deltaX = endPoint.x - startPoint.x;
-  const deltaY = endPoint.y - startPoint.y;
 
   return {
     controlPoint1: {
       x: startPoint.x + deltaX * outgoingHandle.x,
-      y: startPoint.y + deltaY * outgoingHandle.y,
+      y: valueLane.top + (1 - outgoingHandle.y) * valueLane.height,
     },
     controlPoint2: {
       x: startPoint.x + deltaX * incomingHandle.x,
-      y: startPoint.y + deltaY * incomingHandle.y,
+      y: valueLane.top + (1 - incomingHandle.y) * valueLane.height,
     },
   };
 }
@@ -251,34 +284,13 @@ export function getTimelineKeyframeBezierProgress(
     incoming,
     defaultTimelineIncomingBezierHandle
   );
-  let t = normalizedProgress;
-
-  for (let iteration = 0; iteration < 8; iteration++) {
-    const x = cubicBezierCoordinate(outgoingHandle.x, incomingHandle.x, t);
-    const derivative = cubicBezierDerivative(outgoingHandle.x, incomingHandle.x, t);
-    if (Math.abs(x - normalizedProgress) < 0.000001 || derivative === 0) {
-      break;
-    }
-    t = Math.max(0, Math.min(1, t - (x - normalizedProgress) / derivative));
-  }
-
-  let lower = 0;
-  let upper = 1;
-  for (let iteration = 0; iteration < 10; iteration++) {
-    const x = cubicBezierCoordinate(outgoingHandle.x, incomingHandle.x, t);
-    if (Math.abs(x - normalizedProgress) < 0.000001) {
-      break;
-    }
-    if (x < normalizedProgress) {
-      lower = t;
-    } else {
-      upper = t;
-    }
-    t = (lower + upper) / 2;
-  }
-
+  const t = getTimelineKeyframeBezierParameter(
+    normalizedProgress,
+    outgoingHandle.x,
+    incomingHandle.x
+  );
   return clampUnitInterval(
-    cubicBezierCoordinate(outgoingHandle.y, incomingHandle.y, t),
+    evaluateTimelineCubicBezier(0, outgoingHandle.y, incomingHandle.y, 1, t),
     'easedProgress'
   );
 }
