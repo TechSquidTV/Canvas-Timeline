@@ -1,3 +1,4 @@
+import { findClipInTracks } from '#core/engine/clip-lookup';
 import { filterClipKeyframesToClipRange, shiftClipKeyframes } from '#core/engine/clip-keyframes';
 import { defaultTimelineEditValidationResult } from '#core/engine/feedback';
 import type {
@@ -82,7 +83,7 @@ export function resolveInteractiveEdit(
   const winners =
     command.type === 'move' ? getLinkedClipIds(context, command.clipId) : [command.clipId];
   for (const id of winners) {
-    const found = getClipInTracks(context, resolved.tracks, id);
+    const found = findClipInTracks(resolved.tracks, id);
     if (!found) {
       continue;
     }
@@ -332,7 +333,7 @@ function validateMoveEditCommand(
   context: EditContext,
   command: TimelineMoveEditCommand
 ): TimelineEditValidationResult {
-  const found = getClipInTracks(context, context.state.tracks, command.clipId);
+  const found = findClipInTracks(context.state.tracks, command.clipId);
   if (!found) {
     return rejectEdit(context, 'not-found');
   }
@@ -356,7 +357,7 @@ function validateMoveEditCommand(
     return rejectEdit(context, 'unsupported');
   }
   for (const linkedClipId of linkedClipIds) {
-    const linked = getClipInTracks(context, context.state.tracks, linkedClipId);
+    const linked = findClipInTracks(context.state.tracks, linkedClipId);
     if (!linked) {
       return rejectEdit(context, 'not-found');
     }
@@ -387,7 +388,7 @@ function validateTrimEditCommand(
     return clipValidation;
   }
 
-  const found = getClipInTracks(context, context.state.tracks, command.clipId);
+  const found = findClipInTracks(context.state.tracks, command.clipId);
   if (!found) {
     return rejectEdit(context, 'not-found');
   }
@@ -407,7 +408,7 @@ function validateClipEditCommand(
   clipId: string,
   capability: 'movable' | 'resizable'
 ): TimelineEditValidationResult {
-  const found = getClipInTracks(context, context.state.tracks, clipId);
+  const found = findClipInTracks(context.state.tracks, clipId);
   if (!found) {
     return rejectEdit(context, 'not-found');
   }
@@ -427,8 +428,8 @@ function validateRollTrimEditCommand(
   context: EditContext,
   command: TimelineRollTrimEditCommand
 ): TimelineEditValidationResult {
-  const left = getClipInTracks(context, context.state.tracks, command.leftClipId);
-  const right = getClipInTracks(context, context.state.tracks, command.rightClipId);
+  const left = findClipInTracks(context.state.tracks, command.leftClipId);
+  const right = findClipInTracks(context.state.tracks, command.rightClipId);
   if (!left || !right) {
     return rejectEdit(context, 'not-found');
   }
@@ -451,8 +452,8 @@ function validateResolvedRollTrimBoundary(
   command: TimelineRollTrimEditCommand,
   boundaryTime: RationalTime
 ): TimelineEditValidationResult {
-  const left = getClipInTracks(context, context.state.tracks, command.leftClipId);
-  const right = getClipInTracks(context, context.state.tracks, command.rightClipId);
+  const left = findClipInTracks(context.state.tracks, command.leftClipId);
+  const right = findClipInTracks(context.state.tracks, command.rightClipId);
   if (!left || !right) {
     return rejectEdit(context, 'not-found');
   }
@@ -476,7 +477,7 @@ function validateSplitEditCommand(
   const requestedClipIds = getLinkedCommandClipIds(context, command.clipIds);
   let hasOverlappingClip = false;
   for (const clipId of requestedClipIds) {
-    const found = getClipInTracks(context, context.state.tracks, clipId);
+    const found = findClipInTracks(context.state.tracks, clipId);
     if (!found) {
       return rejectEdit(context, 'not-found');
     }
@@ -515,7 +516,7 @@ function validateDeleteClipsEditCommand(
   }
   const requestedClipIds = getLinkedCommandClipIds(context, command.clipIds);
   for (const clipId of requestedClipIds) {
-    const found = getClipInTracks(context, context.state.tracks, clipId);
+    const found = findClipInTracks(context.state.tracks, clipId);
     if (!found) {
       return rejectEdit(context, 'not-found');
     }
@@ -530,7 +531,7 @@ function validatePlaceClipCommand(
   context: EditContext,
   command: TimelineInsertEditCommand | TimelineOverwriteEditCommand
 ): TimelineEditValidationResult {
-  if (getClipInTracks(context, context.state.tracks, command.clip.id)) {
+  if (findClipInTracks(context.state.tracks, command.clip.id)) {
     return rejectEdit(context, 'duplicate-id');
   }
   const targetTrack = context.state.tracks.find((track) => track.id === command.targetTrackId);
@@ -564,7 +565,7 @@ function validatePlaceClipGroupCommand(
   for (const placement of command.placements) {
     if (
       clipIds.has(placement.clip.id) ||
-      getClipInTracks(context, context.state.tracks, placement.clip.id)
+      findClipInTracks(context.state.tracks, placement.clip.id)
     ) {
       return rejectEdit(context, 'duplicate-id');
     }
@@ -703,9 +704,7 @@ function createPolicyContext(
 ): TimelineEditPolicyContext {
   const sourceClipId = getEditCommandSourceClipId(context, command);
   const found =
-    sourceClipId !== undefined
-      ? getClipInTracks(context, context.state.tracks, sourceClipId)
-      : undefined;
+    sourceClipId !== undefined ? findClipInTracks(context.state.tracks, sourceClipId) : undefined;
   const targetTrackId =
     command.type === 'move'
       ? (command.targetTrackId ?? found?.track.id)
@@ -871,7 +870,7 @@ function resolveMoveEdit(
   command: TimelineMoveEditCommand
 ): TimelineResolvedEdit {
   const tracks = createTrackSnapshots(context.state.tracks);
-  const found = getClipInTracks(context, tracks, command.clipId);
+  const found = findClipInTracks(tracks, command.clipId);
   if (!found) {
     return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
   }
@@ -910,7 +909,7 @@ function resolveMoveEdit(
   const deltaTime = subRational(startTime, previousStartTime);
   const changedClips: Clip[] = [];
   for (const linkedClipId of linkedClipIds) {
-    const linked = getClipInTracks(context, tracks, linkedClipId);
+    const linked = findClipInTracks(tracks, linkedClipId);
     if (!linked) {
       return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
     }
@@ -946,7 +945,7 @@ function resolveMoveEdit(
   for (const track of tracks) {
     track.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
   }
-  const moved = getClipInTracks(context, tracks, command.clipId);
+  const moved = findClipInTracks(tracks, command.clipId);
   if (!moved) {
     return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
   }
@@ -985,23 +984,6 @@ function resolveMoveEdit(
   return createResolvedEdit(context, command, tracks, preview, { moveResult });
 }
 
-function getClipInTracks(
-  context: EditContext,
-  tracks: Track[],
-  clipId: string
-): { track: Track; clip: Clip; trackIndex: number; clipIndex: number } | undefined {
-  for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
-    const track = tracks[trackIndex];
-    for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
-      const clip = track.clips[clipIndex];
-      if (clip.id === clipId) {
-        return { track, clip, trackIndex, clipIndex };
-      }
-    }
-  }
-  return undefined;
-}
-
 function createResolvedEditPreview(
   context: EditContext,
   command: TimelineEditCommand,
@@ -1021,7 +1003,7 @@ function resolveTrimEdit(
   ripple: boolean
 ): TimelineResolvedEdit {
   const tracks = createTrackSnapshots(context.state.tracks);
-  const found = getClipInTracks(context, tracks, command.clipId);
+  const found = findClipInTracks(tracks, command.clipId);
   if (!found) {
     return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
   }
@@ -1100,8 +1082,8 @@ function resolveRollTrimEdit(
   command: TimelineRollTrimEditCommand
 ): TimelineResolvedEdit {
   const tracks = createTrackSnapshots(context.state.tracks);
-  const left = getClipInTracks(context, tracks, command.leftClipId);
-  const right = getClipInTracks(context, tracks, command.rightClipId);
+  const left = findClipInTracks(tracks, command.leftClipId);
+  const right = findClipInTracks(tracks, command.rightClipId);
   if (!left || !right || left.track.id !== right.track.id) {
     return createRejectedResolvedEdit(
       context,
@@ -1174,7 +1156,7 @@ function resolveSlipEdit(
   command: TimelineSlipEditCommand
 ): TimelineResolvedEdit {
   const tracks = createTrackSnapshots(context.state.tracks);
-  const found = getClipInTracks(context, tracks, command.clipId);
+  const found = findClipInTracks(tracks, command.clipId);
   if (!found) {
     return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
   }
@@ -1220,7 +1202,7 @@ function resolveSlideEdit(
   context: EditContext,
   command: TimelineSlideEditCommand
 ): TimelineResolvedEdit {
-  const found = getClipInTracks(context, context.state.tracks, command.clipId);
+  const found = findClipInTracks(context.state.tracks, command.clipId);
   if (!found) {
     return createRejectedResolvedEdit(
       context,

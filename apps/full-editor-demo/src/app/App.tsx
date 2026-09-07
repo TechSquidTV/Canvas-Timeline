@@ -129,6 +129,8 @@ function LoadedEditor({
       new TimelineEngine({
         clipGroups: bootstrapState.projectState.clipGroups,
         duration: bootstrapState.projectState.duration,
+        inPoint: bootstrapState.projectState.inPoint,
+        outPoint: bootstrapState.projectState.outPoint,
         markers: bootstrapState.projectState.markers,
         playheadTime: bootstrapState.projectState.playheadTime,
         scrollLeft: bootstrapState.projectState.scrollLeft,

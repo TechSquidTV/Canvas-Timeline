@@ -50,6 +50,13 @@ if (preview.valid) {
 }
 ```
 
+State, geometry, and active-media queries expose readonly document snapshots.
+Update content through engine commands. Clip metadata accepts lightweight plain
+objects and arrays containing strings, finite numbers, booleans, `null`, or
+`undefined`; store Maps, Dates, buffers, and other domain objects outside the
+engine. See the [migration guide](https://canvastimeline.com/docs/engine-migration/)
+for the readonly and metadata contracts.
+
 ```ts
 import { SnapIndex } from '@techsquidtv/canvas-timeline-core/snapping';
 ```

@@ -176,3 +176,29 @@ describe('timecode utilities', () => {
     });
   });
 });
+
+it.each([false, true])(
+  'keeps object frame-rate cache independent of drop-frame mode (first: %s)',
+  (dropFrame) => {
+    const frameRate = { numerator: 30000, denominator: 1001 };
+    const expected = dropFrame ? '00:10:00;00' : '00:09:59:12';
+    expect(formatTimecode(600, { frameRate, dropFrame })).toBe(expected);
+    expect(resolveTimecodeFrameRate(frameRate)).toBe(30000 / 1001);
+    expect(formatTimecode(600, { frameRate, dropFrame: !dropFrame })).toBe(
+      dropFrame ? '00:09:59:12' : '00:10:00;00'
+    );
+    expect(parseTimecode('00:01:00;00', { frameRate, dropFrame: true })).toBeNull();
+    expect(parseTimecode('00:10:00;00', { frameRate, dropFrame: true })).toBeCloseTo(599.9994);
+  }
+);
+
+it('revalidates changed object frame rates for both normalization and drop-frame support', () => {
+  const frameRate = { numerator: 30000, denominator: 1001 };
+  formatTimecode(600, { frameRate, dropFrame: true });
+  frameRate.numerator = 24;
+  frameRate.denominator = 1;
+  expect(resolveTimecodeFrameRate(frameRate)).toBe(24);
+  expect(() => formatTimecode(600, { frameRate, dropFrame: true })).toThrow(RangeError);
+  frameRate.denominator = 0;
+  expect(() => resolveTimecodeFrameRate(frameRate)).toThrow(RangeError);
+});

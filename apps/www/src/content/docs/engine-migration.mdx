@@ -44,6 +44,25 @@ Move former direct calls to the corresponding service. Playback, document operat
 
 `getState()`, `getRenderState()`, and the engine's track/group/marker collections are readonly snapshots. Initial times and metadata are owned by the engine. Change content through commands instead of assigning to returned state. Unchanged collections and time values retain their references across viewport changes.
 
+**Breaking:** Clip lookup, hit tests, geometry entries, active-media queries, and
+keyframe queries now return readonly document records too. Helpers that consume
+these records should accept `TimelineReadonly<Clip>` or `TimelineReadonly<Track>`.
+Use `updateClipProperties`, `commitEdit`, or the keyframe commands to change them.
+Geometry includes current edit previews; `geometry.getClip()` and media queries
+inspect committed content. Repeated queries reuse cached document snapshots.
+
+**Breaking:** Clip, snap-target, and edit-guide metadata use `TimelineMetadata`.
+Values may be plain objects, arrays, strings, finite numbers, booleans, `null`,
+or `undefined`. Cycles, accessors, symbol keys, Maps, Sets, Dates, buffers, and
+class instances are rejected on input. Store domain objects in an application
+store keyed by `clip.id` or `sourceId`; keep only lightweight values or identifiers
+in metadata. Metadata is copied on input and deeply frozen in read snapshots.
+
+The constructor accepts `inPoint` and `outPoint` alongside `playheadTime` and
+`duration`. Pass all four when restoring a saved project; the engine owns copies
+of each time. `setTrackHeights` validates the complete batch, including its
+optional `scrollTop`, before changing any track or publishing events.
+
 History defaults to 100 snapshots and a conservative 16 MiB serialized-byte budget. Configure `history: { maxEntries, maxBytes }` when constructing an engine. The current document is always retained, even if it exceeds the budget; older undo entries are evicted first. Unchanged clip records are shared, and unchanged checkpoints are skipped.
 
 ## React and controls

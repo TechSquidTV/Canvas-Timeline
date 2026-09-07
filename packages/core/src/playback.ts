@@ -5,7 +5,12 @@ import type {
   PlaybackOptions,
   TimelineState,
 } from '#core/types';
-import { addRational, compareRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import {
+  addRational,
+  compareRational,
+  fromSeconds,
+  toSeconds,
+} from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export class PlaybackManager {
   private engine: TimelineEngine;
@@ -48,6 +53,8 @@ export class PlaybackManager {
     }
 
     this.lastFrameTime = performance.now();
+    let lastPlayheadTime = state.playheadTime;
+    let remainderSeconds = 0;
 
     const loop = (time: number) => {
       const currentState = this.state;
@@ -57,10 +64,19 @@ export class PlaybackManager {
       const deltaMs = time - this.lastFrameTime;
       this.lastFrameTime = time;
 
-      const deltaSec = (deltaMs / 1000) * (currentState.playbackRate ?? 1.0);
+      // Keep sub-tick time across frames, but discard it after an explicit seek.
+      if (currentState.playheadTime !== lastPlayheadTime) {
+        remainderSeconds = 0;
+      }
+      const deltaSec = (deltaMs / 1000) * (currentState.playbackRate ?? 1.0) + remainderSeconds;
       const deltaRt = fromSeconds(deltaSec, currentState.playheadTime.r);
+      remainderSeconds = deltaSec - toSeconds(deltaRt);
       const nextTime = addRational(currentState.playheadTime, deltaRt);
       const update = this.advanceTo(nextTime);
+      lastPlayheadTime = currentState.playheadTime;
+      if (update.action === 'loop' || compareRational(update.time, nextTime) !== 0) {
+        remainderSeconds = 0;
+      }
       if (update.action === 'pause') {
         return;
       }

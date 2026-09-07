@@ -1,4 +1,4 @@
-import type { ActiveClip, Clip } from '@techsquidtv/canvas-timeline-core';
+import type { ActiveClip, Clip, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type * as Mediabunny from 'mediabunny';
 import type {
@@ -299,7 +299,7 @@ function stopAudioIterator(controller: MediabunnyAudioController) {
 async function runAudioIterator(
   controller: MediabunnyAudioController,
   iterator: AsyncGenerator<Mediabunny.WrappedAudioBuffer, void, void>,
-  audioClip: Clip,
+  audioClip: TimelineReadonly<Clip>,
   audioSyncKey: string,
   generation: number
 ) {

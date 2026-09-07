@@ -3,6 +3,7 @@ import {
   defaultTimelineOutgoingBezierHandle,
   normalizeTimelineKeyframeSideInterpolation,
 } from '#core/keyframes';
+import { cloneTimelineMetadata } from '#core/metadata';
 import type {
   Clip,
   Marker,
@@ -99,7 +100,9 @@ export function cloneTimelineKeyframe(
   return next;
 }
 
-export function sortTimelineKeyframes(keyframes: TimelineKeyframe[]) {
+export function sortTimelineKeyframes<Keyframe extends TimelineReadonly<TimelineKeyframe>>(
+  keyframes: Keyframe[]
+) {
   keyframes.sort((a, b) => {
     const propertyCompare = a.property.localeCompare(b.property);
     return propertyCompare === 0 ? compareRational(a.time, b.time) : propertyCompare;
@@ -189,7 +192,7 @@ export function createClipSnapshot(
 
   const metadata = overrides.metadata ?? clip.metadata;
   if (metadata !== undefined) {
-    next.metadata = structuredClone(metadata);
+    next.metadata = cloneTimelineMetadata(metadata);
   }
 
   assertValidClipTiming(next, `clip "${next.id}"`);

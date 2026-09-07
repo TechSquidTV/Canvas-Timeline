@@ -1,5 +1,6 @@
 import { fromSeconds, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineSnapResult, TimelineSnapTarget } from '#core/types';
+import { cloneTimelineMetadata } from '#core/metadata';
 
 /**
  * Controls which built-in timeline boundaries are indexed as magnetic snap targets.
@@ -90,11 +91,18 @@ export class SnapIndex {
    * @param targets - Timeline snap targets to index.
    */
   build(targets: TimelineSnapTarget[]) {
+    const ownedTargets = targets.map((target) => ({
+      ...target,
+      time: { ...target.time },
+      ...(target.metadata === undefined
+        ? {}
+        : { metadata: cloneTimelineMetadata(target.metadata) }),
+    }));
     this.ensureCapacity(targets.length);
 
     for (let i = 0; i < targets.length; i++) {
       this.times[i] = toSeconds(targets[i].time);
-      this.targets[i] = targets[i];
+      this.targets[i] = ownedTargets[i];
     }
 
     for (let i = targets.length; i < this.count; i++) {

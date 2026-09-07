@@ -1,3 +1,4 @@
+import { findClipInTracks } from '#core/engine/clip-lookup';
 import {
   timelineCommandOk,
   timelineCommandFail,
@@ -411,11 +412,16 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     updates: readonly TimelineTrackHeightUpdate[],
     options: TimelineTrackHeightBatchOptions = {}
   ) {
+    for (const update of updates) {
+      assertPositiveTimelineNumber(update.height, `height for track "${update.trackId}"`);
+    }
+    if (options.scrollTop !== undefined) {
+      assertNonNegativeTimelineNumber(options.scrollTop, 'options.scrollTop');
+    }
     const resizeEvents: TimelineTrackHeightUpdate[] = [];
     const previousScrollTop = this.state.scrollTop;
 
     for (const update of updates) {
-      assertPositiveTimelineNumber(update.height, `height for track "${update.trackId}"`);
       const track = this.state.tracks.find((t) => t.id === update.trackId);
       if (!track || track.height === update.height) {
         continue;
@@ -426,7 +432,6 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     if (options.scrollTop !== undefined) {
-      assertNonNegativeTimelineNumber(options.scrollTop, 'options.scrollTop');
       this.state.scrollTop = options.scrollTop;
     }
 
@@ -1072,6 +1077,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param initialState.scrollLeft - Optional initial horizontal scroll pan in pixels.
    * @param initialState.scrollTop - Optional initial vertical scroll pan in pixels.
    * @param initialState.playheadTime - Optional initial playback cursor as a rational time.
+   * @param initialState.inPoint - Optional restored playback range start.
+   * @param initialState.outPoint - Optional restored playback range end.
    */
   constructor(initialState: {
     tracks: TimelineStateSnapshot['tracks'];
@@ -1083,6 +1090,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     scrollTop?: number;
     playheadTime?: RationalTime;
     duration?: RationalTime;
+    inPoint?: RationalTime;
+    outPoint?: RationalTime;
     zoomConstraints?: TimelineZoomConstraints;
     snapEnabled?: boolean;
     snapThresholdPixels?: number;
@@ -1110,7 +1119,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       tracks: createTrackSnapshots(initialState.tracks),
       clipGroups: createClipGroupSnapshots(initialState.clipGroups),
       contentRevision: 0,
-      playheadTime: initialState.playheadTime ?? { v: 0, r: 24000 },
+      playheadTime: cloneRationalTime(initialState.playheadTime ?? { v: 0, r: 24000 }),
       zoomScale: initialState.zoomScale ?? 100, // 100 px per second
       scrollLeft: initialState.scrollLeft ?? 0,
       scrollTop: initialState.scrollTop ?? 0,
@@ -1121,12 +1130,16 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       markers: createMarkerSnapshots(initialState.markers),
       playing: false,
       playbackRate: 1.0,
-      duration: initialState.duration,
+      duration:
+        initialState.duration === undefined ? undefined : cloneRationalTime(initialState.duration),
+      inPoint:
+        initialState.inPoint === undefined ? undefined : cloneRationalTime(initialState.inPoint),
+      outPoint:
+        initialState.outPoint === undefined ? undefined : cloneRationalTime(initialState.outPoint),
     };
     this.geometry = new TimelineGeometry({
-      getState: () => this.state,
-      getRenderState: () =>
-        this.previewTracks ? { ...this.state, tracks: this.previewTracks } : this.state,
+      getState: () => this.getState(),
+      getRenderState: () => this.getRenderState(),
       timeToPixel: (time) => this.timeToPixel(time),
       pixelToTime: (pixel, rate) => this.pixelToTime(pixel, rate),
     });
@@ -1140,7 +1153,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       snapshot: () => this.snapshot(),
     });
     this.media = new TimelineMediaQueries({
-      getState: () => this.state,
+      getState: () => this.getState(),
       getClip: (id) => this.geometry.getClip(id),
     });
     this.playbackManager = new PlaybackManager(this, this.state);
@@ -2125,7 +2138,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     clipId: string,
     properties: Partial<Pick<Clip, 'label' | 'opacity' | 'color'>>
   ) {
-    const found = this.geometry.getClip(clipId);
+    const found = findClipInTracks(this.state.tracks, clipId);
     if (found) {
       Object.assign(found.clip, properties);
       this.invalidateContent();

@@ -1,3 +1,4 @@
+import { findClipInTracks } from '#core/engine/clip-lookup';
 import type { TypedEventEmitter } from '#core/emitter';
 import { clampViewportCoordinate, defaultTimelineViewportWidth } from '#core/engine/geometry';
 import type { TimelineGeometry } from '#core/engine/interaction-geometry';
@@ -45,6 +46,7 @@ import type {
   TimelineRegisteredKeyframePropertyDefinition,
   TimelineSetClipKeyframeOptions,
   TimelineState,
+  TimelineReadonly,
   TimelineUpdateClipKeyframeOptions,
   TimelineUpdateClipKeyframeSideOptions,
   TimelineUpdateClipKeyframeSidesOptions,
@@ -79,7 +81,9 @@ interface KeyframeContext {
 export class TimelineKeyframes {
   constructor(private context: KeyframeContext) {}
 
-  private resolveClip(clipIdOrClip: string | Clip): Clip | undefined {
+  private resolveClip(
+    clipIdOrClip: string | TimelineReadonly<Clip>
+  ): TimelineReadonly<Clip> | undefined {
     return typeof clipIdOrClip === 'string'
       ? this.context.geometry.getClip(clipIdOrClip)?.clip
       : clipIdOrClip;
@@ -88,7 +92,10 @@ export class TimelineKeyframes {
   /**
    * Returns keyframes owned by one clip, optionally filtered by property.
    */
-  getClipKeyframes(clipId: string, property?: TimelineKeyframePropertyId): TimelineKeyframe[] {
+  getClipKeyframes(
+    clipId: string,
+    property?: TimelineKeyframePropertyId
+  ): TimelineReadonly<TimelineKeyframe>[] {
     const clip = this.context.geometry.getClip(clipId)?.clip;
     if (clip?.keyframes === undefined) {
       return [];
@@ -103,7 +110,7 @@ export class TimelineKeyframes {
    * Evaluates a keyframed clip property at a timeline time.
    */
   getClipPropertyValueAtTime(
-    clipIdOrClip: string | Clip,
+    clipIdOrClip: string | TimelineReadonly<Clip>,
     property: TimelineKeyframePropertyId,
     timelineTime: RationalTime = this.context.state.playheadTime
   ): number | undefined {
@@ -240,7 +247,7 @@ export class TimelineKeyframes {
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
     assertValidRationalTime(input.time, 'input.time');
-    const found = this.context.geometry.getClip(input.clipId);
+    const found = findClipInTracks(this.context.state.tracks, input.clipId);
     if (!found || found.track.locked) {
       return null;
     }
@@ -289,7 +296,7 @@ export class TimelineKeyframes {
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
     this.commitKeyframeMutation(options);
-    return keyframe;
+    return cloneTimelineKeyframe(keyframe);
   }
 
   /**
@@ -304,7 +311,7 @@ export class TimelineKeyframes {
     input: TimelineUpdateClipKeyframeOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = this.context.geometry.getClip(input.clipId);
+    const found = findClipInTracks(this.context.state.tracks, input.clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return null;
     }
@@ -364,7 +371,7 @@ export class TimelineKeyframes {
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
     this.commitKeyframeMutation(options);
-    return keyframe;
+    return cloneTimelineKeyframe(keyframe);
   }
 
   /**
@@ -391,7 +398,7 @@ export class TimelineKeyframes {
     input: TimelineUpdateClipKeyframeSidesOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = this.context.geometry.getClip(input.clipId);
+    const found = findClipInTracks(this.context.state.tracks, input.clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return null;
     }
@@ -437,7 +444,7 @@ export class TimelineKeyframes {
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
     this.commitKeyframeMutation(options);
-    return keyframe;
+    return cloneTimelineKeyframe(keyframe);
   }
 
   /**
@@ -448,7 +455,7 @@ export class TimelineKeyframes {
     keyframeId: string,
     options: TimelineKeyframeMutationOptions = {}
   ): boolean {
-    const found = this.context.geometry.getClip(clipId);
+    const found = findClipInTracks(this.context.state.tracks, clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return false;
     }
@@ -773,8 +780,8 @@ export class TimelineKeyframes {
   }
 
   private createTimelineKeyframeRect(
-    track: Track<string>,
-    clip: Clip,
+    track: TimelineReadonly<Track>,
+    clip: TimelineReadonly<Clip>,
     trackIndex: number,
     clipIndex: number,
     keyframe: TimelineKeyframe,
@@ -827,8 +834,8 @@ export class TimelineKeyframes {
   }
 
   private createTimelineKeyframeSegment(
-    track: Track<string>,
-    clip: Clip,
+    track: TimelineReadonly<Track>,
+    clip: TimelineReadonly<Clip>,
     trackIndex: number,
     clipIndex: number,
     startKeyframe: TimelineKeyframe,
@@ -960,8 +967,8 @@ export class TimelineKeyframes {
   }
 
   private createTimelineKeyframeTangentHandle(input: {
-    track: Track<string>;
-    clip: Clip;
+    track: TimelineReadonly<Track>;
+    clip: TimelineReadonly<Clip>;
     trackIndex: number;
     clipIndex: number;
     segmentId: string;
@@ -1038,7 +1045,7 @@ export class TimelineKeyframes {
     );
   }
 
-  private clampKeyframeTimeToClip(clip: Clip, time: RationalTime): RationalTime {
+  private clampKeyframeTimeToClip(clip: TimelineReadonly<Clip>, time: RationalTime): RationalTime {
     return minRational(maxRational(time, clip.timelineStart), clip.timelineEnd);
   }
 

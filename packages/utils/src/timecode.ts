@@ -152,44 +152,17 @@ function getFrameRateValue(frameRate: TimecodeFrameRate) {
   return frameRate.numerator / frameRate.denominator;
 }
 
-const objectFrameRateCache = new WeakMap<object, NormalizedFrameRate>();
-const primitiveFrameRateCache = new Map<string, NormalizedFrameRate>();
+const frameRateCache = new Map<string, NormalizedFrameRate>();
 
 function normalizeFrameRate(frameRate: TimecodeFrameRate, dropFrame: boolean): NormalizedFrameRate {
-  if (typeof frameRate === 'object' && frameRate !== null) {
-    let cached = objectFrameRateCache.get(frameRate);
-    if (cached) {
-      return cached;
-    }
-    const value = getFrameRateValue(frameRate);
-    if (!Number.isFinite(value) || value <= 0) {
-      throw new RangeError('Timecode frame rate must be a positive finite value.');
-    }
-    const nominal = Math.round(value);
-    if (nominal <= 0) {
-      throw new RangeError('Timecode frame rate must round to at least one frame per second.');
-    }
-    if (dropFrame && !isSupportedDropFrameRate(value, nominal)) {
-      throw new RangeError('Drop-frame timecode is only supported for 29.97/59.94-style rates.');
-    }
-    cached = {
-      value,
-      nominal,
-      dropFrames: dropFrame ? Math.round(nominal * 0.06666666666666667) : 0,
-    };
-    objectFrameRateCache.set(frameRate, cached);
-    return cached;
-  }
-
-  const cacheKey = `${frameRate}_${dropFrame}`;
-  let cached = primitiveFrameRateCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
   const value = getFrameRateValue(frameRate);
   if (!Number.isFinite(value) || value <= 0) {
     throw new RangeError('Timecode frame rate must be a positive finite value.');
+  }
+  const cacheKey = `${value}_${dropFrame}`;
+  const cached = frameRateCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
   const nominal = Math.round(value);
   if (nominal <= 0) {
@@ -198,13 +171,13 @@ function normalizeFrameRate(frameRate: TimecodeFrameRate, dropFrame: boolean): N
   if (dropFrame && !isSupportedDropFrameRate(value, nominal)) {
     throw new RangeError('Drop-frame timecode is only supported for 29.97/59.94-style rates.');
   }
-  cached = {
+  const normalized = {
     value,
     nominal,
     dropFrames: dropFrame ? Math.round(nominal * 0.06666666666666667) : 0,
   };
-  primitiveFrameRateCache.set(cacheKey, cached);
-  return cached;
+  frameRateCache.set(cacheKey, normalized);
+  return normalized;
 }
 
 /**

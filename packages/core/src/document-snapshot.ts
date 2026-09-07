@@ -23,16 +23,6 @@ function equalValue(left: unknown, right: unknown, seen = new WeakMap<object, ob
     return false;
   }
   seen.set(left, right);
-  if (left instanceof Date && right instanceof Date) {
-    return left.getTime() === right.getTime();
-  }
-  if (left instanceof Map && right instanceof Map) {
-    return left.size === right.size && equalValue([...left], [...right], seen);
-  }
-  if (left instanceof Set && right instanceof Set) {
-    return left.size === right.size && equalValue([...left], [...right], seen);
-  }
-  // Other structured-cloneable metadata (buffers, blobs, etc.) is copied conservatively.
   if (
     !Array.isArray(left) &&
     Object.getPrototypeOf(left) !== Object.prototype &&

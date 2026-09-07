@@ -1056,3 +1056,41 @@ test('createHTMLMediaAdapter loads an app-resolved proxy through source replacem
   expect(adapter.getClockTime()).toBe(1);
   expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(0);
 });
+
+test.each(['retry', 'replacement', 'registry', 'fallback'] as const)(
+  'createHTMLMediaAdapter preserves fractional seek times during %s recovery',
+  async (operation) => {
+    const engine = createMediaSyncEngine();
+    const element = document.createElement('video');
+    vi.spyOn(element, 'pause').mockImplementation(() => {});
+    vi.spyOn(element, 'play').mockResolvedValue(undefined);
+    const adapter = createHTMLMediaAdapter({
+      element,
+      sources: [{ sourceId: 'source-1', input: '/primary.mp4', fallbacks: ['/fallback.mp4'] }],
+    });
+    const time = fromSeconds(1.5);
+    const layers = engine.media.getActiveLayers({
+      time,
+      layers: { visuals: { trackKind: 'visual' } },
+    });
+    await adapter.seek?.(time, layers);
+    await adapter.startClock(time, 1);
+    if (operation === 'retry') {
+      await expect(adapter.retrySource('source-1')).resolves.toMatchObject({ ok: true });
+    } else if (operation === 'replacement') {
+      await expect(
+        adapter.replaceSource({ sourceId: 'source-1', input: '/replacement.mp4' })
+      ).resolves.toMatchObject({ ok: true });
+    } else if (operation === 'registry') {
+      adapter.setSources([{ sourceId: 'source-1', input: '/registry.mp4' }]);
+    } else {
+      element.dispatchEvent(new Event('error'));
+      expect(element.src).toBe('http://localhost:3000/fallback.mp4');
+      expect(adapter.sourceStateById.get('source-1')?.selectedInputIndex).toBe(1);
+    }
+    expect(element.currentTime).toBe(11.5);
+    expect(adapter.getClockTime()).toBe(1.5);
+    adapter.dispose();
+    engine.pause();
+  }
+);
