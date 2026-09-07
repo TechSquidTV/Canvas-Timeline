@@ -50,7 +50,7 @@ Use the timeline hook registry groups as the source of truth:
 
 - **Timeline State**: engine context, state snapshots, active clips/layers,
   viewport data, ruler ticks, clip geometry, and visible clip queries.
-- **Editing Hooks**: edit mode, typed edit commands, shared edit previews,
+- **Editing Hooks**: typed edit commands, shared edit previews,
   range selection, clip, clip group, track, marker, selection, clipboard,
   history, track header, edit consequences, existing-clip drag/drop, and
   app-owned media drops onto the timeline.
@@ -62,7 +62,7 @@ Use the timeline hook registry groups as the source of truth:
 Start with the narrowest hook that matches the component. Toolbar buttons that
 mutate timeline structure should use command hooks such as
 `useTimelineEditCommands()`; toolbar state can compose snapshot hooks such as
-`useTimelinePlayback()` or `useTimelineClips()`. Readouts that must follow
+`useTimelinePlayback()` or `useTimelineSelection()`. Readouts that must follow
 scrubbing or playback should use focused live hooks such as
 `useTimelinePlayheadTime()`, `useActiveMarkers()`, or
 `useTimelineClipDropFeedback()`. Use `useTimeline()` directly only when a
@@ -73,9 +73,11 @@ consecutively in one event handler. History availability and viewport bounds hav
 focused subscriptions: changing content or zoom limits updates controls even when
 the current scroll or zoom value does not change.
 
-Mutating hook commands return `TimelineCommandResult`, so custom controls can
+Mutating domain commands return `TimelineCommandResult`, so custom controls can
 branch on `ok` and machine-readable failure reasons without reading private
-engine state.
+engine state. Expected input validation errors return `invalid-input`; unexpected
+programming errors still propagate. Control callbacks such as `onValueChange`
+remain void UI callbacks, and media startup/rate commands remain asynchronous.
 
 ## Custom ruler surfaces
 
@@ -112,8 +114,7 @@ split, range, history, and event consequences.
 
 Compose the focused hooks around it:
 
-- `useTimelineEditMode()` stores the selected tool or edit intent for toolbar
-  chrome without mutating engine state.
+- Keep toolbar tool selection in application state with React `useState`.
 - `useTimelineEditPreview()` subscribes to command preview validity and command
   state.
 - `useTimelineEditImpacts()` subscribes to affected-clip consequences for live
@@ -128,17 +129,15 @@ Compose the focused hooks around it:
 ```tsx
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import {
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
   useTimelineEditImpacts,
-  useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineRangeSelection,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
 function EditToolbar() {
-  const { selectedClip } = useTimelineClips();
-  const { mode, setMode } = useTimelineEditMode();
+  const { selectedClip } = useTimelineSelection();
   const editCommands = useTimelineEditCommands();
   const editPreview = useTimelineEditPreview();
   const editImpacts = useTimelineEditImpacts();
@@ -146,9 +145,6 @@ function EditToolbar() {
 
   return (
     <>
-      <button aria-pressed={mode === 'trim'} onClick={() => setMode('trim')}>
-        Trim
-      </button>
       <button
         disabled={!selectedClip}
         onClick={() =>
@@ -228,9 +224,9 @@ Use control adapters when composing semantic UI:
 - `useTimelinePlayheadControl()`, `useTimelineInOutRangeControl()`,
   `useTimelineZoomControl()`, and `useTimelinePanControl()` return
   Base UI-compatible props and formatted value text.
-- `useTimelineViewportScrollbar()` and `useTimelineViewportRangeControl()` adapt
+- `useTimelineViewportRangeControl()` adapts
   viewport state to generic range scrollbar primitives.
-- `useTimelineVerticalScrollbar()` and `useTimelineVerticalRangeControl()` adapt
+- `useTimelineVerticalRangeControl()` adapts
   track-stack scroll state to the same primitives.
 - `useTimelineClipNavigation()` exposes one active canvas clip at a time instead
   of requiring one DOM node per clip.

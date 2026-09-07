@@ -6,7 +6,7 @@ import {
   useTimeline,
   useTimelineClipboard,
   useTimelineClipGroups,
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
   useTimelineHistory,
 } from '@techsquidtv/canvas-timeline-react';
@@ -85,7 +85,7 @@ function ClipboardCommandGroup() {
 }
 
 function DeleteSelectedClipButton() {
-  const { selectedClip } = useTimelineClips();
+  const { selectedClip } = useTimelineSelection();
   const { deleteClip } = useTimelineEditCommands();
   const canDeleteSelectedClip = selectedClip !== null;
 
@@ -108,8 +108,9 @@ function DeleteSelectedClipButton() {
 }
 
 function UngroupSelectedClipsButton() {
+  const { selectedGroupId } = useTimelineSelection();
   const clipGroups = useTimelineClipGroups();
-  const canUngroupSelectedClips = clipGroups.selectedGroupId !== null;
+  const canUngroupSelectedClips = selectedGroupId !== null;
 
   return (
     <Button

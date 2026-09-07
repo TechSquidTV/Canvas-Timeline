@@ -1,3 +1,4 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
@@ -47,26 +48,29 @@ export function useTimelineSnapping(): UseTimelineSnappingResult {
   }));
 
   const setEnabled = useCallback(
-    (enabled: boolean) => {
-      engine.setSnappingEnabled(enabled);
-      return timelineCommandOk();
-    },
+    (enabled: boolean) =>
+      runTimelineCommand(() => {
+        engine.setSnappingEnabled(enabled);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setThresholdPixels = useCallback(
-    (thresholdPixels: number) => {
-      engine.setSnapThresholdPixels(thresholdPixels);
-      return timelineCommandOk();
-    },
+    (thresholdPixels: number) =>
+      runTimelineCommand(() => {
+        engine.setSnapThresholdPixels(thresholdPixels);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const prepareSnapping = useCallback(
-    (options?: string | SnapPreparationOptions) => {
-      engine.prepareSnapping(options);
-      return timelineCommandOk();
-    },
+    (options?: string | SnapPreparationOptions) =>
+      runTimelineCommand(() => {
+        engine.prepareSnapping(options);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
@@ -75,10 +79,14 @@ export function useTimelineSnapping(): UseTimelineSnappingResult {
     [engine]
   );
 
-  const settle = useCallback(() => {
-    engine.settle();
-    return timelineCommandOk();
-  }, [engine]);
+  const settle = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        engine.settle();
+        return timelineCommandOk();
+      }),
+    [engine]
+  );
 
   return useMemo(
     () => ({

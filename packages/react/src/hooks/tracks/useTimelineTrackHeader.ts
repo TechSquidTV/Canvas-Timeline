@@ -1,3 +1,4 @@
+import { getTimelineTrackLabel } from '#react/hooks/tracks/timelineTrackLabel';
 import { useTimelineTrack } from '#react/hooks/tracks/useTimelineTrack';
 import type { UseTimelineTrackResult } from '#react/hooks/tracks/useTimelineTrack';
 import type { TimelineTrackGeometryOptions } from '@techsquidtv/canvas-timeline-core';
@@ -71,13 +72,7 @@ export function useTimelineTrackHeader(
   options: TimelineTrackGeometryOptions = {}
 ): UseTimelineTrackHeaderResult {
   const trackState = useTimelineTrack(trackId, options);
-  const label = useMemo(
-    () =>
-      trackState.exists
-        ? (trackState.name ?? `${trackState.kind ?? 'Track'} ${trackState.trackIndex + 1}`)
-        : trackId,
-    [trackId, trackState.exists, trackState.kind, trackState.name, trackState.trackIndex]
-  );
+  const label = getTimelineTrackLabel(trackState.track, trackState.trackIndex, trackId);
 
   const rootProps = useMemo<TimelineTrackHeaderRootProps>(
     () => ({

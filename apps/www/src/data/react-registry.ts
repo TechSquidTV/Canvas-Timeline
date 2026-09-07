@@ -315,25 +315,23 @@ export function TimelineSummary() {
     name: 'Editing Hooks',
     title: 'Editing Hooks',
     description:
-      'Hooks for edit modes, typed commands, previews, range edits, selection, clipboard, and history.',
+      'Hooks for typed commands, previews, range edits, selection, clipboard, and history.',
     demo: editingHooksDemo,
     sourceTitle: 'EditActions.tsx',
     usageCode: `import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import {
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineClipboard,
   useTimelineEditCommands,
   useTimelineEditImpacts,
-  useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineHistory,
   useTimelineRangeSelection,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
 export function EditActions() {
-  const { selectedClip } = useTimelineClips();
+  const { selectedClip } = useTimelineSelection();
   const { copySelection } = useTimelineClipboard();
-  const editMode = useTimelineEditMode();
   const editCommands = useTimelineEditCommands();
   const editPreview = useTimelineEditPreview();
   const editImpacts = useTimelineEditImpacts();
@@ -343,7 +341,6 @@ export function EditActions() {
   return (
     <>
       {editPreview.previewing && <span>{editImpacts.impacts.length} clips affected</span>}
-      <button onClick={() => editMode.setMode('trim')}>Trim</button>
       <button disabled={!selectedClip} onClick={copySelection}>Copy</button>
       <button
         disabled={!selectedClip}
@@ -1251,9 +1248,9 @@ export function TimelineViewportScrollbar() {
         apiSlug: 'viewport-scrollbar-handle-props',
       },
       {
-        name: 'useTimelineViewportScrollbar',
+        name: 'useTimelineViewportRangeControl',
         description: 'Hook that derives range scrollbar props from timeline viewport state.',
-        apiSlug: 'use-timeline-viewport-scrollbar',
+        apiSlug: 'use-timeline-viewport-range-control',
       },
     ],
     props: [
@@ -1341,14 +1338,9 @@ export function TimelineVerticalScrollbar() {
         apiSlug: 'vertical-scrollbar-handle-props',
       },
       {
-        name: 'useTimelineVerticalScrollbar',
+        name: 'useTimelineVerticalRangeControl',
         description:
           'Hook that derives range scrollbar props from vertical timeline viewport state.',
-        apiSlug: 'use-timeline-vertical-scrollbar',
-      },
-      {
-        name: 'useTimelineVerticalRangeControl',
-        description: 'Adds formatted ARIA values to the vertical scrollbar adapter.',
         apiSlug: 'use-timeline-vertical-range-control',
       },
       {

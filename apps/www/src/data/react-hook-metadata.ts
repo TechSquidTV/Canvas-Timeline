@@ -89,7 +89,7 @@ export const timelineHookMetadata = [
     name: 'useTimelineViewport',
     group: 'timeline-state',
     category: 'viewport',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description: 'Returns canonical viewport metrics and setters for custom chrome.',
   },
   {
@@ -103,7 +103,7 @@ export const timelineHookMetadata = [
     name: 'useTimelineClipRects',
     group: 'timeline-state',
     category: 'geometry',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description:
       'Returns viewport-space clip rectangles for inspectors, minimaps, and custom renderers.',
   },
@@ -111,7 +111,7 @@ export const timelineHookMetadata = [
     name: 'useTimelineKeyframes',
     group: 'timeline-state',
     category: 'keyframe-editing',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description:
       'Reads clip keyframes, viewport geometry, evaluation helpers, and keyframe commands.',
   },
@@ -119,21 +119,21 @@ export const timelineHookMetadata = [
     name: 'useTimelineKeyframeSegments',
     group: 'timeline-state',
     category: 'keyframe-editing',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description: 'Reads keyframe segment geometry, Bezier tangent handles, and side commands.',
   },
   {
     name: 'useTimelineVisibleClips',
     group: 'timeline-state',
     category: 'geometry',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description: 'Returns viewport-intersecting clips with clipped timeline and source ranges.',
   },
   {
     name: 'useTimelineRulerTicks',
     group: 'timeline-state',
     category: 'geometry',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description: 'Returns shared ruler tick positions and labels for custom ruler surfaces.',
   },
   {
@@ -161,8 +161,8 @@ export const timelineHookMetadata = [
     name: 'useTimelineTimePosition',
     group: 'timeline-state',
     category: 'geometry',
-    reactivity: 'adapter',
-    description: 'Projects a timeline time into viewport x-position and formatted labels.',
+    reactivity: 'imperative',
+    description: 'Updates a DOM element transform imperatively from timeline time.',
   },
   {
     name: 'useTimelineClips',
@@ -170,7 +170,7 @@ export const timelineHookMetadata = [
     category: 'clip-editing',
     reactivity: 'snapshot',
     description:
-      'Reads timeline clips, selection metadata, lookup helpers, and presentation updates.',
+      'Reads clip collection state, edit capabilities, lookup helpers, and presentation updates.',
   },
   {
     name: 'useTimelineClipGroups',
@@ -178,13 +178,6 @@ export const timelineHookMetadata = [
     category: 'clip-editing',
     reactivity: 'snapshot',
     description: 'Reads clip groups and exposes group management commands.',
-  },
-  {
-    name: 'useTimelineEditMode',
-    group: 'editing-hooks',
-    category: 'clip-editing',
-    reactivity: 'adapter',
-    description: 'Owns local edit-mode state for product toolbar chrome.',
   },
   {
     name: 'useTimelineEditCommands',
@@ -310,7 +303,7 @@ export const timelineHookMetadata = [
     name: 'useTimelineTrackDropTargets',
     group: 'editing-hooks',
     category: 'drag-drop',
-    reactivity: 'snapshot',
+    reactivity: 'live',
     description: 'Exposes track row drop targets and default same-kind track compatibility.',
   },
   {
@@ -384,25 +377,11 @@ export const timelineHookMetadata = [
     description: 'Adds formatted ARIA values to the lightweight viewport range scrollbar adapter.',
   },
   {
-    name: 'useTimelineViewportScrollbar',
-    group: 'accessible-controls',
-    category: 'control-adapter',
-    reactivity: 'adapter',
-    description: 'Derives generic range scrollbar props from timeline viewport state.',
-  },
-  {
     name: 'useTimelineVerticalRangeControl',
     group: 'accessible-controls',
     category: 'control-adapter',
     reactivity: 'adapter',
     description: 'Adds formatted ARIA values to the vertical track-stack scrollbar adapter.',
-  },
-  {
-    name: 'useTimelineVerticalScrollbar',
-    group: 'accessible-controls',
-    category: 'control-adapter',
-    reactivity: 'adapter',
-    description: 'Derives generic range scrollbar props from vertical track viewport state.',
   },
   {
     name: 'useTimelineZoomControl',

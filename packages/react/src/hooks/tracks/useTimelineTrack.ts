@@ -55,22 +55,22 @@ export interface UseTimelineTrackResult {
   collapsed: boolean;
   /** Selects this track. */
   selectTrack: () => TimelineCommandResult;
-  /** Sets or toggles this track's output visibility. */
-  toggleVisibility: (visible?: boolean) => TimelineCommandResult;
+  /** Toggles this track's output visibility. */
+  toggleVisibility: () => TimelineCommandResult;
   /** Sets this track's output visibility. */
   setVisible: (visible: boolean) => TimelineCommandResult;
-  /** Sets or toggles this track's muted state. */
-  toggleMute: (muted?: boolean) => TimelineCommandResult;
+  /** Toggles this track's muted state. */
+  toggleMute: () => TimelineCommandResult;
   /** Sets this track's muted state. */
   setMuted: (muted: boolean) => TimelineCommandResult;
-  /** Sets or toggles this track's locked state. */
-  toggleLock: (locked?: boolean) => TimelineCommandResult;
+  /** Toggles this track's locked state. */
+  toggleLock: () => TimelineCommandResult;
   /** Sets this track's locked state. */
   setLocked: (locked: boolean) => TimelineCommandResult;
   /** Sets this track's expanded display height in pixels. */
   setTrackHeight: (height: number) => TimelineCommandResult;
-  /** Sets or toggles this track's edit-targeted state. */
-  toggleTrackTarget: (targeted?: boolean) => TimelineCommandResult;
+  /** Toggles this track's edit-targeted state. */
+  toggleTrackTarget: () => TimelineCommandResult;
   /** Sets this track's edit-targeted state. */
   setTrackTarget: (targeted: boolean) => TimelineCommandResult;
   /** Assigns this track to a group, or clears its group. */
@@ -130,32 +130,26 @@ export function useTimelineTrack(
   const selectTrack = useCallback(() => tracksState.selectTrack(trackId), [trackId, tracksState]);
 
   const toggleVisibility = useCallback(
-    (visible?: boolean) => tracksState.toggleVisibility(trackId, visible),
+    () => tracksState.toggleVisibility(trackId),
     [trackId, tracksState]
   );
 
   const setVisible = useCallback(
-    (visible: boolean) => tracksState.toggleVisibility(trackId, visible),
+    (visible: boolean) => tracksState.setVisible(trackId, visible),
     [trackId, tracksState]
   );
 
-  const toggleMute = useCallback(
-    (muted?: boolean) => tracksState.toggleMute(trackId, muted),
-    [trackId, tracksState]
-  );
+  const toggleMute = useCallback(() => tracksState.toggleMute(trackId), [trackId, tracksState]);
 
   const setMuted = useCallback(
-    (muted: boolean) => tracksState.toggleMute(trackId, muted),
+    (muted: boolean) => tracksState.setMuted(trackId, muted),
     [trackId, tracksState]
   );
 
-  const toggleLock = useCallback(
-    (locked?: boolean) => tracksState.toggleLock(trackId, locked),
-    [trackId, tracksState]
-  );
+  const toggleLock = useCallback(() => tracksState.toggleLock(trackId), [trackId, tracksState]);
 
   const setLocked = useCallback(
-    (locked: boolean) => tracksState.toggleLock(trackId, locked),
+    (locked: boolean) => tracksState.setLocked(trackId, locked),
     [trackId, tracksState]
   );
 
@@ -165,12 +159,12 @@ export function useTimelineTrack(
   );
 
   const toggleTrackTarget = useCallback(
-    (targeted?: boolean) => tracksState.toggleTrackTarget(trackId, targeted),
+    () => tracksState.toggleTrackTarget(trackId),
     [trackId, tracksState]
   );
 
   const setTrackTarget = useCallback(
-    (targeted: boolean) => tracksState.toggleTrackTarget(trackId, targeted),
+    (targeted: boolean) => tracksState.setTrackTarget(trackId, targeted),
     [trackId, tracksState]
   );
 

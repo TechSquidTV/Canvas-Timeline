@@ -6,7 +6,7 @@ import {
   type RangeScrollbarThumbProps,
 } from '#react/rangeScrollbar';
 import { useTimelineViewportRangeControl } from '#react/hooks';
-import type { UseTimelineViewportScrollbarOptions } from '#react/hooks';
+import type { TimelineViewportRangeControlOptions } from '#react/hooks';
 
 /**
  * Props for the timeline viewport scrollbar root.
@@ -14,7 +14,7 @@ import type { UseTimelineViewportScrollbarOptions } from '#react/hooks';
 export interface ViewportScrollbarRootProps
   extends
     Omit<RangeScrollbarRootProps, 'max' | 'min' | 'minSpan' | 'onValueChange' | 'value'>,
-    UseTimelineViewportScrollbarOptions {}
+    TimelineViewportRangeControlOptions {}
 
 /**
  * Props for the timeline viewport scrollbar thumb.
@@ -43,8 +43,8 @@ export type ViewportScrollbarHandleProps = RangeScrollbarHandleProps;
  * ```
  */
 export const ViewportScrollbarRoot = React.forwardRef<HTMLDivElement, ViewportScrollbarRootProps>(
-  ({ children, className = '', minSpan, ...props }, ref) => {
-    const viewportScrollbar = useTimelineViewportRangeControl({ minSpan });
+  ({ children, className = '', minSpan, precision, ...props }, ref) => {
+    const viewportScrollbar = useTimelineViewportRangeControl({ minSpan, precision });
 
     return (
       <RangeScrollbar.Root

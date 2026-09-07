@@ -1,45 +1,212 @@
-import { useMemo } from 'react';
-import {
-  useTimelineVerticalScrollbar,
-  type UseTimelineVerticalScrollbarResult,
-} from '#react/hooks/viewport/useTimelineVerticalScrollbar';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
+import { useRangeScrollbar } from '#react/rangeScrollbar';
+import type {
+  RangeScrollbarHandleSide,
+  RangeScrollbarRootProps,
+  RangeScrollbarValue,
+  RangeScrollbarValueChangeDetails,
+  UseRangeScrollbarResult,
+} from '#react/rangeScrollbar';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineTrackHeightUpdate } from '@techsquidtv/canvas-timeline-core';
+import { clamp } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo, useRef } from 'react';
+const KEYBOARD_NUDGE_PX = 40;
+const KEYBOARD_PAGE_NUDGE_RATIO = 0.8;
+const MIN_VERTICAL_TRACK_HEIGHT = defaultTimelineInteractionGeometry.collapsedTrackHeight;
+const MAX_VERTICAL_TRACK_HEIGHT = defaultTimelineInteractionGeometry.trackHeight * 4;
 
 function formatPixels(value: number) {
   return `${Math.round(value)} pixels`;
 }
 
-/** State and formatted accessibility props for a vertical timeline scrollbar. */
-export interface UseTimelineVerticalRangeControlResult extends UseTimelineVerticalScrollbarResult {
-  /** Formatted visible vertical range for assistive technology. */
-  valueText: string;
-  /** Formatted visible vertical range start. */
-  startValueText: string;
-  /** Formatted visible vertical range end. */
-  endValueText: string;
+interface VerticalZoomDragSession {
+  id: number;
+  side: RangeScrollbarHandleSide;
+  startValue: RangeScrollbarValue;
+  trackHeights: Map<string, number>;
 }
 
 /**
- * Adds formatted accessibility values to the vertical timeline scrollbar adapter.
+ * Controlled props required by `RangeScrollbar.Root` for vertical timeline scrolling.
+ */
+export type TimelineVerticalRangeControlRootProps = Pick<
+  RangeScrollbarRootProps,
+  | 'keyboardPageStep'
+  | 'keyboardStep'
+  | 'max'
+  | 'min'
+  | 'minSpan'
+  | 'onValueChange'
+  | 'orientation'
+  | 'value'
+> &
+  Required<Pick<RangeScrollbarRootProps, 'getAriaValueText'>>;
+
+/**
+ * State and control props for rendering a vertical timeline scrollbar.
+ */
+export interface UseTimelineVerticalRangeControlResult {
+  /** Formatted visible vertical range and height. */
+  valueText: string;
+  /** Formatted visible top offset. */
+  startValueText: string;
+  /** Formatted visible bottom offset. */
+  endValueText: string;
+  /** Generic range scrollbar state derived from vertical timeline viewport state. */
+  range: UseRangeScrollbarResult;
+  /** Props that wire `RangeScrollbar.Root` to timeline vertical scroll state. */
+  rootProps: TimelineVerticalRangeControlRootProps;
+  /** Full vertical track stack height represented by the scrollbar domain, in pixels. */
+  contentHeight: number;
+  /** Visible viewport top offset in pixels. */
+  viewStartPixels: number;
+  /** Visible viewport bottom offset in pixels. */
+  viewEndPixels: number;
+  /** Visible viewport height in pixels. */
+  viewHeight: number;
+  /** Current vertical timeline scroll offset in pixels. */
+  scrollTop: number;
+  /** Maximum vertical timeline scroll offset in pixels. */
+  maxScrollTop: number;
+  /** Handles controlled range changes by panning or vertically zooming track rows. */
+  onValueChange: (value: RangeScrollbarValue, details: RangeScrollbarValueChangeDetails) => void;
+}
+
+/**
+ * Adapts generic range scrollbar state to the timeline's vertical track viewport.
  *
- * @returns Timeline vertical metrics and `RangeScrollbar.Root` props with formatted value text.
+ * The hook derives a controlled `{ start, end }` value from `scrollTop`,
+ * `viewportHeight`, and track-stack bounds. Thumb changes pan the engine-owned
+ * vertical scroll position so canvas rows and external DOM chrome can stay in sync.
+ * Handle changes scale expanded track heights, giving the range handles a
+ * vertical zoom behavior that matches the horizontal viewport scrollbar's shape.
+ *
+ * @returns Timeline vertical metrics plus `RangeScrollbar.Root` control props.
  */
 export function useTimelineVerticalRangeControl(): UseTimelineVerticalRangeControlResult {
-  const viewport = useTimelineVerticalScrollbar();
-
-  return useMemo(() => {
-    const valueText = `${formatPixels(viewport.viewStartPixels)} to ${formatPixels(
-      viewport.viewEndPixels
-    )}, height ${formatPixels(viewport.viewHeight)}`;
+  const engine = useTimelineEngine();
+  const viewport = useTimelineViewport();
+  const zoomDragSessionRef = useRef<VerticalZoomDragSession | null>(null);
+  const metrics = useMemo(() => {
+    const viewHeight = viewport.viewportHeight;
+    const contentHeight = Math.max(viewHeight, viewport.maxScrollTop + viewHeight);
+    const viewStartPixels = Math.min(viewport.scrollTop, viewport.maxScrollTop);
+    const viewEndPixels = Math.min(contentHeight, viewStartPixels + viewHeight);
+    const value = { start: viewStartPixels, end: viewEndPixels };
+    const minSpan = Math.min(viewHeight, defaultTimelineInteractionGeometry.trackHeight);
 
     return {
-      ...viewport,
-      valueText,
-      startValueText: formatPixels(viewport.viewStartPixels),
-      endValueText: formatPixels(viewport.viewEndPixels),
-      rootProps: {
-        ...viewport.rootProps,
-        getAriaValueText: (value: number) => formatPixels(value),
-      },
+      contentHeight,
+      maxScrollTop: viewport.maxScrollTop,
+      minSpan,
+      scrollTop: viewport.scrollTop,
+      value,
+      viewEndPixels,
+      viewHeight,
+      viewStartPixels,
     };
-  }, [viewport]);
+  }, [viewport.maxScrollTop, viewport.scrollTop, viewport.viewportHeight]);
+
+  const onValueChange = useCallback(
+    (nextValue: RangeScrollbarValue, details: RangeScrollbarValueChangeDetails) => {
+      if (details.reason !== 'handle-drag' && details.reason !== 'handle-keyboard') {
+        zoomDragSessionRef.current = null;
+        engine.setScrollTop(nextValue.start);
+        return;
+      }
+
+      const dragSession =
+        details.reason === 'handle-drag' && details.dragSessionId !== undefined
+          ? zoomDragSessionRef.current?.id === details.dragSessionId &&
+            zoomDragSessionRef.current.side === details.side
+            ? zoomDragSessionRef.current
+            : {
+                id: details.dragSessionId,
+                side: details.side ?? 'end',
+                startValue: details.dragStartValue ?? metrics.value,
+                trackHeights: new Map(
+                  engine.tracks.map((track) => [
+                    track.id,
+                    track.height ?? defaultTimelineInteractionGeometry.trackHeight,
+                  ])
+                ),
+              }
+          : null;
+
+      if (dragSession) {
+        zoomDragSessionRef.current = dragSession;
+      }
+
+      const startValue = dragSession?.startValue ?? metrics.value;
+      const currentSpan = Math.max(metrics.minSpan, startValue.end - startValue.start);
+      const nextSpan = Math.max(metrics.minSpan, nextValue.end - nextValue.start);
+      const scaleFactor = currentSpan / nextSpan;
+      const nextScrollTop =
+        details.side === 'start'
+          ? nextValue.end * scaleFactor - metrics.viewHeight
+          : nextValue.start * scaleFactor;
+
+      if (Number.isFinite(scaleFactor) && Math.abs(scaleFactor - 1) > 0.001) {
+        const heightUpdates: TimelineTrackHeightUpdate[] = [];
+        for (const track of engine.tracks) {
+          if (track.collapsed) {
+            continue;
+          }
+
+          const currentHeight =
+            dragSession?.trackHeights.get(track.id) ??
+            track.height ??
+            defaultTimelineInteractionGeometry.trackHeight;
+          const nextHeight = clamp(
+            Math.round(currentHeight * scaleFactor),
+            MIN_VERTICAL_TRACK_HEIGHT,
+            MAX_VERTICAL_TRACK_HEIGHT
+          );
+          heightUpdates.push({ trackId: track.id, height: nextHeight });
+        }
+        engine.setTrackHeights(heightUpdates, { scrollTop: nextScrollTop });
+        return;
+      }
+
+      engine.setScrollTop(nextScrollTop);
+    },
+    [engine, metrics.minSpan, metrics.value, metrics.viewHeight]
+  );
+
+  const range = useRangeScrollbar({
+    min: 0,
+    max: metrics.contentHeight,
+    value: metrics.value,
+    minSpan: metrics.minSpan,
+    onValueChange,
+  });
+
+  const valueText = `${formatPixels(metrics.viewStartPixels)} to ${formatPixels(metrics.viewEndPixels)}, height ${formatPixels(metrics.viewHeight)}`;
+  return {
+    valueText,
+    startValueText: formatPixels(metrics.viewStartPixels),
+    endValueText: formatPixels(metrics.viewEndPixels),
+    range,
+    rootProps: {
+      getAriaValueText: (value, details) =>
+        details.part === 'thumb' ? valueText : formatPixels(value),
+      min: 0,
+      max: metrics.contentHeight,
+      value: metrics.value,
+      minSpan: metrics.minSpan,
+      orientation: 'vertical',
+      keyboardStep: KEYBOARD_NUDGE_PX,
+      keyboardPageStep: metrics.viewHeight * KEYBOARD_PAGE_NUDGE_RATIO,
+      onValueChange,
+    },
+    contentHeight: metrics.contentHeight,
+    viewStartPixels: metrics.viewStartPixels,
+    viewEndPixels: metrics.viewEndPixels,
+    viewHeight: metrics.viewHeight,
+    scrollTop: metrics.scrollTop,
+    maxScrollTop: metrics.maxScrollTop,
+    onValueChange,
+  };
 }

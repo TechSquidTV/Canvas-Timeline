@@ -1,3 +1,4 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
@@ -7,16 +8,11 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import { useCallback } from 'react';
 /** Result returned by `useTimelineClipGroups`. */
 export interface UseTimelineClipGroupsResult {
   /** Current clip groups. */
   groups: readonly TimelineReadonly<TimelineClipGroup>[];
-  /** Selected clip group, or null when the primary selected clip is ungrouped. */
-  selectedGroup: TimelineReadonly<TimelineClipGroup> | null;
-  /** Selected clip group id, or null when the primary selected clip is ungrouped. */
-  selectedGroupId: string | null;
   /** Returns one clip group by id. */
   getClipGroup: (groupId: string) => TimelineClipGroup | undefined;
   /** Returns the clip group containing a clip. */
@@ -42,7 +38,6 @@ export interface UseTimelineClipGroupsResult {
 export function useTimelineClipGroups(): UseTimelineClipGroupsResult {
   const engine = useTimelineEngine();
   const state = useTimelineSelector((state) => ({ clipGroups: state.clipGroups }));
-  const { selectedClipIds, selectedGroup, selectedGroupId } = useTimelineSelection();
   const groups = state.clipGroups;
 
   const getClipGroup = useCallback((groupId: string) => engine.getClipGroup(groupId), [engine]);
@@ -56,31 +51,39 @@ export function useTimelineClipGroups(): UseTimelineClipGroupsResult {
   );
 
   const groupClips = useCallback(
-    (clipIds: readonly string[], label?: string) => {
-      const group = engine.createClipGroup({ clipIds, ...(label !== undefined ? { label } : {}) });
-      return group === null
-        ? timelineCommandFail<TimelineClipGroup>('invalid-range')
-        : timelineCommandOk(group);
-    },
+    (clipIds: readonly string[], label?: string) =>
+      runTimelineCommand(() => {
+        const group = engine.createClipGroup({
+          clipIds,
+          ...(label !== undefined ? { label } : {}),
+        });
+        return group === null
+          ? timelineCommandFail<TimelineClipGroup>('invalid-range')
+          : timelineCommandOk(group);
+      }),
     [engine]
   );
 
   const ungroupClipGroup = useCallback(
     (groupId: string) =>
-      engine.ungroupClipGroup(groupId) ? timelineCommandOk() : timelineCommandFail('not-found'),
+      runTimelineCommand(() =>
+        engine.ungroupClipGroup(groupId) ? timelineCommandOk() : timelineCommandFail('not-found')
+      ),
     [engine]
   );
 
-  const ungroupSelectedClips = useCallback(() => {
-    return engine.ungroupClips(selectedClipIds)
-      ? timelineCommandOk()
-      : timelineCommandFail('not-found');
-  }, [engine, selectedClipIds]);
+  const ungroupSelectedClips = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        return engine.ungroupClips(engine.getSelectedClipIds())
+          ? timelineCommandOk()
+          : timelineCommandFail('not-found');
+      }),
+    [engine]
+  );
 
   return {
     groups,
-    selectedGroup,
-    selectedGroupId,
     getClipGroup,
     getClipGroupForClip,
     getClipGroupClips,
