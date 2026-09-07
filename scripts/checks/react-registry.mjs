@@ -16,7 +16,6 @@ const internalHookAllowlist = new Set([
   'useTimelineExternalStore',
   'useTimelineGeometryRevision',
   'useTimelineViewportBounds',
-  'useTimelineTrackCommands',
   'useTimelineTrackGeometry',
   'useTimelineMediaPlaybackInternal',
   'useTimelineMediaSyncInternal',

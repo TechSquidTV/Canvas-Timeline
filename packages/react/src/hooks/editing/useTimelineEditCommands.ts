@@ -70,6 +70,10 @@ export interface UseTimelineEditCommandsResult {
   splitSelectedClipsAtTime: (time: RationalTime) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits a delete command for one clip and any linked group members. */
   deleteClip: (clipId: string) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Deletes multiple clips and linked group members atomically as one history entry. */
+  deleteClips: (clipIds: readonly string[]) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Deletes the current selection, including linked group members. */
+  deleteSelectedClips: () => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits an insert command. */
   insertClip: (
     command: Omit<TimelineInsertEditCommand, 'type'>
@@ -161,6 +165,9 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       splitSelectedClipsAtTime: (time: RationalTime) =>
         commitEdit({ type: 'split', clipIds: engine.getSelectedClipIds(), time }),
       deleteClip: (clipId: string) => commitEdit({ type: 'delete-clips', clipIds: [clipId] }),
+      deleteClips: (clipIds: readonly string[]) => commitEdit({ type: 'delete-clips', clipIds }),
+      deleteSelectedClips: () =>
+        commitEdit({ type: 'delete-clips', clipIds: engine.getSelectedClipIds() }),
       insertClip: (command: {
         clip: Clip;
         targetTrackId: string;
