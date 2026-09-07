@@ -1,10 +1,9 @@
-import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult, PlaybackOptions } from '@techsquidtv/canvas-timeline-core';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import { addRational, fromSeconds, subRational } from '@techsquidtv/canvas-timeline-utils';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useCallback } from 'react';
+import { createTimelinePlaybackCommands } from '#react/hooks/playback/createTimelinePlaybackCommands';
+import { useMemo } from 'react';
 /** Result returned by `useTimelinePlayback`. */
 export interface UseTimelinePlaybackResult {
   /** Whether the timeline is currently playing. */
@@ -50,110 +49,9 @@ export function useTimelinePlayback(): UseTimelinePlaybackResult {
   const state = useTimelineSelector((state) => ({
     inPoint: state.inPoint,
     outPoint: state.outPoint,
-    playbackRate: state.playbackRate,
-    playing: state.playing,
-  }));
-
-  const play = useCallback(
-    (options?: PlaybackOptions) => {
-      if (engine.getState().playing) {
-        return timelineCommandOk();
-      }
-
-      return engine.play(options) ? timelineCommandOk() : timelineCommandFail('unsupported');
-    },
-    [engine]
-  );
-
-  const pause = useCallback(() => {
-    engine.pause();
-    return timelineCommandOk();
-  }, [engine]);
-
-  const togglePlayback = useCallback(() => {
-    if (engine.getState().playing) {
-      engine.pause();
-      return timelineCommandOk();
-    }
-
-    if (engine.play()) {
-      return timelineCommandOk();
-    } else {
-      return timelineCommandFail('unsupported');
-    }
-  }, [engine]);
-
-  const setPlaybackRate = useCallback(
-    (rate: number) => {
-      engine.setPlaybackRate(rate);
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const setPlayheadTime = useCallback(
-    (time: RationalTime) => {
-      engine.updatePlayhead(time);
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const stepForward = useCallback(
-    (amountSeconds: number = 1) => {
-      engine.updatePlayhead(
-        addRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
-      );
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const stepBackward = useCallback(
-    (amountSeconds: number = 1) => {
-      engine.updatePlayhead(
-        subRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
-      );
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const setInPoint = useCallback(
-    (time?: RationalTime) => {
-      engine.setInPoint(time ?? engine.playheadTime);
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const setOutPoint = useCallback(
-    (time?: RationalTime) => {
-      engine.setOutPoint(time ?? engine.playheadTime);
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const clearInOutPoints = useCallback(() => {
-    engine.clearInOutPoints();
-    return timelineCommandOk();
-  }, [engine]);
-
-  return {
-    playing: state.playing ?? false,
     playbackRate: state.playbackRate ?? 1,
-    inPoint: state.inPoint,
-    outPoint: state.outPoint,
-    play,
-    pause,
-    togglePlayback,
-    setPlaybackRate,
-    setPlayheadTime,
-    stepForward,
-    stepBackward,
-    setInPoint,
-    setOutPoint,
-    clearInOutPoints,
-  };
+    playing: state.playing ?? false,
+  }));
+  const commands = useMemo(() => createTimelinePlaybackCommands(engine), [engine]);
+  return useMemo(() => ({ ...state, ...commands }), [state, commands]);
 }

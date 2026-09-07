@@ -140,3 +140,42 @@ describe('delegated keyframe editing', () => {
     expect(getByRole('group').getAttribute('aria-label')).toContain('0.5');
   });
 });
+
+it.each(['shiftKey', 'ctrlKey', 'metaKey'] as const)(
+  'supports %s held before dragging a selected key',
+  (modifier) => {
+    const engine = createKeyframeInteractionEngine();
+    engine.keyframes.selectKeyframes([{ clipId: 'clip', keyframeId: 'b' }]);
+    const { stage, getByRole } = renderKeyframeLayer(
+      engine,
+      <KeyframeInteractionLayer property="opacity" />
+    );
+    const layer = getByRole('group');
+    fireEvent.pointerDown(stage, { ...pointer(300, 56), [modifier]: true });
+    fireEvent.pointerMove(layer, { ...pointer(323, 52), [modifier]: true });
+    fireEvent.pointerUp(layer, { ...pointer(323, 52), [modifier]: true });
+    const key = engine.keyframes.getClipKeyframes('clip')[1];
+    expect(key.selected).toBe(true);
+    expect(toSeconds(key.time)).toBeCloseTo(modifier === 'shiftKey' ? 3.25 : 3.23, 5);
+    if (modifier === 'shiftKey') {
+      expect(key.value).toBe(0.5);
+    }
+    expect(engine.canUndo).toBe(true);
+  }
+);
+
+it('toggles a selected key on modifier click without committing pointer jitter', () => {
+  const engine = createKeyframeInteractionEngine();
+  engine.keyframes.selectKeyframes([{ clipId: 'clip', keyframeId: 'b' }]);
+  const { stage, getByRole } = renderKeyframeLayer(
+    engine,
+    <KeyframeInteractionLayer property="opacity" />
+  );
+  const layer = getByRole('group');
+  fireEvent.pointerDown(stage, { ...pointer(300, 56), shiftKey: true });
+  fireEvent.pointerMove(layer, { ...pointer(301, 57), shiftKey: true });
+  fireEvent.pointerUp(layer, { ...pointer(301, 57), shiftKey: true });
+  expect(engine.keyframes.getSelectedKeyframes()).toEqual([]);
+  expect(engine.keyframes.getClipKeyframes('clip')[1].time).toEqual(fromSeconds(3));
+  expect(engine.canUndo).toBe(false);
+});

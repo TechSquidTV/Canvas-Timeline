@@ -1,7 +1,10 @@
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback } from 'react';
+const historyEvents = ['history:change'] as const;
+
 /** Result returned by `useTimelineHistory`. */
 export interface UseTimelineHistoryResult {
   /** Whether an undo snapshot is available. */
@@ -21,6 +24,10 @@ export interface UseTimelineHistoryResult {
  */
 export function useTimelineHistory(): UseTimelineHistoryResult {
   const engine = useTimelineEngine();
+  const availability = useTimelineExternalStore(historyEvents, (engine) => ({
+    canUndo: engine.canUndo,
+    canRedo: engine.canRedo,
+  }));
 
   const undo = useCallback(() => {
     if (!engine.canUndo) {
@@ -39,8 +46,7 @@ export function useTimelineHistory(): UseTimelineHistoryResult {
   }, [engine]);
 
   return {
-    canUndo: engine.canUndo,
-    canRedo: engine.canRedo,
+    ...availability,
     undo,
     redo,
   };

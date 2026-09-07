@@ -1,7 +1,7 @@
 import {
   useTimeline,
   useTimelinePlayback,
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
   useTimelinePlayheadTime,
   TimecodeField,
@@ -41,7 +41,7 @@ function PlayheadTimecodeControl() {
 
 function CutSelectedClipButton() {
   const playheadTime = useTimelinePlayheadTime();
-  const { selectedClip } = useTimelineClips();
+  const { selectedClip } = useTimelineSelection();
   const { splitClip } = useTimelineEditCommands();
   const canCutSelectedClip =
     selectedClip !== null &&

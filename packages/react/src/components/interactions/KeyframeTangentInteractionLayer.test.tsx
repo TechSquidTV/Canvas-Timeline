@@ -1,3 +1,4 @@
+import { KeyframeInteractionLayer } from '#react/components/interactions/KeyframeInteractionLayer';
 import { KeyframeTangentInteractionLayer } from '#react/components/interactions/KeyframeTangentInteractionLayer';
 import {
   createKeyframeInteractionEngine,
@@ -73,4 +74,42 @@ describe('delegated tangent editing', () => {
     expect(engine.keyframes.getClipKeyframes('clip')[1].incoming?.handle?.x).toBeGreaterThan(0.7);
     expect(remove.mock.calls.filter((call) => call[0] === 'pointermove')).toHaveLength(1);
   });
+});
+
+it('gives tangents priority using their actual padding even when the point layer mounts first', () => {
+  const engine = createKeyframeInteractionEngine([
+    {
+      id: 'a',
+      property: 'opacity',
+      time: fromSeconds(1),
+      value: 0.5,
+      selected: true,
+      outgoing: { interpolation: 'bezier', handle: { x: 0.07, y: 0.5 } },
+    },
+    {
+      id: 'b',
+      property: 'opacity',
+      time: fromSeconds(5),
+      value: 0.5,
+      incoming: { interpolation: 'bezier', handle: { x: 0.7, y: 0.5 } },
+    },
+  ]);
+  const { stage, getByTestId } = renderKeyframeLayer(
+    engine,
+    <>
+      <KeyframeInteractionLayer property="opacity" hitPadding={30} />
+      <KeyframeTangentInteractionLayer property="opacity" hitPadding={20} data-testid="tangents" />
+    </>
+  );
+  const handle = engine.keyframes.getKeyframeSegments({ property: 'opacity' })[0].handles[0];
+  const layer = getByTestId('tangents');
+  fireEvent.pointerDown(stage, pointer(handle.point.x - 15, handle.point.y));
+  const bounds = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  bounds.mockClear();
+  fireEvent.pointerMove(layer, pointer(handle.point.x + 5, handle.point.y));
+  expect(bounds).not.toHaveBeenCalled();
+  fireEvent.pointerUp(layer, pointer(handle.point.x + 5, handle.point.y));
+  const key = engine.keyframes.getClipKeyframes('clip')[0];
+  expect(key.time).toEqual(fromSeconds(1));
+  expect(key.outgoing?.handle?.x).toBeGreaterThan(0.07);
 });

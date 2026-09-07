@@ -1,3 +1,4 @@
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import { getClipAccessibleDescription, getClipAccessibleName } from '#react/accessibility';
 import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 import { useTimelineClips } from '#react/hooks/clips/useTimelineClips';
@@ -153,7 +154,8 @@ export function useTimelineClipNavigation(options: TimelineClipNavigationOptions
   } = options;
   const engine = useTimelineEngine();
   const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
-  const { clips: clipEntries, selectedClipId } = useTimelineClips();
+  const { clips: clipEntries } = useTimelineClips();
+  const { selectedClipId } = useTimelineSelection();
   const { moveClip, trimClip } = useTimelineEditCommands();
   const { prepareSnapping, settle } = useTimelineSnapping();
   const clips = useMemo(

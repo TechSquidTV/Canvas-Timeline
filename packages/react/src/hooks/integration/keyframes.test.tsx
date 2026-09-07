@@ -701,3 +701,32 @@ test('group dragging preserves spacing across timebases with fine and axis contr
   ]);
   expect(engine.canUndo).toBe(false);
 });
+
+test('keyframe geometry stays cached for equal inline options and refreshes for changed options', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('track', [
+        createClip('clip', 0, 4, {
+          keyframes: [{ id: 'key', property: 'opacity', time: fromSeconds(1), value: 0.5 }],
+        }),
+      ]),
+    ],
+    keyframeProperties: [opacityKeyframeProperty],
+  });
+  const geometry = vi.spyOn(engine.keyframes, 'getKeyframeRects');
+  const { result, rerender } = renderHook(
+    ({ trackHeight }) => useTimelineKeyframeGeometry({ property: 'opacity', trackHeight }),
+    {
+      initialProps: { trackHeight: 48 },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+  const initial = result.current;
+  const count = geometry.mock.calls.length;
+  rerender({ trackHeight: 48 });
+  expect(result.current).toBe(initial);
+  expect(geometry).toHaveBeenCalledTimes(count);
+  rerender({ trackHeight: 100 });
+  expect(result.current).not.toBe(initial);
+  expect(result.current.keyframeRects[0].rect.y).not.toBe(initial.keyframeRects[0].rect.y);
+});

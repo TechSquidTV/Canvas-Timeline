@@ -50,7 +50,7 @@ Use the timeline hook registry groups as the source of truth:
 
 - **Timeline State**: engine context, state snapshots, active clips/layers,
   viewport data, ruler ticks, clip geometry, and visible clip queries.
-- **Editing Hooks**: edit mode, typed edit commands, shared edit previews,
+- **Editing Hooks**: typed edit commands, shared edit previews,
   range selection, clip, clip group, track, marker, selection, clipboard,
   history, track header, edit consequences, existing-clip drag/drop, and
   app-owned media drops onto the timeline.
@@ -62,15 +62,22 @@ Use the timeline hook registry groups as the source of truth:
 Start with the narrowest hook that matches the component. Toolbar buttons that
 mutate timeline structure should use command hooks such as
 `useTimelineEditCommands()`; toolbar state can compose snapshot hooks such as
-`useTimelinePlayback()` or `useTimelineClips()`. Readouts that must follow
+`useTimelinePlayback()` or `useTimelineSelection()`. Readouts that must follow
 scrubbing or playback should use focused live hooks such as
 `useTimelinePlayheadTime()`, `useActiveMarkers()`, or
 `useTimelineClipDropFeedback()`. Use `useTimeline()` directly only when a
 component needs both the shared engine and the synchronized state snapshot.
 
-Mutating hook commands return `TimelineCommandResult`, so custom controls can
+Edit command hooks read the current engine state when invoked, including commands issued
+consecutively in one event handler. History availability and viewport bounds have
+focused subscriptions: changing content or zoom limits updates controls even when
+the current scroll or zoom value does not change.
+
+Mutating domain commands return `TimelineCommandResult`, so custom controls can
 branch on `ok` and machine-readable failure reasons without reading private
-engine state.
+engine state. Expected input validation errors return `invalid-input`; unexpected
+programming errors still propagate. Control callbacks such as `onValueChange`
+remain void UI callbacks, and media startup/rate commands remain asynchronous.
 
 ## Custom ruler surfaces
 
@@ -107,31 +114,30 @@ split, range, history, and event consequences.
 
 Compose the focused hooks around it:
 
-- `useTimelineEditMode()` stores the selected tool or edit intent for toolbar
-  chrome without mutating engine state.
+- Keep toolbar tool selection in application state with React `useState`.
 - `useTimelineEditPreview()` subscribes to command preview validity and command
   state.
 - `useTimelineEditImpacts()` subscribes to affected-clip consequences for live
   guides, renderer overlays, and drag-time affordances.
 - `useTimelineRangeSelection()` adapts In/Out points to `delete-range` and
-  `lift-range` commands.
+  `lift-range` commands. Its `setRange()` replaces both boundaries atomically;
+  Core consumers can call `engine.setInOutRange(startTime, endTime)`. Invalid
+  ranges return a command failure without changing either boundary.
 - `useTimelineClipGroups()` reads timeline clip groups and exposes group,
   ungroup, and selected-group commands for editor chrome.
 
 ```tsx
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import {
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
   useTimelineEditImpacts,
-  useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineRangeSelection,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
 function EditToolbar() {
-  const { selectedClip } = useTimelineClips();
-  const { mode, setMode } = useTimelineEditMode();
+  const { selectedClip } = useTimelineSelection();
   const editCommands = useTimelineEditCommands();
   const editPreview = useTimelineEditPreview();
   const editImpacts = useTimelineEditImpacts();
@@ -139,9 +145,6 @@ function EditToolbar() {
 
   return (
     <>
-      <button aria-pressed={mode === 'trim'} onClick={() => setMode('trim')}>
-        Trim
-      </button>
       <button
         disabled={!selectedClip}
         onClick={() =>
@@ -221,9 +224,9 @@ Use control adapters when composing semantic UI:
 - `useTimelinePlayheadControl()`, `useTimelineInOutRangeControl()`,
   `useTimelineZoomControl()`, and `useTimelinePanControl()` return
   Base UI-compatible props and formatted value text.
-- `useTimelineViewportScrollbar()` and `useTimelineViewportRangeControl()` adapt
+- `useTimelineViewportRangeControl()` adapts
   viewport state to generic range scrollbar primitives.
-- `useTimelineVerticalScrollbar()` and `useTimelineVerticalRangeControl()` adapt
+- `useTimelineVerticalRangeControl()` adapts
   track-stack scroll state to the same primitives.
 - `useTimelineClipNavigation()` exposes one active canvas clip at a time instead
   of requiring one DOM node per clip.
@@ -278,3 +281,74 @@ platform-specific preset bindings.
   source registries, and external-clock transport.
 - [Canvas renderer customization](/docs/renderer-customization) for custom
   drawing layers, renderer theme options, and canvas overlays.
+
+### Track organization and bulk deletion
+
+Use `useTimelineTrackCommands()` for menus that only issue commands. It does not subscribe to document or viewport changes. `useTimelineTracks()` adds collection state; `useTimelineTrack(id)` adds one row's state and geometry.
+
+```tsx
+const tracks = useTimelineTrackCommands();
+tracks.renameTrack('audio', 'Dialogue');
+tracks.moveTrack('audio', 0); // Final zero-based row index.
+tracks.setCollapsed('audio', true); // Preserves expanded height and media visibility.
+tracks.toggleCollapse('audio');
+
+const edits = useTimelineEditCommands();
+edits.deleteClips(['clip-a', 'clip-b']);
+edits.deleteSelectedClips(); // Reads selection when invoked.
+```
+
+Rename, reorder, and collapse each create one undo step. Unchanged values create none. Bulk deletion includes linked clip groups and validates all affected tracks before mutation; a locked track rejects the entire operation. Subscribe to `useTimelineSelection()` separately for button availability.
+
+### Headless clip trimming
+
+`useTimelineClipTrim()` provides `startClipTrim`, `moveClipTrim`, `endClipTrim`, and `cancelClipTrim`. It captures the clip edge and zoom once, previews through Core without mutating the document, and revalidates the final edit before committing one history step. It cancels its preview on unmount and preserves previews replaced by another interaction. The packaged `Timeline.ClipInteractionLayer` uses this same hook.
+
+```tsx
+const trim = useTimelineClipTrim();
+
+<button
+  aria-label="Trim clip end"
+  onPointerDown={(event) => {
+    const started = trim.startClipTrim({ clipId, edge: 'end', clientX: event.clientX });
+    if (started.ok) event.currentTarget.setPointerCapture(event.pointerId);
+  }}
+  onPointerMove={(event) => {
+    trim.moveClipTrim({ clientX: event.clientX });
+  }}
+  onPointerUp={() => {
+    trim.endClipTrim();
+  }}
+  onPointerCancel={() => {
+    trim.cancelClipTrim();
+  }}
+  onLostPointerCapture={() => {
+    trim.cancelClipTrim();
+  }}
+/>;
+```
+
+Keep touch drag handles at `touch-action: none`. Use `useTimelineEditPreview()` for live preview details. `trimming` only changes at lifecycle boundaries; pointer moves do not cause this hook to rerender. For programmatic edits without a gesture, use `useTimelineEditCommands().trimClip()`.
+
+### Keyboard command composition
+
+`useTimelineKeyboard()` and `Timeline.KeyboardScope` accept `commandHandlers` to replace individual command implementations. Unspecified commands retain the preset behavior. Commands read current engine state without subscribing to timeline updates.
+
+```tsx
+<Timeline.KeyboardScope
+  frameRate={24}
+  commandHandlers={{
+    togglePlayback: () => (media.playing ? media.pause() : media.play()),
+  }}
+  onCommandResult={(command, result) => {
+    if (result && !result.ok) showStatus(command, result.message);
+  }}
+  onCommandError={(error) => showError(error.message)}
+>
+  {/* Focusable timeline surface */}
+</Timeline.KeyboardScope>
+```
+
+Use the transport returned by `useTimelineMediaSync()` or an adapter hook for media-aware playback. Async handlers preserve their pending operation and structured media result; repeated Space keydown events are ignored. Handlers may also return `void` when the app owns status reporting. Unexpected errors go to `onCommandError`, or browser error reporting when omitted.
+
+The hook's `executeCommand(command)` uses the same implementations and returns their result or promise for custom menus. It does not apply keyboard focus rules or invoke the keyboard result/error callbacks; the caller handles that result. Native inputs, buttons, and other interactive controls retain their own shortcuts.

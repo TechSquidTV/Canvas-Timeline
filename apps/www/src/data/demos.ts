@@ -133,7 +133,7 @@ export const demoDocs: DemoDoc[] = [
     slug: 'timeline-editor-controls',
     title: 'Timeline Editor Controls',
     description:
-      'A timeline with a complete playback control bar, demonstrating play/pause transport controls, editable playhead timecode, loop range boundaries (in/out markers), snapping toggle, and zooming/panning sliders.',
+      'A timeline with playback controls, editable timecode, in/out loop boundaries, snapping, markers, clip splitting, resizable track headers, and scrollbars for zooming and panning.',
     status: 'Controls',
     difficulty: 'Beginner',
     packageFocus: [

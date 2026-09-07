@@ -4,7 +4,7 @@ import { demoTracks, opacityClipId } from '#www/demos/keyframe-opacity/timeline-
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { expect, it } from 'vite-plus/test';
 
 function setup() {
@@ -55,3 +55,36 @@ it('edits exact timecode, rejects collisions, and changes the lane height', () =
   fireEvent.click(getByRole('button', { name: 'Collapse curve lane' }));
   expect(engine.tracks[0].height).toBe(64);
 });
+
+it.each(['change', 'pointerUp', 'Escape', 'unmount'] as const)(
+  'leaves a replacement keyframe preview intact on slider %s',
+  (action) => {
+    const { engine, getByRole, unmount } = setup();
+    const slider = getByRole('slider', { name: 'Opacity' });
+    fireEvent.change(slider, { target: { value: '0.6' } });
+    let preview = engine.getEditPreview();
+    act(() => {
+      preview = engine.previewEdit({
+        type: 'keyframes',
+        edits: [{ type: 'update', clipId: opacityClipId, keyframeId: 'opacity-kf-1', value: 0.9 }],
+      });
+    });
+    if (action === 'change') {
+      fireEvent.change(slider, { target: { value: '0.7' } });
+    }
+    if (action === 'pointerUp') {
+      fireEvent.pointerUp(slider);
+    }
+    if (action === 'Escape') {
+      fireEvent.keyDown(slider, { key: 'Escape' });
+    }
+    if (action === 'unmount') {
+      unmount();
+    }
+    expect(engine.getEditPreview()).toBe(preview);
+    expect(engine.getState().tracks[0].clips[0].keyframes?.[1].value).toBe(0.28);
+    expect(engine.canUndo).toBe(false);
+    unmount();
+    expect(engine.getEditPreview()).toBe(preview);
+  }
+);

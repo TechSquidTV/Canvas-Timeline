@@ -20,7 +20,6 @@ import type {
   TimelineTrimEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineEditCommands`. */
@@ -71,6 +70,10 @@ export interface UseTimelineEditCommandsResult {
   splitSelectedClipsAtTime: (time: RationalTime) => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits a delete command for one clip and any linked group members. */
   deleteClip: (clipId: string) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Deletes multiple clips and linked group members atomically as one history entry. */
+  deleteClips: (clipIds: readonly string[]) => TimelineCommandResult<TimelineEditCommitResult>;
+  /** Deletes the current selection, including linked group members. */
+  deleteSelectedClips: () => TimelineCommandResult<TimelineEditCommitResult>;
   /** Commits an insert command. */
   insertClip: (
     command: Omit<TimelineInsertEditCommand, 'type'>
@@ -115,7 +118,6 @@ function toTimelineCommandFailureReason(
  */
 export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
   const engine = useTimelineEngine();
-  const { selectedClipIds } = useTimelineSelection();
 
   const validateEdit = useCallback(
     (command: TimelineEditCommand) => engine.validateEdit(command),
@@ -161,8 +163,11 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
         commitEdit({ type: 'split', clipIds: [clipId], time }),
       splitClips: (command) => commitEdit({ type: 'split', ...command }),
       splitSelectedClipsAtTime: (time: RationalTime) =>
-        commitEdit({ type: 'split', clipIds: selectedClipIds, time }),
+        commitEdit({ type: 'split', clipIds: engine.getSelectedClipIds(), time }),
       deleteClip: (clipId: string) => commitEdit({ type: 'delete-clips', clipIds: [clipId] }),
+      deleteClips: (clipIds: readonly string[]) => commitEdit({ type: 'delete-clips', clipIds }),
+      deleteSelectedClips: () =>
+        commitEdit({ type: 'delete-clips', clipIds: engine.getSelectedClipIds() }),
       insertClip: (command: {
         clip: Clip;
         targetTrackId: string;
@@ -180,6 +185,6 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       deleteRange: (command) => commitEdit({ type: 'delete-range', ...command }),
       liftRange: (command) => commitEdit({ type: 'lift-range', ...command }),
     }),
-    [cancelEdit, commitEdit, previewEdit, selectedClipIds, validateEdit]
+    [cancelEdit, commitEdit, previewEdit, engine, validateEdit]
   );
 }

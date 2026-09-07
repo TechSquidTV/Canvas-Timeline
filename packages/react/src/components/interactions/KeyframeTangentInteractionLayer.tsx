@@ -130,6 +130,7 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
     const cancelPointer = useKeyframePointer({
       root,
       rulerHeight,
+      priority: 1,
       hitTest: (point) => {
         const candidates = segments.visibleTangentHandles.filter(
           ({ rect }) =>

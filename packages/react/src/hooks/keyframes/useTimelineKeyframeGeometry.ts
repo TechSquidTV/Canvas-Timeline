@@ -21,11 +21,57 @@ export function useTimelineKeyframeGeometry(
 ): UseTimelineKeyframeGeometryResult {
   const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision({ redrawOnPreview: true });
+  const {
+    clipId,
+    collapsedTrackHeight,
+    edgeThreshold,
+    keyframeSize,
+    keyframeValuePadding,
+    overscanPixels,
+    property,
+    rulerHeight,
+    selectedClipOnly,
+    touchEdgeThreshold,
+    trackHeight,
+    viewportHeight,
+    viewportWidth,
+  } = options;
 
   return useMemo(() => {
     void revision;
-    const keyframeRects = engine.keyframes.getKeyframeRects(options);
-    const visibleKeyframes = engine.keyframes.getVisibleKeyframes(options, keyframeRects);
+    const geometry = {
+      clipId,
+      collapsedTrackHeight,
+      edgeThreshold,
+      keyframeSize,
+      keyframeValuePadding,
+      overscanPixels,
+      property,
+      rulerHeight,
+      selectedClipOnly,
+      touchEdgeThreshold,
+      trackHeight,
+      viewportHeight,
+      viewportWidth,
+    };
+    const keyframeRects = engine.keyframes.getKeyframeRects(geometry);
+    const visibleKeyframes = engine.keyframes.getVisibleKeyframes(geometry, keyframeRects);
     return { keyframeRects, visibleKeyframes };
-  }, [engine, revision, options]);
+  }, [
+    engine,
+    revision,
+    clipId,
+    collapsedTrackHeight,
+    edgeThreshold,
+    keyframeSize,
+    keyframeValuePadding,
+    overscanPixels,
+    property,
+    rulerHeight,
+    selectedClipOnly,
+    touchEdgeThreshold,
+    trackHeight,
+    viewportHeight,
+    viewportWidth,
+  ]);
 }

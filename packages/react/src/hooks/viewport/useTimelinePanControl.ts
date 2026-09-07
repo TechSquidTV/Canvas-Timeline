@@ -1,3 +1,4 @@
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -61,17 +62,18 @@ function formatPanValue(value: number) {
 export function useTimelinePanControl(options: TimelinePanControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
   const engine = useTimelineEngine();
+  const bounds = useTimelineViewportBounds();
   const scrollLeft = useTimelineScrollLeft();
   const control = useMemo(
     () => ({
       label: optionLabel ?? 'Timeline pan',
-      max: optionMax ?? engine.maxScrollLeft,
+      max: optionMax ?? bounds.maxScrollLeft,
       min: optionMin ?? 0,
       step: step ?? 1,
       value: scrollLeft,
       valueText: formatPanValue(scrollLeft),
     }),
-    [engine.maxScrollLeft, optionLabel, optionMax, optionMin, scrollLeft, step]
+    [bounds.maxScrollLeft, optionLabel, optionMax, optionMin, scrollLeft, step]
   );
 
   const setValue = useCallback(

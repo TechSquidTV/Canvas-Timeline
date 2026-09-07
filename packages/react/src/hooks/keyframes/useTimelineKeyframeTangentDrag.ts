@@ -1,8 +1,5 @@
-import {
-  timelineCommandFail,
-  timelineCommandInvalidInput,
-  timelineCommandOk,
-} from '@techsquidtv/canvas-timeline-core';
+import { TimelineEditGesture } from '#react/hooks/editing/timelineEditGesture';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
   TimelineKeyframeBezierHandle,
@@ -88,6 +85,7 @@ export interface TimelineKeyframeTangentDragUpdate {
 }
 
 interface ActiveTangentDrag {
+  gesture: TimelineEditGesture;
   segment: TimelineKeyframeSegment;
   valueTop: number;
   valueHeight: number;
@@ -125,9 +123,9 @@ export function useTimelineKeyframeTangentDrag(
         return;
       }
 
+      activeDragRef.current.gesture.cancel();
       activeDragRef.current = null;
       setDragging(false);
-      engine.cancelEdit();
     };
   }, [engine]);
 
@@ -188,6 +186,19 @@ export function useTimelineKeyframeTangentDrag(
 
   const startKeyframeTangentDrag = useCallback(
     (input: TimelineKeyframeTangentDragStartInput): TimelineCommandResult => {
+      if (activeDragRef.current) {
+        return timelineCommandFail('unsupported', 'A tangent drag is already active.');
+      }
+      if (
+        input.tangentHandle !== undefined &&
+        ((input.viewportX !== undefined && !Number.isFinite(input.viewportX)) ||
+          (input.viewportY !== undefined && !Number.isFinite(input.viewportY)))
+      ) {
+        return timelineCommandFail(
+          'invalid-input',
+          'Tangent drag requires finite viewport coordinates.'
+        );
+      }
       const handle = findTangentHandle(input);
       const found = handle === undefined ? undefined : engine.geometry.getClip(handle.clip.id);
 
@@ -200,13 +211,17 @@ export function useTimelineKeyframeTangentDrag(
 
       const segment = engine.keyframes
         .getKeyframeSegments(geometry)
-        .find((candidate) => candidate.segmentId === handle.segmentId);
+        .find(
+          (candidate) =>
+            candidate.clip.id === handle.clip.id && candidate.segmentId === handle.segmentId
+        );
       const clipRect = engine.geometry.getClipRect(handle.clip.id, geometry);
       if (!segment || !clipRect) {
         return timelineCommandFail('not-found');
       }
       engine.cancelEdit();
       activeDragRef.current = {
+        gesture: new TimelineEditGesture(engine),
         segment,
         valueTop: clipRect.y + (options.keyframeValuePadding ?? 7),
         valueHeight: Math.max(1, clipRect.height - 2 * (options.keyframeValuePadding ?? 7)),
@@ -245,6 +260,9 @@ export function useTimelineKeyframeTangentDrag(
         );
       }
 
+      if (!activeDrag.gesture.isCurrent()) {
+        return timelineCommandFail('unsupported', 'The tangent preview was replaced.');
+      }
       const segment = activeDrag.segment;
       const deltaX = segment.endPoint.x - segment.startPoint.x;
       if (Math.abs(deltaX) < 0.000001) {
@@ -258,26 +276,23 @@ export function useTimelineKeyframeTangentDrag(
       );
       const nextHandle = { x: nextX, y: yValue };
 
-      let keyframe: ReturnType<typeof engine.keyframes.updateClipKeyframeSide>;
-      try {
-        keyframe = engine.keyframes.updateClipKeyframeSide(
+      const preview = activeDrag.gesture.publish({
+        type: 'keyframes',
+        edits: [
           {
+            type: 'sides',
             clipId: activeDrag.clipId,
             keyframeId: activeDrag.keyframeId,
-            side: activeDrag.side,
-            patch: {
-              interpolation: 'bezier',
-              handle: nextHandle,
-            },
+            [activeDrag.side]: { interpolation: 'bezier', handle: nextHandle },
           },
-          { commit: false }
-        );
-      } catch (updateError: unknown) {
-        return timelineCommandInvalidInput(
-          'Timeline keyframe tangent could not be updated from the provided input.',
-          updateError
-        );
+        ],
+      });
+      if (!preview.valid) {
+        return timelineCommandFail(preview.reason ?? 'unsupported', preview.message);
       }
+      const keyframe = preview.changedClips
+        .find((clip) => clip.id === activeDrag.clipId)
+        ?.keyframes?.find((key) => key.id === activeDrag.keyframeId);
       const side = keyframe?.[activeDrag.side];
       if (!side?.handle) {
         return timelineCommandFail<TimelineKeyframeTangentDragUpdate>('unsupported');
@@ -291,34 +306,24 @@ export function useTimelineKeyframeTangentDrag(
         handle: side.handle,
       });
     },
-    [engine]
+    []
   );
 
-  const endKeyframeTangentDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
+  const finish = useCallback((commit: boolean): TimelineCommandResult => {
+    const active = activeDragRef.current;
+    if (!active) {
       return timelineCommandFail('unsupported');
     }
-
     activeDragRef.current = null;
     setDragging(false);
-    const preview = engine.getEditPreview();
-    if (preview?.valid && preview.command.type === 'keyframes') {
-      engine.commitEdit(preview.command);
+    if (commit) {
+      return active.gesture.commit();
     }
-    engine.cancelEdit();
+    active.gesture.cancel();
     return timelineCommandOk();
-  }, [engine]);
-
-  const cancelKeyframeTangentDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
-      return timelineCommandFail('unsupported');
-    }
-
-    activeDragRef.current = null;
-    setDragging(false);
-    engine.cancelEdit();
-    return timelineCommandOk();
-  }, [engine]);
+  }, []);
+  const endKeyframeTangentDrag = useCallback(() => finish(true), [finish]);
+  const cancelKeyframeTangentDrag = useCallback(() => finish(false), [finish]);
 
   return useMemo(
     () => ({

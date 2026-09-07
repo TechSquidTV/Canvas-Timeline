@@ -252,3 +252,17 @@ and do not need memoization.
   and Web Audio previews.
 - [HTML media sync demo](/demos/html-media-sync) and [Mediabunny media sync
   demo](/demos/media-preview-sync) for complete source-backed examples.
+
+## Compose media-aware keyboard transport
+
+Pass your media transport to the existing keyboard scope so Space starts the external clock through the same path as the play button:
+
+```tsx
+<Timeline.KeyboardScope
+  commandHandlers={{ togglePlayback: () => (media.playing ? media.pause() : media.play()) }}
+>
+  {/* Timeline surface */}
+</Timeline.KeyboardScope>
+```
+
+Here `media` is the result of `useTimelineMediaSync`, `useHTMLTimelineMedia`, or `useMediabunnyTimelineMedia`. The scope waits for returned promises before notifying `onCommandResult`. Adapter errors still reach the media hook's `onError`; unexpected thrown or rejected handler errors reach the scope's `onCommandError`.

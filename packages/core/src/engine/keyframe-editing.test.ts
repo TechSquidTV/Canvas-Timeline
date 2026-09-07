@@ -258,6 +258,17 @@ it('supports curves between equal-valued keys and linked tangents across unequal
       8
     );
   }
+  engine.keyframes.updateClipKeyframeSide({
+    clipId: 'clip',
+    keyframeId: middle.id,
+    side: 'outgoing',
+    patch: { handle: null },
+  });
+  const reset = engine.keyframes
+    .getClipKeyframes('clip')
+    .find((candidate) => candidate.id === middle.id);
+  expect(reset?.outgoing).toEqual({ interpolation: 'bezier' });
+  expect(reset?.incoming).toEqual({ interpolation: 'bezier' });
 });
 
 it('pastes complete Bezier shapes without later insertion overwriting copied handles', () => {
@@ -318,4 +329,20 @@ it('keeps bounded flat Bezier curves inside the property range despite floating-
   for (let i = 1; i < 1000; i++) {
     expect(sample(engine, i / 100)).toBeCloseTo(1, 12);
   }
+});
+
+it('moves handles with the anchor consistently when setting or updating an existing key', () => {
+  const setEngine = createEngine();
+  const updateEngine = createEngine();
+  setEngine.keyframes.setClipKeyframe({
+    clipId: 'clip',
+    property: 'level',
+    time: fromSeconds(0),
+    value: 0.1,
+  });
+  updateEngine.keyframes.updateClipKeyframe({ clipId: 'clip', keyframeId: 'a', value: 0.1 });
+  expect(setEngine.keyframes.getClipKeyframes('clip')).toEqual(
+    updateEngine.keyframes.getClipKeyframes('clip')
+  );
+  expect(setEngine.keyframes.getClipKeyframes('clip')[0].outgoing?.handle?.y).toBeCloseTo(0.8);
 });

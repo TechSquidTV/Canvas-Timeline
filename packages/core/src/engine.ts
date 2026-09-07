@@ -1,4 +1,5 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
+import type { createDocumentSnapshot } from '#core/document-snapshot';
 import {
   timelineCommandOk,
   timelineCommandFail,
@@ -157,7 +158,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param label - Optional visible marker label.
    * @param color - Optional marker color.
    * @param description - Optional longer marker note.
-   * @returns The created marker.
+   * @returns An owned copy of the created marker.
    */
   addMarker(time: RationalTime, label?: string, color?: string, description?: string) {
     assertValidRationalTime(time, 'time');
@@ -174,10 +175,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.markers.push(marker);
     this.invalidateContent();
     this.snapshot();
-    this.emit('marker:add', { marker });
+    this.emit('marker:add', { marker: createMarkerSnapshots([marker])[0] });
     this.emit('state:settled');
     this.emit('render');
-    return marker;
+    return createMarkerSnapshots([marker])[0];
   }
 
   /**
@@ -207,7 +208,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param id - Marker id to update.
    * @param updates - Marker fields to merge into the existing marker.
-   * @returns The updated marker, or `null` when no marker was found.
+   * @returns An owned copy of the updated marker, or `null` when no marker was found.
    */
   updateMarker(id: string, updates: Partial<Omit<Marker, 'id'>>) {
     if (updates.time !== undefined) {
@@ -229,14 +230,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           marker.description = updates.description;
         }
         if (Object.hasOwn(updates, 'snap')) {
-          marker.snap = updates.snap;
+          marker.snap = createMarkerSnapshots([{ ...marker, snap: updates.snap }])[0].snap;
         }
         this.invalidateContent();
         this.snapshot();
-        this.emit('marker:update', { marker });
+        this.emit('marker:update', { marker: createMarkerSnapshots([marker])[0] });
         this.emit('state:settled');
         this.emit('render');
-        return marker;
+        return createMarkerSnapshots([marker])[0];
       }
     }
     return null;
@@ -303,6 +304,84 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       return timelineCommandOk();
     }
     return timelineCommandFail('not-found');
+  }
+
+  /**
+   * Renames a track, or clears its app-defined name.
+   * @param trackId - Track to rename.
+   * @param name - New name, or undefined to use the default label.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  renameTrack(trackId: string, name: string | undefined): TimelineCommandResult {
+    const track = this.state.tracks.find((entry) => entry.id === trackId);
+    if (!track) {
+      return timelineCommandFail('not-found');
+    }
+    if (name !== undefined && typeof name !== 'string') {
+      return timelineCommandFail('invalid-input', 'name must be a string or undefined.');
+    }
+    if (track.name === name) {
+      return timelineCommandOk();
+    }
+    track.name = name;
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  /**
+   * Moves a track to a final zero-based row index as one undoable change.
+   * @param trackId - Track to move.
+   * @param toIndex - Final index within the existing track list.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  moveTrack(trackId: string, toIndex: number): TimelineCommandResult {
+    const fromIndex = this.state.tracks.findIndex((entry) => entry.id === trackId);
+    if (fromIndex < 0) {
+      return timelineCommandFail('not-found');
+    }
+    if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= this.state.tracks.length) {
+      return timelineCommandFail('invalid-input', 'toIndex must address an existing row.');
+    }
+    if (fromIndex === toIndex) {
+      return timelineCommandOk();
+    }
+    const [track] = this.state.tracks.splice(fromIndex, 1);
+    this.state.tracks.splice(toIndex, 0, track);
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  /**
+   * Sets row collapse without changing its expanded height or media visibility.
+   * @param trackId - Track to collapse or expand.
+   * @param collapsed - Desired collapsed state.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  setTrackCollapsed(trackId: string, collapsed: boolean): TimelineCommandResult {
+    const track = this.state.tracks.find((entry) => entry.id === trackId);
+    if (!track) {
+      return timelineCommandFail('not-found');
+    }
+    if (typeof collapsed !== 'boolean') {
+      return timelineCommandFail('invalid-input', 'collapsed must be a boolean.');
+    }
+    if ((track.collapsed === true) === collapsed) {
+      return timelineCommandOk();
+    }
+    track.collapsed = collapsed;
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  private commitTrackChange() {
+    const scrollChanged = this.clampScrollTop();
+    this.invalidateContent();
+    this.snapshot();
+    if (scrollChanged) {
+      this.emitScrollChange();
+    }
+    this.emit('state:settled');
+    this.emit('render');
   }
 
   /**
@@ -775,17 +854,21 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Clears the active command-layer edit preview and snap guides.
    */
   cancelEdit() {
+    this.clearEditPreview();
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    this.emit('state:preview');
+    this.emit('render');
+  }
+
+  private clearEditPreview() {
     this.previewIds.clear();
     this.previewTracks = null;
     this.renderSnapshot = undefined;
     this.renderedTracks = null;
     this.editPreview = null;
     this.editImpacts = null;
-    this.publishSnapFeedback(emptyTimelineSnapFeedback);
-    this.emit('edit:preview', null);
-    this.emit('edit:impacts', null);
-    this.emit('state:preview');
-    this.emit('render');
   }
 
   private publishEditPreview(preview: TimelineEditPreview) {
@@ -944,7 +1027,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     );
   }
 
-  private getSelectedClipIds() {
+  /** Returns currently selected clip IDs in timeline track order. */
+  getSelectedClipIds() {
     const clipIds: string[] = [];
     for (const track of this.state.tracks) {
       for (const clip of track.clips) {
@@ -1163,7 +1247,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       getClip: (id) => this.geometry.getClip(id),
     });
     this.playbackManager = new PlaybackManager(this, this.state);
-    this.historyManager = new HistoryManager(this, this.state, initialState.history);
+    this.historyManager = new HistoryManager(
+      this,
+      this.state,
+      (snapshot) => this.restoreHistoryDocument(snapshot),
+      initialState.history
+    );
     this.clipboardManager = new ClipboardManager(this);
     this.normalizeClipGroups();
     this.keyframes.validateRegisteredClipKeyframes();
@@ -1577,6 +1666,30 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
+   * Atomically replaces both In/Out boundaries without intermediate range clearing.
+   * @param startTime - Inclusive, non-negative range start.
+   * @param endTime - Exclusive range end, after the start.
+   * @returns Success, or an input/range failure without changing either boundary.
+   */
+  setInOutRange(startTime: RationalTime, endTime: RationalTime): TimelineCommandResult {
+    try {
+      assertValidRationalTime(startTime, 'startTime');
+      assertValidRationalTime(endTime, 'endTime');
+    } catch (error) {
+      return timelineCommandInvalidInput('Invalid In/Out range.', error);
+    }
+    if (startTime.v < 0 || compareRational(startTime, endTime) >= 0) {
+      return timelineCommandFail('invalid-range');
+    }
+    this.state.inPoint = cloneRationalTime(startTime);
+    this.state.outPoint = cloneRationalTime(endTime);
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('state:inOut', { state: this.state });
+    this.emit('render');
+    return timelineCommandOk();
+  }
+
+  /**
    * Sets or clears the in-point boundary.
    *
    * @param time - New in-point time, or `undefined` to clear it.
@@ -1807,6 +1920,38 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   // --- Undo / Redo ---
+
+  private restoreHistoryDocument(snapshot: ReturnType<typeof createDocumentSnapshot>) {
+    const tracks = createTrackSnapshots(snapshot.tracks);
+    const markers = createMarkerSnapshots(snapshot.markers);
+    const clipGroups = createClipGroupSnapshots(snapshot.clipGroups);
+    const previousScrollLeft = this.state.scrollLeft;
+    const previousScrollTop = this.state.scrollTop;
+    const previousZoomScale = this.state.zoomScale;
+    this.state.tracks = tracks;
+    this.state.markers = markers;
+    this.state.clipGroups = clipGroups;
+    this.clearEditPreview();
+    this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
+    this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
+    this.clampScrollTop();
+    this.invalidateContent();
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.clearClipDropFeedback();
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    if (previousZoomScale !== this.state.zoomScale) {
+      this.emit('zoom:change', this.state.zoomScale);
+    }
+    if (
+      previousScrollLeft !== this.state.scrollLeft ||
+      previousScrollTop !== this.state.scrollTop
+    ) {
+      this.emitScrollChange();
+    }
+    this.emit('state:settled');
+    this.emit('render');
+  }
 
   /**
    * Stores the current track and marker state in undo history.

@@ -1,3 +1,4 @@
+import { TimelineEditGesture } from '#react/hooks/editing/timelineEditGesture';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
@@ -98,6 +99,8 @@ export interface TimelineKeyframeDragUpdate {
 }
 
 interface ActiveKeyframeDrag {
+  gesture: TimelineEditGesture;
+  zoomScale: number;
   clipId: string;
   keyframeId: string;
   startClientX: number;
@@ -165,7 +168,8 @@ export function useTimelineKeyframeDrag(
   useEffect(
     () => () => {
       if (activeDragRef.current) {
-        engine.cancelEdit();
+        activeDragRef.current.gesture.cancel();
+        activeDragRef.current = null;
       }
     },
     [engine]
@@ -173,6 +177,9 @@ export function useTimelineKeyframeDrag(
 
   const startKeyframeDrag = useCallback(
     (input: TimelineKeyframeDragStartInput): TimelineCommandResult => {
+      if (activeDragRef.current) {
+        return timelineCommandFail('unsupported', 'A keyframe drag is already active.');
+      }
       const found = engine.geometry.getClip(input.clipId);
       const key = found?.clip.keyframes?.find((candidate) => candidate.id === input.keyframeId);
       const rect = engine.geometry.getClipRect(input.clipId, options);
@@ -208,6 +215,8 @@ export function useTimelineKeyframeDrag(
       });
       engine.cancelEdit();
       activeDragRef.current = {
+        gesture: new TimelineEditGesture(engine),
+        zoomScale: engine.zoomScale,
         clipId: input.clipId,
         keyframeId: input.keyframeId,
         startClientX: input.clientX,
@@ -231,11 +240,14 @@ export function useTimelineKeyframeDrag(
       if (![input.clientX, input.viewportY].every(Number.isFinite)) {
         return timelineCommandFail('invalid-input');
       }
+      if (!active.gesture.isCurrent()) {
+        return timelineCommandFail('unsupported', 'The keyframe preview was replaced.');
+      }
       const sensitivity = input.fine ? 0.1 : 1;
       let seconds =
         input.axis === 'value'
           ? 0
-          : ((input.clientX - active.startClientX) / engine.zoomScale) * sensitivity;
+          : ((input.clientX - active.startClientX) / active.zoomScale) * sensitivity;
       let valueDelta =
         input.axis === 'time'
           ? 0
@@ -289,7 +301,7 @@ export function useTimelineKeyframeDrag(
           value: entry.definition.denormalizeValue(entry.normalized + valueDelta),
         })),
       };
-      const preview = engine.previewEdit(command);
+      const preview = active.gesture.publish(command);
       if (!preview.valid) {
         return timelineCommandFail(
           preview.reason === 'locked' ? 'locked' : 'invalid-input',
@@ -312,23 +324,19 @@ export function useTimelineKeyframeDrag(
     [engine, options.frameRate]
   );
 
-  const finish = useCallback(
-    (commit: boolean): TimelineCommandResult => {
-      if (!activeDragRef.current) {
-        return timelineCommandFail('unsupported');
-      }
-      activeDragRef.current = null;
-      setDragging(false);
-      const preview = engine.getEditPreview();
-      let ok = true;
-      if (commit && preview?.valid && preview.command.type === 'keyframes') {
-        ok = engine.commitEdit(preview.command).committed;
-      }
-      engine.cancelEdit();
-      return ok ? timelineCommandOk() : timelineCommandFail('invalid-input');
-    },
-    [engine]
-  );
+  const finish = useCallback((commit: boolean): TimelineCommandResult => {
+    const active = activeDragRef.current;
+    if (!active) {
+      return timelineCommandFail('unsupported');
+    }
+    activeDragRef.current = null;
+    setDragging(false);
+    if (commit) {
+      return active.gesture.commit();
+    }
+    active.gesture.cancel();
+    return timelineCommandOk();
+  }, []);
   const endKeyframeDrag = useCallback(() => finish(true), [finish]);
   const cancelKeyframeDrag = useCallback(() => finish(false), [finish]);
   return useMemo(

@@ -1,3 +1,4 @@
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 /**
@@ -19,6 +20,7 @@ import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayhe
  */
 export function useActiveClips() {
   const engine = useTimelineEngine();
+  useTimelineSelector((state) => state.tracks, Object.is);
   const playheadTime = useTimelinePlayheadTime();
 
   return engine.media.getActiveClips(playheadTime).map(({ clip }) => clip);

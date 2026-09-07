@@ -103,7 +103,7 @@ export function prepareKeyframeEdit(
           registry,
           () => edit.id ?? allocateId(`keyframe:${index}`)
         );
-        key.value = value;
+        updateKeyframeValue(key, value, registry);
         if (edit.selected !== undefined) {
           key.selected = edit.selected;
         }
@@ -146,16 +146,7 @@ export function prepareKeyframeEdit(
           if (value === null) {
             return reject('not-found');
           }
-          const delta =
-            (registry.normalizeValue(key.property, value) ?? 0) -
-            (registry.normalizeValue(key.property, key.value) ?? 0);
-          key.value = value;
-          for (const side of ['incoming', 'outgoing'] as const) {
-            const handle = key[side]?.handle;
-            if (handle) {
-              handle.y = Math.max(0, Math.min(1, handle.y + delta));
-            }
-          }
+          updateKeyframeValue(key, value, registry);
         }
         if (edit.incoming !== undefined) {
           key.incoming = normalizeTimelineKeyframeSideInterpolation(edit.incoming, {
@@ -237,6 +228,23 @@ export function prepareKeyframeEdit(
   }
 }
 
+function updateKeyframeValue(
+  key: TimelineKeyframe,
+  value: number,
+  registry: KeyframePropertyRegistry
+) {
+  const delta =
+    (registry.normalizeValue(key.property, value) ?? 0) -
+    (registry.normalizeValue(key.property, key.value) ?? 0);
+  key.value = value;
+  for (const side of ['incoming', 'outgoing'] as const) {
+    const handle = key[side]?.handle;
+    if (handle) {
+      handle.y = Math.max(0, Math.min(1, handle.y + delta));
+    }
+  }
+}
+
 function patchSide(
   clip: Clip,
   key: TimelineKeyframe,
@@ -255,6 +263,14 @@ function patchSide(
       y: registry.normalizeValue(key.property, key.value) ?? 0,
     }
   );
+  const other = side === 'incoming' ? 'outgoing' : 'incoming';
+  if (
+    key.tangentMode === 'linked' &&
+    patch.handle === null &&
+    key[side]?.interpolation === 'bezier'
+  ) {
+    key[other] = { interpolation: 'bezier' };
+  }
   const handle = key[side]?.handle;
   if (key.tangentMode !== 'linked' || !handle) {
     return;
@@ -267,7 +283,6 @@ function patchSide(
   if (!left || !right) {
     return;
   }
-  const other = side === 'incoming' ? 'outgoing' : 'incoming';
   const otherX = key[other]?.handle?.x ?? (other === 'incoming' ? 0.58 : 0.42);
   const previousSpan = toSeconds(subRational(key.time, left.time));
   const nextSpan = toSeconds(subRational(right.time, key.time));

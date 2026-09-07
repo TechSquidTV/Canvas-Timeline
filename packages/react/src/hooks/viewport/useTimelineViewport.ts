@@ -1,3 +1,5 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -65,6 +67,7 @@ export interface UseTimelineViewportResult {
  */
 export function useTimelineViewport(): UseTimelineViewportResult {
   const engine = useTimelineEngine();
+  const bounds = useTimelineViewportBounds();
   const state = useTimelineSelector((state) => ({
     duration: state.duration,
     viewportHeight: state.viewportHeight,
@@ -75,60 +78,66 @@ export function useTimelineViewport(): UseTimelineViewportResult {
   const zoomScale = useTimelineZoomScale();
 
   const setScrollLeft = useCallback(
-    (nextScrollLeft: number) => {
-      engine.setScrollLeft(nextScrollLeft);
-      return timelineCommandOk();
-    },
+    (nextScrollLeft: number) =>
+      runTimelineCommand(() => {
+        engine.setScrollLeft(nextScrollLeft);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setZoomScale = useCallback(
-    (nextZoomScale: number) => {
-      engine.setZoomScale(nextZoomScale);
-      return timelineCommandOk();
-    },
+    (nextZoomScale: number) =>
+      runTimelineCommand(() => {
+        engine.setZoomScale(nextZoomScale);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setScrollTop = useCallback(
-    (nextScrollTop: number) => {
-      engine.setScrollTop(nextScrollTop);
-      return timelineCommandOk();
-    },
+    (nextScrollTop: number) =>
+      runTimelineCommand(() => {
+        engine.setScrollTop(nextScrollTop);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setViewportWidth = useCallback(
-    (width: number) => {
-      engine.setViewportWidth(width);
-      return timelineCommandOk();
-    },
+    (width: number) =>
+      runTimelineCommand(() => {
+        engine.setViewportWidth(width);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setViewportHeight = useCallback(
-    (height: number) => {
-      engine.setViewportHeight(height);
-      return timelineCommandOk();
-    },
+    (height: number) =>
+      runTimelineCommand(() => {
+        engine.setViewportHeight(height);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setDuration = useCallback(
-    (duration: RationalTime | undefined) => {
-      engine.setDuration(duration);
-      return timelineCommandOk();
-    },
+    (duration: RationalTime | undefined) =>
+      runTimelineCommand(() => {
+        engine.setDuration(duration);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const viewportWidth = state.viewportWidth || 1000;
   const viewportHeight = state.viewportHeight ?? 600;
   const safeZoomScale = Math.max(zoomScale || 0, 0.1);
-  const maxContentTime = engine.maxContentTime;
+  const maxContentTime = bounds.maxContentTime;
   const duration = state.duration;
-  const maxScrollLeft = engine.maxScrollLeft;
-  const maxScrollTop = engine.maxScrollTop;
+  const maxScrollLeft = bounds.maxScrollLeft;
+  const maxScrollTop = bounds.maxScrollTop;
   const viewportDurationSeconds = viewportWidth / safeZoomScale;
   const visibleStartSeconds = clamp(scrollLeft / safeZoomScale, 0, toSeconds(maxContentTime));
   const visibleEndSeconds = Math.min(

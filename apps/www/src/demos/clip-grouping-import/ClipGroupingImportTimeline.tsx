@@ -59,9 +59,8 @@ function TimelineLayers() {
 function GroupingToolbar() {
   const playheadTime = useTimelinePlayheadTime();
   const { splitSelectedClipsAtTime } = useTimelineEditCommands();
-  const { selectedClipIds, selectedClips } = useTimelineSelection();
-  const { getClipGroupClips, groupClips, selectedGroup, selectedGroupId, ungroupSelectedClips } =
-    useTimelineClipGroups();
+  const { selectedClipIds, selectedClips, selectedGroup, selectedGroupId } = useTimelineSelection();
+  const { getClipGroupClips, groupClips, ungroupSelectedClips } = useTimelineClipGroups();
   const canGroup = selectedClipIds.length >= 2 && selectedGroupId === null;
   const canUngroup = selectedGroupId !== null;
   const selectedOverlappingClipCount = selectedClips.filter(

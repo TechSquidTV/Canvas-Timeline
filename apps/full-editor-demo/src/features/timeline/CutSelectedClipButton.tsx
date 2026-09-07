@@ -1,7 +1,7 @@
 import { Button } from '#full-editor/shared/ui/button';
 import {
   useTimeline,
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
 } from '@techsquidtv/canvas-timeline-react';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
@@ -14,7 +14,7 @@ interface TimelineBoundedClip {
 
 export function CutSelectedClipButton({ playheadSeconds }: { playheadSeconds: number }) {
   const { engine } = useTimeline();
-  const { selectedClip } = useTimelineClips();
+  const { selectedClip } = useTimelineSelection();
   const { splitClip } = useTimelineEditCommands();
   const canCutSelectedClip =
     selectedClip !== null && containsTimelineSeconds(selectedClip, playheadSeconds);

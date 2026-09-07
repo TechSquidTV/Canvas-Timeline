@@ -1,38 +1,90 @@
-import { useMemo } from 'react';
 import {
   formatTimelineRangeValue,
   formatTimelineTimeValue,
   type TimelineTimeValueFormatOptions,
 } from '#react/accessibility';
-import {
-  useTimelineViewportScrollbar,
-  type UseTimelineViewportScrollbarOptions,
-} from '#react/hooks/viewport/useTimelineViewportScrollbar';
-import type { RangeScrollbarAriaValueTextDetails } from '#react/rangeScrollbar';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
+import { useRangeScrollbar } from '#react/rangeScrollbar';
+import type {
+  RangeScrollbarAriaValueTextDetails,
+  RangeScrollbarRootProps,
+  RangeScrollbarValue,
+  RangeScrollbarValueChangeDetails,
+  UseRangeScrollbarResult,
+} from '#react/rangeScrollbar';
+import { clamp, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo } from 'react';
+const DEFAULT_MIN_VIEW_DURATION_SECONDS = 0.1;
+const KEYBOARD_NUDGE_PX = 40;
+const KEYBOARD_PAGE_NUDGE_RATIO = 0.8;
 
 /**
- * Options for viewport scrollbar accessibility formatting.
+ * Options for adapting a generic range scrollbar to the timeline viewport.
  */
-export interface TimelineViewportRangeControlOptions
-  extends UseTimelineViewportScrollbarOptions, TimelineTimeValueFormatOptions {}
+export interface TimelineViewportRangeControlOptions extends TimelineTimeValueFormatOptions {
+  /** Smallest allowed visible timeline duration in seconds. Defaults to 0.1. */
+  minSpan?: number;
+}
 
 /**
- * Adds formatted accessibility values to the timeline viewport range adapter.
+ * Controlled props required by `RangeScrollbar.Root` for a timeline viewport.
+ */
+export type TimelineViewportRangeControlRootProps = Pick<
+  RangeScrollbarRootProps,
+  'keyboardPageStep' | 'keyboardStep' | 'max' | 'min' | 'minSpan' | 'onValueChange' | 'value'
+> &
+  Required<Pick<RangeScrollbarRootProps, 'getAriaValueText'>>;
+
+/**
+ * State and control props for rendering a timeline viewport scrollbar.
+ */
+export interface UseTimelineViewportRangeControlResult {
+  /** Formatted visible range and duration. */
+  valueText: string;
+  /** Formatted visible start time. */
+  startValueText: string;
+  /** Formatted visible end time. */
+  endValueText: string;
+  /** Generic range scrollbar state derived from timeline viewport state. */
+  range: UseRangeScrollbarResult;
+  /** Props that wire `RangeScrollbar.Root` to timeline scroll and zoom state. */
+  rootProps: TimelineViewportRangeControlRootProps;
+  /** Full timeline duration represented by the scrollbar domain, in seconds. */
+  totalDurationSeconds: number;
+  /** Visible viewport start time in seconds. */
+  viewStartSeconds: number;
+  /** Visible viewport end time in seconds. */
+  viewEndSeconds: number;
+  /** Visible viewport duration in seconds. */
+  viewDurationSeconds: number;
+  /** Measured timeline viewport width in pixels. */
+  viewportWidth: number;
+  /** Current timeline zoom scale in pixels per second. */
+  zoomScale: number;
+  /** Current horizontal timeline scroll offset in pixels. */
+  scrollLeft: number;
+  /** Handles controlled range changes by panning or zooming the timeline engine. */
+  onValueChange: (value: RangeScrollbarValue, details: RangeScrollbarValueChangeDetails) => void;
+}
+
+/**
+ * Adapts generic range scrollbar state to the current timeline viewport.
  *
- * This hook builds on `useTimelineViewportScrollbar`, preserving the same
- * lightweight viewport scrollbar geometry and keyboard behavior while adding
- * `aria-valuetext` formatting for the thumb and resize handles. Use it with the
- * generic `RangeScrollbar` primitive when composing a custom viewport control.
+ * The hook derives a controlled `{ start, end }` value from timeline
+ * `scrollLeft`, `zoomScale`, `viewportWidth`, and content duration. Thumb
+ * changes pan the engine, while handle changes update zoom and then restore the
+ * requested range start.
  *
- * @param options - Viewport scrollbar options plus optional decimal precision for spoken time values.
- * @returns Timeline viewport metrics and `RangeScrollbar.Root` props with formatted value text.
+ * @param options - Timeline viewport range options.
+ * @returns Timeline viewport metrics plus `RangeScrollbar.Root` control props.
  *
  * @example
  * ```tsx
- * const viewport = useTimelineViewportRangeControl();
+ * const viewportScrollbar = useTimelineViewportRangeControl();
  *
  * return (
- *   <RangeScrollbar.Root {...viewport.rootProps}>
+ *   <RangeScrollbar.Root {...viewportScrollbar.rootProps}>
  *     <RangeScrollbar.Thumb>
  *       <RangeScrollbar.Handle side="start" />
  *       <RangeScrollbar.Handle side="end" />
@@ -41,35 +93,100 @@ export interface TimelineViewportRangeControlOptions
  * );
  * ```
  */
-export function useTimelineViewportRangeControl(options: TimelineViewportRangeControlOptions = {}) {
-  const { minSpan, precision } = options;
-  const viewport = useTimelineViewportScrollbar({ minSpan });
-
-  return useMemo(() => {
-    const formatOptions = { precision };
-    const valueText = formatTimelineRangeValue(viewport.viewStartSeconds, viewport.viewEndSeconds, {
-      ...formatOptions,
-      includeDuration: true,
-    });
+export function useTimelineViewportRangeControl(
+  options: TimelineViewportRangeControlOptions = {}
+): UseTimelineViewportRangeControlResult {
+  const engine = useTimelineEngine();
+  const viewport = useTimelineViewport();
+  const metrics = useMemo(() => {
+    const viewportWidth = viewport.viewportWidth;
+    const maxZoomSpan =
+      Number.isFinite(engine.maxZoomScale) && engine.maxZoomScale > 0
+        ? viewportWidth / engine.maxZoomScale
+        : 0;
+    const minSpan = Math.max(options.minSpan ?? DEFAULT_MIN_VIEW_DURATION_SECONDS, maxZoomSpan);
+    const zoomScale = viewport.zoomScale;
+    const scrollLeft = viewport.scrollLeft;
+    const totalDurationSeconds = Math.max(minSpan, toSeconds(viewport.maxContentTime));
+    const rawViewStart = scrollLeft / zoomScale;
+    const rawViewDuration = viewportWidth / zoomScale;
+    const viewDurationSeconds = Math.min(totalDurationSeconds, rawViewDuration);
+    const maxViewStart = Math.max(0, totalDurationSeconds - viewDurationSeconds);
+    const viewStartSeconds = clamp(rawViewStart, 0, maxViewStart);
+    const viewEndSeconds = viewStartSeconds + viewDurationSeconds;
+    const value = { start: viewStartSeconds, end: viewEndSeconds };
 
     return {
-      ...viewport,
-      /** Formatted visible viewport range for assistive technology. */
-      valueText,
-      /** Formatted visible viewport start time. */
-      startValueText: formatTimelineTimeValue(viewport.viewStartSeconds, formatOptions),
-      /** Formatted visible viewport end time. */
-      endValueText: formatTimelineTimeValue(viewport.viewEndSeconds, formatOptions),
-      /** Props for `RangeScrollbar.Root`, including formatted `aria-valuetext`. */
-      rootProps: {
-        ...viewport.rootProps,
-        getAriaValueText: (value: number, details: RangeScrollbarAriaValueTextDetails) => {
-          if (details.part === 'thumb') {
-            return valueText;
-          }
-          return formatTimelineTimeValue(value, formatOptions);
-        },
-      },
+      minSpan,
+      scrollLeft,
+      totalDurationSeconds,
+      value,
+      viewDurationSeconds,
+      viewEndSeconds,
+      viewStartSeconds,
+      viewportWidth,
+      zoomScale,
     };
-  }, [precision, viewport]);
+  }, [
+    engine.maxZoomScale,
+    options.minSpan,
+    viewport.maxContentTime,
+    viewport.scrollLeft,
+    viewport.viewportWidth,
+    viewport.zoomScale,
+  ]);
+
+  const onValueChange = useCallback(
+    (nextValue: RangeScrollbarValue, details: RangeScrollbarValueChangeDetails) => {
+      if (details.reason === 'thumb-drag' || details.reason === 'thumb-keyboard') {
+        engine.setScrollLeft(nextValue.start * metrics.zoomScale);
+        return;
+      }
+
+      const nextDuration = Math.max(metrics.minSpan, nextValue.end - nextValue.start);
+      engine.setZoomScale(metrics.viewportWidth / nextDuration);
+      const appliedZoomScale = engine.getState().zoomScale;
+      engine.setScrollLeft(nextValue.start * appliedZoomScale);
+    },
+    [engine, metrics.minSpan, metrics.viewportWidth, metrics.zoomScale]
+  );
+
+  const range = useRangeScrollbar({
+    min: 0,
+    max: metrics.totalDurationSeconds,
+    value: metrics.value,
+    minSpan: metrics.minSpan,
+    onValueChange,
+  });
+
+  const formatOptions = { precision: options.precision };
+  const valueText = formatTimelineRangeValue(metrics.viewStartSeconds, metrics.viewEndSeconds, {
+    ...formatOptions,
+    includeDuration: true,
+  });
+  return {
+    valueText,
+    startValueText: formatTimelineTimeValue(metrics.viewStartSeconds, formatOptions),
+    endValueText: formatTimelineTimeValue(metrics.viewEndSeconds, formatOptions),
+    range,
+    rootProps: {
+      getAriaValueText: (value: number, details: RangeScrollbarAriaValueTextDetails) =>
+        details.part === 'thumb' ? valueText : formatTimelineTimeValue(value, formatOptions),
+      min: 0,
+      max: metrics.totalDurationSeconds,
+      value: metrics.value,
+      minSpan: metrics.minSpan,
+      keyboardStep: KEYBOARD_NUDGE_PX / metrics.zoomScale,
+      keyboardPageStep: (metrics.viewportWidth * KEYBOARD_PAGE_NUDGE_RATIO) / metrics.zoomScale,
+      onValueChange,
+    },
+    totalDurationSeconds: metrics.totalDurationSeconds,
+    viewStartSeconds: metrics.viewStartSeconds,
+    viewEndSeconds: metrics.viewEndSeconds,
+    viewDurationSeconds: metrics.viewDurationSeconds,
+    viewportWidth: metrics.viewportWidth,
+    zoomScale: metrics.zoomScale,
+    scrollLeft: metrics.scrollLeft,
+    onValueChange,
+  };
 }

@@ -185,12 +185,12 @@ React command hooks build the same command shapes and return `TimelineCommandRes
 ```tsx
 import { fromSeconds } from '@techsquidtv/canvas-timeline';
 import {
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineEditCommands,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
 function MoveSelectedClip() {
-  const { selectedClip } = useTimelineClips();
+  const { selectedClip } = useTimelineSelection();
   const { moveClip } = useTimelineEditCommands();
 
   return (

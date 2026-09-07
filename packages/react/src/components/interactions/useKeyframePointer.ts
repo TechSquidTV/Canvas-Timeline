@@ -8,12 +8,20 @@ interface ViewportPoint {
 interface KeyframePointerOptions<Target> {
   root: RefObject<HTMLDivElement | null>;
   rulerHeight: number;
+  priority?: number;
   hitTest: (point: ViewportPoint, event: PointerEvent) => Target | null;
   hover: (target: Target | null) => void;
   start: (target: Target, point: ViewportPoint, event: PointerEvent) => boolean;
   move: (point: ViewportPoint, event: PointerEvent) => void;
   end: (cancelled: boolean) => void;
 }
+
+interface PointerLayer {
+  priority: number;
+  active: boolean;
+  hits: (event: PointerEvent) => boolean;
+}
+const pointerLayers = new WeakMap<Element, Set<PointerLayer>>();
 
 /** One captured pointer, cached drag bounds, and fallback listeners only when capture fails. */
 export function useKeyframePointer<Target>(options: KeyframePointerOptions<Target>) {
@@ -34,12 +42,30 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
       x: event.clientX - bounds.left,
       y: event.clientY - bounds.top + latest.current.rulerHeight,
     });
+    const layers = pointerLayers.get(parent) ?? new Set<PointerLayer>();
+    pointerLayers.set(parent, layers);
+    const layer: PointerLayer = {
+      priority: options.priority ?? 0,
+      active: false,
+      hits: (event) =>
+        latest.current.hitTest(point(event, root.getBoundingClientRect()), event) !== null,
+    };
+    layers.add(layer);
+    const isClaimed = (event: PointerEvent) => {
+      for (const candidate of layers) {
+        if (candidate.active || (candidate.priority > layer.priority && candidate.hits(event))) {
+          return true;
+        }
+      }
+      return false;
+    };
     const finish = (cancelled: boolean) => {
       if (!active) {
         return;
       }
       const id = active.pointerId;
       active = null;
+      layer.active = false;
       disposeFallback?.();
       disposeFallback = null;
       latest.current.end(cancelled);
@@ -59,7 +85,9 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
         event.stopImmediatePropagation();
       } else if (!event.defaultPrevented) {
         latest.current.hover(
-          latest.current.hitTest(point(event, root.getBoundingClientRect()), event)
+          isClaimed(event)
+            ? null
+            : latest.current.hitTest(point(event, root.getBoundingClientRect()), event)
         );
       }
     };
@@ -74,6 +102,7 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
       if (
         active ||
         event.defaultPrevented ||
+        isClaimed(event) ||
         (event.button !== 0 && event.pointerType !== 'touch')
       ) {
         return;
@@ -91,6 +120,7 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
         return;
       }
       active = { pointerId: event.pointerId, bounds };
+      layer.active = true;
       try {
         root.setPointerCapture(event.pointerId);
       } catch {
@@ -113,6 +143,10 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
     root.addEventListener('lostpointercapture', end);
     return () => {
       finish(true);
+      layers.delete(layer);
+      if (layers.size === 0) {
+        pointerLayers.delete(parent);
+      }
       parent.removeEventListener('pointerdown', down, true);
       parent.removeEventListener('pointermove', move, true);
       parent.removeEventListener('pointerup', end, true);
@@ -120,6 +154,6 @@ export function useKeyframePointer<Target>(options: KeyframePointerOptions<Targe
       root.removeEventListener('lostpointercapture', end);
       cancelRef.current = null;
     };
-  }, [options.root]);
+  }, [options.root, options.priority]);
   return () => cancelRef.current?.();
 }

@@ -1,3 +1,4 @@
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -61,10 +62,11 @@ function formatZoomValue(value: number) {
 export function useTimelineZoomControl(options: TimelineZoomControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
   const engine = useTimelineEngine();
+  const bounds = useTimelineViewportBounds();
   const zoomScale = useTimelineZoomScale();
   const control = useMemo(() => {
-    const engineMin = engine.minZoomScale;
-    const engineMax = engine.maxZoomScale;
+    const engineMin = bounds.minZoomScale;
+    const engineMax = bounds.maxZoomScale;
     const min = Math.max(optionMin ?? 10, engineMin);
     const requestedMax = optionMax ?? (Number.isFinite(engineMax) ? engineMax : 1000);
     const max = Math.max(min, Math.min(requestedMax, engineMax));
@@ -78,8 +80,8 @@ export function useTimelineZoomControl(options: TimelineZoomControlOptions = {})
       valueText: formatZoomValue(zoomScale),
     };
   }, [
-    engine.maxZoomScale,
-    engine.minZoomScale,
+    bounds.maxZoomScale,
+    bounds.minZoomScale,
     optionLabel,
     optionMax,
     optionMin,

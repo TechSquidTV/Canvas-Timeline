@@ -131,6 +131,11 @@ export const KeyframeInteractionLayer = React.forwardRef<
       selection: TimelineKeyframeReference[];
       additive: boolean;
     } | null>(null);
+    const keyPointerRef = useRef<{
+      reference: TimelineKeyframeReference;
+      toggleOnClick: boolean;
+      moved: boolean;
+    } | null>(null);
     const axisRef = useRef<'time' | 'value' | undefined>(undefined);
     const originRef = useRef({ x: 0, y: 0 });
     const clipboard = useRef<TimelineKeyframeClipboard | null>(null);
@@ -174,20 +179,6 @@ export const KeyframeInteractionLayer = React.forwardRef<
       root,
       rulerHeight,
       hitTest: (point, event) => {
-        // Tangents have priority over point padding when both layers are mounted.
-        if (
-          root.current?.parentElement?.querySelector(
-            '.timeline-keyframe-tangent-interaction-layer'
-          ) &&
-          engine.keyframes.getKeyframeTangentHandleAtPoint({
-            ...geometry,
-            selectedKeyframeOnly: true,
-            ...point,
-            pointerType: event.pointerType,
-          })
-        ) {
-          return null;
-        }
         const hits = live.visibleKeyframes.filter(
           ({ rect }) =>
             point.x >= rect.x - hitPadding &&
@@ -235,24 +226,30 @@ export const KeyframeInteractionLayer = React.forwardRef<
           return false;
         }
         const ref = { clipId: entry.clip.id, keyframeId: entry.keyframe.id };
-        if (event.shiftKey || event.metaKey || event.ctrlKey) {
-          engine.keyframes.selectKeyframes([ref], 'toggle');
-          if (entry.keyframe.selected) {
-            return false;
-          }
-        } else if (!entry.keyframe.selected) {
-          engine.keyframes.selectKeyframes([ref]);
+        const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+        keyPointerRef.current = {
+          reference: ref,
+          toggleOnClick: additive && Boolean(entry.keyframe.selected),
+          moved: false,
+        };
+        if (!entry.keyframe.selected) {
+          engine.keyframes.selectKeyframes([ref], additive ? 'add' : 'replace');
         }
         if (onKeyframeDoubleClick && consumeTimelineDoubleTap(event)) {
+          keyPointerRef.current = null;
           onKeyframeDoubleClick(entry, { engine, event });
           return false;
         }
-        return drag.startKeyframeDrag({
+        const started = drag.startKeyframeDrag({
           ...ref,
           clientX: event.clientX,
           viewportY: point.y,
           keyframeRect: entry,
         }).ok;
+        if (!started) {
+          keyPointerRef.current = null;
+        }
+        return started;
       },
       move: (point, event) => {
         const start = marqueeRef.current;
@@ -279,6 +276,16 @@ export const KeyframeInteractionLayer = React.forwardRef<
           );
           return;
         }
+        const keyPointer = keyPointerRef.current;
+        if (!keyPointer) {
+          return;
+        }
+        if (!keyPointer.moved) {
+          if (Math.hypot(point.x - originRef.current.x, point.y - originRef.current.y) < 3) {
+            return;
+          }
+          keyPointer.moved = true;
+        }
         if (event.shiftKey && !axisRef.current) {
           axisRef.current =
             Math.abs(point.x - originRef.current.x) >= Math.abs(point.y - originRef.current.y)
@@ -300,10 +307,17 @@ export const KeyframeInteractionLayer = React.forwardRef<
           }
           marqueeRef.current = null;
           setMarquee(null);
-        } else if (cancelled) {
-          drag.cancelKeyframeDrag();
         } else {
-          drag.endKeyframeDrag();
+          const keyPointer = keyPointerRef.current;
+          keyPointerRef.current = null;
+          if (cancelled) {
+            drag.cancelKeyframeDrag();
+          } else {
+            const result = drag.endKeyframeDrag();
+            if (result.ok && keyPointer?.toggleOnClick && !keyPointer.moved) {
+              engine.keyframes.selectKeyframes([keyPointer.reference], 'toggle');
+            }
+          }
         }
       },
     });
@@ -315,7 +329,6 @@ export const KeyframeInteractionLayer = React.forwardRef<
       if (event.key === 'Escape') {
         event.preventDefault();
         cancelPointer();
-        engine.cancelEdit();
         return;
       }
       if (!current) {

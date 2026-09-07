@@ -100,3 +100,25 @@ Hook and geometry APIs return the engine's actual string track kinds. Remove cal
 `TimelineCommandResult<Value>` is discriminated by `ok`: failures always have a reason, and successful non-void results have a required value. Narrow on `ok` before reading the payload.
 
 RangeScrollbar now returns `thumbOffsetPercent` and `thumbSizePercent`; remove uses of `thumbLeftPercent` and `thumbWidthPercent`.
+
+## React hook composition
+
+The canonical scrollbar adapters are `useTimelineViewportRangeControl()` and
+`useTimelineVerticalRangeControl()`. Each includes formatted accessibility values;
+the separate `*Scrollbar` hooks and their types have been removed. Use
+`TimelineViewportRangeControlOptions`, `UseTimelineViewportRangeControlResult`,
+`UseTimelineVerticalRangeControlResult`, and the corresponding
+`TimelineViewportRangeControlRootProps` / `TimelineVerticalRangeControlRootProps`.
+
+Keep tool selection in application state (`useState<TimelineEditMode>('select')`)
+in place of the removed `useTimelineEditMode` hook. Read selected clips, tracks,
+and groups through `useTimelineSelection()`. `useTimelineClips()` now owns clip
+collection state, lookups, capabilities, and presentation updates;
+`useTimelineClipGroups()` owns group collection state and group commands. For
+imperative hit testing and source mapping use `useTimelineEngine().geometry` and
+`.media`; use geometry hooks when the UI needs reactive rectangles.
+
+Track toggles no longer accept explicit boolean values. Use `setMuted(value)`,
+`setVisible(value)`, `setLocked(value)`, and `setTrackTarget(value)` on a row hook,
+or pass `trackId` first on the collection hook. Calling a toggle changes the
+current engine value. These exports have no compatibility aliases.

@@ -113,9 +113,10 @@ release workflows use the same entry point.
 
 ## Release Publishing
 
-Releases are managed by Changesets and GitHub Actions. When changes land on
-`main`, the Release workflow runs validation and then invokes
-`changesets/action`.
+Releases are managed by Changesets and GitHub Actions. Manually dispatch the
+Release workflow on `main` with `snapshot: false` and the repository variable
+`ENABLE_PACKAGE_PUBLISH` set to `true`. The workflow runs validation and then
+invokes `changesets/action`.
 
 TechSquidTV is the release owner and fallback owner for npm, GitHub, docs, and
 incident response. This repository is maintained by a solo developer, so the
@@ -130,6 +131,10 @@ The action has two outcomes:
 - If the versioned release pull request has already been merged, it runs
   `vp run release:publish`, publishes packages to npm, and creates GitHub
   releases.
+
+Dispatch the workflow again after merging the release pull request to publish.
+Non-snapshot releases use npm's default `latest` dist-tag; the workflow's `tag`
+input applies only to snapshot publishing.
 
 `vp run release:publish` runs `vp run repo:package:check` before
 `changeset publish`. That means release publishing builds packages, validates

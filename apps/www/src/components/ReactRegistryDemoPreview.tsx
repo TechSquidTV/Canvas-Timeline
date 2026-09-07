@@ -14,7 +14,7 @@ import {
   useActiveClips,
   useActiveLayers,
   useTimeline,
-  useTimelineClips,
+  useTimelineSelection,
   useTimelineClipNavigation,
   useTimelineClipboard,
   useTimelineEditCommands,
@@ -410,7 +410,7 @@ function TimelineStateHookDemo() {
 }
 
 function EditingHooksDemo() {
-  const { selectedClip, selectClip } = useTimelineClips();
+  const { selectedClip, selectClip } = useTimelineSelection();
   const { copySelection } = useTimelineClipboard();
   const { deleteClip } = useTimelineEditCommands();
   const { canUndo, undo } = useTimelineHistory();

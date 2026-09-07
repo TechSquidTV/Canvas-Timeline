@@ -1,8 +1,8 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
@@ -33,7 +33,6 @@ export interface UseTimelineClipboardResult {
  */
 export function useTimelineClipboard(): UseTimelineClipboardResult {
   const engine = useTimelineEngine();
-  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
   const { selectedClip } = useTimelineSelection();
   const clipboardCount = useTimelineExternalStore(
     clipboardEvents,
@@ -49,46 +48,55 @@ export function useTimelineClipboard(): UseTimelineClipboardResult {
     [clipboardCount, selectedClip]
   );
 
-  const copySelection = useCallback(() => {
-    if (!clipboardState.canCopy) {
-      return timelineCommandFail('empty-selection');
-    }
-    engine.copySelection();
-    return timelineCommandOk();
-  }, [clipboardState.canCopy, engine]);
+  const copySelection = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        if (engine.getSelectedClipIds().length === 0) {
+          return timelineCommandFail('empty-selection');
+        }
+        engine.copySelection();
+        return timelineCommandOk();
+      }),
+    [engine]
+  );
 
-  const cutSelection = useCallback(() => {
-    if (!clipboardState.canCut) {
-      return timelineCommandFail('empty-selection');
-    }
-    const result = engine.cutSelection();
-    return result.committed
-      ? timelineCommandOk()
-      : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
-  }, [clipboardState.canCut, engine]);
+  const cutSelection = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        if (engine.getSelectedClipIds().length === 0) {
+          return timelineCommandFail('empty-selection');
+        }
+        const result = engine.cutSelection();
+        return result.committed
+          ? timelineCommandOk()
+          : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
+      }),
+    [engine]
+  );
 
   const pasteSelection = useCallback(
-    (time: RationalTime, targetTrackId?: string) => {
-      if (!clipboardState.canPaste) {
-        return timelineCommandFail('empty-clipboard');
-      }
-      if (
-        targetTrackId !== undefined &&
-        !state.tracks.some((track) => track.id === targetTrackId)
-      ) {
-        return timelineCommandFail('not-found');
-      }
-      const results = engine.pasteSelection(time, targetTrackId);
-      if (!results?.length) {
-        return timelineCommandFail('not-found');
-      }
-      // Earlier valid edits are also uncommitted after rollback; report the rejecting edit.
-      const failed = results.find((result) => !result.preview.valid);
-      return failed
-        ? timelineCommandFail(failed.preview.reason ?? 'unsupported', failed.preview.message)
-        : timelineCommandOk();
-    },
-    [clipboardState.canPaste, engine, state.tracks]
+    (time: RationalTime, targetTrackId?: string) =>
+      runTimelineCommand(() => {
+        if (!engine.canPasteSelection) {
+          return timelineCommandFail('empty-clipboard');
+        }
+        if (
+          targetTrackId !== undefined &&
+          !engine.tracks.some((track) => track.id === targetTrackId)
+        ) {
+          return timelineCommandFail('not-found');
+        }
+        const results = engine.pasteSelection(time, targetTrackId);
+        if (!results?.length) {
+          return timelineCommandFail('not-found');
+        }
+        // Earlier valid edits are also uncommitted after rollback; report the rejecting edit.
+        const failed = results.find((result) => !result.preview.valid);
+        return failed
+          ? timelineCommandFail(failed.preview.reason ?? 'unsupported', failed.preview.message)
+          : timelineCommandOk();
+      }),
+    [engine]
   );
 
   return useMemo(

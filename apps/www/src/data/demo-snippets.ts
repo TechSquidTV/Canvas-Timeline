@@ -26,9 +26,12 @@ function mergePublicPackageImports(source: string): string {
     (_statement, typeOnly, importedNames) => {
       for (const importedName of importedNames.split(',')) {
         const trimmedName = importedName.trim();
+        if (!trimmedName) {
+          continue;
+        }
         const specifier =
           typeOnly && !trimmedName.startsWith('type ') ? `type ${trimmedName}` : trimmedName;
-        if (specifier && !seen.has(specifier)) {
+        if (!seen.has(specifier)) {
           seen.add(specifier);
           specifiers.push(specifier);
         }
@@ -67,5 +70,11 @@ export function toCopyableDemoSource(source: string): string {
     source
   );
 
-  return mergePublicPackageImports(publicPackageSource);
+  // Code tabs form one copyable folder, including shared demo helpers and styles.
+  const localModuleSource = publicPackageSource.replace(
+    /((?:\bfrom\s+|\bimport\s*)['"])#www\/(?:[^/'"\n]+\/)*([^/'"\n]+)(['"])/g,
+    '$1./$2$3'
+  );
+
+  return mergePublicPackageImports(localModuleSource);
 }

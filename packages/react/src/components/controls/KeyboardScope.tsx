@@ -16,6 +16,9 @@ export const KeyboardScope = React.forwardRef<HTMLDivElement, KeyboardScopeProps
   (
     {
       bindings,
+      commandHandlers,
+      onCommandResult,
+      onCommandError,
       children,
       disabled,
       frameRate,
@@ -34,6 +37,9 @@ export const KeyboardScope = React.forwardRef<HTMLDivElement, KeyboardScopeProps
   ) => {
     const keyboard = useTimelineKeyboard({
       bindings,
+      commandHandlers,
+      onCommandResult,
+      onCommandError,
       disabled,
       frameRate,
       frameStepCount,

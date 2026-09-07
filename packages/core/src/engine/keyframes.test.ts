@@ -62,6 +62,73 @@ describe('TimelineEngine keyframes', () => {
   });
 
   describe('Keyframes', () => {
+    it.each(['value', 'incoming', 'outgoing'] as const)(
+      'rejects an invalid %s before moving a keyframe or deleting a collision',
+      (field) => {
+        const first = expectDefined(
+          engine.keyframes.setClipKeyframe({
+            clipId: 'clip1',
+            property: 'opacity',
+            time: fromSeconds(2),
+            value: 0.5,
+          }),
+          'first keyframe'
+        );
+        engine.keyframes.setClipKeyframe({
+          clipId: 'clip1',
+          property: 'opacity',
+          time: fromSeconds(3),
+          value: 0.8,
+        });
+        const before = engine.getState();
+        const invalid = { interpolation: 'bezier', handle: { x: NaN, y: 0.5 } } as const;
+        expect(() =>
+          engine.keyframes.updateClipKeyframe({
+            clipId: 'clip1',
+            keyframeId: first.id,
+            time: fromSeconds(3),
+            ...(field === 'value' ? { value: NaN } : { [field]: invalid }),
+          })
+        ).toThrow();
+        engine.invalidateContent();
+        expect(engine.getState().tracks).toEqual(before.tracks);
+        engine.undo();
+        expect(engine.keyframes.getClipKeyframes('clip1')).toHaveLength(1);
+      }
+    );
+
+    it('validates both interpolation sides before applying either side', () => {
+      const first = expectDefined(
+        engine.keyframes.setClipKeyframe({
+          clipId: 'clip1',
+          property: 'opacity',
+          time: fromSeconds(2),
+          value: 0.5,
+        }),
+        'first keyframe'
+      );
+      const before = engine.getState();
+      expect(() =>
+        engine.keyframes.updateClipKeyframeSides({
+          clipId: 'clip1',
+          keyframeId: first.id,
+          incoming: { interpolation: 'hold' },
+          outgoing: { interpolation: 'bezier', handle: { x: NaN, y: 0.5 } },
+        })
+      ).toThrow();
+      expect(() =>
+        engine.keyframes.setClipKeyframe({
+          clipId: 'clip1',
+          property: 'opacity',
+          time: fromSeconds(2),
+          value: 0.9,
+          outgoing: { interpolation: 'bezier', handle: { x: NaN, y: 0.5 } },
+        })
+      ).toThrow();
+      engine.invalidateContent();
+      expect(engine.getState().tracks).toEqual(before.tracks);
+    });
+
     function createKeyframeClip(id: string, start: number, end: number, values: number[]): Clip {
       return {
         id,

@@ -9,6 +9,7 @@ import type {
   TimelineReadonly,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { TimelineEditGesture } from '#react/hooks/editing/timelineEditGesture';
 import { useTimelineTrackDropTargets } from '#react/hooks/tracks/useTimelineTrackDropTargets';
 import type {
   TimelineTrackDropGuard,
@@ -77,6 +78,7 @@ export interface UseTimelineClipDragResult {
 }
 
 interface ActiveClipDrag {
+  gesture: TimelineEditGesture;
   clipId: string;
   startClientX: number;
   startLeft: number;
@@ -188,14 +190,16 @@ export function useTimelineClipDrag(
 
   useEffect(() => {
     return () => {
-      if (!activeDragRef.current) {
+      const active = activeDragRef.current;
+      if (!active) {
         return;
       }
 
       activeDragRef.current = null;
       setDragging(false);
-      engine.cancelEdit();
-      engine.clearClipDropFeedback();
+      if (active.gesture.cancel()) {
+        engine.clearClipDropFeedback();
+      }
     };
   }, [engine]);
 
@@ -221,6 +225,12 @@ export function useTimelineClipDrag(
 
   const startClipDrag = useCallback(
     (input: TimelineClipDragStartInput): TimelineCommandResult => {
+      if (activeDragRef.current) {
+        return timelineCommandFail('unsupported', 'A drag is already active.');
+      }
+      if (!Number.isFinite(input.clientX) || !Number.isFinite(input.viewportY)) {
+        return timelineCommandFail('invalid-input');
+      }
       const found = engine.geometry.getClip(input.clipId);
       const rect =
         input.clipRect ??
@@ -244,6 +254,7 @@ export function useTimelineClipDrag(
       engine.cancelEdit();
 
       activeDragRef.current = {
+        gesture: new TimelineEditGesture(engine),
         clipId: input.clipId,
         startClientX: input.clientX,
         startLeft: rect.x,
@@ -288,6 +299,12 @@ export function useTimelineClipDrag(
       if (!activeDrag) {
         return timelineCommandFail<TimelineClipMoveResult>('unsupported');
       }
+      if (!activeDrag.gesture.isCurrent()) {
+        return timelineCommandFail('unsupported', 'The drag preview was replaced.');
+      }
+      if (!Number.isFinite(input.clientX) || !Number.isFinite(input.viewportY)) {
+        return timelineCommandFail('invalid-input');
+      }
 
       const hoveredTarget = findTrackTargetAtY(activeDrag.trackTargets, input.viewportY);
       let dropResult: TimelineTrackDropResult | null = null;
@@ -321,7 +338,7 @@ export function useTimelineClipDrag(
       publishFeedback(activeDrag, hoveredTarget?.track.id ?? null, dropResult, penetrationRatio);
 
       const deltaX = input.clientX - activeDrag.startClientX;
-      const preview = engine.previewEdit({
+      const preview = activeDrag.gesture.publish({
         type: 'move',
         overwrite: true,
         clipId: activeDrag.clipId,
@@ -344,31 +361,32 @@ export function useTimelineClipDrag(
   );
 
   const endClipDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
+    const active = activeDragRef.current;
+    if (!active) {
       return timelineCommandFail('unsupported');
     }
 
     activeDragRef.current = null;
     setDragging(false);
-    const command = engine.getEditPreview()?.command;
-    const result = command ? engine.commitEdit(command) : undefined;
-    engine.cancelEdit();
-    engine.clearClipDropFeedback();
-    return result && !result.committed
-      ? timelineCommandFail(result.preview.reason ?? 'unsupported')
-      : timelineCommandOk();
+    const current = active.gesture.isCurrent();
+    const result = active.gesture.commit();
+    if (current) {
+      engine.clearClipDropFeedback();
+    }
+    return result;
   }, [engine]);
 
   const cancelClipDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
-      engine.clearClipDropFeedback();
+    const active = activeDragRef.current;
+    if (!active) {
       return timelineCommandFail('unsupported');
     }
 
     activeDragRef.current = null;
     setDragging(false);
-    engine.cancelEdit();
-    engine.clearClipDropFeedback();
+    if (active.gesture.cancel()) {
+      engine.clearClipDropFeedback();
+    }
     return timelineCommandOk();
   }, [engine]);
 

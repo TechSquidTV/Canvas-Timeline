@@ -5,6 +5,7 @@ import {
 } from '@techsquidtv/canvas-timeline-react';
 import type {
   TimelineKeyframe,
+  TimelineEditPreview,
   TimelineKeyframeClipboard,
   TimelineKeyframeEditCommand,
   TimelineKeyframeSide,
@@ -39,6 +40,7 @@ export function KeyframeInspector() {
   const valueEdit = useRef<{
     keyframeId: string | undefined;
     time: TimelineKeyframe['time'];
+    preview: TimelineEditPreview | null;
   } | null>(null);
   const [sliderValue, setSliderValue] = useState<number | null>(null);
   const value =
@@ -48,7 +50,7 @@ export function KeyframeInspector() {
     1;
   useEffect(
     () => () => {
-      if (valueEdit.current) {
+      if (valueEdit.current?.preview && valueEdit.current.preview === engine.getEditPreview()) {
         engine.cancelEdit();
       }
     },
@@ -73,11 +75,13 @@ export function KeyframeInspector() {
     if (!valueEdit.current) {
       return;
     }
-    const preview = engine.getEditPreview();
-    if (!cancelled && preview?.valid && preview.command.type === 'keyframes') {
-      commit(preview.command);
+    const preview = valueEdit.current.preview;
+    if (preview && preview === engine.getEditPreview()) {
+      if (!cancelled && preview.valid && preview.command.type === 'keyframes') {
+        commit(preview.command);
+      }
+      engine.cancelEdit();
     }
-    engine.cancelEdit();
     valueEdit.current = null;
     setSliderValue(null);
   };
@@ -86,9 +90,15 @@ export function KeyframeInspector() {
       setMessage('Enter a finite opacity value.');
       return;
     }
+    if (valueEdit.current && valueEdit.current.preview !== engine.getEditPreview()) {
+      setSliderValue(null);
+      setMessage('The value gesture was replaced by another edit.');
+      return;
+    }
     const target = valueEdit.current ?? {
       keyframeId: selected?.id,
       time: selected?.time ?? engine.getState().playheadTime,
+      preview: null,
     };
     const command: TimelineKeyframeEditCommand = {
       type: 'keyframes',
@@ -108,7 +118,7 @@ export function KeyframeInspector() {
     if (preview) {
       valueEdit.current = target;
       setSliderValue(next);
-      engine.previewEdit(command);
+      target.preview = engine.previewEdit(command);
     } else {
       commit(command);
     }

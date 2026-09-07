@@ -528,7 +528,7 @@ test('useTimelineTracks exposes visible and hidden tracks with visibility comman
   expect(result.current.targetedTracks.map((track) => track.id)).toEqual(['video-1']);
 
   act(() => {
-    expect(result.current.toggleVisibility('audio-1', true)).toEqual({ ok: true });
+    expect(result.current.setVisible('audio-1', true)).toEqual({ ok: true });
   });
 
   expect(engine.getState().tracks.find((track) => track.id === 'audio-1')?.visible).toBe(true);

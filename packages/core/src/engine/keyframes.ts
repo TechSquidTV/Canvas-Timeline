@@ -970,6 +970,20 @@ export class TimelineKeyframes {
     this.context.keyframeProperties.normalizeClipKeyframes(clip);
   }
 
+  private replaceClipKeyframe(clip: Clip, keyframe: TimelineKeyframe, collisionId?: string) {
+    const next = {
+      ...clip,
+      keyframes: [
+        ...(clip.keyframes ?? []).filter(
+          (candidate) => candidate.id !== keyframe.id && candidate.id !== collisionId
+        ),
+        keyframe,
+      ],
+    };
+    this.normalizeClipKeyframes(next);
+    clip.keyframes = next.keyframes;
+  }
+
   /** @internal Normalizes initial keyframes after registration. */
   validateRegisteredClipKeyframes() {
     for (const track of this.context.state.tracks) {
