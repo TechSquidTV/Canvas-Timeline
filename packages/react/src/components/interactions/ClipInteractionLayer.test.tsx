@@ -4,7 +4,7 @@ import { useTimeline } from '#react/hooks/core/useTimeline';
 import { TimelineProvider } from '#react/Provider';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 function getElementPrototypeMethod<
@@ -554,11 +554,50 @@ describe('ClipInteractionLayer', () => {
         type: 'trim',
         clipId: 'clip-1',
         edge: 'start',
-        newTime: expect.objectContaining({ r: 24000, v: 28800 }),
       })
     );
     expect(trimClip).toHaveBeenCalledTimes(1);
+    const command = trimClip.mock.calls[0]?.[0];
+    if (command?.type !== 'trim') {
+      throw new Error('Expected trim command');
+    }
+    expect(toSeconds(command.newTime)).toBe(1.2);
   });
+
+  it.each(['mouse', 'touch'])(
+    'cancels a %s trim without reading layout during moves',
+    (pointerType) => {
+      const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
+      const { container } = render(
+        <TimelineProvider engine={engine}>
+          <ClipInteractionLayer />
+        </TimelineProvider>
+      );
+      const layer = container.querySelector('.timeline-clip-interaction-layer');
+      if (!layer) {
+        throw new Error('Missing interaction layer');
+      }
+      fireEvent.pointerDown(layer, {
+        clientX: 498,
+        clientY: 40,
+        pointerType,
+        button: 0,
+        pointerId: 1,
+      });
+      const readLayout = vi.spyOn(layer, 'getBoundingClientRect');
+      readLayout.mockClear();
+      fireEvent.pointerMove(layer, { clientX: 550, clientY: 40, pointerType, pointerId: 1 });
+      expect(engine.getEditPreview()?.command.type).toBe('trim');
+      expect(readLayout).not.toHaveBeenCalled();
+      fireEvent.pointerCancel(layer, { pointerType, pointerId: 1 });
+      expect(engine.getEditPreview()).toBeNull();
+      const found = engine.geometry.getClip('clip-1');
+      if (!found) {
+        throw new Error('Missing clip');
+      }
+      expect(toSeconds(found.clip.timelineEnd)).toBe(5);
+    }
+  );
 
   it('ends an active edit when pointer capture is lost', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);

@@ -9,3 +9,4 @@ export * from '#react/hooks/clips/useTimelineClipNavigation';
 export * from '#react/hooks/clips/useTimelineClipRects';
 export * from '#react/hooks/clips/useTimelineClips';
 export * from '#react/hooks/clips/useTimelineVisibleClips';
+export * from '#react/hooks/clips/useTimelineClipTrim';

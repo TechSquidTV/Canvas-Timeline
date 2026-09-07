@@ -1,3 +1,4 @@
+import { useEditorMediaSync } from '#full-editor/features/media/media-sync-context';
 import { Timeline } from '@techsquidtv/canvas-timeline-react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { TimelineLayers } from '#full-editor/features/timeline/TimelineLayers';
@@ -7,12 +8,17 @@ import { getProjectFrameRatePreset } from '#full-editor/features/project/frame-r
 import { getEditorRulerOptions } from '#full-editor/features/timeline/ruler-format';
 
 export function TimelineSurface() {
+  const media = useEditorMediaSync();
   const { metadata, rulerFormat } = useEditorProject();
   const { timecodeFrameRate } = getProjectFrameRatePreset(metadata.frameRate);
   const rulerOptions = getEditorRulerOptions(rulerFormat, timecodeFrameRate);
 
   return (
-    <div className="timeline-editor-timeline-panel">
+    <Timeline.KeyboardScope
+      className="timeline-editor-timeline-panel"
+      frameRate={timecodeFrameRate}
+      commandHandlers={{ togglePlayback: media.togglePlay }}
+    >
       <div className="timeline-editor-stage-row">
         <div className="timeline-stage timeline-editor-timeline-stage">
           <TimelineSourceDropTarget>
@@ -37,6 +43,6 @@ export function TimelineSurface() {
           </Timeline.ViewportScrollbarThumb>
         </Timeline.ViewportScrollbar>
       </div>
-    </div>
+    </Timeline.KeyboardScope>
   );
 }
