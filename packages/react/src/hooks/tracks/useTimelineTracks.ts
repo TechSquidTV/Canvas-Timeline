@@ -1,9 +1,8 @@
-import { useTimelineTrackCommands } from '#react/hooks/tracks/useTimelineTrackCommands';
-import type {
-  TimelineCommandResult,
-  Track,
-  TimelineReadonly,
-} from '@techsquidtv/canvas-timeline-core';
+import {
+  useTimelineTrackCommands,
+  type UseTimelineTrackCommandsResult,
+} from '#react/hooks/tracks/useTimelineTrackCommands';
+import type { Track, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useMemo } from 'react';
 /**
@@ -21,7 +20,7 @@ import { useMemo } from 'react';
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export interface UseTimelineTracksResult {
+export interface UseTimelineTracksResult extends UseTimelineTrackCommandsResult {
   /** Current ordered track list. */
   tracks: readonly TimelineReadonly<Track>[];
   /** Currently selected track, or null when no track is selected. */
@@ -34,24 +33,6 @@ export interface UseTimelineTracksResult {
   targetedTracks: TimelineReadonly<Track>[];
   /** Tracks grouped by group id, with ungrouped tracks under "ungrouped". */
   tracksByGroupId: Record<string, TimelineReadonly<Track>[]>;
-  /** Selects a track by id, or clears track selection. */
-  selectTrack: (trackId: string | null) => TimelineCommandResult;
-  /** Adds a track to the timeline. */
-  addTrack: (track: Track) => TimelineCommandResult;
-  /** Removes a track from the timeline. */
-  removeTrack: (trackId: string) => TimelineCommandResult;
-  /** Sets or toggles whether a track is muted. */
-  toggleMute: (trackId: string, muted?: boolean) => TimelineCommandResult;
-  /** Sets or toggles whether a track participates in active layer and media lookup. */
-  toggleVisibility: (trackId: string, visible?: boolean) => TimelineCommandResult;
-  /** Sets or toggles whether a track is locked. */
-  toggleLock: (trackId: string, locked?: boolean) => TimelineCommandResult;
-  /** Sets a track's expanded display height in pixels. */
-  setTrackHeight: (trackId: string, height: number) => TimelineCommandResult;
-  /** Sets or toggles whether a track is targeted for edit operations. */
-  toggleTrackTarget: (trackId: string, targeted?: boolean) => TimelineCommandResult;
-  /** Assigns a track to a group, or clears its group. */
-  setTrackGroup: (trackId: string, groupId: string | undefined) => TimelineCommandResult;
 }
 
 /**
@@ -90,14 +71,14 @@ export interface UseTimelineTracksResult {
  * import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
  *
  * export function TrackVisibilityMenu() {
- *   const { tracks, toggleVisibility } = useTimelineTracks();
+ *   const { tracks, setVisible } = useTimelineTracks();
  *
  *   return tracks.map((track) => (
  *     <label key={track.id}>
  *       <input
  *         type="checkbox"
  *         checked={track.visible}
- *         onChange={(event) => toggleVisibility(track.id, event.currentTarget.checked)}
+ *         onChange={(event) => setVisible(track.id, event.currentTarget.checked)}
  *       />
  *       {track.name ?? track.id}
  *     </label>

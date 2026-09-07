@@ -11,6 +11,7 @@ import {
   Timeline,
   TimelineProvider,
   useTimelineClipGroups,
+  useTimelineSelection,
   useTimelineExternalClipDrop,
 } from '@techsquidtv/canvas-timeline-react';
 import '@techsquidtv/canvas-timeline-react/styles.css';
@@ -91,7 +92,8 @@ function resolveExternalAsset(event: DragEvent<HTMLElement>, fallbackAssetId: st
 
 function ExternalDropWorkspace() {
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('overwrite');
-  const { selectedGroupId, ungroupSelectedClips } = useTimelineClipGroups();
+  const { selectedGroupId } = useTimelineSelection();
+  const { ungroupSelectedClips } = useTimelineClipGroups();
   const activeAssetIdRef = useRef<string | null>(null);
   const clipCounterRef = useRef(1);
   const canUngroup = selectedGroupId !== null;

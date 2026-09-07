@@ -2,7 +2,7 @@ import { formatTimelineTimeValue } from '#react/accessibility';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
@@ -58,28 +58,9 @@ export interface TimelinePlayheadControlOptions {
 export function useTimelinePlayheadControl(options: TimelinePlayheadControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
   const engine = useTimelineEngine();
-  const state = useTimelineSelector((state) => ({
-    duration: state.duration,
-    tracks: state.tracks,
-  }));
+  const bounds = useTimelineViewportBounds();
   const playheadTime = useTimelinePlayheadTime();
-  const max = useMemo(() => {
-    if (optionMax !== undefined) {
-      return optionMax;
-    }
-
-    if (state.duration !== undefined) {
-      return toSeconds(state.duration);
-    }
-
-    return state.tracks.reduce((maxSeconds, track) => {
-      const trackMax = (track.clips ?? []).reduce(
-        (clipMax, clip) => Math.max(clipMax, toSeconds(clip.timelineEnd)),
-        maxSeconds
-      );
-      return Math.max(maxSeconds, trackMax);
-    }, 0);
-  }, [optionMax, state.duration, state.tracks]);
+  const max = optionMax ?? toSeconds(bounds.maxContentTime);
   const control = useMemo(() => {
     const value = toSeconds(playheadTime);
     return {

@@ -1,3 +1,4 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
@@ -77,50 +78,56 @@ export function useTimelineViewport(): UseTimelineViewportResult {
   const zoomScale = useTimelineZoomScale();
 
   const setScrollLeft = useCallback(
-    (nextScrollLeft: number) => {
-      engine.setScrollLeft(nextScrollLeft);
-      return timelineCommandOk();
-    },
+    (nextScrollLeft: number) =>
+      runTimelineCommand(() => {
+        engine.setScrollLeft(nextScrollLeft);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setZoomScale = useCallback(
-    (nextZoomScale: number) => {
-      engine.setZoomScale(nextZoomScale);
-      return timelineCommandOk();
-    },
+    (nextZoomScale: number) =>
+      runTimelineCommand(() => {
+        engine.setZoomScale(nextZoomScale);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setScrollTop = useCallback(
-    (nextScrollTop: number) => {
-      engine.setScrollTop(nextScrollTop);
-      return timelineCommandOk();
-    },
+    (nextScrollTop: number) =>
+      runTimelineCommand(() => {
+        engine.setScrollTop(nextScrollTop);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setViewportWidth = useCallback(
-    (width: number) => {
-      engine.setViewportWidth(width);
-      return timelineCommandOk();
-    },
+    (width: number) =>
+      runTimelineCommand(() => {
+        engine.setViewportWidth(width);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setViewportHeight = useCallback(
-    (height: number) => {
-      engine.setViewportHeight(height);
-      return timelineCommandOk();
-    },
+    (height: number) =>
+      runTimelineCommand(() => {
+        engine.setViewportHeight(height);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setDuration = useCallback(
-    (duration: RationalTime | undefined) => {
-      engine.setDuration(duration);
-      return timelineCommandOk();
-    },
+    (duration: RationalTime | undefined) =>
+      runTimelineCommand(() => {
+        engine.setDuration(duration);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 

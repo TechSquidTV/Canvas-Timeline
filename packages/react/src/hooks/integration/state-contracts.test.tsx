@@ -23,7 +23,7 @@ test('commands from a missing row validate newly added tracks before the next re
   });
   act(() => {
     engine.addTrack(createTrack('new', []));
-    expect(result.current.toggleMute(true)).toEqual({ ok: true });
+    expect(result.current.setMuted(true)).toEqual({ ok: true });
   });
   expect(result.current.muted).toBe(true);
 });
@@ -253,7 +253,7 @@ test('track commands validate current state and return structured failures', () 
   });
   act(() => {
     expect(result.current.addTrack(createTrack('new', []))).toEqual({ ok: true });
-    expect(result.current.toggleMute('new', true)).toEqual({ ok: true });
+    expect(result.current.setMuted('new', true)).toEqual({ ok: true });
   });
   expect(engine.getState().tracks[0].muted).toBe(true);
   expect(result.current.setTrackHeight('new', Number.NaN)).toMatchObject({

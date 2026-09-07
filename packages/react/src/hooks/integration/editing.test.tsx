@@ -5,7 +5,6 @@ import {
   useTimelineClipRects,
   useTimelineClips,
   useTimelineEditCommands,
-  useTimelineEditMode,
   useTimelineEditPreview,
   useTimelineExternalClipDrop,
   useTimelineHistory,
@@ -232,8 +231,6 @@ test('useTimelineClips exposes flattened clips, lookups, and presentation update
     'video-1:main',
     'video-2:overlay',
   ]);
-  expect(result.current.selectedClipId).toBe('intro');
-  expect(result.current.selectedClipTrackId).toBe('video-1');
 
   act(() => {
     result.current.updateClip('intro', { label: 'Cold open', opacity: 0.5 });
@@ -247,12 +244,6 @@ test('useTimelineClips exposes flattened clips, lookups, and presentation update
   expect(result.current.canTrimClip('intro')).toBe(true);
   expect(result.current.canSlipClip('intro')).toBe(true);
   expect(result.current.canSlideClip('intro')).toBe(true);
-
-  act(() => {
-    expect(result.current.selectClip('overlay')).toEqual({ ok: true });
-  });
-
-  expect(engine.geometry.getClip('overlay')?.clip.selected).toBe(true);
 });
 
 test('useTimelineEditCommands commits typed commands and reports validation failures', () => {
@@ -360,25 +351,6 @@ test('useTimelineEditPreview subscribes to command preview changes', () => {
   });
 
   expect(result.current.preview).toBeNull();
-});
-
-test('useTimelineEditMode owns local toolbar mode state', () => {
-  const { result } = renderHook(() => useTimelineEditMode());
-
-  expect(result.current.mode).toBe('select');
-  expect(result.current.selecting).toBe(true);
-
-  act(() => {
-    result.current.setMode('overwrite');
-  });
-
-  expect(result.current.mode).toBe('overwrite');
-
-  act(() => {
-    result.current.resetMode();
-  });
-
-  expect(result.current.mode).toBe('select');
 });
 
 test('useTimelineRangeSelection adapts In/Out points to range commands', () => {

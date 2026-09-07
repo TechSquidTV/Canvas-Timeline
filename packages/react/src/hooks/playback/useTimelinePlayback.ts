@@ -1,3 +1,4 @@
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult, PlaybackOptions } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -55,90 +56,109 @@ export function useTimelinePlayback(): UseTimelinePlaybackResult {
   }));
 
   const play = useCallback(
-    (options?: PlaybackOptions) => {
-      if (engine.getState().playing) {
-        return timelineCommandOk();
-      }
+    (options?: PlaybackOptions) =>
+      runTimelineCommand(() => {
+        if (engine.getState().playing) {
+          return timelineCommandOk();
+        }
 
-      return engine.play(options) ? timelineCommandOk() : timelineCommandFail('unsupported');
-    },
+        return engine.play(options) ? timelineCommandOk() : timelineCommandFail('unsupported');
+      }),
     [engine]
   );
 
-  const pause = useCallback(() => {
-    engine.pause();
-    return timelineCommandOk();
-  }, [engine]);
+  const pause = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        engine.pause();
+        return timelineCommandOk();
+      }),
+    [engine]
+  );
 
-  const togglePlayback = useCallback(() => {
-    if (engine.getState().playing) {
-      engine.pause();
-      return timelineCommandOk();
-    }
+  const togglePlayback = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        if (engine.getState().playing) {
+          engine.pause();
+          return timelineCommandOk();
+        }
 
-    if (engine.play()) {
-      return timelineCommandOk();
-    } else {
-      return timelineCommandFail('unsupported');
-    }
-  }, [engine]);
+        if (engine.play()) {
+          return timelineCommandOk();
+        } else {
+          return timelineCommandFail('unsupported');
+        }
+      }),
+    [engine]
+  );
 
   const setPlaybackRate = useCallback(
-    (rate: number) => {
-      engine.setPlaybackRate(rate);
-      return timelineCommandOk();
-    },
+    (rate: number) =>
+      runTimelineCommand(() => {
+        engine.setPlaybackRate(rate);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setPlayheadTime = useCallback(
-    (time: RationalTime) => {
-      engine.updatePlayhead(time);
-      return timelineCommandOk();
-    },
+    (time: RationalTime) =>
+      runTimelineCommand(() => {
+        engine.updatePlayhead(time);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const stepForward = useCallback(
-    (amountSeconds: number = 1) => {
-      engine.updatePlayhead(
-        addRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
-      );
-      return timelineCommandOk();
-    },
+    (amountSeconds: number = 1) =>
+      runTimelineCommand(() => {
+        engine.updatePlayhead(
+          addRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
+        );
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const stepBackward = useCallback(
-    (amountSeconds: number = 1) => {
-      engine.updatePlayhead(
-        subRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
-      );
-      return timelineCommandOk();
-    },
+    (amountSeconds: number = 1) =>
+      runTimelineCommand(() => {
+        engine.updatePlayhead(
+          subRational(engine.playheadTime, fromSeconds(amountSeconds, engine.playheadTime.r))
+        );
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setInPoint = useCallback(
-    (time?: RationalTime) => {
-      engine.setInPoint(time ?? engine.playheadTime);
-      return timelineCommandOk();
-    },
+    (time?: RationalTime) =>
+      runTimelineCommand(() => {
+        engine.setInPoint(time ?? engine.playheadTime);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
   const setOutPoint = useCallback(
-    (time?: RationalTime) => {
-      engine.setOutPoint(time ?? engine.playheadTime);
-      return timelineCommandOk();
-    },
+    (time?: RationalTime) =>
+      runTimelineCommand(() => {
+        engine.setOutPoint(time ?? engine.playheadTime);
+        return timelineCommandOk();
+      }),
     [engine]
   );
 
-  const clearInOutPoints = useCallback(() => {
-    engine.clearInOutPoints();
-    return timelineCommandOk();
-  }, [engine]);
+  const clearInOutPoints = useCallback(
+    () =>
+      runTimelineCommand(() => {
+        engine.clearInOutPoints();
+        return timelineCommandOk();
+      }),
+    [engine]
+  );
 
   return {
     playing: state.playing ?? false,

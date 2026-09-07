@@ -1,18 +1,18 @@
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
-import type { Marker } from '@techsquidtv/canvas-timeline-core';
+import type { Marker, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
 /** Result returned by `useActiveMarkers`. */
 export interface UseActiveMarkersResult {
   /** Marker exactly at the playhead, or null when none is active. */
-  activeMarker: Marker | null;
+  activeMarker: TimelineReadonly<Marker> | null;
   /** Marker nearest to the playhead, or null when no markers exist. */
-  nearestMarker: Marker | null;
+  nearestMarker: TimelineReadonly<Marker> | null;
   /** Next marker after the playhead, or null when none exists. */
-  nextMarker: Marker | null;
+  nextMarker: TimelineReadonly<Marker> | null;
   /** Previous marker before the playhead, or null when none exists. */
-  previousMarker: Marker | null;
+  previousMarker: TimelineReadonly<Marker> | null;
 }
 
 /**
@@ -41,7 +41,7 @@ export function useActiveMarkers(): UseActiveMarkersResult {
     const nextMarker =
       markers.find((marker) => compareRational(marker.time, playheadTime) > 0) ?? null;
     const nearestMarker =
-      markers.reduce<Marker | null>((nearest, marker) => {
+      markers.reduce<TimelineReadonly<Marker> | null>((nearest, marker) => {
         if (!nearest) {
           return marker;
         }

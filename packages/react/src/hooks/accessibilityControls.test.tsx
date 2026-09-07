@@ -11,7 +11,6 @@ import {
   useTimelinePlayheadControl,
   useTimelineViewport,
   useTimelineViewportRangeControl,
-  useTimelineViewportScrollbar,
   useTimelineZoomControl,
 } from '#react/hooks';
 import { TimelineProvider } from '#react/Provider';
@@ -234,7 +233,7 @@ describe('timeline accessibility control hooks', () => {
     });
     engine.setViewportWidth(1000);
 
-    const viewport = renderTimelineHook(engine, () => useTimelineViewportScrollbar());
+    const viewport = renderTimelineHook(engine, () => useTimelineViewportRangeControl());
 
     expect(viewport.result.current.rootProps.minSpan).toBeCloseTo(1000 / 384, 12);
 
