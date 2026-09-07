@@ -939,7 +939,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     );
   }
 
-  private getSelectedClipIds() {
+  /** Returns currently selected clip IDs in timeline track order. */
+  getSelectedClipIds() {
     const clipIds: string[] = [];
     for (const track of this.state.tracks) {
       for (const clip of track.clips) {
@@ -1565,6 +1566,30 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.publishSnapFeedback(result?.feedback ?? emptyTimelineSnapFeedback);
     }
     return result;
+  }
+
+  /**
+   * Atomically replaces both In/Out boundaries without intermediate range clearing.
+   * @param startTime - Inclusive, non-negative range start.
+   * @param endTime - Exclusive range end, after the start.
+   * @returns Success, or an input/range failure without changing either boundary.
+   */
+  setInOutRange(startTime: RationalTime, endTime: RationalTime): TimelineCommandResult {
+    try {
+      assertValidRationalTime(startTime, 'startTime');
+      assertValidRationalTime(endTime, 'endTime');
+    } catch (error) {
+      return timelineCommandInvalidInput('Invalid In/Out range.', error);
+    }
+    if (startTime.v < 0 || compareRational(startTime, endTime) >= 0) {
+      return timelineCommandFail('invalid-range');
+    }
+    this.state.inPoint = cloneRationalTime(startTime);
+    this.state.outPoint = cloneRationalTime(endTime);
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('state:inOut', { state: this.state });
+    this.emit('render');
+    return timelineCommandOk();
   }
 
   /**

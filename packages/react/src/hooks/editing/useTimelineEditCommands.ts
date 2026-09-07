@@ -20,7 +20,6 @@ import type {
   TimelineTrimEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineEditCommands`. */
@@ -115,7 +114,6 @@ function toTimelineCommandFailureReason(
  */
 export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
   const engine = useTimelineEngine();
-  const { selectedClipIds } = useTimelineSelection();
 
   const validateEdit = useCallback(
     (command: TimelineEditCommand) => engine.validateEdit(command),
@@ -161,7 +159,7 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
         commitEdit({ type: 'split', clipIds: [clipId], time }),
       splitClips: (command) => commitEdit({ type: 'split', ...command }),
       splitSelectedClipsAtTime: (time: RationalTime) =>
-        commitEdit({ type: 'split', clipIds: selectedClipIds, time }),
+        commitEdit({ type: 'split', clipIds: engine.getSelectedClipIds(), time }),
       deleteClip: (clipId: string) => commitEdit({ type: 'delete-clips', clipIds: [clipId] }),
       insertClip: (command: {
         clip: Clip;
@@ -180,6 +178,6 @@ export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
       deleteRange: (command) => commitEdit({ type: 'delete-range', ...command }),
       liftRange: (command) => commitEdit({ type: 'lift-range', ...command }),
     }),
-    [cancelEdit, commitEdit, previewEdit, selectedClipIds, validateEdit]
+    [cancelEdit, commitEdit, previewEdit, engine, validateEdit]
   );
 }

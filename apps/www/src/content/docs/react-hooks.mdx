@@ -68,6 +68,11 @@ scrubbing or playback should use focused live hooks such as
 `useTimelineClipDropFeedback()`. Use `useTimeline()` directly only when a
 component needs both the shared engine and the synchronized state snapshot.
 
+Edit command hooks read the current engine state when invoked, including commands issued
+consecutively in one event handler. History availability and viewport bounds have
+focused subscriptions: changing content or zoom limits updates controls even when
+the current scroll or zoom value does not change.
+
 Mutating hook commands return `TimelineCommandResult`, so custom controls can
 branch on `ok` and machine-readable failure reasons without reading private
 engine state.
@@ -114,7 +119,9 @@ Compose the focused hooks around it:
 - `useTimelineEditImpacts()` subscribes to affected-clip consequences for live
   guides, renderer overlays, and drag-time affordances.
 - `useTimelineRangeSelection()` adapts In/Out points to `delete-range` and
-  `lift-range` commands.
+  `lift-range` commands. Its `setRange()` replaces both boundaries atomically;
+  Core consumers can call `engine.setInOutRange(startTime, endTime)`. Invalid
+  ranges return a command failure without changing either boundary.
 - `useTimelineClipGroups()` reads timeline clip groups and exposes group,
   ungroup, and selected-group commands for editor chrome.
 
