@@ -447,6 +447,13 @@ function validateRollTrimEditCommand(
   );
 }
 
+function isWithinClipBounds(clip: Clip, start: RationalTime, end: RationalTime) {
+  return (
+    (clip.minStart === undefined || compareRational(start, clip.minStart) >= 0) &&
+    (clip.maxEnd === undefined || compareRational(end, clip.maxEnd) <= 0)
+  );
+}
+
 function validateResolvedRollTrimBoundary(
   context: EditContext,
   command: TimelineRollTrimEditCommand,
@@ -456,6 +463,12 @@ function validateResolvedRollTrimBoundary(
   const right = findClipInTracks(context.state.tracks, command.rightClipId);
   if (!left || !right) {
     return rejectEdit(context, 'not-found');
+  }
+  if (
+    !isWithinClipBounds(left.clip, left.clip.timelineStart, boundaryTime) ||
+    !isWithinClipBounds(right.clip, boundaryTime, right.clip.timelineEnd)
+  ) {
+    return rejectEdit(context, 'source-bounds');
   }
   const minDuration = fromSeconds(minimumTimelineEditDurationSeconds, boundaryTime.r);
   if (
@@ -915,11 +928,7 @@ function resolveMoveEdit(
     }
     const nextStart = addRational(linked.clip.timelineStart, deltaTime);
     const nextEnd = addRational(linked.clip.timelineEnd, deltaTime);
-    if (
-      (linked.clip.minStart !== undefined &&
-        compareRational(nextStart, linked.clip.minStart) < 0) ||
-      (linked.clip.maxEnd !== undefined && compareRational(nextEnd, linked.clip.maxEnd) > 0)
-    ) {
+    if (!isWithinClipBounds(linked.clip, nextStart, nextEnd)) {
       return createRejectedResolvedEdit(
         context,
         command,

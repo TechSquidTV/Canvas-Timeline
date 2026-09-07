@@ -18,6 +18,93 @@ function track(id: string, clips: Clip[] = []): Track {
 }
 
 describe('document transaction boundaries', () => {
+  it('undo and redo clear previews before notifying document subscribers', () => {
+    const engine = new TimelineEngine({ tracks: [track('a', [clip('clip')])] });
+    const move = (seconds: number) =>
+      ({ type: 'move', clipId: 'clip', startTime: fromSeconds(seconds), snap: false }) as const;
+    engine.commitEdit(move(4));
+    for (const restore of [() => engine.undo(), () => engine.redo()]) {
+      engine.previewEdit(move(7));
+      const unsubscribe = engine.on('content:change', () => {
+        expect(engine.getEditPreview()).toBeNull();
+        expect(engine.getRenderState().tracks).toBe(engine.getState().tracks);
+      });
+      restore();
+      unsubscribe();
+      expect(engine.getEditPreview()).toBeNull();
+    }
+    expect(toSeconds(engine.tracks[0].clips[0].timelineStart)).toBe(4);
+  });
+
+  it('reconciles both viewport axes when history restores smaller content', () => {
+    const engine = new TimelineEngine({ tracks: [track('a', [clip('clip')])] });
+    engine.setViewportWidth(100);
+    engine.addTrack({ ...track('tall', [clip('late', 40, 50)]), height: 2000 });
+    engine.setScrollTop(1000);
+    engine.setScrollLeft(1000);
+    let scrollChanges = 0;
+    engine.on('scroll:change', () => scrollChanges++);
+    engine.undo();
+    expect(engine.scrollTop).toBe(0);
+    expect(engine.scrollLeft).toBeLessThanOrEqual(engine.maxScrollLeft);
+    expect(scrollChanges).toBe(1);
+    engine.redo();
+    expect(engine.scrollTop).toBeLessThanOrEqual(engine.maxScrollTop);
+  });
+
+  it.each([2, 4])('rejects a roll boundary outside clip bounds at %ss', (boundary) => {
+    const engine = new TimelineEngine({
+      tracks: [
+        track('a', [
+          { ...clip('left', 0, 3), maxEnd: fromSeconds(3) },
+          { ...clip('right', 3, 6), minStart: fromSeconds(3) },
+        ]),
+      ],
+    });
+    const command = {
+      type: 'roll-trim',
+      leftClipId: 'left',
+      rightClipId: 'right',
+      boundaryTime: fromSeconds(boundary),
+      snap: false,
+    } as const;
+    expect(engine.validateEdit(command)).toMatchObject({ valid: false, reason: 'source-bounds' });
+    expect(engine.commitEdit(command).committed).toBe(false);
+    expect(engine.canUndo).toBe(false);
+  });
+
+  it('owns marker results, event payloads, and nested snap updates', () => {
+    const engine = new TimelineEngine({ tracks: [] });
+    engine.on('marker:add', ({ marker }) => {
+      marker.label = 'event mutation';
+    });
+    engine.on('marker:update', ({ marker }) => {
+      marker.description = 'event mutation';
+    });
+    const added = engine.addMarker(fromSeconds(1), 'Original');
+    expect(added.label).toBe('Original');
+    added.label = 'return mutation';
+    const snap = { priority: 5 };
+    const updated = expectDefined(
+      engine.updateMarker(added.id, { snap, description: 'Updated' }),
+      'updated marker'
+    );
+    snap.priority = 100;
+    updated.description = 'return mutation';
+    if (typeof updated.snap === 'object') {
+      updated.snap.priority = 200;
+    }
+    engine.invalidateContent();
+    expect(engine.markers[0]).toMatchObject({
+      label: 'Original',
+      description: 'Updated',
+      snap: { priority: 5 },
+    });
+    engine.undo();
+    expect(engine.markers[0]).toMatchObject({ label: 'Original' });
+    expect(engine.markers[0].description).toBeUndefined();
+  });
+
   it('commits against current content after a preview', () => {
     const engine = new TimelineEngine({ tracks: [track('a', [clip('clip')])] });
     const command = {

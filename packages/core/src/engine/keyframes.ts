@@ -257,14 +257,13 @@ export class TimelineKeyframes {
     }
 
     const time = this.clampKeyframeTimeToClip(found.clip, input.time);
-    found.clip.keyframes ??= [];
-    const existing = found.clip.keyframes.find(
+    const existing = found.clip.keyframes?.find(
       (keyframe) => keyframe.property === input.property && isSameRationalTime(keyframe.time, time)
     );
     const eventName = existing === undefined ? 'keyframe:add' : 'keyframe:update';
 
     const keyframe =
-      existing ??
+      (existing && cloneTimelineKeyframe(existing)) ??
       ({
         id: crypto.randomUUID(),
         property: input.property,
@@ -287,10 +286,7 @@ export class TimelineKeyframes {
       );
     }
 
-    if (existing === undefined) {
-      found.clip.keyframes.push(keyframe);
-    }
-    this.normalizeClipKeyframes(found.clip);
+    this.replaceClipKeyframe(found.clip, keyframe);
     this.context.emit(eventName, {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
@@ -316,10 +312,11 @@ export class TimelineKeyframes {
       return null;
     }
 
-    const keyframe = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
-    if (keyframe === undefined) {
+    const existing = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
+    if (existing === undefined) {
       return null;
     }
+    const keyframe = cloneTimelineKeyframe(existing);
 
     if (input.time !== undefined) {
       assertValidRationalTime(input.time, 'input.time');
@@ -339,8 +336,6 @@ export class TimelineKeyframes {
       if (options.commit === false) {
         // Preview updates (drags) must not destroy neighboring keyframes.
         nextTime = keyframe.time;
-      } else {
-        found.clip.keyframes = found.clip.keyframes.filter((candidate) => candidate !== collision);
       }
     }
 
@@ -365,7 +360,11 @@ export class TimelineKeyframes {
       );
     }
 
-    this.normalizeClipKeyframes(found.clip);
+    this.replaceClipKeyframe(
+      found.clip,
+      keyframe,
+      options.commit === false ? undefined : collision?.id
+    );
     this.context.emit('keyframe:update', {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
@@ -403,10 +402,11 @@ export class TimelineKeyframes {
       return null;
     }
 
-    const keyframe = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
-    if (keyframe === undefined || !this.context.keyframeProperties.has(keyframe.property)) {
+    const existing = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
+    if (existing === undefined || !this.context.keyframeProperties.has(existing.property)) {
       return null;
     }
+    const keyframe = cloneTimelineKeyframe(existing);
 
     const patches: Array<[TimelineKeyframeSide, TimelineKeyframeSidePatch | undefined]> = [
       ['incoming', input.incoming],
@@ -438,7 +438,7 @@ export class TimelineKeyframes {
       );
     }
 
-    this.normalizeClipKeyframes(found.clip);
+    this.replaceClipKeyframe(found.clip, keyframe);
     this.context.emit('keyframe:update', {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
@@ -1068,6 +1068,20 @@ export class TimelineKeyframes {
 
   private normalizeClipKeyframes(clip: Clip) {
     this.context.keyframeProperties.normalizeClipKeyframes(clip);
+  }
+
+  private replaceClipKeyframe(clip: Clip, keyframe: TimelineKeyframe, collisionId?: string) {
+    const next = {
+      ...clip,
+      keyframes: [
+        ...(clip.keyframes ?? []).filter(
+          (candidate) => candidate.id !== keyframe.id && candidate.id !== collisionId
+        ),
+        keyframe,
+      ],
+    };
+    this.normalizeClipKeyframes(next);
+    clip.keyframes = next.keyframes;
   }
 
   /** @internal Normalizes initial keyframes after registration. */

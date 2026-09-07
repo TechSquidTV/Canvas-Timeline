@@ -1,10 +1,6 @@
 import type { TimelineEngine } from '#core/engine';
-import {
-  createClipGroupSnapshots,
-  createMarkerSnapshots,
-  createTrackSnapshots,
-} from '#core/snapshot';
-import type { TimelineState, TimelineStateSnapshot } from '#core/types';
+import type { createDocumentSnapshot } from '#core/document-snapshot';
+import type { TimelineState } from '#core/types';
 /** Limits retained document history. The current document is always retained. */
 export interface TimelineHistoryOptions {
   /** Maximum snapshots, including the current document. Defaults to 100. */
@@ -13,10 +9,7 @@ export interface TimelineHistoryOptions {
   maxBytes?: number;
 }
 
-interface HistoryEntry {
-  tracks: TimelineStateSnapshot['tracks'];
-  markers: TimelineStateSnapshot['markers'];
-  clipGroups: TimelineStateSnapshot['clipGroups'];
+interface HistoryEntry extends ReturnType<typeof createDocumentSnapshot> {
   bytes: number;
 }
 
@@ -30,6 +23,7 @@ export class HistoryManager {
   constructor(
     private engine: TimelineEngine,
     private state: TimelineState,
+    private restoreDocument: (snapshot: ReturnType<typeof createDocumentSnapshot>) => void,
     options: TimelineHistoryOptions = {}
   ) {
     this.maxEntries = options.maxEntries ?? 100;
@@ -52,7 +46,7 @@ export class HistoryManager {
     }
     this.revision = revision;
     const last = this.history[this.historyIndex];
-    const { tracks, markers, clipGroups } = this.engine.getState();
+    const { tracks, markers = [], clipGroups } = this.engine.getState();
     if (
       last &&
       tracks === last.tracks &&
@@ -104,13 +98,7 @@ export class HistoryManager {
     this.engine.emit('history:change', { index: this.historyIndex, length: this.history.length });
   }
   private restoreSnapshot(snapshot: HistoryEntry) {
-    const state = this.state;
-    state.tracks = createTrackSnapshots(snapshot.tracks);
-    state.markers = createMarkerSnapshots(snapshot.markers);
-    state.clipGroups = createClipGroupSnapshots(snapshot.clipGroups);
-    this.engine.invalidateContent();
+    this.restoreDocument(snapshot);
     this.revision = '';
-    this.engine.emit('state:settled');
-    this.engine.emit('render');
   }
 }
