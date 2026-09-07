@@ -1,4 +1,8 @@
-import { TimelineEngine, type Track } from '@techsquidtv/canvas-timeline-core';
+import {
+  TimelineEngine,
+  type Track,
+  type TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import {
   TimelineProvider,
   Timeline,
@@ -52,7 +56,7 @@ function TimelineLayers({ displayOptions }: { displayOptions: BenchmarkDisplayOp
   );
 }
 
-function DOMTrackRows({ tracks }: { tracks: Track[] }) {
+function DOMTrackRows({ tracks }: { tracks: readonly TimelineReadonly<Track>[] }) {
   const visibleClips = useTimelineVisibleClips();
 
   return (

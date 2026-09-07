@@ -22,6 +22,7 @@ const externalSymbolLinkMappings = {
     TimelineLayerSyncDetails: '/packages/core/api/timeline-layer-sync-details',
     TimelineMediaSyncAdapter: '/packages/core/api/timeline-media-sync-adapter',
     TimelineState: '/packages/core/api/timeline-state',
+    TimelineStateSnapshot: '/packages/core/api/timeline-state-snapshot',
   },
   '@techsquidtv/canvas-timeline-react': {
     useTimelineMediaSync: '/packages/react/api/use-timeline-media-sync',
@@ -843,6 +844,11 @@ const symbols = packages.flatMap((packageDoc) =>
     packageName: packageDoc.name,
   }))
 );
+for (const symbol of symbols) {
+  if (symbol.examples.some((example) => /from\s+['"]#/.test(example))) {
+    throw new Error(`${symbol.name} has a repository-private import in a public example.`);
+  }
+}
 const warnings = packages.flatMap((packageDoc) =>
   packageDoc.warnings.map((warning) => `${packageDoc.name}: ${warning}`)
 );

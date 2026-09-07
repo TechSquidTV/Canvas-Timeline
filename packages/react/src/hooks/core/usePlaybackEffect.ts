@@ -23,7 +23,7 @@ import { useEffect, useRef } from 'react';
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import { usePlaybackEffect } from '#react/hooks';
+ * import { usePlaybackEffect } from '@techsquidtv/canvas-timeline-react';
  *
  * export function ClipActiveBadge({ clipId }: { clipId: string }) {
  *   const [active, setActive] = useState(false);

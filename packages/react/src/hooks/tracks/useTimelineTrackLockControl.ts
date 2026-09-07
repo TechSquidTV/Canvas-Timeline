@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ButtonHTMLAttributes } from 'react';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineTrackHeader } from '#react/hooks/tracks/useTimelineTrackHeader';
 
 /** Props returned for a track lock button. */

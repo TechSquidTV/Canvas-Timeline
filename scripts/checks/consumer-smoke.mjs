@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -50,6 +50,24 @@ const packPackage = async (packageDir, packDir) => {
 const writeConsumerFixture = async ({ fixtureDir, tarballs, rootManifest }) => {
   const srcDir = join(fixtureDir, 'src');
   await mkdir(srcDir, { recursive: true });
+
+  // Compile actual TSDoc examples against packed packages, without workspace aliases.
+  const exampleSources = [
+    'core/useTimelineSelector.ts',
+    'clips/useTimelineClips.ts',
+    'tracks/useTimelineTracks.ts',
+  ];
+  for (const [sourceIndex, source] of exampleSources.entries()) {
+    const text = await readFile(join(packagesRoot, 'react/src/hooks', source), 'utf8');
+    const examples = [...text.matchAll(/@example\s*\n\s*\* ```tsx\n([\s\S]*?)\n\s*\* ```/g)];
+    if (examples.length === 0) {
+      throw new Error(`Missing consumer examples in ${source}`);
+    }
+    for (const [index, example] of examples.entries()) {
+      const code = example[1].replace(/^\s*\* ?/gm, '');
+      await writeFile(join(srcDir, `example-${sourceIndex}-${index}.tsx`), `${code}\n`);
+    }
+  }
 
   const packageTarballDependencies = Object.fromEntries(
     [...tarballs.entries()].map(([packageName, tarballPath]) => [

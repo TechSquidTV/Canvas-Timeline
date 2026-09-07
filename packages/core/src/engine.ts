@@ -1,3 +1,9 @@
+import {
+  timelineCommandOk,
+  timelineCommandFail,
+  timelineCommandInvalidInput,
+} from '#core/command-result';
+import type { TimelineCommandResult } from '#core/command-result';
 import { ClipboardManager } from '#core/clipboard';
 import { TypedEventEmitter } from '#core/emitter';
 import { TimelineMediaQueries } from '#core/engine/active-media';
@@ -240,8 +246,28 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param track - Track to add. Its id should be unique within the timeline.
    */
-  addTrack(track: Track) {
-    const nextTrack = createTrackSnapshot(track);
+  addTrack(track: Track): TimelineCommandResult {
+    const clipIds = new Set(
+      this.state.tracks.flatMap((entry) => entry.clips.map((clip) => clip.id))
+    );
+    if (
+      this.state.tracks.some((entry) => entry.id === track.id) ||
+      track.clips.some((clip) => {
+        if (clipIds.has(clip.id)) {
+          return true;
+        }
+        clipIds.add(clip.id);
+        return false;
+      })
+    ) {
+      return timelineCommandFail('duplicate-id');
+    }
+    let nextTrack: Track;
+    try {
+      nextTrack = createTrackSnapshot(track);
+    } catch (cause) {
+      return timelineCommandInvalidInput('Invalid track.', cause);
+    }
     this.state.tracks.push(nextTrack);
     this.invalidateContent();
     this.snapshot();
@@ -249,13 +275,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
     this.emit('state:settled');
     this.emit('render');
+    return timelineCommandOk();
   }
 
   /**
    * Removes a track by id.
    *
    * @param trackId - Track id to remove.
-   * @returns Whether the track was found and removed.
+   * @returns Command success or a not-found failure.
    */
   removeTrack(trackId: string) {
     const idx = this.state.tracks.findIndex((t) => t.id === trackId);
@@ -272,9 +299,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       }
       this.emit('state:settled');
       this.emit('render');
-      return true;
+      return timelineCommandOk();
     }
-    return false;
+    return timelineCommandFail('not-found');
   }
 
   /**
@@ -293,7 +320,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
       this.emit('state:settled');
       this.emit('render');
+      return timelineCommandOk();
     }
+    return timelineCommandFail('not-found');
   }
 
   /**
@@ -312,7 +341,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
       this.emit('state:settled');
       this.emit('render');
+      return timelineCommandOk();
     }
+    return timelineCommandFail('not-found');
   }
 
   /**
@@ -330,7 +361,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.emit('track:lock', { trackId: track.id, locked: track.locked });
       this.emit('state:settled');
       this.emit('render');
+      return timelineCommandOk();
     }
+    return timelineCommandFail('not-found');
   }
 
   /**
@@ -338,13 +371,17 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param trackId - Track id to select, or `null` to clear track selection.
    */
-  selectTrack(trackId: string | null) {
+  selectTrack(trackId: string | null): TimelineCommandResult {
+    if (trackId !== null && !this.state.tracks.some((track) => track.id === trackId)) {
+      return timelineCommandFail('not-found');
+    }
     for (const track of this.state.tracks) {
       track.selected = track.id === trackId;
     }
     this.emit('track:select', { trackId });
     this.emit('state:settled');
     this.emit('render');
+    return timelineCommandOk();
   }
 
   /**
@@ -354,8 +391,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param height - Expanded row height in pixels.
    */
   setTrackHeight(trackId: string, height: number) {
-    assertPositiveTimelineNumber(height, 'height');
+    if (!this.state.tracks.some((track) => track.id === trackId)) {
+      return timelineCommandFail('not-found');
+    }
+    if (!Number.isFinite(height) || height <= 0) {
+      return timelineCommandFail('invalid-input', 'height must be a positive finite number.');
+    }
     this.setTrackHeights([{ trackId, height }]);
+    return timelineCommandOk();
   }
 
   /**
@@ -1717,7 +1760,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.snapshot();
       this.emit('state:settled');
       this.emit('render');
+      return timelineCommandOk();
     }
+    return timelineCommandFail('not-found');
   }
 
   /**
@@ -1734,7 +1779,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.snapshot();
       this.emit('state:settled');
       this.emit('render');
+      return timelineCommandOk();
     }
+    return timelineCommandFail('not-found');
   }
 
   // --- Undo / Redo ---
@@ -2000,9 +2047,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param clipId - Clip id to select, or `null` to clear clip selection.
    */
-  selectClip(clipId: string | null) {
+  selectClip(clipId: string | null): TimelineCommandResult {
+    if (clipId !== null && !this.geometry.getClip(clipId)) {
+      return timelineCommandFail('not-found');
+    }
     const selectedClipIds = clipId === null ? [] : getLinkedClipIds(this.getEditContext(), clipId);
-    this.selectClips(selectedClipIds);
+    return this.selectClips(selectedClipIds);
   }
 
   /**
@@ -2010,7 +2060,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param clipIds - Clip ids to select.
    */
-  selectClips(clipIds: readonly string[]) {
+  selectClips(clipIds: readonly string[]): TimelineCommandResult {
+    const existingIds = new Set(
+      this.state.tracks.flatMap((track) => track.clips.map((clip) => clip.id))
+    );
+    if (clipIds.some((id) => !existingIds.has(id))) {
+      return timelineCommandFail('not-found');
+    }
     const selectedClipIds = new Set(clipIds);
     const selectedClips: Clip[] = [];
     let primaryClip: Clip | null = null;
@@ -2030,6 +2086,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       clips: selectedClips,
     });
     this.emit('render');
+    return timelineCommandOk();
   }
 
   /**
@@ -2040,7 +2097,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    */
   toggleClipSelection(clipId: string, selected?: boolean) {
     if (this.geometry.getClip(clipId) === undefined) {
-      return false;
+      return timelineCommandFail('not-found');
     }
     const currentSelection = new Set(this.getSelectedClipIds());
     const nextSelected = selected ?? !currentSelection.has(clipId);
@@ -2054,7 +2111,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       }
     }
     this.selectClips([...currentSelection]);
-    return true;
+    return timelineCommandOk();
   }
 
   /**
@@ -2062,7 +2119,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param clipId - Clip id to update.
    * @param properties - Partial set of clip label, opacity, and color values.
-   * @returns Whether the clip was found and updated.
+   * @returns Command success or a not-found failure.
    */
   updateClipProperties(
     clipId: string,
@@ -2075,9 +2132,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.snapshot();
       this.emit('state:settled');
       this.emit('render');
-      return true;
+      return timelineCommandOk();
     }
-    return false;
+    return timelineCommandFail('not-found');
   }
   /** Invalidates content-dependent queries and renderer snapshots. */
   invalidateContent() {

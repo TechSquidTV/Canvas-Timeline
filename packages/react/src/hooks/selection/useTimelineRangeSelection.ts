@@ -1,8 +1,10 @@
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import type {
+  TimelineCommandResult,
+  TimelineEditCommitResult,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
-import type { TimelineEditCommitResult } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 /** Timeline range selected for range edit commands. */

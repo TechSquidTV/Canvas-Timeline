@@ -1,8 +1,11 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineCommandResult,
+  Marker,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import type { Marker } from '@techsquidtv/canvas-timeline-core';
 import { compareRational } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
@@ -14,30 +17,33 @@ export type TimelineMarkerUpdate = Partial<
 /** Result returned by `useTimelineMarkers`. */
 export interface UseTimelineMarkersResult {
   /** Current timeline markers sorted by time. */
-  markers: Marker[];
+  markers: readonly TimelineReadonly<Marker>[];
   /** Adds a marker at a timeline time. */
   addMarker: (
     time: RationalTime,
     label?: string,
     color?: string,
     description?: string
-  ) => TimelineCommandResult<Marker>;
+  ) => TimelineCommandResult<TimelineReadonly<Marker>>;
   /** Adds a marker at the current playhead. */
   addMarkerAtPlayhead: (
     label?: string,
     color?: string,
     description?: string
-  ) => TimelineCommandResult<Marker>;
+  ) => TimelineCommandResult<TimelineReadonly<Marker>>;
   /** Removes a marker by id. */
   removeMarker: (id: string) => TimelineCommandResult;
   /** Updates marker metadata by id. */
-  updateMarker: (id: string, updates: TimelineMarkerUpdate) => TimelineCommandResult<Marker>;
+  updateMarker: (
+    id: string,
+    updates: TimelineMarkerUpdate
+  ) => TimelineCommandResult<TimelineReadonly<Marker>>;
   /** Moves the playhead to a marker by id. */
-  seekToMarker: (id: string) => TimelineCommandResult<Marker>;
+  seekToMarker: (id: string) => TimelineCommandResult<TimelineReadonly<Marker>>;
   /** Moves the playhead to the next marker after the current playhead. */
-  seekToNextMarker: () => TimelineCommandResult<Marker>;
+  seekToNextMarker: () => TimelineCommandResult<TimelineReadonly<Marker>>;
   /** Moves the playhead to the previous marker before the current playhead. */
-  seekToPreviousMarker: () => TimelineCommandResult<Marker>;
+  seekToPreviousMarker: () => TimelineCommandResult<TimelineReadonly<Marker>>;
 }
 
 /**
@@ -94,7 +100,9 @@ export function useTimelineMarkers(): UseTimelineMarkersResult {
   const updateMarker = useCallback(
     (id: string, updates: TimelineMarkerUpdate) => {
       const marker = engine.updateMarker(id, updates);
-      return marker ? timelineCommandOk(marker) : timelineCommandFail<Marker>('not-found');
+      return marker
+        ? timelineCommandOk(marker)
+        : timelineCommandFail<TimelineReadonly<Marker>>('not-found');
     },
     [engine]
   );
@@ -103,7 +111,7 @@ export function useTimelineMarkers(): UseTimelineMarkersResult {
     (id: string) => {
       const marker = markers.find((candidate) => candidate.id === id);
       if (!marker) {
-        return timelineCommandFail<Marker>('not-found');
+        return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
       }
       engine.updatePlayhead(marker.time);
       return timelineCommandOk(marker);
@@ -114,7 +122,7 @@ export function useTimelineMarkers(): UseTimelineMarkersResult {
   const seekToNextMarker = useCallback(() => {
     const nextMarker = findNextMarker(engine.playheadTime);
     if (!nextMarker) {
-      return timelineCommandFail<Marker>('not-found');
+      return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
     }
     engine.updatePlayhead(nextMarker.time);
     return timelineCommandOk(nextMarker);
@@ -123,7 +131,7 @@ export function useTimelineMarkers(): UseTimelineMarkersResult {
   const seekToPreviousMarker = useCallback(() => {
     const previousMarker = findPreviousMarker(engine.playheadTime);
     if (!previousMarker) {
-      return timelineCommandFail<Marker>('not-found');
+      return timelineCommandFail<TimelineReadonly<Marker>>('not-found');
     }
     engine.updatePlayhead(previousMarker.time);
     return timelineCommandOk(previousMarker);

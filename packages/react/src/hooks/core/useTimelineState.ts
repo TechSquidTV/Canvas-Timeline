@@ -1,7 +1,7 @@
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineStateSnapshot } from '@techsquidtv/canvas-timeline-core';
 /**
- * Reads the current synchronized {@link TimelineState} snapshot.
+ * Reads the current synchronized {@link TimelineStateSnapshot} snapshot.
  *
  * @remarks
  *
@@ -16,7 +16,7 @@ import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
  * {@link https://canvastimeline.com/docs/react-hooks | React editor hooks} for
  * the hook selection guide.
  *
- * @returns The latest `TimelineState` snapshot published by `TimelineProvider`.
+ * @returns The latest `TimelineStateSnapshot` snapshot published by `TimelineProvider`.
  *
  * @example
  * ```tsx
@@ -38,11 +38,11 @@ import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
  * }
  * ```
  *
- * @see {@link TimelineState}
+ * @see {@link TimelineStateSnapshot}
  * @see {@link TimelineProvider}
  * @see {@link useTimelinePlayheadTime}
  * @see {@link useTimelineViewport}
  */
-export function useTimelineState(): TimelineState {
+export function useTimelineState(): TimelineStateSnapshot {
   return useTimelineSelector((state) => state);
 }

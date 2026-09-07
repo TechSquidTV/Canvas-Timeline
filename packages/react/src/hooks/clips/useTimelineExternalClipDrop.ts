@@ -1,16 +1,14 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandFailureReason,
   TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import type {
   TimelineClipGroupPlacement,
   TimelineEditCommitResult,
   TimelineEditRejectionReason,
   TimelineInteractionGeometry,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -251,7 +249,7 @@ function isLeavingCurrentTarget(event: DragEvent<HTMLElement>) {
  * @example
  * ```tsx
  * import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimelineExternalClipDrop } from '#react/hooks';
+ * import { useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react';
  *
  * interface MediaAsset {
  *   id: string;

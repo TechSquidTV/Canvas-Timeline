@@ -1,10 +1,16 @@
-import type { Clip, Marker, TimelineClipGroup, Track } from '@techsquidtv/canvas-timeline-core';
+import type {
+  Clip,
+  Marker,
+  TimelineClipGroup,
+  Track,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
 import type { PersistedTimelineState } from '#full-editor/infrastructure/persistence/project/types';
 
 export function sanitizePersistedTimelineState(
-  state: PersistedTimelineState
+  state: TimelineReadonly<PersistedTimelineState>
 ): PersistedTimelineState {
   return {
     clipGroups: state.clipGroups.map(cloneClipGroup),
@@ -22,7 +28,7 @@ export function sanitizePersistedTimelineState(
   };
 }
 
-function cloneTrack(track: Track): Track<EditorTrackKind> {
+function cloneTrack(track: TimelineReadonly<Track>): Track<EditorTrackKind> {
   return {
     ...track,
     kind: track.kind as EditorTrackKind,
@@ -30,7 +36,7 @@ function cloneTrack(track: Track): Track<EditorTrackKind> {
   };
 }
 
-function cloneClip(clip: Clip): Clip {
+function cloneClip(clip: TimelineReadonly<Clip>): Clip {
   const { editPreview: _editPreview, ...rest } = clip;
 
   return {
@@ -46,14 +52,14 @@ function cloneClip(clip: Clip): Clip {
   };
 }
 
-function cloneClipGroup(group: TimelineClipGroup): TimelineClipGroup {
+function cloneClipGroup(group: TimelineReadonly<TimelineClipGroup>): TimelineClipGroup {
   return {
     ...group,
     clipIds: [...group.clipIds],
   };
 }
 
-function cloneMarker(marker: Marker): Marker {
+function cloneMarker(marker: TimelineReadonly<Marker>): Marker {
   return {
     ...marker,
     time: cloneRationalTime(marker.time),

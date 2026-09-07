@@ -70,6 +70,12 @@ vp run package:check
 coverage, docs/app build, and package validation against the built package
 output.
 
+Focused package tests run in the `unit` test project without generating API
+documentation. The `docs` test project generates its required API catalog using
+the cached `docs:api` task. A plain `vp test` still runs both projects. Packed
+consumer validation also compiles representative TSDoc examples using published
+imports, without workspace aliases.
+
 `vp run package:check` performs a clean publishable package build, then validates
 packed package metadata with `publint`, Are The Types Wrong, and the packed
 tarball consumer smoke test. Use `vp run package:validate` only when package

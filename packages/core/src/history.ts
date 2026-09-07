@@ -1,11 +1,10 @@
 import type { TimelineEngine } from '#core/engine';
 import {
   createClipGroupSnapshots,
-  createClipSnapshot,
   createMarkerSnapshots,
   createTrackSnapshots,
 } from '#core/snapshot';
-import type { Marker, TimelineClipGroup, TimelineState, Track } from '#core/types';
+import type { TimelineState, TimelineStateSnapshot } from '#core/types';
 /** Limits retained document history. The current document is always retained. */
 export interface TimelineHistoryOptions {
   /** Maximum snapshots, including the current document. Defaults to 100. */
@@ -15,9 +14,9 @@ export interface TimelineHistoryOptions {
 }
 
 interface HistoryEntry {
-  tracks: Track[];
-  markers: Marker[];
-  clipGroups: TimelineClipGroup[];
+  tracks: TimelineStateSnapshot['tracks'];
+  markers: TimelineStateSnapshot['markers'];
+  clipGroups: TimelineStateSnapshot['clipGroups'];
   bytes: number;
 }
 
@@ -53,35 +52,12 @@ export class HistoryManager {
     }
     this.revision = revision;
     const last = this.history[this.historyIndex];
-    const previousClips = new Map(
-      last?.tracks.flatMap((track) => track.clips.map((clip) => [clip.id, clip] as const))
-    );
-    const tracks = state.tracks.map((track) => {
-      const clips = track.clips.map((clip) => {
-        const previous = previousClips.get(clip.id);
-        return previous && JSON.stringify(previous) === JSON.stringify(clip)
-          ? previous
-          : createClipSnapshot(clip);
-      });
-      const previousTrack = last?.tracks.find((entry) => entry.id === track.id);
-      if (
-        previousTrack &&
-        clips.length === previousTrack.clips.length &&
-        clips.every((clip, index) => clip === previousTrack.clips[index]) &&
-        JSON.stringify({ ...track, clips: [] }) === JSON.stringify({ ...previousTrack, clips: [] })
-      ) {
-        return previousTrack;
-      }
-      return { ...track, clips };
-    });
-    const markers = createMarkerSnapshots(state.markers);
-    const clipGroups = createClipGroupSnapshots(state.clipGroups);
+    const { tracks, markers, clipGroups } = this.engine.getState();
     if (
       last &&
-      tracks.length === last.tracks.length &&
-      tracks.every((track, index) => track === last.tracks[index]) &&
-      JSON.stringify(markers) === JSON.stringify(last.markers) &&
-      JSON.stringify(clipGroups) === JSON.stringify(last.clipGroups)
+      tracks === last.tracks &&
+      markers === last.markers &&
+      clipGroups === last.clipGroups
     ) {
       return;
     }

@@ -1,5 +1,5 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback } from 'react';
 /** Result returned by `useTimelineHistory`. */

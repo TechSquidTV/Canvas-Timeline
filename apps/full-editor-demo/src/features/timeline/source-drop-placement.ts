@@ -1,4 +1,8 @@
-import type { TimelineClipGroupPlacement, Track } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineClipGroupPlacement,
+  Track,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
 import type { MediaLibrarySource } from '#full-editor/features/media/library/media-library-types';
@@ -14,9 +18,9 @@ export type SourceDropRejectReason =
   | 'unsupported-source';
 
 interface SourceDropTrackResolution {
-  audioTrack?: Track<EditorTrackKind>;
+  audioTrack?: TimelineReadonly<Track<EditorTrackKind>>;
   reason?: SourceDropRejectReason;
-  visualTrack?: Track<EditorTrackKind>;
+  visualTrack?: TimelineReadonly<Track<EditorTrackKind>>;
 }
 
 export interface SourceDropPatch extends SourceDropTrackResolution {
@@ -27,8 +31,8 @@ export interface SourceDropPatch extends SourceDropTrackResolution {
 export interface CreateSourceDropPlacementsOptions {
   source: MediaLibrarySource;
   startTime: RationalTime;
-  targetTrack: Track<EditorTrackKind>;
-  tracks: readonly Track<EditorTrackKind>[];
+  targetTrack: TimelineReadonly<Track<EditorTrackKind>>;
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[];
 }
 
 export function canCreateSourceDropPlacements(options: CreateSourceDropPlacementsOptions) {
@@ -120,8 +124,8 @@ export function resolveSourceDropPatch({
 }
 
 function resolveLinkedAudioVideoDrop(
-  targetTrack: Track<EditorTrackKind>,
-  tracks: readonly Track<EditorTrackKind>[]
+  targetTrack: TimelineReadonly<Track<EditorTrackKind>>,
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[]
 ): SourceDropTrackResolution {
   const targetTrackIndex = tracks.findIndex((track) => track.id === targetTrack.id);
 
@@ -139,10 +143,10 @@ function resolveLinkedAudioVideoDrop(
 }
 
 function findCompanionTrack(
-  tracks: readonly Track<EditorTrackKind>[],
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[],
   kind: EditorTrackKind,
   targetTrackIndex: number
-): Track<EditorTrackKind> | undefined {
+): TimelineReadonly<Track<EditorTrackKind>> | undefined {
   return (
     tracks.find((track) => track.kind === kind && !track.locked && track.targeted) ??
     findNearestUnlockedTrack(tracks, kind, targetTrackIndex)
@@ -150,10 +154,10 @@ function findCompanionTrack(
 }
 
 function findNearestUnlockedTrack(
-  tracks: readonly Track<EditorTrackKind>[],
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[],
   kind: EditorTrackKind,
   targetTrackIndex: number
-): Track<EditorTrackKind> | undefined {
+): TimelineReadonly<Track<EditorTrackKind>> | undefined {
   const compatibleTracks = tracks
     .map((track, index) => ({ index, track }))
     .filter(({ track }) => track.kind === kind && !track.locked);

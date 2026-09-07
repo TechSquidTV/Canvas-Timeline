@@ -1,4 +1,4 @@
-import type { Marker, Track } from '@techsquidtv/canvas-timeline-core';
+import type { Marker, Track, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 export type EditorTrackKind = 'audio' | 'visual';
 
 export const demoProject = {
@@ -40,6 +40,8 @@ export const timelineTracks: Track<EditorTrackKind>[] = [
   },
 ];
 
-export function isEditorTrack(track: Track): track is Track<EditorTrackKind> {
+export function isEditorTrack(
+  track: TimelineReadonly<Track>
+): track is TimelineReadonly<Track<EditorTrackKind>> {
   return track.kind === 'audio' || track.kind === 'visual';
 }

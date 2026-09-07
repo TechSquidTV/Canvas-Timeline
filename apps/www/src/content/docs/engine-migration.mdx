@@ -48,6 +48,32 @@ History defaults to 100 snapshots and a conservative 16 MiB serialized-byte budg
 
 ## React and controls
 
+**Breaking:** React state and document-derived hook values now expose the same
+readonly snapshots as Core. Remove assignments to returned tracks, clips,
+groups, and state. Read-only application helpers should accept
+`TimelineReadonly<Track>`, `TimelineReadonly<Clip>`, or `TimelineStateSnapshot`;
+create an explicit application-owned copy only when editing a separate draft.
+
+Core track commands (`addTrack`, `removeTrack`, mute/visibility/lock/target
+toggles, `selectTrack`, `setTrackHeight`, and `setTrackGroup`), clip selection
+commands, and `updateClipProperties` now return `TimelineCommandResult`.
+React selection commands use the same result. Replace boolean/void assumptions
+with a check of `result.ok`. Missing selection IDs fail with `not-found` and
+preserve the current selection. Invalid track input fails with `invalid-input`;
+duplicate track or clip IDs fail with `duplicate-id`.
+
+```ts
+const added = engine.addTrack(newTrack);
+if (added.ok) {
+  const muted = engine.toggleMuteTrack(newTrack.id, true);
+  if (!muted.ok) console.error(muted.reason);
+}
+```
+
+React track commands follow the same current-state validation, so commands may
+run consecutively in one event handler without waiting for a React render.
+There are no compatibility aliases for the old return contracts.
+
 `TimelineProvider` now supplies the stable engine. Use `useTimelineEngine()` for imperative commands, narrow domain hooks for reactive controls, and `useTimelineState()` only when broad state is needed. A playback toolbar no longer rerenders for scrolling or zooming. Custom contexts must pass the engine directly, or use `TimelineProvider`.
 
 Hook and geometry APIs return the engine's actual string track kinds. Remove caller-supplied kind generics and narrow with a predicate that checks your application's allowed kinds. Model types such as `Track<MyKind>` still describe data that your application has validated.

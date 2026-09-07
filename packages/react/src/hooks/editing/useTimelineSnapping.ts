@@ -1,13 +1,14 @@
-import { timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
+  TimelineCommandResult,
+  TimelineReadonly,
   SnapPreparationOptions,
   TimelineSnapFeedback,
   TimelineSnapResult,
   TimelineSnapTarget,
 } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineSnapping`. */
@@ -17,7 +18,7 @@ export interface UseTimelineSnappingResult {
   /** Magnetic snap radius in screen pixels. */
   thresholdPixels: number;
   /** Current transient snap feedback for canvas guides and UI status. */
-  feedback: TimelineSnapFeedback;
+  feedback: TimelineReadonly<TimelineSnapFeedback>;
   /** Currently active snap target, or null when nothing is snapped. */
   activeTarget: TimelineSnapTarget | null;
   /** Enables or disables magnetic snapping. */

@@ -34,7 +34,7 @@ export type UseTimelineVisibleClipsOptions = VisibleTimelineClipOptions;
  *
  * @example
  * ```tsx
- * import { useTimelineVisibleClips } from '#react/hooks';
+ * import { useTimelineVisibleClips } from '@techsquidtv/canvas-timeline-react';
  *
  * export function VisibleClipList() {
  *   const visibleClips = useTimelineVisibleClips({ overscanPixels: 160 });

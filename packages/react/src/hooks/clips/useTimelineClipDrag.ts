@@ -1,18 +1,19 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineCommandResult,
+  ClipViewportRect,
+  TimelineClipDropFeedback,
+  TimelineClipMoveResult,
+  TimelineInteractionGeometry,
+  TimelineTrackHitTestResult,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineTrackDropTargets } from '#react/hooks/tracks/useTimelineTrackDropTargets';
 import type {
   TimelineTrackDropGuard,
   TimelineTrackDropResult,
 } from '#react/hooks/tracks/useTimelineTrackDropTargets';
-import type {
-  ClipViewportRect,
-  TimelineClipDropFeedback,
-  TimelineClipMoveResult,
-  TimelineInteractionGeometry,
-  TimelineTrackHitTestResult,
-} from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a clip body drag. */
 export interface TimelineClipDragStartInput {
@@ -87,21 +88,24 @@ interface ActiveClipDrag {
   activeTargetTrackId: string;
   activeTargetTrackIndex: number;
   allowCrossKindTrackMove: boolean;
-  trackTargets: TimelineTrackHitTestResult[];
+  trackTargets: TimelineReadonly<TimelineTrackHitTestResult>[];
 }
 
 function clampRatio(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function findTrackTargetAtY(trackTargets: TimelineTrackHitTestResult[], viewportY: number) {
+function findTrackTargetAtY(
+  trackTargets: TimelineReadonly<TimelineTrackHitTestResult>[],
+  viewportY: number
+) {
   return (
     trackTargets.find(({ rect }) => viewportY >= rect.y && viewportY < rect.y + rect.height) ?? null
   );
 }
 
 function getTrackPenetration(
-  target: TimelineTrackHitTestResult,
+  target: TimelineReadonly<TimelineTrackHitTestResult>,
   activeTargetTrackIndex: number,
   viewportY: number
 ) {
@@ -139,7 +143,7 @@ function getTrackPenetration(
  *
  * @example
  * ```tsx
- * import { useTimelineClipDrag } from '#react/hooks';
+ * import { useTimelineClipDrag } from '@techsquidtv/canvas-timeline-react';
  *
  * export function CustomClipDragHandle({ clipId }: { clipId: string }) {
  *   const drag = useTimelineClipDrag();

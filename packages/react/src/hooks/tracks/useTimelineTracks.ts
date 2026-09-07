@@ -1,9 +1,11 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineTrackCommands } from '#react/hooks/tracks/useTimelineTrackCommands';
+import type {
+  TimelineCommandResult,
+  Track,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import type { Track } from '@techsquidtv/canvas-timeline-core';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 /**
  * Result returned by `useTimelineTracks`.
  *
@@ -21,17 +23,17 @@ import { useCallback, useMemo } from 'react';
  */
 export interface UseTimelineTracksResult {
   /** Current ordered track list. */
-  tracks: Track[];
+  tracks: readonly TimelineReadonly<Track>[];
   /** Currently selected track, or null when no track is selected. */
-  selectedTrack: Track | null;
+  selectedTrack: TimelineReadonly<Track> | null;
   /** Tracks currently participating in active layer and media lookup. */
-  visibleTracks: Track[];
+  visibleTracks: TimelineReadonly<Track>[];
   /** Tracks currently hidden from active layer and media lookup. */
-  hiddenTracks: Track[];
+  hiddenTracks: TimelineReadonly<Track>[];
   /** Tracks currently targeted for edit operations. */
-  targetedTracks: Track[];
+  targetedTracks: TimelineReadonly<Track>[];
   /** Tracks grouped by group id, with ungrouped tracks under "ungrouped". */
-  tracksByGroupId: Record<string, Track[]>;
+  tracksByGroupId: Record<string, TimelineReadonly<Track>[]>;
   /** Selects a track by id, or clears track selection. */
   selectTrack: (trackId: string | null) => TimelineCommandResult;
   /** Adds a track to the timeline. */
@@ -85,7 +87,7 @@ export interface UseTimelineTracksResult {
  *
  * @example
  * ```tsx
- * import { useTimelineTracks } from '#react/hooks';
+ * import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
  *
  * export function TrackVisibilityMenu() {
  *   const { tracks, toggleVisibility } = useTimelineTracks();
@@ -108,15 +110,15 @@ export interface UseTimelineTracksResult {
  * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
 export function useTimelineTracks(): UseTimelineTracksResult {
-  const engine = useTimelineEngine();
+  const commands = useTimelineTrackCommands();
   const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
-  const tracks = useMemo(() => state.tracks, [state.tracks]);
+  const tracks = state.tracks;
   const selectedTrack = useMemo(() => tracks.find((track) => track.selected) || null, [tracks]);
   const visibleTracks = useMemo(() => tracks.filter((track) => track.visible), [tracks]);
   const hiddenTracks = useMemo(() => tracks.filter((track) => !track.visible), [tracks]);
   const targetedTracks = useMemo(() => tracks.filter((track) => track.targeted), [tracks]);
   const tracksByGroupId = useMemo(() => {
-    const groupedTracks: Record<string, Track[]> = {};
+    const groupedTracks: Record<string, TimelineReadonly<Track>[]> = {};
     for (const track of tracks) {
       const groupId = track.groupId || 'ungrouped';
       groupedTracks[groupId] ??= [];
@@ -124,98 +126,6 @@ export function useTimelineTracks(): UseTimelineTracksResult {
     }
     return groupedTracks;
   }, [tracks]);
-
-  const selectTrack = useCallback(
-    (trackId: string | null) => {
-      if (trackId !== null && !tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.selectTrack(trackId);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const addTrack = useCallback(
-    (track: Track) => {
-      engine.addTrack(track as Track);
-      return timelineCommandOk();
-    },
-    [engine]
-  );
-
-  const removeTrack = useCallback(
-    (trackId: string) => {
-      return engine.removeTrack(trackId) ? timelineCommandOk() : timelineCommandFail('not-found');
-    },
-    [engine]
-  );
-
-  const toggleMute = useCallback(
-    (trackId: string, muted?: boolean) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.toggleMuteTrack(trackId, muted);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const toggleVisibility = useCallback(
-    (trackId: string, visible?: boolean) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.toggleTrackVisibility(trackId, visible);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const toggleLock = useCallback(
-    (trackId: string, locked?: boolean) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.toggleLockTrack(trackId, locked);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const setTrackHeight = useCallback(
-    (trackId: string, height: number) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.setTrackHeight(trackId, height);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const toggleTrackTarget = useCallback(
-    (trackId: string, targeted?: boolean) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.toggleTrackTarget(trackId, targeted);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
-
-  const setTrackGroup = useCallback(
-    (trackId: string, groupId: string | undefined) => {
-      if (!tracks.some((track) => track.id === trackId)) {
-        return timelineCommandFail('not-found');
-      }
-      engine.setTrackGroup(trackId, groupId);
-      return timelineCommandOk();
-    },
-    [engine, tracks]
-  );
 
   return useMemo(
     () => ({
@@ -225,32 +135,8 @@ export function useTimelineTracks(): UseTimelineTracksResult {
       hiddenTracks,
       targetedTracks,
       tracksByGroupId,
-      selectTrack,
-      addTrack,
-      removeTrack,
-      toggleMute,
-      toggleVisibility,
-      toggleLock,
-      setTrackHeight,
-      toggleTrackTarget,
-      setTrackGroup,
+      ...commands,
     }),
-    [
-      addTrack,
-      hiddenTracks,
-      removeTrack,
-      selectTrack,
-      selectedTrack,
-      setTrackGroup,
-      setTrackHeight,
-      targetedTracks,
-      toggleLock,
-      toggleMute,
-      toggleVisibility,
-      toggleTrackTarget,
-      tracksByGroupId,
-      tracks,
-      visibleTracks,
-    ]
+    [tracks, selectedTrack, visibleTracks, hiddenTracks, targetedTracks, tracksByGroupId, commands]
   );
 }

@@ -1,4 +1,4 @@
-import type { Track } from '@techsquidtv/canvas-timeline-core';
+import type { Track, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { SourceBinSource } from '#full-editor/features/source-bin/types';
 import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
@@ -57,7 +57,7 @@ function collectSegments(options: {
   issues: TimelineExportValidationIssue[];
   kind: EditorTrackKind;
   sourceById: ReadonlyMap<string, SourceBinSource>;
-  tracks: readonly Track[];
+  tracks: readonly TimelineReadonly<Track>[];
 }) {
   const segments: TimelineExportSegment[] = [];
   const tracks = options.tracks.filter((track) => shouldExportTrack(track, options.kind));
@@ -107,7 +107,10 @@ function isExportableSource(source: SourceBinSource): source is SourceBinSource 
   return source.status === 'ready' && source.file !== null;
 }
 
-function shouldExportTrack(track: Track, kind: EditorTrackKind): track is Track<EditorTrackKind> {
+function shouldExportTrack(
+  track: TimelineReadonly<Track>,
+  kind: EditorTrackKind
+): track is TimelineReadonly<Track<EditorTrackKind>> {
   if (track.kind !== kind || track.muted === true) {
     return false;
   }

@@ -1,4 +1,8 @@
-import { defaultTimelineInteractionGeometry, type Track } from '@techsquidtv/canvas-timeline-core';
+import {
+  defaultTimelineInteractionGeometry,
+  type Track,
+  type TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import {
   useTimelineScrollLeft,
   useTimelineScrollTop,
@@ -17,9 +21,9 @@ import type {
 interface TimelineSourceDropFeedbackProps {
   dropMode: TimelineSourceDropMode;
   dropTime: RationalTime | null;
-  hoveredTrack: Track<EditorTrackKind> | null;
+  hoveredTrack: TimelineReadonly<Track<EditorTrackKind>> | null;
   patch: SourceDropPatch | null;
-  tracks: readonly Track<EditorTrackKind>[];
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[];
   valid: boolean;
 }
 
@@ -42,7 +46,7 @@ export function TimelineSourceDropFeedback({
   const dropLeft = toSeconds(dropTime) * zoomScale - scrollLeft;
   const width = Math.max(8, patch.durationSeconds * zoomScale);
   const previewTracks = [patch.visualTrack, patch.audioTrack].filter(
-    (track): track is Track<EditorTrackKind> => track !== undefined
+    (track): track is TimelineReadonly<Track<EditorTrackKind>> => track !== undefined
   );
 
   return (
@@ -74,7 +78,7 @@ export function TimelineSourceDropFeedback({
 
 function getTrackTop(
   trackId: string,
-  tracks: readonly Track<EditorTrackKind>[],
+  tracks: readonly TimelineReadonly<Track<EditorTrackKind>>[],
   scrollTop: number
 ) {
   let top = defaultTimelineInteractionGeometry.rulerHeight - scrollTop;
@@ -89,7 +93,7 @@ function getTrackTop(
   return top;
 }
 
-function getTrackHeight(track: Track<EditorTrackKind>) {
+function getTrackHeight(track: TimelineReadonly<Track<EditorTrackKind>>) {
   return track.collapsed
     ? defaultTimelineInteractionGeometry.collapsedTrackHeight
     : (track.height ?? defaultTimelineInteractionGeometry.trackHeight);
