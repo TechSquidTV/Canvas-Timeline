@@ -1,13 +1,12 @@
-import { useMemo } from 'react';
-import {
-  getTimelineRulerTicks,
-  type TimelineRulerFormatOptions,
-  type TimelineRulerGeometryOptions,
-  type TimelineRulerTick,
-} from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-
+import { getTimelineRulerTicks } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineRulerFormatOptions,
+  TimelineRulerGeometryOptions,
+  TimelineRulerTick,
+} from '@techsquidtv/canvas-timeline-core';
+import { useMemo } from 'react';
 /** Options accepted by `useTimelineRulerTicks`. */
 export type UseTimelineRulerTicksOptions = Partial<TimelineRulerGeometryOptions> &
   TimelineRulerFormatOptions;
@@ -46,7 +45,7 @@ function getRulerFormatOptions(
 export function useTimelineRulerTicks(
   options: UseTimelineRulerTicksOptions = { format: 'seconds' }
 ): TimelineRulerTick[] {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision();
   const {
     duration,

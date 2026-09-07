@@ -1,15 +1,14 @@
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
+import { useRangeScrollbar } from '#react/rangeScrollbar';
+import type {
+  RangeScrollbarRootProps,
+  RangeScrollbarValue,
+  RangeScrollbarValueChangeDetails,
+  UseRangeScrollbarResult,
+} from '#react/rangeScrollbar';
 import { clamp, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
-import {
-  useRangeScrollbar,
-  type RangeScrollbarRootProps,
-  type RangeScrollbarValue,
-  type RangeScrollbarValueChangeDetails,
-  type UseRangeScrollbarResult,
-} from '#react/rangeScrollbar';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
-
 const DEFAULT_MIN_VIEW_DURATION_SECONDS = 0.1;
 const KEYBOARD_NUDGE_PX = 40;
 const KEYBOARD_PAGE_NUDGE_RATIO = 0.8;
@@ -84,7 +83,7 @@ export interface UseTimelineViewportScrollbarResult {
 export function useTimelineViewportScrollbar(
   options: UseTimelineViewportScrollbarOptions = {}
 ): UseTimelineViewportScrollbarResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const viewport = useTimelineViewport();
   const metrics = useMemo(() => {
     const viewportWidth = viewport.viewportWidth;

@@ -1,12 +1,11 @@
-import { expect, test, vi } from 'vite-plus/test';
-import { act, renderHook, waitFor } from '@testing-library/react';
-import React from 'react';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { createHTMLMediaAdapter } from '#html-media-adapter/index';
 import { useHTMLMediaAdapter, useHTMLTimelineMedia } from '#html-media-adapter/react';
-
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { expect, test, vi } from 'vite-plus/test';
 function htmlSources(source: string | Blob | File = '/sample.mp4') {
   return [
     {
@@ -70,7 +69,7 @@ test('createHTMLMediaAdapter maps active clip source time to a media element', a
     element,
     sources: htmlSources(),
   });
-  const activeVideo = engine.getActiveClip({
+  const activeVideo = engine.media.getActiveClip({
     time: fromSeconds(1.25),
     trackKind: 'visual',
     sourceId: 'source-1',
@@ -79,7 +78,7 @@ test('createHTMLMediaAdapter maps active clip source time to a media element', a
   expect(activeVideo).toBeDefined();
   await adapter.seek?.(
     fromSeconds(1.25),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(1.25),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -115,7 +114,7 @@ test('createHTMLMediaAdapter normalizes relative sources without reassigning mat
     element,
     sources: htmlSources('sample.mp4'),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: {
       visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -181,7 +180,7 @@ test('createHTMLMediaAdapter disposes object URLs for blob sources', async () =>
 
   await adapter.seek?.(
     fromSeconds(1),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(1),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -209,7 +208,7 @@ test('createHTMLMediaAdapter switches rates and stops playback', async () => {
 
   await adapter.seek?.(
     fromSeconds(1),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(1),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -236,7 +235,7 @@ test('createHTMLMediaAdapter reports rejected native playback', async () => {
 
   await adapter.seek?.(
     fromSeconds(1),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(1),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -270,7 +269,7 @@ test('createHTMLMediaAdapter keeps initial playback attached across an input fal
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: {
       visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -322,7 +321,7 @@ test('createHTMLMediaAdapter keeps startup pending when play rejects before the 
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: {
       visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -356,7 +355,7 @@ test('createHTMLMediaAdapter continues pending playback after active source repl
     element,
     sources: htmlSources('/original.mp4'),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -404,7 +403,7 @@ function createPendingFallbackStartup() {
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -511,7 +510,7 @@ test('createHTMLMediaAdapter clears the element for missing sources and content 
   expect(() =>
     adapter.seek?.(
       fromSeconds(1),
-      engine.getActiveLayers({
+      engine.media.getActiveLayers({
         time: fromSeconds(1),
         layers: {
           visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -528,7 +527,7 @@ test('createHTMLMediaAdapter clears the element for missing sources and content 
   await adapter.syncLayers?.({
     timelineTime: fromSeconds(8),
     reason: 'gap',
-    activeLayers: engine.getActiveLayers({
+    activeLayers: engine.media.getActiveLayers({
       time: fromSeconds(8),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -548,7 +547,7 @@ test('createHTMLMediaAdapter replays synced clips only while play intent is acti
     element,
     sources: htmlSources(),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: {
       visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -566,7 +565,7 @@ test('createHTMLMediaAdapter replays synced clips only while play intent is acti
   await adapter.syncLayers?.({
     timelineTime: fromSeconds(1.5),
     reason: 'tick',
-    activeLayers: engine.getActiveLayers({
+    activeLayers: engine.media.getActiveLayers({
       time: fromSeconds(1.5),
       layers: {
         visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -586,7 +585,7 @@ test('createHTMLMediaAdapter pauses and clears play intent on non-playing status
     element,
     sources: htmlSources(),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: {
       visuals: { trackKind: 'visual', sourceId: 'source-1' },
@@ -755,7 +754,7 @@ test('createHTMLMediaAdapter advances input fallbacks and exposes media controls
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -786,7 +785,7 @@ test('createHTMLMediaAdapter surfaces terminal runtime failures to synchronizati
     element,
     sources: htmlSources(),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -859,7 +858,7 @@ test('createHTMLMediaAdapter resets input attempts for each source activation', 
   for (const seconds of [1, 3, 5]) {
     await adapter.seek?.(
       fromSeconds(seconds),
-      engine.getActiveLayers({ time: fromSeconds(seconds), layers })
+      engine.media.getActiveLayers({ time: fromSeconds(seconds), layers })
     );
     element.dispatchEvent(new Event('loadedmetadata'));
   }
@@ -883,7 +882,7 @@ test('createHTMLMediaAdapter retries failed sources from their preferred input',
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -921,7 +920,7 @@ test('createHTMLMediaAdapter preserves active playback across retry and replacem
     element,
     sources: htmlSources('/original.mp4'),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -956,7 +955,7 @@ test('createHTMLMediaAdapter resets inactive source diagnostics when retrying', 
 
   await adapter.seek?.(
     fromSeconds(1),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(1),
       layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
     })
@@ -971,7 +970,7 @@ test('createHTMLMediaAdapter resets inactive source diagnostics when retrying', 
 
   await adapter.seek?.(
     fromSeconds(8),
-    engine.getActiveLayers({
+    engine.media.getActiveLayers({
       time: fromSeconds(8),
       layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
     })
@@ -1005,7 +1004,7 @@ test('createHTMLMediaAdapter invalidates blob URLs when replacing a source', asy
     element,
     sources: htmlSources(new Blob(['first'])),
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });
@@ -1038,7 +1037,7 @@ test('createHTMLMediaAdapter loads an app-resolved proxy through source replacem
       },
     ],
   });
-  const activeLayers = engine.getActiveLayers({
+  const activeLayers = engine.media.getActiveLayers({
     time: fromSeconds(1),
     layers: { visuals: { trackKind: 'visual', sourceId: 'source-1' } },
   });

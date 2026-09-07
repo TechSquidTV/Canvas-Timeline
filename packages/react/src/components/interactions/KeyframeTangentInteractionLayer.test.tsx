@@ -1,16 +1,14 @@
-import { fireEvent, render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import {
-  createTimelineScalarKeyframeProperty,
-  TimelineEngine,
-  type Clip,
-  type Track,
-} from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import { KeyframeTangentInteractionLayer } from '#react/components/interactions/KeyframeTangentInteractionLayer';
 import { resetTimelineTapState } from '#react/components/interactions/tapState';
-
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+} from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fireEvent, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 function getElementPrototypeMethod<
   K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',
 >(name: K): Element[K] | undefined {
@@ -145,7 +143,10 @@ describe('KeyframeTangentInteractionLayer', () => {
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const segment = engine.keyframes.getKeyframeSegments({
+      property: 'opacity',
+      tangentHandleSize: 8,
+    })[0];
     const handle = container.querySelector('[data-side="incoming"]') as HTMLElement;
 
     fireEvent.pointerDown(handle, {
@@ -169,8 +170,11 @@ describe('KeyframeTangentInteractionLayer', () => {
     });
 
     expect(setPointerCaptureSpy).toHaveBeenCalledWith(1);
-    const updatedIncoming = engine.getClipKeyframes('clip-1')[1].incoming?.handle;
-    expect(engine.getClipKeyframes('clip-1')[0].outgoing?.handle).toEqual({ x: 0.2, y: 0.8 });
+    const updatedIncoming = engine.keyframes.getClipKeyframes('clip-1')[1].incoming?.handle;
+    expect(engine.keyframes.getClipKeyframes('clip-1')[0].outgoing?.handle).toEqual({
+      x: 0.2,
+      y: 0.8,
+    });
     expect(updatedIncoming?.x).toBeCloseTo(0.6);
     expect(updatedIncoming?.y).toBeCloseTo(0.4);
   });
@@ -184,7 +188,10 @@ describe('KeyframeTangentInteractionLayer', () => {
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const segment = engine.keyframes.getKeyframeSegments({
+      property: 'opacity',
+      tangentHandleSize: 8,
+    })[0];
     const handle = container.querySelector('[data-side="outgoing"]') as HTMLElement;
     const shape = handle.querySelector('.timeline-keyframe-tangent-handle-shape') as HTMLElement;
     const rect = segment.handles[0].rect;
@@ -214,7 +221,7 @@ describe('KeyframeTangentInteractionLayer', () => {
       pointerId: 1,
     });
 
-    const keyframes = engine.getClipKeyframes('clip-1');
+    const keyframes = engine.keyframes.getClipKeyframes('clip-1');
     expect(keyframes.find((keyframe) => keyframe.id === 'opacity-end')?.selected).toBe(true);
     expect(keyframes.find((keyframe) => keyframe.id === 'opacity-start')?.selected).toBe(false);
 
@@ -233,7 +240,10 @@ describe('KeyframeTangentInteractionLayer', () => {
       </TimelineProvider>
     );
 
-    const segment = engine.getKeyframeSegments({ property: 'opacity', tangentHandleSize: 8 })[0];
+    const segment = engine.keyframes.getKeyframeSegments({
+      property: 'opacity',
+      tangentHandleSize: 8,
+    })[0];
     const handle = container.querySelector('[data-side="incoming"]') as HTMLElement;
 
     fireEvent.pointerDown(handle, {
@@ -254,7 +264,7 @@ describe('KeyframeTangentInteractionLayer', () => {
       pointerId: 1,
     });
 
-    const updatedIncoming = engine.getClipKeyframes('clip-1')[1].incoming?.handle;
+    const updatedIncoming = engine.keyframes.getClipKeyframes('clip-1')[1].incoming?.handle;
     expect(updatedIncoming?.x).toBeCloseTo(0.5);
     expect(updatedIncoming?.y).toBeCloseTo(0.5);
   });

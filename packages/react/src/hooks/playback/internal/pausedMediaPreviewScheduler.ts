@@ -1,13 +1,12 @@
+import type { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
+import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
+import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
 import type {
   ActiveLayerSelector,
   TimelineEngine,
   TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
-import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
-import type { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
-
 class PausedMediaPreviewScheduler {
   private frame: number | null = null;
   private generation = 0;
@@ -107,7 +106,7 @@ export function usePausedMediaPreviewSynchronization<LayerName extends string>({
       }
 
       const timelineTime = engine.getTime();
-      const activeLayers = engine.getActiveLayers({
+      const activeLayers = engine.media.getActiveLayers({
         time: timelineTime,
         layers: layersRef.current,
       });

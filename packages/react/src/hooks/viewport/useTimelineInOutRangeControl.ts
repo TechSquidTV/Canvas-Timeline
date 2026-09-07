@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { formatTimelineRangeValue, formatTimelineTimeValue } from '#react/accessibility';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo, useRef } from 'react';
 /**
  * Options for adapting timeline In/Out points to a range control.
  */
@@ -82,7 +82,12 @@ export function useTimelineInOutRangeControl(options: TimelineInOutRangeControlO
     snap = false,
     step,
   } = options;
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    duration: state.duration,
+    inPoint: state.inPoint,
+    outPoint: state.outPoint,
+  }));
   const preparedSnapIndexRef = useRef<number | null>(null);
   const control = useMemo(() => {
     const min = optionMin ?? 0;

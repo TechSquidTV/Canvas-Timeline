@@ -47,7 +47,9 @@ jobs:
         run: vp run ci:quality
 
       - name: Version snapshot packages
-        run: node scripts/release/run-lockstep-changeset.mjs version --snapshot ${{ inputs.tag }}
+        env:
+          SNAPSHOT_TAG: ${{ inputs.tag }}
+        run: node scripts/release/run-lockstep-changeset.mjs version --snapshot "$SNAPSHOT_TAG"
 
       - name: Validate publishable packages
         run: vp run package:check

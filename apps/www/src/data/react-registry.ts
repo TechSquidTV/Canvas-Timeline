@@ -298,12 +298,12 @@ const hookRegistryGroupConfigs: readonly HookRegistryGroupConfig[] = [
     demo: timelineStateDemo,
     sourceTitle: 'TimelineSummary.tsx',
     usageCode: `import {
-  useTimeline,
+  useTimelineEngine,
   useTimelineState,
 } from '@techsquidtv/canvas-timeline-react/hooks';
 
 export function TimelineSummary() {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const state = useTimelineState();
 
   return <span>{state.tracks.length} tracks</span>;

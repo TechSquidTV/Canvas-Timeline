@@ -1,7 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { useTimeline } from '#react/hooks';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { clamp, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-
+import React, { useEffect, useRef } from 'react';
 interface ActivePointer {
   clientX: number;
   clientY: number;
@@ -11,7 +10,7 @@ interface ActivePointer {
 
 export const Root = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ children, className = '', ...props }, forwardedRef) => {
-    const { engine } = useTimeline();
+    const engine = useTimelineEngine();
     const internalRef = useRef<HTMLDivElement>(null);
 
     const ref = React.useCallback(

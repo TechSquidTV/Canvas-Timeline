@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  timelineCommandFail,
+  timelineCommandInvalidInput,
+  timelineCommandOk,
+} from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type {
   TimelineKeyframeBezierHandle,
   TimelineKeyframePropertyId,
@@ -6,14 +12,7 @@ import type {
   TimelineKeyframeSide,
   TimelineKeyframeTangentHandle,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandInvalidInput,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a Bezier tangent handle drag by ids. */
 export interface TimelineKeyframeTangentDragIdStartInput {
   /** Clip owning the segment. */
@@ -106,7 +105,7 @@ function isFiniteViewportPoint(input: TimelineKeyframeTangentDragMoveInput) {
 export function useTimelineKeyframeTangentDrag(
   options: UseTimelineKeyframeTangentDragOptions
 ): UseTimelineKeyframeTangentDragResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const activeDragRef = useRef<ActiveTangentDrag | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -164,7 +163,7 @@ export function useTimelineKeyframeTangentDrag(
         return input.tangentHandle;
       }
 
-      return engine
+      return engine.keyframes
         .getKeyframeSegments(geometry)
         .flatMap((segment) => segment.handles)
         .find(
@@ -181,7 +180,7 @@ export function useTimelineKeyframeTangentDrag(
   const startKeyframeTangentDrag = useCallback(
     (input: TimelineKeyframeTangentDragStartInput): TimelineCommandResult => {
       const handle = findTangentHandle(input);
-      const found = handle === undefined ? undefined : engine.getClip(handle.clip.id);
+      const found = handle === undefined ? undefined : engine.geometry.getClip(handle.clip.id);
 
       if (!found || !handle) {
         return timelineCommandFail('not-found');
@@ -219,7 +218,7 @@ export function useTimelineKeyframeTangentDrag(
         );
       }
 
-      const segment = engine
+      const segment = engine.keyframes
         .getKeyframeSegments(geometry)
         .find(
           (candidate) =>
@@ -244,9 +243,9 @@ export function useTimelineKeyframeTangentDrag(
           : clampRatio((input.viewportY - segment.startPoint.y) / deltaY);
       const nextHandle = { x: nextX, y: yValue };
 
-      let keyframe: ReturnType<typeof engine.updateClipKeyframeSide>;
+      let keyframe: ReturnType<typeof engine.keyframes.updateClipKeyframeSide>;
       try {
-        keyframe = engine.updateClipKeyframeSide(
+        keyframe = engine.keyframes.updateClipKeyframeSide(
           {
             clipId: activeDrag.clipId,
             keyframeId: activeDrag.keyframeId,

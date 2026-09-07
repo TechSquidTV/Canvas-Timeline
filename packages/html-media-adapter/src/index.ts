@@ -7,8 +7,8 @@ import type {
   TimelineMediaSourceTiming,
   TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
-import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-
+import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 /**
  * Source value that can be loaded into a native HTML media element.
  */
@@ -119,7 +119,7 @@ interface HTMLMediaElementLoad {
  *     }],
  *   });
  *
- *   await adapter.seek?.(engine.getTime(), engine.getActiveLayers({
+ *   await adapter.seek?.(engine.getTime(), engine.media.getActiveLayers({
  *     layers: {
  *       visuals: { trackKind: 'visual', sourceId: 'source-1' },
  *     },

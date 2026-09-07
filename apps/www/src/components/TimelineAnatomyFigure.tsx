@@ -1,22 +1,19 @@
 import {
   defaultTimelineInteractionGeometry,
   TimelineEngine,
-  type Marker,
-  type Track,
-  type VisibleTimelineClip,
 } from '@techsquidtv/canvas-timeline-core';
+import type { Marker, Track, VisibleTimelineClip } from '@techsquidtv/canvas-timeline-core';
 import {
   Timeline,
   TimelineProvider,
   useTimeline,
   useTimelineVisibleClips,
 } from '@techsquidtv/canvas-timeline-react';
+import '@techsquidtv/canvas-timeline-react/styles.css';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
 import { useMemo } from 'react';
-import '@techsquidtv/canvas-timeline-react/styles.css';
-
 type TimelineAnatomyVariant = 'ruler' | 'playhead' | 'tracks' | 'clip' | 'markers' | 'range';
 
 interface TimelineAnatomyFigureProps {
@@ -39,7 +36,7 @@ function DOMClip({
   clip: visibleClip,
   showLabels = true,
 }: {
-  clip: VisibleTimelineClip<AnatomyTrackKind>;
+  clip: VisibleTimelineClip;
   showLabels?: boolean;
 }) {
   return (
@@ -305,7 +302,7 @@ function getVariantModel(variant: TimelineAnatomyVariant): {
 
 function TimelineLayers({ variant }: { variant: TimelineAnatomyVariant }) {
   const { state } = useTimeline();
-  const visibleClips = useTimelineVisibleClips<AnatomyTrackKind>();
+  const visibleClips = useTimelineVisibleClips();
   const tracks = state.tracks;
   const showPlayhead =
     variant !== 'ruler' && variant !== 'tracks' && variant !== 'clip' && variant !== 'range';
@@ -351,7 +348,7 @@ function TimelineLayers({ variant }: { variant: TimelineAnatomyVariant }) {
   );
 }
 
-function ClipPartLabels({ clip }: { clip: VisibleTimelineClip<AnatomyTrackKind> }) {
+function ClipPartLabels({ clip }: { clip: VisibleTimelineClip }) {
   const clipLeft = clip.visibleRect.x;
   const clipWidth = clip.visibleRect.width;
   const edgeInset = 8;

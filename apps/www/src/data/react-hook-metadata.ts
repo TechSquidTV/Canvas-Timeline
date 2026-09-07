@@ -43,11 +43,18 @@ export interface TimelineHookMetadata {
 // useTimelineGeometryRevision stay out of this catalog until they become public.
 export const timelineHookMetadata = [
   {
+    name: 'useTimelineEngine',
+    group: 'timeline-state',
+    category: 'context',
+    reactivity: 'imperative',
+    description: 'Reads the stable engine without subscribing to state changes.',
+  },
+  {
     name: 'useTimeline',
     group: 'timeline-state',
     category: 'context',
     reactivity: 'snapshot',
-    description: 'Reads the shared engine and synchronized timeline state from context.',
+    description: 'Reads the shared engine and subscribes to the timeline state snapshot.',
   },
   {
     name: 'useTimelineState',

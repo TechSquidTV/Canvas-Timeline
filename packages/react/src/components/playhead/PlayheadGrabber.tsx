@@ -1,15 +1,11 @@
-import React from 'react';
-import { useTimeline } from '#react/hooks';
-
-import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-import {
-  TimeGrabber,
-  type TimeGrabberChildren,
-  type TimeGrabberProps,
-} from '#react/components/playhead/TimeGrabber';
-
+import { TimeGrabber } from '#react/components/playhead/TimeGrabber';
+import type { TimeGrabberChildren, TimeGrabberProps } from '#react/components/playhead/TimeGrabber';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import React from 'react';
 const PLAYHEAD_PART_CLASS_NAMES: TimeGrabberProps['partClassNames'] = {
   highlight: 'timeline-playhead-grabber-highlight',
   line: 'timeline-playhead-grabber-line',
@@ -46,7 +42,7 @@ export const PlayheadGrabber = React.forwardRef<
     },
     forwardedRef
   ) => {
-    const { engine } = useTimeline();
+    const engine = useTimelineEngine();
 
     const triggerDoubleClick = React.useCallback(
       (e: React.PointerEvent) => {

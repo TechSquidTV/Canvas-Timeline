@@ -1,12 +1,12 @@
 import type { TimelineEngine } from '#core/engine';
-import type { ExternalPlaybackUpdate, PlaybackClockSource, PlaybackOptions } from '#core/types';
-import {
-  addRational,
-  compareRational,
-  fromSeconds,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-
+import type {
+  ExternalPlaybackUpdate,
+  PlaybackClockSource,
+  PlaybackOptions,
+  TimelineState,
+} from '#core/types';
+import { addRational, compareRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export class PlaybackManager {
   private engine: TimelineEngine;
   private playbackInterval: number | null = null;
@@ -17,12 +17,15 @@ export class PlaybackManager {
   private respectInOut = true;
   private loopRange = false;
 
-  constructor(engine: TimelineEngine) {
+  constructor(
+    engine: TimelineEngine,
+    private state: TimelineState
+  ) {
     this.engine = engine;
   }
 
   play(options: PlaybackOptions = {}): boolean {
-    const state = this.engine.getState();
+    const state = this.state;
     if (state.playing) {
       return false;
     }
@@ -47,7 +50,7 @@ export class PlaybackManager {
     this.lastFrameTime = performance.now();
 
     const loop = (time: number) => {
-      const currentState = this.engine.getState();
+      const currentState = this.state;
       if (!currentState.playing) {
         return;
       }
@@ -71,7 +74,7 @@ export class PlaybackManager {
   }
 
   prepareStart(options: PlaybackOptions = {}): RationalTime {
-    const state = this.engine.getState();
+    const state = this.state;
     const respectInOut = options.respectInOut ?? true;
     const rangeStart =
       respectInOut && state.inPoint !== undefined
@@ -93,7 +96,7 @@ export class PlaybackManager {
   }
 
   updateExternalTime(time: RationalTime): ExternalPlaybackUpdate {
-    if (this.playbackClockSource !== 'external' || !this.engine.getState().playing) {
+    if (this.playbackClockSource !== 'external' || !this.state.playing) {
       this.engine.updatePlayhead(time);
       return { time: this.engine.getTime(), action: 'continue' };
     }
@@ -101,7 +104,7 @@ export class PlaybackManager {
   }
 
   private advanceTo(nextTime: RationalTime): ExternalPlaybackUpdate {
-    const state = this.engine.getState();
+    const state = this.state;
     const timelineStart = fromSeconds(0, nextTime.r);
     const inLimit = this.respectInOut ? (state.inPoint ?? timelineStart) : timelineStart;
 
@@ -148,7 +151,7 @@ export class PlaybackManager {
   }
 
   pause() {
-    const state = this.engine.getState();
+    const state = this.state;
     if (!state.playing && this.playbackInterval === null) {
       return;
     }
@@ -166,13 +169,13 @@ export class PlaybackManager {
   }
 
   setPlaybackRate(rate: number) {
-    const state = this.engine.getState();
+    const state = this.state;
     state.playbackRate = rate;
     this.engine.emit('playback:rate', rate);
   }
 
   getPlaybackRate() {
-    const state = this.engine.getState();
+    const state = this.state;
     return state.playbackRate ?? 1.0;
   }
 

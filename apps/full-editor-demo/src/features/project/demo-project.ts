@@ -1,5 +1,4 @@
 import type { Marker, Track } from '@techsquidtv/canvas-timeline-core';
-
 export type EditorTrackKind = 'audio' | 'visual';
 
 export const demoProject = {
@@ -40,3 +39,7 @@ export const timelineTracks: Track<EditorTrackKind>[] = [
     clips: [],
   },
 ];
+
+export function isEditorTrack(track: Track): track is Track<EditorTrackKind> {
+  return track.kind === 'audio' || track.kind === 'visual';
+}

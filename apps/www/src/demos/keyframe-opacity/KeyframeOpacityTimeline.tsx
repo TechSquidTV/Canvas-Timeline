@@ -1,28 +1,3 @@
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import type {
-  TimelineKeyframeBezierHandle,
-  TimelineKeyframeInterpolation,
-  TimelineKeyframeSidePatch,
-  Track,
-} from '@techsquidtv/canvas-timeline-core';
-import {
-  Timeline,
-  TimelineProvider,
-  useTimeline,
-  useTimelineKeyframes,
-  useTimelinePlayheadTime,
-} from '@techsquidtv/canvas-timeline-react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
-import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { Diamond, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
-import type { ChangeEvent, ComponentProps } from 'react';
-import {
-  Group as ResizablePanelGroup,
-  Panel as ResizablePanel,
-  Separator as ResizableHandle,
-} from 'react-resizable-panels';
 import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import {
   findClipContainingTime,
@@ -40,9 +15,33 @@ import {
   sampleMediaUrl,
   sampleSourceId,
 } from '#www/demos/keyframe-opacity/timeline-demo-data';
-import '@techsquidtv/canvas-timeline-react/styles.css';
 import '#www/demos/keyframe-opacity/timeline-editor.css';
-
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineKeyframeBezierHandle,
+  TimelineKeyframeInterpolation,
+  TimelineKeyframeSidePatch,
+  Track,
+} from '@techsquidtv/canvas-timeline-core';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+import {
+  Timeline,
+  TimelineProvider,
+  useTimeline,
+  useTimelineKeyframes,
+  useTimelinePlayheadTime,
+} from '@techsquidtv/canvas-timeline-react';
+import '@techsquidtv/canvas-timeline-react/styles.css';
+import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { Diamond, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import type { ChangeEvent, ComponentProps } from 'react';
+import {
+  Separator as ResizableHandle,
+  Panel as ResizablePanel,
+  Group as ResizablePanelGroup,
+} from 'react-resizable-panels';
 const trackHeight = 64;
 const keyframeSize = 6;
 const keyframeValuePadding = opacityKeyframeValuePadding;
@@ -105,7 +104,9 @@ function TrackKeyframeButton({
     ? findOpacityKeyframeNearTime(clip, playheadTime, engine.zoomScale)
     : null;
   const evaluatedOpacity = clip
-    ? (engine.getClipPropertyValueAtTime(clip.id, 'opacity', playheadTime) ?? clip.opacity ?? 1)
+    ? (engine.keyframes.getClipPropertyValueAtTime(clip.id, 'opacity', playheadTime) ??
+      clip.opacity ??
+      1)
     : 1;
   const disabled = locked || !clip;
 
@@ -285,7 +286,7 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         return;
       }
 
-      const propertyKeyframes = engine
+      const propertyKeyframes = engine.keyframes
         .getClipKeyframes(opacityClipId, opacityKeyframeProperty.id)
         .sort((left, right) => toSeconds(left.time) - toSeconds(right.time));
       const selectedIndex = propertyKeyframes.findIndex(
@@ -310,7 +311,7 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         return;
       }
 
-      engine.updateClipKeyframeSides({
+      engine.keyframes.updateClipKeyframeSides({
         clipId: opacityClipId,
         keyframeId: selectedKeyframe.id,
         incoming: incomingPatch,

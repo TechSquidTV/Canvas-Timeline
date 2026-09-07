@@ -1,0 +1,57 @@
+---
+title: Engine and state migration
+description: Migrate to atomic edits, composed engine services, and isolated React subscriptions.
+section: concepts
+order: 55
+---
+
+This release changes public engine and hook APIs. Update consumers together; the removed methods and aliases have no compatibility exports.
+
+## Editing
+
+Use `commitEdit` for moves, trims, slips, slides, splits, and deletion. Direct engine methods such as `moveClip`, `trimClip`, and `deleteClip` have been removed. The existing React `useTimelineEditCommands` hook continues to provide named commands.
+
+```ts
+const command = {
+  type: 'move' as const,
+  clipId: 'intro',
+  startTime: fromSeconds(4),
+  overwrite: true,
+};
+
+engine.previewEdit(command);
+// On pointer release:
+const result = engine.commitEdit(command);
+// On cancellation instead:
+engine.cancelEdit();
+```
+
+Previews leave committed state unchanged. `getRenderState()` includes preview geometry; `getState()` describes the document. Commits validate against current content, locks, and policy, even if a preview exists. Preview-generated split IDs stay stable without caching an old document. Set `overwrite: true` on move or trim commands to cut overlapping clips. `commitEdits(commands)` applies an ordered batch atomically with one undo step.
+
+## Engine services
+
+The engine composes three services with explicit dependencies:
+
+| Area                                 | Access                                                           |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| Clip lookup, rectangles, hit testing | `engine.geometry.getClip()`, `getClipRect()`, `getClipAtPoint()` |
+| Active layers and source timing      | `engine.media.getActiveLayers()`, `timelineTimeToSourceTime()`   |
+| Keyframe queries and edits           | `engine.keyframes.getKeyframeRects()`, `setClipKeyframe()`       |
+
+Move former direct calls to the corresponding service. Playback, document operations, history, and edit transactions remain on the engine. `getActiveLayers()` no longer includes `firstContentTime`; call `engine.media.getFirstContentTime({ layers })` when choosing a playback start. Custom predicates are evaluated when queried, so application-owned predicate state is not hidden behind a revision cache.
+
+## Read state and history
+
+`getState()`, `getRenderState()`, and the engine's track/group/marker collections are readonly snapshots. Initial times and metadata are owned by the engine. Change content through commands instead of assigning to returned state. Unchanged collections and time values retain their references across viewport changes.
+
+History defaults to 100 snapshots and a conservative 16 MiB serialized-byte budget. Configure `history: { maxEntries, maxBytes }` when constructing an engine. The current document is always retained, even if it exceeds the budget; older undo entries are evicted first. Unchanged clip records are shared, and unchanged checkpoints are skipped.
+
+## React and controls
+
+`TimelineProvider` now supplies the stable engine. Use `useTimelineEngine()` for imperative commands, narrow domain hooks for reactive controls, and `useTimelineState()` only when broad state is needed. A playback toolbar no longer rerenders for scrolling or zooming. Custom contexts must pass the engine directly, or use `TimelineProvider`.
+
+Hook and geometry APIs return the engine's actual string track kinds. Remove caller-supplied kind generics and narrow with a predicate that checks your application's allowed kinds. Model types such as `Track<MyKind>` still describe data that your application has validated.
+
+`TimelineCommandResult<Value>` is discriminated by `ok`: failures always have a reason, and successful non-void results have a required value. Narrow on `ok` before reading the payload.
+
+RangeScrollbar now returns `thumbOffsetPercent` and `thumbSizePercent`; remove uses of `thumbLeftPercent` and `thumbWidthPercent`.

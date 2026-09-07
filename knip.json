@@ -24,12 +24,7 @@
       "ignoreDependencies": ["@arethetypeswrong/cli"]
     },
     "scripts": {
-      "entry": [
-        "checks/package-coverage.mjs",
-        "checks/publishable-packages.mjs",
-        "checks/consumer-smoke.mjs",
-        "checks/repository-policy.mjs"
-      ],
+      "entry": ["checks/publishable-packages.mjs", "checks/consumer-smoke.mjs"],
       "project": ["**/*.{mjs,ts}"]
     },
     "apps/www": {

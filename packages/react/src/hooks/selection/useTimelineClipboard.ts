@@ -1,12 +1,12 @@
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
+const clipboardEvents = ['clipboard:change'] as const;
 
 /** Result returned by `useTimelineClipboard`. */
 export interface UseTimelineClipboardResult {
@@ -32,16 +32,21 @@ export interface UseTimelineClipboardResult {
  * @returns Commands for manipulating the timeline clip clipboard.
  */
 export function useTimelineClipboard(): UseTimelineClipboardResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
   const { selectedClip } = useTimelineSelection();
+  const clipboardCount = useTimelineExternalStore(
+    clipboardEvents,
+    (engine) => engine.clipboardCount
+  );
   const clipboardState = useMemo(
     () => ({
       canCopy: selectedClip !== null,
       canCut: selectedClip !== null,
-      canPaste: engine.canPasteSelection,
-      clipboardCount: engine.clipboardCount,
+      canPaste: clipboardCount > 0,
+      clipboardCount,
     }),
-    [engine.canPasteSelection, engine.clipboardCount, selectedClip]
+    [clipboardCount, selectedClip]
   );
 
   const copySelection = useCallback(() => {
@@ -56,8 +61,10 @@ export function useTimelineClipboard(): UseTimelineClipboardResult {
     if (!clipboardState.canCut) {
       return timelineCommandFail('empty-selection');
     }
-    engine.cutSelection();
-    return timelineCommandOk();
+    const result = engine.cutSelection();
+    return result.committed
+      ? timelineCommandOk()
+      : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
   }, [clipboardState.canCut, engine]);
 
   const pasteSelection = useCallback(
@@ -71,8 +78,15 @@ export function useTimelineClipboard(): UseTimelineClipboardResult {
       ) {
         return timelineCommandFail('not-found');
       }
-      engine.pasteSelection(time, targetTrackId);
-      return timelineCommandOk();
+      const results = engine.pasteSelection(time, targetTrackId);
+      if (!results?.length) {
+        return timelineCommandFail('not-found');
+      }
+      // Earlier valid edits are also uncommitted after rollback; report the rejecting edit.
+      const failed = results.find((result) => !result.preview.valid);
+      return failed
+        ? timelineCommandFail(failed.preview.reason ?? 'unsupported', failed.preview.message)
+        : timelineCommandOk();
     },
     [clipboardState.canPaste, engine, state.tracks]
   );

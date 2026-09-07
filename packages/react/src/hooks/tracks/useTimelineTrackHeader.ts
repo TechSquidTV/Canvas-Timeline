@@ -1,10 +1,8 @@
+import { useTimelineTrack } from '#react/hooks/tracks/useTimelineTrack';
+import type { UseTimelineTrackResult } from '#react/hooks/tracks/useTimelineTrack';
 import type { TimelineTrackGeometryOptions } from '@techsquidtv/canvas-timeline-core';
-import { useMemo, type HTMLAttributes } from 'react';
-import {
-  useTimelineTrack,
-  type UseTimelineTrackResult,
-} from '#react/hooks/tracks/useTimelineTrack';
-
+import { useMemo } from 'react';
+import type { HTMLAttributes } from 'react';
 /**
  * DOM props returned for a track header row.
  *
@@ -25,12 +23,8 @@ export type TimelineTrackHeaderRootProps = HTMLAttributes<HTMLDivElement>;
  * label and DOM root props. It is the hook behind `Timeline.TrackHeader` and is
  * useful when building custom shadcn-like header rows.
  *
- * @template TrackKind - App-defined track kind value carried by the requested
- * track.
  */
-export interface UseTimelineTrackHeaderResult<
-  TrackKind extends string = string,
-> extends UseTimelineTrackResult<TrackKind> {
+export interface UseTimelineTrackHeaderResult extends UseTimelineTrackResult {
   /** Human-readable label for the header row. */
   label: string;
   /** Props for the root track header row element. */
@@ -49,8 +43,6 @@ export interface UseTimelineTrackHeaderResult<
  *
  * @param trackId - Track id to bind.
  * @param options - Optional track geometry overrides matching the renderer.
- * @template TrackKind - App-defined track kind value carried by the requested
- * track.
  * @returns Track row state plus header label and root DOM props.
  *
  * @example
@@ -74,11 +66,11 @@ export interface UseTimelineTrackHeaderResult<
  * @see {@link useTimelineTrack}
  * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
-export function useTimelineTrackHeader<TrackKind extends string = string>(
+export function useTimelineTrackHeader(
   trackId: string,
   options: TimelineTrackGeometryOptions = {}
-): UseTimelineTrackHeaderResult<TrackKind> {
-  const trackState = useTimelineTrack<TrackKind>(trackId, options);
+): UseTimelineTrackHeaderResult {
+  const trackState = useTimelineTrack(trackId, options);
   const label = useMemo(
     () =>
       trackState.exists

@@ -1,13 +1,12 @@
-import { afterEach, beforeEach, vi } from 'vite-plus/test';
-import type { ActiveClip, ActiveLayerResult, Clip, Track } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import * as RealMediabunny from 'mediabunny';
 import type {
   createMediabunnyAdapter,
   MediabunnyModule,
   MediabunnySource,
 } from '#mediabunny-adapter/index';
-
+import type { ActiveClip, ActiveLayerResult, Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import * as RealMediabunny from 'mediabunny';
+import { afterEach, beforeEach, vi } from 'vite-plus/test';
 const originalAudioContext = window.AudioContext;
 const originalWebkitAudioContext = (
   window as typeof window & { webkitAudioContext?: typeof AudioContext }
@@ -222,7 +221,6 @@ function createActiveLayerResult(activeClips: ActiveClip[], time = 1): ActiveLay
     layers: {},
     primary: {},
     hasActiveClips: activeClips.length > 0,
-    firstContentTime: activeClips[0]?.clip.timelineStart,
   };
 }
 

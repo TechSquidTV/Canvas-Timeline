@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type {
   TimelineInteractionGeometry,
   TimelineKeyframeRect,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a keyframe drag. */
 export interface TimelineKeyframeDragStartInput {
   /** Clip owning the keyframe. */
@@ -138,7 +134,7 @@ function clampRatio(value: number) {
 export function useTimelineKeyframeDrag(
   options: UseTimelineKeyframeDragOptions = {}
 ): UseTimelineKeyframeDragResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const activeDragRef = useRef<ActiveKeyframeDrag | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -174,7 +170,7 @@ export function useTimelineKeyframeDrag(
 
   const getValueAtViewportY = useCallback(
     (clipId: string, property: TimelineKeyframeRect['keyframe']['property'], viewportY: number) => {
-      const clipRect = engine.getClipRect(clipId, clipGeometry);
+      const clipRect = engine.geometry.getClipRect(clipId, clipGeometry);
       const definition = engine.getKeyframePropertyDefinition(property);
       if (!clipRect) {
         return null;
@@ -193,10 +189,10 @@ export function useTimelineKeyframeDrag(
 
   const startKeyframeDrag = useCallback(
     (input: TimelineKeyframeDragStartInput): TimelineCommandResult => {
-      const found = engine.getClip(input.clipId);
+      const found = engine.geometry.getClip(input.clipId);
       const rect =
         input.keyframeRect ??
-        engine
+        engine.keyframes
           .getKeyframeRects({
             ...clipGeometry,
             keyframeSize: options.keyframeSize,
@@ -242,7 +238,7 @@ export function useTimelineKeyframeDrag(
 
       const deltaX = input.clientX - activeDrag.startClientX;
       const time = engine.pixelToTime(activeDrag.startCenterX + deltaX);
-      const keyframe = engine.updateClipKeyframe(
+      const keyframe = engine.keyframes.updateClipKeyframe(
         {
           clipId: activeDrag.clipId,
           keyframeId: activeDrag.keyframeId,

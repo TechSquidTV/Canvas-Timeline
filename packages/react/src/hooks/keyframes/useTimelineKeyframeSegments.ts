@@ -1,4 +1,11 @@
-import { useCallback, useMemo } from 'react';
+import {
+  timelineCommandFail,
+  timelineCommandInvalidInput,
+  timelineCommandOk,
+} from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import type {
   TimelineKeyframeMutationOptions,
   TimelineKeyframePropertyId,
@@ -12,15 +19,7 @@ import type {
   TimelineUpdateClipKeyframeSideOptions,
   VisibleTimelineKeyframeSegment,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-import {
-  timelineCommandFail,
-  timelineCommandInvalidInput,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useMemo } from 'react';
 /** Options accepted by `useTimelineKeyframeSegments`. */
 export interface UseTimelineKeyframeSegmentsOptions extends TimelineKeyframeSegmentGeometryOptions {
   /** Keyframe property used to scope segment lists and commands. */
@@ -39,19 +38,19 @@ export interface TimelineKeyframeSideUpdateInput extends Omit<
 }
 
 /** Result returned by `useTimelineKeyframeSegments`. */
-export interface UseTimelineKeyframeSegmentsResult<TrackKind = string> {
+export interface UseTimelineKeyframeSegmentsResult {
   /** Keyframe segments in track order. */
-  segments: TimelineKeyframeSegment<TrackKind>[];
+  segments: TimelineKeyframeSegment<string>[];
   /** Viewport-intersecting keyframe segments in track order. */
-  visibleSegments: VisibleTimelineKeyframeSegment<TrackKind>[];
+  visibleSegments: VisibleTimelineKeyframeSegment<string>[];
   /** Bezier tangent handles from all `segments`. */
-  tangentHandles: TimelineKeyframeTangentHandle<TrackKind>[];
+  tangentHandles: TimelineKeyframeTangentHandle<string>[];
   /** Bezier tangent handles from all `visibleSegments`. */
-  visibleTangentHandles: TimelineKeyframeTangentHandle<TrackKind>[];
+  visibleTangentHandles: TimelineKeyframeTangentHandle<string>[];
   /** Hit-tests one viewport point against visible Bezier tangent handles. */
   getTangentHandleAtPoint: (
     input: TimelineKeyframeTangentHitTestInput
-  ) => TimelineKeyframeTangentHandleHitTestResult<TrackKind> | null;
+  ) => TimelineKeyframeTangentHandleHitTestResult<string> | null;
   /** Updates one keyframe side interpolation. */
   updateKeyframeSide: (
     input: TimelineKeyframeSideUpdateInput,
@@ -64,10 +63,10 @@ export interface UseTimelineKeyframeSegmentsResult<TrackKind = string> {
  *
  * @param options - Clip/property filters and renderer-aligned geometry settings.
  */
-export function useTimelineKeyframeSegments<TrackKind = string>(
+export function useTimelineKeyframeSegments(
   options: UseTimelineKeyframeSegmentsOptions
-): UseTimelineKeyframeSegmentsResult<TrackKind> {
-  const { engine } = useTimeline();
+): UseTimelineKeyframeSegmentsResult {
+  const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision({ redrawOnPreview: true });
   const {
     clipId,
@@ -124,15 +123,15 @@ export function useTimelineKeyframeSegments<TrackKind = string>(
 
   const segments = useMemo(() => {
     void revision;
-    return engine
-      .getKeyframeSegments<TrackKind>(geometry)
+    return engine.keyframes
+      .getKeyframeSegments(geometry)
       .filter((entry) => clipId === undefined || entry.clip.id === clipId);
   }, [clipId, engine, geometry, revision]);
 
   const visibleSegments = useMemo(() => {
     void revision;
-    return engine
-      .getVisibleKeyframeSegments<TrackKind>(geometry)
+    return engine.keyframes
+      .getVisibleKeyframeSegments(geometry)
       .filter((entry) => clipId === undefined || entry.clip.id === clipId);
   }, [clipId, engine, geometry, revision]);
 
@@ -144,7 +143,7 @@ export function useTimelineKeyframeSegments<TrackKind = string>(
 
   const getTangentHandleAtPoint = useCallback(
     (input: TimelineKeyframeTangentHitTestInput) => {
-      const hit = engine.getKeyframeTangentHandleAtPoint<TrackKind>(input);
+      const hit = engine.keyframes.getKeyframeTangentHandleAtPoint(input);
       return hit && (clipId === undefined || hit.clip.id === clipId) ? hit : null;
     },
     [clipId, engine]
@@ -155,10 +154,10 @@ export function useTimelineKeyframeSegments<TrackKind = string>(
       input: TimelineKeyframeSideUpdateInput,
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframeSideInterpolation> => {
-      const found = engine.getClip(input.clipId);
-      let keyframe: ReturnType<typeof engine.updateClipKeyframeSide>;
+      const found = engine.geometry.getClip(input.clipId);
+      let keyframe: ReturnType<typeof engine.keyframes.updateClipKeyframeSide>;
       try {
-        keyframe = engine.updateClipKeyframeSide(input, mutationOptions);
+        keyframe = engine.keyframes.updateClipKeyframeSide(input, mutationOptions);
       } catch (updateError: unknown) {
         return timelineCommandInvalidInput(
           'Timeline keyframe side could not be updated from the provided input.',

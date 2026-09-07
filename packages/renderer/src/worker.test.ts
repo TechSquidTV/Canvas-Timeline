@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine, type TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineRenderOptions } from '#renderer/render/types';
-
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 type RenderTimelineMock = ReturnType<
   typeof vi.fn<
     (
@@ -43,10 +43,12 @@ interface TestWorkerScope extends Window {
 }
 
 function createState(): TimelineState {
-  return new TimelineEngine({
-    duration: fromSeconds(10),
-    tracks: [],
-  }).getState();
+  return structuredClone(
+    new TimelineEngine({
+      duration: fromSeconds(10),
+      tracks: [],
+    }).getState()
+  ) as TimelineState;
 }
 
 function createCanvas(): OffscreenCanvas {

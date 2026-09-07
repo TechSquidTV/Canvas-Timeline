@@ -9,10 +9,10 @@ order: 24
 
 While rendering the editor timeline uses the full `state.tracks` tree, synchronized playback and preview pipelines only care about what is active at the playhead.
 
-To retrieve active clips at a specific time, use `engine.getActiveLayers()` (or the React hook `useActiveLayers()`). This utility filters out hidden tracks, muted tracks, and disabled clips, then returns the results in your named layer buckets:
+To retrieve active clips at a specific time, use `engine.media.getActiveLayers()` (or the React hook `useActiveLayers()`). This utility filters out hidden tracks, muted tracks, and disabled clips, then returns the results in your named layer buckets:
 
 ```ts
-const activeLayers = engine.getActiveLayers({
+const activeLayers = engine.media.getActiveLayers({
   time: engine.getTime(),
   layers: {
     visuals: { trackKind: 'visual' },
@@ -94,7 +94,7 @@ engine.addClip('track1', {
 });
 
 // 2. Read custom metadata anywhere you have a clip reference
-const clip = engine.getClip('clip1')?.clip;
+const clip = engine.geometry.getClip('clip1')?.clip;
 console.log(clip?.metadata?.caption); // 'Intro Scene'
 
 // 3. Update metadata fields using updateClipProperties

@@ -1,15 +1,8 @@
 import type { TimelineEngine } from '#core/engine';
-import { shiftClipKeyframes } from '#core/engine/clip-keyframes';
 import { createClipSnapshot } from '#core/snapshot';
-import type { Clip, TimelineState } from '#core/types';
-import type { ClipCreatedEvent, ClipRemovedEvent } from '#core/events';
-import {
-  addRational,
-  compareRational,
-  subRational,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-
+import type { Clip, TimelineEditCommand } from '#core/types';
+import { addRational, compareRational, subRational } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export type ClipboardEntry = {
   clip: Clip;
   originClipId: string;
@@ -60,28 +53,11 @@ export class ClipboardManager {
 
   cutSelection() {
     this.copySelection();
-    const state = this.engine.getState();
-    const removedClips: Clip[] = [];
-    for (const track of state.tracks) {
-      track.clips = track.clips.filter((clip) => {
-        if (clip.selected) {
-          removedClips.push(createClipSnapshot(clip));
-          return false;
-        }
-        return true;
-      });
-    }
-    cleanupClipGroups(state);
-    for (const clip of removedClips) {
-      this.engine.emit('clip:removed', {
-        clip,
-        reason: 'cut',
-      } satisfies ClipRemovedEvent);
-    }
-    this.engine.snapshot();
-    this.engine.invalidateContent();
-    this.engine.emit('state:settled');
-    this.engine.emit('render');
+    return this.engine.commitEdit({
+      type: 'delete-clips',
+      reason: 'cut',
+      clipIds: this.clipboard.map(({ clip }) => clip.id),
+    });
   }
 
   pasteSelection(time: RationalTime, targetTrackId?: string) {
@@ -109,72 +85,34 @@ export class ClipboardManager {
       this.clipboard[0].clip.timelineStart
     );
 
-    const pastedGroupClipIds = new Map<string, { clipIds: string[]; label?: string }>();
-
-    this.clipboard.forEach(({ clip, originClipId, originGroupId, originGroupLabel }) => {
-      const offset = subRational(clip.timelineStart, earliestStart);
-      const duration = subRational(clip.timelineEnd, clip.timelineStart);
-      const newClip = createClipSnapshot(clip, {
-        id: crypto.randomUUID(),
-        timelineStart: addRational(time, offset),
-        timelineEnd: addRational(addRational(time, offset), duration),
-        selected: false,
-      });
-      shiftClipKeyframes(newClip, subRational(newClip.timelineStart, clip.timelineStart));
-      track.clips.push(newClip);
-      if (originGroupId !== undefined) {
-        const group = pastedGroupClipIds.get(originGroupId) ?? { clipIds: [] };
-        group.clipIds.push(newClip.id);
-        if (originGroupLabel !== undefined) {
-          group.label = originGroupLabel;
-        }
-        pastedGroupClipIds.set(originGroupId, group);
-      }
-      this.engine.applyOverwrites(newClip.id);
-      this.engine.emit('clip:created', {
-        clip: createClipSnapshot(newClip),
-        originClipId,
-        reason: 'paste',
-      } satisfies ClipCreatedEvent);
-    });
-
-    for (const group of pastedGroupClipIds.values()) {
-      if (group.clipIds.length >= 2) {
-        state.clipGroups.push({
-          id: crypto.randomUUID(),
-          clipIds: group.clipIds,
-          ...(group.label !== undefined ? { label: group.label } : {}),
-        });
+    const placements = this.clipboard.map(({ clip, originClipId }) => ({
+      originClipId,
+      clip: createClipSnapshot(clip, { id: crypto.randomUUID(), selected: false }),
+      targetTrackId: destTrackId,
+      startTime: addRational(time, subRational(clip.timelineStart, earliestStart)),
+    }));
+    const commands: TimelineEditCommand[] = [];
+    const groups = new Map<string, { label?: string; placements: typeof placements }>();
+    for (const [index, entry] of this.clipboard.entries()) {
+      const placement = placements[index];
+      if (entry.originGroupId) {
+        const group = groups.get(entry.originGroupId) ?? {
+          label: entry.originGroupLabel,
+          placements: [],
+        };
+        group.placements.push(placement);
+        groups.set(entry.originGroupId, group);
+      } else {
+        commands.push({ type: 'overwrite', ...placement, snap: false });
       }
     }
-    cleanupClipGroups(state);
-
-    this.engine.invalidateContent();
-    this.engine.snapshot();
-    this.engine.emit('state:settled');
-    this.engine.emit('render');
-  }
-}
-
-function cleanupClipGroups(state: TimelineState) {
-  const existingClipIds = new Set<string>();
-  for (const track of state.tracks) {
-    for (const clip of track.clips) {
-      existingClipIds.add(clip.id);
-    }
-  }
-
-  const claimedClipIds = new Set<string>();
-  state.clipGroups = state.clipGroups.flatMap((group) => {
-    const clipIds = group.clipIds.filter((clipId) => {
-      if (!existingClipIds.has(clipId) || claimedClipIds.has(clipId)) {
-        return false;
+    for (const group of groups.values()) {
+      if (group.placements.length > 1) {
+        commands.push({ type: 'overwrite-clip-group', ...group, snap: false });
+      } else {
+        commands.push({ type: 'overwrite', ...group.placements[0], snap: false });
       }
-      claimedClipIds.add(clipId);
-      return true;
-    });
-    return clipIds.length >= 2
-      ? [{ id: group.id, clipIds, ...(group.label !== undefined ? { label: group.label } : {}) }]
-      : [];
-  });
+    }
+    return this.engine.commitEdits(commands);
+  }
 }

@@ -1,24 +1,22 @@
-import { renderHook, act } from '@testing-library/react';
-import React from 'react';
-import { expect, test } from 'vite-plus/test';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { expectDefined } from '#test-utils/assertions';
 import {
-  useTimelineKeyframeSegments,
-  useTimelineKeyframeTangentDrag,
   useTimelineKeyframeDrag,
   useTimelineKeyframes,
+  useTimelineKeyframeSegments,
+  useTimelineKeyframeTangentDrag,
 } from '#react/hooks';
-
 import {
   createClip,
   createTrack,
   levelKeyframeProperty,
   opacityKeyframeProperty,
 } from '#react/hooks/integration/testHelpers';
-
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, renderHook } from '@testing-library/react';
+import React from 'react';
+import { expect, test } from 'vite-plus/test';
 test('useTimelineKeyframes exposes keyframe geometry, evaluation, and commands', () => {
   const engine = new TimelineEngine({
     tracks: [
@@ -155,7 +153,7 @@ test('useTimelineKeyframeDrag previews keyframe time and value changes', () => {
     }
   );
   const rect = expectDefined(
-    engine.getKeyframeRects({ rulerHeight: 32, trackHeight: 48 })[0],
+    engine.keyframes.getKeyframeRects({ rulerHeight: 32, trackHeight: 48 })[0],
     'keyframe rect'
   );
 
@@ -178,7 +176,7 @@ test('useTimelineKeyframeDrag previews keyframe time and value changes', () => {
     });
   });
 
-  const keyframe = engine.getClipKeyframes('intro')[0];
+  const keyframe = engine.keyframes.getClipKeyframes('intro')[0];
   expect(toSeconds(keyframe.time)).toBe(2);
   expect(keyframe.value).toBe(1);
 
@@ -250,7 +248,7 @@ test('useTimelineKeyframeSegments exposes tangent geometry for non-opacity prope
     ).toBe(true);
   });
 
-  expect(engine.getClipKeyframes('intro', 'level')[0].outgoing).toEqual({
+  expect(engine.keyframes.getClipKeyframes('intro', 'level')[0].outgoing).toEqual({
     interpolation: 'bezier',
     handle: { x: 0.42, y: 0 },
   });
@@ -373,7 +371,7 @@ test('useTimelineKeyframeSegments exposes Bezier segments, tangent handles, and 
     ).toBe(true);
   });
 
-  expect(engine.getClipKeyframes('intro')[0].outgoing).toEqual({
+  expect(engine.keyframes.getClipKeyframes('intro')[0].outgoing).toEqual({
     interpolation: 'bezier',
     handle: { x: 0.1, y: 0.9 },
   });
@@ -433,7 +431,7 @@ test('useTimelineKeyframeTangentDrag previews Bezier tangent handle changes', ()
     }
   );
   const segment = expectDefined(
-    engine.getKeyframeSegments({
+    engine.keyframes.getKeyframeSegments({
       property: 'opacity',
       rulerHeight: 32,
       trackHeight: 48,
@@ -458,8 +456,11 @@ test('useTimelineKeyframeTangentDrag previews Bezier tangent handle changes', ()
     });
   });
 
-  const updatedIncoming = engine.getClipKeyframes('intro')[1].incoming?.handle;
-  expect(engine.getClipKeyframes('intro')[0].outgoing?.handle).toEqual({ x: 0.2, y: 0.8 });
+  const updatedIncoming = engine.keyframes.getClipKeyframes('intro')[1].incoming?.handle;
+  expect(engine.keyframes.getClipKeyframes('intro')[0].outgoing?.handle).toEqual({
+    x: 0.2,
+    y: 0.8,
+  });
   expect(updatedIncoming?.x).toBeCloseTo(0.6);
   expect(updatedIncoming?.y).toBeCloseTo(0.4);
 
@@ -510,7 +511,7 @@ test('useTimelineKeyframeTangentDrag reports invalid pointer coordinates', () =>
     }
   );
   const segment = expectDefined(
-    engine.getKeyframeSegments({
+    engine.keyframes.getKeyframeSegments({
       property: 'opacity',
       rulerHeight: 32,
       trackHeight: 48,
@@ -574,7 +575,11 @@ test('useTimelineKeyframeTangentDrag preserves vertical handle value for flat se
     }
   );
   const segment = expectDefined(
-    engine.getKeyframeSegments({ property: 'opacity', rulerHeight: 32, trackHeight: 48 })[0],
+    engine.keyframes.getKeyframeSegments({
+      property: 'opacity',
+      rulerHeight: 32,
+      trackHeight: 48,
+    })[0],
     'flat keyframe segment'
   );
 
@@ -590,7 +595,7 @@ test('useTimelineKeyframeTangentDrag preserves vertical handle value for flat se
     });
   });
 
-  expect(engine.getClipKeyframes('intro')[0].outgoing).toEqual({
+  expect(engine.keyframes.getClipKeyframes('intro')[0].outgoing).toEqual({
     interpolation: 'bezier',
     handle: { x: 0.4, y: 0.75 },
   });

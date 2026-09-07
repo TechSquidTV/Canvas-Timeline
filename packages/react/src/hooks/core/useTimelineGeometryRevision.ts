@@ -1,6 +1,5 @@
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-
 interface TimelineGeometryRevisionOptions {
   /** Include high-frequency playhead scrubs in the revision stream. */
   redrawOnPlayhead?: boolean;
@@ -17,7 +16,7 @@ interface TimelineGeometryRevisionOptions {
 export function useTimelineGeometryRevision(options: TimelineGeometryRevisionOptions = {}) {
   const redrawOnPlayhead = options.redrawOnPlayhead ?? false;
   const redrawOnPreview = options.redrawOnPreview ?? false;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const revisionRef = useRef(0);
 
   const subscribe = useCallback(

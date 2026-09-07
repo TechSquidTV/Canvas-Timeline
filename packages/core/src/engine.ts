@@ -1,79 +1,104 @@
-import type {
-  Clip,
-  TimelineClipDropFeedback,
-  Marker,
-  PlaybackOptions,
-  ExternalPlaybackUpdate,
-  TimelineClipMoveOptions,
-  TimelineClipMoveResult,
-  TimelineSnapFeedback,
-  TimelineSnapResult,
-  TimelineSnapTarget,
-  TimelineEditImpact,
-  TimelineEditImpacts,
-  TimelineEditPolicy,
-  TimelineEditPreview,
-  TimelineClipGroup,
-  TimelineKeyframePropertyDefinition,
-  TimelineKeyframePropertyId,
-  TimelineRegisteredKeyframePropertyDefinition,
-  TimelineState,
-  Track,
-} from '#core/types';
-import type { ClipCreatedEvent, ClipRemovedEvent } from '#core/events';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import {
-  assertValidRationalTime,
-  toSeconds,
-  fromSeconds,
-  addRational,
-  subRational,
-  compareRational,
-  maxRational,
-  minRational,
-  resolveTimecodeFrameRate,
-} from '@techsquidtv/canvas-timeline-utils';
-
-import { PlaybackManager } from '#core/playback';
-import { HistoryManager } from '#core/history';
 import { ClipboardManager } from '#core/clipboard';
+import { TypedEventEmitter } from '#core/emitter';
+import { TimelineMediaQueries } from '#core/engine/active-media';
 import {
-  assertNonNegativeTimelineNumber,
-  assertPositiveTimelineNumber,
-  assertValidTimelineNumber,
-  cloneRationalTime,
-  createClipSnapshot,
-  createClipGroupSnapshots,
-  createMarkerSnapshots,
-  createTrackSnapshots,
-  stringifyTrackSnapshots,
-} from '#core/snapshot';
+  getClipGroup,
+  getClipGroupForClip,
+  getEditCommandSourceClipId,
+  getLinkedClipIds,
+  normalizeClipGroupsForTracks,
+  resolveInteractiveEdit,
+  validateEditCommand,
+} from '#core/engine/edit-evaluator';
+import type { EditContext } from '#core/engine/edit-evaluator';
 import {
-  emptyTimelineClipDropFeedback,
-  emptyTimelineSnapFeedback,
   createClipDropFeedbackSnapshot,
   createTimelineEditImpactsSnapshot,
+  emptyTimelineClipDropFeedback,
+  emptyTimelineSnapFeedback,
   hasClipDropFeedback,
   isSameClipDropFeedback,
 } from '#core/engine/feedback';
 import {
   defaultTimelineMaxPixelsPerFrame,
-  type TimelineZoomConstraints,
+  defaultTimelineViewportHeight,
+  resolveTimelineInteractionGeometry,
 } from '#core/engine/geometry';
-import { filterClipKeyframesToClipRange, shiftClipKeyframes } from '#core/engine/clip-keyframes';
+import type { TimelineZoomConstraints } from '#core/engine/geometry';
+import { TimelineGeometry } from '#core/engine/interaction-geometry';
+import { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
+import { TimelineKeyframes } from '#core/engine/keyframes';
 import type {
   SnapPreparationOptions,
   TimelineSnapProvider,
   TimelineSnapProviderContext,
 } from '#core/engine/snapping';
-import { TimelineEngineState } from '#core/engine/timeline-state';
-
+import type { TimelineResolvedEdit } from '#core/engine/types';
+import type {
+  ClipCreatedEvent,
+  ClipRemovedEvent,
+  ClipSplitEvent,
+  EngineEventMap,
+} from '#core/events';
+import { HistoryManager } from '#core/history';
+import type { TimelineHistoryOptions } from '#core/history';
+import { PlaybackManager } from '#core/playback';
+import { SnapIndex } from '#core/snapping';
+import {
+  assertNonNegativeTimelineNumber,
+  assertPositiveTimelineNumber,
+  assertValidTimelineNumber,
+  cloneRationalTime,
+  createClipGroupSnapshots,
+  createMarkerSnapshots,
+  createTrackSnapshot,
+  createTrackSnapshots,
+} from '#core/snapshot';
+import { createTimelineReadSnapshot } from '#core/state-snapshot';
+import type {
+  Clip,
+  ExternalPlaybackUpdate,
+  Marker,
+  PlaybackOptions,
+  TimelineClipDropFeedback,
+  TimelineClipGroup,
+  TimelineCreateClipGroupOptions,
+  TimelineEditCommand,
+  TimelineEditCommitResult,
+  TimelineEditImpacts,
+  TimelineEditPolicy,
+  TimelineEditPreview,
+  TimelineEditValidationResult,
+  TimelineInsertClipGroupOptions,
+  TimelineInteractionGeometry,
+  TimelineKeyframePropertyDefinition,
+  TimelineKeyframePropertyId,
+  TimelineRegisteredKeyframePropertyDefinition,
+  TimelineSnapFeedback,
+  TimelineSnapResult,
+  TimelineSnapTarget,
+  TimelineState,
+  TimelineStateSnapshot,
+  TimelineTrackHeightBatchOptions,
+  TimelineTrackHeightUpdate,
+  Track,
+} from '#core/types';
+import {
+  assertValidRationalTime,
+  compareRational,
+  fromSeconds,
+  maxRational,
+  minRational,
+  resolveTimecodeFrameRate,
+  toSeconds,
+} from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+export { shiftClipKeyframes } from '#core/engine/clip-keyframes';
 export {
   defaultTimelineInteractionGeometry,
   defaultTimelineMaxPixelsPerFrame,
 } from '#core/engine/geometry';
 export type { TimelineZoomConstraints } from '#core/engine/geometry';
-export { shiftClipKeyframes } from '#core/engine/clip-keyframes';
 export type {
   SnapPreparationOptions,
   TimelineSnapInteractionOperation,
@@ -89,22 +114,927 @@ export type {
  * builds dynamic snap indexes for magnetic snap guidance, handles split and edit actions,
  * and publishes state events to trigger low-latency canvas renderings and lightweight React layouts.
  */
-export class TimelineEngine extends TimelineEngineState {
+
+export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
+  private state: TimelineState;
+  private zoomConstraints: TimelineZoomConstraints = {};
+  private editPolicy: TimelineEditPolicy | undefined;
+  private activeClips = new Set<string>();
+  private snapIndex = new SnapIndex();
+  private snapProviders = new Set<TimelineSnapProvider>();
+  private keyframeProperties = new KeyframePropertyRegistry();
+
+  private playbackManager: PlaybackManager;
+  private historyManager: HistoryManager;
+  private clipboardManager: ClipboardManager;
+
+  private editImpacts: TimelineEditImpacts | null = null;
+  private previewTracks: Track[] | null = null;
+  private editPreview: TimelineEditPreview | null = null;
+
+  private sortTrackClips(track: Track) {
+    track.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
+  }
+
+  /**
+   * Current marker list.
+   */
+  get markers() {
+    return this.getState().markers ?? [];
+  }
+
+  /**
+   * Adds a marker at a timeline time.
+   *
+   * @param time - Timeline time for the marker.
+   * @param label - Optional visible marker label.
+   * @param color - Optional marker color.
+   * @param description - Optional longer marker note.
+   * @returns The created marker.
+   */
+  addMarker(time: RationalTime, label?: string, color?: string, description?: string) {
+    assertValidRationalTime(time, 'time');
+    const marker = {
+      id: crypto.randomUUID(),
+      time: cloneRationalTime(time),
+      label,
+      color,
+      description,
+    };
+    if (!this.state.markers) {
+      this.state.markers = [];
+    }
+    this.state.markers.push(marker);
+    this.invalidateContent();
+    this.snapshot();
+    this.emit('marker:add', { marker });
+    this.emit('state:settled');
+    this.emit('render');
+    return marker;
+  }
+
+  /**
+   * Removes a marker by id.
+   *
+   * @param id - Marker id to remove.
+   * @returns Whether the marker was found and removed.
+   */
+  removeMarker(id: string) {
+    if (this.state.markers) {
+      const idx = this.state.markers.findIndex((m) => m.id === id);
+      if (idx !== -1) {
+        const removed = this.state.markers.splice(idx, 1)[0];
+        this.invalidateContent();
+        this.snapshot();
+        this.emit('marker:remove', { marker: removed });
+        this.emit('state:settled');
+        this.emit('render');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Updates an existing marker.
+   *
+   * @param id - Marker id to update.
+   * @param updates - Marker fields to merge into the existing marker.
+   * @returns The updated marker, or `null` when no marker was found.
+   */
+  updateMarker(id: string, updates: Partial<Omit<Marker, 'id'>>) {
+    if (updates.time !== undefined) {
+      assertValidRationalTime(updates.time, 'updates.time');
+    }
+    if (this.state.markers) {
+      const marker = this.state.markers.find((m) => m.id === id);
+      if (marker) {
+        if (updates.time !== undefined) {
+          marker.time = cloneRationalTime(updates.time);
+        }
+        if (Object.hasOwn(updates, 'label')) {
+          marker.label = updates.label;
+        }
+        if (Object.hasOwn(updates, 'color')) {
+          marker.color = updates.color;
+        }
+        if (Object.hasOwn(updates, 'description')) {
+          marker.description = updates.description;
+        }
+        if (Object.hasOwn(updates, 'snap')) {
+          marker.snap = updates.snap;
+        }
+        this.invalidateContent();
+        this.snapshot();
+        this.emit('marker:update', { marker });
+        this.emit('state:settled');
+        this.emit('render');
+        return marker;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Appends a track to the timeline.
+   *
+   * @param track - Track to add. Its id should be unique within the timeline.
+   */
+  addTrack(track: Track) {
+    const nextTrack = createTrackSnapshot(track);
+    this.state.tracks.push(nextTrack);
+    this.invalidateContent();
+    this.snapshot();
+    this.emit('track:add', { track: nextTrack });
+
+    this.emit('state:settled');
+    this.emit('render');
+  }
+
+  /**
+   * Removes a track by id.
+   *
+   * @param trackId - Track id to remove.
+   * @returns Whether the track was found and removed.
+   */
+  removeTrack(trackId: string) {
+    const idx = this.state.tracks.findIndex((t) => t.id === trackId);
+    if (idx !== -1) {
+      const removed = this.state.tracks.splice(idx, 1)[0];
+      const scrollChanged = this.clampScrollTop();
+      this.normalizeClipGroups();
+      this.invalidateContent();
+      this.snapshot();
+      this.emit('track:remove', { track: removed });
+
+      if (scrollChanged) {
+        this.emitScrollChange();
+      }
+      this.emit('state:settled');
+      this.emit('render');
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Enables, disables, or toggles a track's muted state.
+   *
+   * @param trackId - Track id to update.
+   * @param muted - Explicit muted state, or omitted to toggle.
+   */
+  toggleMuteTrack(trackId: string, muted?: boolean) {
+    const track = this.state.tracks.find((t) => t.id === trackId);
+    if (track) {
+      track.muted = muted !== undefined ? muted : !track.muted;
+      this.invalidateContent();
+      this.snapshot();
+      this.emit('track:mute', { trackId: track.id, muted: track.muted });
+
+      this.emit('state:settled');
+      this.emit('render');
+    }
+  }
+
+  /**
+   * Enables, disables, or toggles a track's output visibility.
+   *
+   * @param trackId - Track id to update.
+   * @param visible - Explicit visible state, or omitted to toggle.
+   */
+  toggleTrackVisibility(trackId: string, visible?: boolean) {
+    const track = this.state.tracks.find((t) => t.id === trackId);
+    if (track) {
+      track.visible = visible !== undefined ? visible : !track.visible;
+      this.invalidateContent();
+      this.snapshot();
+      this.emit('track:visibility', { trackId: track.id, visible: track.visible });
+
+      this.emit('state:settled');
+      this.emit('render');
+    }
+  }
+
+  /**
+   * Enables, disables, or toggles a track's locked state.
+   *
+   * @param trackId - Track id to update.
+   * @param locked - Explicit locked state, or omitted to toggle.
+   */
+  toggleLockTrack(trackId: string, locked?: boolean) {
+    const track = this.state.tracks.find((t) => t.id === trackId);
+    if (track) {
+      track.locked = locked !== undefined ? locked : !track.locked;
+      this.invalidateContent();
+      this.snapshot();
+      this.emit('track:lock', { trackId: track.id, locked: track.locked });
+      this.emit('state:settled');
+      this.emit('render');
+    }
+  }
+
+  /**
+   * Selects one track and clears selection from all others.
+   *
+   * @param trackId - Track id to select, or `null` to clear track selection.
+   */
+  selectTrack(trackId: string | null) {
+    for (const track of this.state.tracks) {
+      track.selected = track.id === trackId;
+    }
+    this.emit('track:select', { trackId });
+    this.emit('state:settled');
+    this.emit('render');
+  }
+
+  /**
+   * Updates a track's expanded display height.
+   *
+   * @param trackId - Track id to resize.
+   * @param height - Expanded row height in pixels.
+   */
+  setTrackHeight(trackId: string, height: number) {
+    assertPositiveTimelineNumber(height, 'height');
+    this.setTrackHeights([{ trackId, height }]);
+  }
+
+  /**
+   * Sets multiple expanded track heights and publishes a single settled/render cycle.
+   *
+   * @param updates - Track height updates to apply.
+   * @param options - Optional viewport state to batch with the height changes.
+   */
+  setTrackHeights(
+    updates: readonly TimelineTrackHeightUpdate[],
+    options: TimelineTrackHeightBatchOptions = {}
+  ) {
+    const resizeEvents: TimelineTrackHeightUpdate[] = [];
+    const previousScrollTop = this.state.scrollTop;
+
+    for (const update of updates) {
+      assertPositiveTimelineNumber(update.height, `height for track "${update.trackId}"`);
+      const track = this.state.tracks.find((t) => t.id === update.trackId);
+      if (!track || track.height === update.height) {
+        continue;
+      }
+
+      track.height = update.height;
+      resizeEvents.push({ trackId: track.id, height: update.height });
+    }
+
+    if (options.scrollTop !== undefined) {
+      assertNonNegativeTimelineNumber(options.scrollTop, 'options.scrollTop');
+      this.state.scrollTop = options.scrollTop;
+    }
+
+    this.state.scrollTop = Math.max(0, Math.min(this.state.scrollTop, this.maxScrollTop));
+    const scrollChanged = this.state.scrollTop !== previousScrollTop;
+
+    if (resizeEvents.length === 0 && !scrollChanged) {
+      return;
+    }
+
+    if (resizeEvents.length > 0) {
+      this.invalidateContent();
+    }
+    for (const resizeEvent of resizeEvents) {
+      this.emit('track:resize', resizeEvent);
+    }
+    if (scrollChanged) {
+      this.emitScrollChange();
+    }
+    this.emit('state:settled');
+    this.emit('render');
+  }
+
+  /**
+   * Maximum timeline time used for playback and scroll clamping.
+   */
+  get maxContentTime(): RationalTime {
+    if (this.state.duration !== undefined) {
+      return this.state.duration;
+    }
+    let max = { v: 0, r: 24000 };
+    for (const track of this.state.tracks) {
+      if (track.clips) {
+        for (const clip of track.clips) {
+          if (compareRational(clip.timelineEnd, max) > 0) {
+            max = clip.timelineEnd;
+          }
+        }
+      }
+    }
+    return max;
+  }
+
+  /**
+   * Maximum horizontal scroll offset for the current viewport and content duration.
+   */
+  get maxScrollLeft() {
+    const viewportWidth = this.state.viewportWidth || 1000;
+    const contentEndX = toSeconds(this.maxContentTime) * this.state.zoomScale;
+    return Math.max(0, contentEndX - viewportWidth);
+  }
+
+  /**
+   * Maximum vertical scroll offset for the current viewport and track stack.
+   */
+  get maxScrollTop() {
+    const viewportHeight = this.state.viewportHeight ?? defaultTimelineViewportHeight;
+    const contentHeight = this.getContentHeight();
+    return Math.max(0, contentHeight - viewportHeight);
+  }
+
+  private getContentHeight(geometry: TimelineInteractionGeometry = {}) {
+    const resolvedGeometry = resolveTimelineInteractionGeometry(geometry);
+    return this.state.tracks.reduce(
+      (height, track) => height + this.geometry.getTrackViewportHeight(track, resolvedGeometry),
+      resolvedGeometry.rulerHeight
+    );
+  }
+
+  private emitScrollChange() {
+    this.emit('scroll:change', {
+      scrollLeft: this.state.scrollLeft,
+      scrollTop: this.state.scrollTop,
+    });
+  }
+
+  private emitViewportResize() {
+    this.emit('viewport:resize', {
+      viewportWidth: this.state.viewportWidth,
+      viewportHeight: this.state.viewportHeight,
+    });
+  }
+
+  private clampScrollTop() {
+    const clampedScrollTop = Math.max(0, Math.min(this.state.scrollTop, this.maxScrollTop));
+    const changed = clampedScrollTop !== this.state.scrollTop;
+    this.state.scrollTop = clampedScrollTop;
+    return changed;
+  }
+
+  /**
+   * Sets the zoom scale while keeping the viewport within content bounds.
+   *
+   * @param scale - Desired pixels-per-second zoom scale.
+   */
+  setZoomScale(scale: number) {
+    assertPositiveTimelineNumber(scale, 'scale');
+    const clampedScale = this.clampZoomScale(scale);
+
+    this.state.zoomScale = clampedScale;
+    const clampedScroll = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
+    this.state.scrollLeft = clampedScroll;
+
+    this.emit('zoom:change', clampedScale);
+    this.emitScrollChange();
+    this.emit('render');
+    this.emit('state:settled');
+  }
+
+  /**
+   * Sets horizontal scroll offset, clamped to the valid scroll range.
+   *
+   * @param scroll - Desired horizontal scroll offset in pixels.
+   */
+  setScrollLeft(scroll: number) {
+    assertNonNegativeTimelineNumber(scroll, 'scroll');
+    const clamped = Math.max(0, Math.min(scroll, this.maxScrollLeft));
+    this.state.scrollLeft = clamped;
+    this.emitScrollChange();
+    this.emit('render');
+    this.emit('state:settled');
+  }
+
+  /**
+   * Sets vertical scroll offset, clamped to the valid track stack scroll range.
+   *
+   * @param scroll - Desired vertical scroll offset in pixels.
+   */
+  setScrollTop(scroll: number) {
+    assertNonNegativeTimelineNumber(scroll, 'scroll');
+    this.state.scrollTop = scroll;
+    this.clampScrollTop();
+    this.emitScrollChange();
+    this.emit('render');
+    this.emit('state:settled');
+  }
+
+  /**
+   * Sets or clears an explicit timeline duration.
+   *
+   * When a duration is set, zoom, scroll, and playhead are clamped to that
+   * duration instead of the dynamic maximum clip end.
+   *
+   * @param duration - Explicit duration, or `undefined` to use clip content bounds.
+   */
+  setDuration(duration: RationalTime | undefined) {
+    if (duration !== undefined) {
+      assertValidRationalTime(duration, 'duration');
+    }
+    this.state.duration = duration === undefined ? undefined : cloneRationalTime(duration);
+
+    // clamp playhead and scroll if duration changed
+    if (duration !== undefined) {
+      if (compareRational(this.state.playheadTime, duration) > 0) {
+        this.updatePlayhead(duration);
+      }
+      this.setZoomScale(this.state.zoomScale); // re-clamp zoom and scroll
+    } else if (this.hasZoomConstraints()) {
+      this.setZoomScale(this.state.zoomScale); // re-clamp zoom if just removing duration
+    } else {
+      this.setScrollLeft(this.state.scrollLeft); // re-clamp scroll if just removing duration
+    }
+  }
+
+  /**
+   * Stores the visible timeline viewport width.
+   *
+   * @param width - Viewport width in pixels.
+   */
+  setViewportWidth(width: number) {
+    assertNonNegativeTimelineNumber(width, 'width');
+    this.state.viewportWidth = width;
+    if (this.state.duration !== undefined || this.hasZoomConstraints()) {
+      this.setZoomScale(this.state.zoomScale); // re-clamp zoom scale based on new width
+    }
+    this.emitViewportResize();
+    this.emit('state:settled');
+  }
+
+  /**
+   * Stores the visible timeline viewport height.
+   *
+   * @param height - Viewport height in pixels.
+   */
+  setViewportHeight(height: number) {
+    assertNonNegativeTimelineNumber(height, 'height');
+    this.state.viewportHeight = height;
+    const scrollChanged = this.clampScrollTop();
+    if (scrollChanged) {
+      this.emitScrollChange();
+    }
+    this.emitViewportResize();
+    this.emit('state:settled');
+  }
+
+  private previewIds = new Map<string, string>();
+  private getEditContext(): EditContext {
+    return {
+      allocateId: (key) => {
+        let id = this.previewIds.get(key);
+        if (!id) {
+          id = crypto.randomUUID();
+          this.previewIds.set(key, id);
+        }
+        return id;
+      },
+      state: this.state,
+      editPolicy: this.editPolicy,
+      resolveSnap: (time, publish) => this.resolveSnap(time, publish),
+    };
+  }
+
+  getClipGroup(id: string) {
+    return getClipGroup(this.getEditContext(), id);
+  }
+
+  getClipGroupForClip(id: string) {
+    return getClipGroupForClip(this.getEditContext(), id);
+  }
+
+  validateEdit(command: TimelineEditCommand): TimelineEditValidationResult {
+    return validateEditCommand(this.getEditContext(), command);
+  }
+
+  /**
+   * Resolves and publishes a non-mutating preview for an edit command.
+   *
+   * @param command - Command to preview.
+   * @returns Shared preview result for renderer and headless UI consumers.
+   */
+  previewEdit(command: TimelineEditCommand): TimelineEditPreview {
+    const context = this.getEditContext();
+    const resolved = resolveInteractiveEdit(
+      { ...context, allocateId: (key) => context.allocateId(`0:${key}`) },
+      command
+    );
+    if (
+      resolved.preview.valid &&
+      (command.type === 'move' || command.type === 'trim') &&
+      command.overwrite
+    ) {
+      for (const impact of resolved.preview.impacts) {
+        const ids = new Set(impact.resultClips.map((clip) => clip.id));
+        for (const track of resolved.tracks) {
+          for (const clip of track.clips) {
+            if (ids.has(clip.id)) {
+              clip.editPreview = {
+                operation: 'overwrite',
+                cutStart: impact.cutStart,
+                cutEnd: impact.cutEnd,
+              };
+            }
+          }
+        }
+      }
+    }
+    this.previewTracks = resolved.preview.valid ? resolved.tracks : null;
+    if (resolved.moveResult) {
+      resolved.preview.moveResult = resolved.moveResult;
+      this.emit('clip:move', { ...resolved.moveResult, phase: 'preview' });
+    }
+    this.publishEditPreview(resolved.preview);
+    return resolved.preview;
+  }
+
+  /**
+   * Resolves, validates, and commits an edit command as one history entry.
+   *
+   * @param command - Command to commit.
+   * @returns Commit result containing the resolved preview.
+   */
+  commitEdit(command: TimelineEditCommand): TimelineEditCommitResult {
+    return this.commitEdits([command])[0];
+  }
+
+  /** Validates and applies an ordered batch atomically as one undo step. */
+  commitEdits(commands: readonly TimelineEditCommand[]): TimelineEditCommitResult[] {
+    if (commands.length === 0) {
+      return [];
+    }
+    const context = this.getEditContext();
+    let state = context.state;
+    const resolutions: TimelineResolvedEdit[] = [];
+    for (const [index, command] of commands.entries()) {
+      const resolved = resolveInteractiveEdit(
+        { ...context, state, allocateId: (key) => context.allocateId(`${index}:${key}`) },
+        command
+      );
+      resolutions.push(resolved);
+      if (!resolved.preview.valid) {
+        this.previewTracks = null;
+        this.renderSnapshot = undefined;
+        this.renderedTracks = null;
+        this.publishEditPreview(resolved.preview);
+        return resolutions.map(({ preview }) => ({
+          command: preview.command,
+          preview,
+          committed: false,
+        }));
+      }
+      state = {
+        ...state,
+        tracks: resolved.tracks,
+        clipGroups: resolved.clipGroups ?? state.clipGroups,
+      };
+    }
+    this.state.tracks = state.tracks;
+    this.state.clipGroups = state.clipGroups;
+    this.previewTracks = null;
+    this.renderSnapshot = undefined;
+    this.renderedTracks = null;
+    this.normalizeClipGroups();
+    for (const track of this.state.tracks) {
+      this.sortTrackClips(track);
+    }
+    this.editPreview = null;
+    this.editImpacts = null;
+    this.invalidateContent();
+    this.snapshot();
+    const results = resolutions.map((resolved) => {
+      this.emitEditCommitEvents(resolved);
+      const result = {
+        command: resolved.preview.command,
+        preview: resolved.preview,
+        committed: true,
+      };
+      this.emit('edit:commit', result);
+      return result;
+    });
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    this.previewIds.clear();
+    this.emit('state:settled');
+    this.emit('render');
+    return results;
+  }
+
+  /**
+   * Clears the active command-layer edit preview and snap guides.
+   */
+  cancelEdit() {
+    this.previewIds.clear();
+    this.previewTracks = null;
+    this.renderSnapshot = undefined;
+    this.renderedTracks = null;
+    this.editPreview = null;
+    this.editImpacts = null;
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    this.emit('state:preview');
+    this.emit('render');
+  }
+
+  private publishEditPreview(preview: TimelineEditPreview) {
+    this.editPreview = preview;
+    this.editImpacts = this.createEditImpactsFromPreview(preview);
+    if (preview.snap !== null) {
+      this.publishSnapFeedback(preview.snap.feedback);
+    } else {
+      this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    }
+    this.emit('edit:preview', preview);
+    this.emit('edit:impacts', this.editImpacts);
+    this.emit('state:preview');
+    this.emit('render');
+  }
+
+  private createEditImpactsFromPreview(preview: TimelineEditPreview): TimelineEditImpacts | null {
+    if (preview.impacts.length === 0) {
+      return null;
+    }
+
+    const sourceClipId = getEditCommandSourceClipId(this.getEditContext(), preview.command);
+    const sourceTrackId = this.getEditCommandSourceTrackId(preview.command, sourceClipId);
+    return createTimelineEditImpactsSnapshot({
+      operation: preview.command.type,
+      sourceClipId: sourceClipId ?? null,
+      sourceTrackId,
+      impacts: preview.impacts,
+    });
+  }
+
+  private getEditCommandSourceTrackId(
+    command: TimelineEditCommand,
+    sourceClipId: string | undefined
+  ): string | null {
+    switch (command.type) {
+      case 'insert':
+      case 'overwrite':
+        return command.targetTrackId;
+      case 'insert-clip-group':
+      case 'overwrite-clip-group':
+        return command.placements[0]?.targetTrackId ?? null;
+      case 'delete-range':
+      case 'lift-range':
+        return null;
+      case 'move':
+      case 'trim':
+      case 'ripple-trim':
+      case 'slip':
+      case 'slide':
+      case 'split':
+      case 'delete-clips':
+      case 'roll-trim':
+        return sourceClipId !== undefined
+          ? (this.geometry.getClip(sourceClipId)?.track.id ?? null)
+          : null;
+    }
+  }
+
+  private emitEditCommitEvents(resolved: TimelineResolvedEdit) {
+    for (const removed of resolved.removedClipEvents) {
+      this.emit('clip:removed', {
+        clip: removed.clip,
+        reason: removed.reason,
+      } satisfies ClipRemovedEvent);
+    }
+
+    for (const created of resolved.createdClipEvents) {
+      if (created.reason === 'split') {
+        continue;
+      }
+      const event: ClipCreatedEvent = {
+        clip: created.clip,
+        reason: created.reason,
+      };
+      if (created.originClipId !== undefined) {
+        event.originClipId = created.originClipId;
+      }
+      this.emit('clip:created', event);
+    }
+
+    const { command } = resolved.preview;
+    const { preview } = resolved;
+    if (resolved.moveResult !== undefined) {
+      this.emit('clip:move', { ...resolved.moveResult, phase: 'commit' });
+    }
+
+    if (command.type === 'trim' || command.type === 'ripple-trim' || command.type === 'roll-trim') {
+      for (const clip of preview.changedClips) {
+        this.emit('clip:resize', { clip });
+      }
+    }
+    if (command.type === 'slip') {
+      for (const clip of preview.changedClips) {
+        this.emit('clip:slip', { clip });
+      }
+    }
+    if (command.type === 'split') {
+      for (const created of resolved.createdClipEvents) {
+        if (created.originClipId === undefined) {
+          continue;
+        }
+        const left = preview.changedClips.find((clip) => clip.id === created.originClipId);
+        if (left !== undefined) {
+          this.emit('clip:split', {
+            originalId: created.originClipId,
+            left,
+            right: created.clip,
+          } satisfies ClipSplitEvent);
+        }
+      }
+    }
+  }
+
+  private createValidatedClipGroup(
+    options: TimelineCreateClipGroupOptions
+  ): TimelineClipGroup | null {
+    if (options.clipIds.length < 2) {
+      return null;
+    }
+    const uniqueClipIds = new Set(options.clipIds);
+    if (uniqueClipIds.size !== options.clipIds.length) {
+      return null;
+    }
+    if (options.id !== undefined && getClipGroup(this.getEditContext(), options.id) !== undefined) {
+      return null;
+    }
+
+    for (const clipId of options.clipIds) {
+      if (
+        this.geometry.getClip(clipId) === undefined ||
+        getClipGroupForClip(this.getEditContext(), clipId) !== undefined
+      ) {
+        return null;
+      }
+    }
+
+    return createClipGroupSnapshots([
+      {
+        id: options.id ?? crypto.randomUUID(),
+        clipIds: [...options.clipIds],
+        ...(options.label !== undefined ? { label: options.label } : {}),
+      },
+    ])[0];
+  }
+
+  private normalizeClipGroups() {
+    this.state.clipGroups = normalizeClipGroupsForTracks(
+      this.getEditContext(),
+      this.state.clipGroups,
+      this.state.tracks
+    );
+  }
+
+  private getSelectedClipIds() {
+    const clipIds: string[] = [];
+    for (const track of this.state.tracks) {
+      for (const clip of track.clips) {
+        if (clip.selected) {
+          clipIds.push(clip.id);
+        }
+      }
+    }
+    return clipIds;
+  }
+
+  /**
+   * Returns clips contained by a group in group order.
+   *
+   * @param groupId - Clip group id to inspect.
+   * @returns Group clip entries, or an empty array when the group is missing.
+   */
+  getClipGroupClips(groupId: string) {
+    const group = getClipGroup(this.getEditContext(), groupId);
+    if (group === undefined) {
+      return [];
+    }
+
+    return group.clipIds.flatMap((clipId) => {
+      const found = this.geometry.getClip(clipId);
+      return found === undefined ? [] : [found];
+    });
+  }
+
+  /**
+   * Creates a clip group from existing clips.
+   *
+   * @param options - Existing clip ids and optional group metadata.
+   * @returns The created group, or null when validation fails.
+   */
+  createClipGroup(options: TimelineCreateClipGroupOptions): TimelineClipGroup | null {
+    const group = this.createValidatedClipGroup(options);
+    if (group === null) {
+      return null;
+    }
+
+    this.state.clipGroups.push(group);
+    this.selectClips(group.clipIds);
+    this.invalidateContent();
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return group;
+  }
+
+  /**
+   * Removes one clip group.
+   *
+   * @param groupId - Clip group id to remove.
+   * @returns Whether a group was removed.
+   */
+  ungroupClipGroup(groupId: string) {
+    const groupIndex = this.state.clipGroups.findIndex((group) => group.id === groupId);
+    if (groupIndex === -1) {
+      return false;
+    }
+
+    this.state.clipGroups.splice(groupIndex, 1);
+    this.invalidateContent();
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return true;
+  }
+
+  /**
+   * Removes groups containing any of the supplied clips.
+   *
+   * @param clipIds - Clip ids whose groups should be removed.
+   * @returns Whether any groups were removed.
+   */
+  ungroupClips(clipIds: readonly string[]) {
+    const clipIdSet = new Set(clipIds);
+    const previousLength = this.state.clipGroups.length;
+    this.state.clipGroups = this.state.clipGroups.filter(
+      (group) => !group.clipIds.some((clipId) => clipIdSet.has(clipId))
+    );
+    if (this.state.clipGroups.length === previousLength) {
+      return false;
+    }
+
+    this.invalidateContent();
+    this.snapshot();
+    this.emit('state:settled');
+    this.emit('render');
+    return true;
+  }
+
+  /**
+   * Inserts multiple clips on chosen tracks and groups them in one history entry.
+   *
+   * This convenience API uses the same grouped insert command pipeline as
+   * `commitEdit({ type: 'insert-clip-group', ... })`, including validation,
+   * edit policy checks, snapping, ripple behavior, lifecycle events, and undo
+   * history.
+   *
+   * @param options - Placements and optional group metadata.
+   * @returns The created group, or null when validation fails.
+   */
+  insertClipGroup(options: TimelineInsertClipGroupOptions): TimelineClipGroup | null {
+    const groupId = options.groupId ?? crypto.randomUUID();
+    const result = this.commitEdit({
+      type: 'insert-clip-group',
+      ...options,
+      groupId,
+    });
+    if (!result.committed) {
+      return null;
+    }
+
+    const group = getClipGroup(this.getEditContext(), groupId);
+    if (group === undefined) {
+      return null;
+    }
+
+    this.selectClips(group.clipIds);
+    return group;
+  }
+  readonly geometry: TimelineGeometry;
+  readonly keyframes: TimelineKeyframes;
+  readonly media: TimelineMediaQueries;
+
   /**
    * Creates an instance of the TimelineEngine.
    *
    * @param initialState - Object containing initial tracks and optional configurations.
    * @param initialState.tracks - The track lanes and their visual clips.
    * @param initialState.markers - Optional list of initial navigation pins.
-   * @param initialState.zoomScale - Optional initial zoom factor (pixels per millisecond).
+   * @param initialState.zoomScale - Optional initial zoom factor (pixels per second).
    * @param initialState.scrollLeft - Optional initial horizontal scroll pan in pixels.
    * @param initialState.scrollTop - Optional initial vertical scroll pan in pixels.
-   * @param initialState.playheadTime - Optional initial playback cursor timestamp in milliseconds.
+   * @param initialState.playheadTime - Optional initial playback cursor as a rational time.
    */
   constructor(initialState: {
-    tracks: Track[];
-    clipGroups?: TimelineClipGroup[];
-    markers?: Marker[];
+    tracks: TimelineStateSnapshot['tracks'];
+    history?: TimelineHistoryOptions;
+    clipGroups?: TimelineStateSnapshot['clipGroups'];
+    markers?: TimelineStateSnapshot['markers'];
     zoomScale?: number;
     scrollLeft?: number;
     scrollTop?: number;
@@ -150,11 +1080,31 @@ export class TimelineEngine extends TimelineEngineState {
       playbackRate: 1.0,
       duration: initialState.duration,
     };
-    this.playbackManager = new PlaybackManager(this);
-    this.historyManager = new HistoryManager(this);
+    this.geometry = new TimelineGeometry({
+      getState: () => this.state,
+      getRenderState: () =>
+        this.previewTracks ? { ...this.state, tracks: this.previewTracks } : this.state,
+      timeToPixel: (time) => this.timeToPixel(time),
+      pixelToTime: (pixel, rate) => this.pixelToTime(pixel, rate),
+    });
+    this.keyframes = new TimelineKeyframes({
+      state: this.state,
+      geometry: this.geometry,
+      keyframeProperties: this.keyframeProperties,
+      emit: this.emit.bind(this),
+      timeToPixel: (time) => this.timeToPixel(time),
+      invalidateContent: () => this.invalidateContent(),
+      snapshot: () => this.snapshot(),
+    });
+    this.media = new TimelineMediaQueries({
+      getState: () => this.state,
+      getClip: (id) => this.geometry.getClip(id),
+    });
+    this.playbackManager = new PlaybackManager(this, this.state);
+    this.historyManager = new HistoryManager(this, this.state, initialState.history);
     this.clipboardManager = new ClipboardManager(this);
     this.normalizeClipGroups();
-    this.validateRegisteredClipKeyframes();
+    this.keyframes.validateRegisteredClipKeyframes();
 
     if (this.state.duration !== undefined || this.hasZoomConstraints()) {
       this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
@@ -165,23 +1115,23 @@ export class TimelineEngine extends TimelineEngineState {
   }
 
   /**
-   * Current mutable track list owned by the engine.
+   * Current readonly track snapshots.
    */
   get tracks() {
-    return this.state.tracks;
+    return this.getState().tracks;
   }
 
   /**
    * Current clip groups owned by the engine.
    */
   get clipGroups() {
-    return this.state.clipGroups;
+    return this.getState().clipGroups;
   }
 
   /**
    * Monotonic revision for changes that can affect active layer lookup.
    */
-  override get contentRevision() {
+  get contentRevision() {
     return this.state.contentRevision;
   }
 
@@ -376,7 +1326,7 @@ export class TimelineEngine extends TimelineEngineState {
     return this.state.snapThresholdPixels / Math.max(this.zoomScale, 0.1);
   }
 
-  protected override publishSnapFeedback(feedback: TimelineSnapFeedback) {
+  private publishSnapFeedback(feedback: TimelineSnapFeedback) {
     const previous = this.state.snapFeedback;
     const sameTarget = previous.target?.id === feedback.target?.id;
     const sameLines =
@@ -586,7 +1536,7 @@ export class TimelineEngine extends TimelineEngineState {
       return;
     }
 
-    this.state.inPoint = time;
+    this.state.inPoint = time === undefined ? undefined : cloneRationalTime(time);
     this.emit('state:inOut', { state: this.state });
     this.emit('render');
   }
@@ -616,7 +1566,7 @@ export class TimelineEngine extends TimelineEngineState {
       return;
     }
 
-    this.state.outPoint = time;
+    this.state.outPoint = time === undefined ? undefined : cloneRationalTime(time);
     this.emit('state:inOut', { state: this.state });
     this.emit('render');
   }
@@ -643,7 +1593,7 @@ export class TimelineEngine extends TimelineEngineState {
 
   // --- Helpers ---
 
-  protected override hasZoomConstraints() {
+  private hasZoomConstraints() {
     return (
       this.zoomConstraints.frameRate !== undefined ||
       this.zoomConstraints.maxPixelsPerFrame !== undefined ||
@@ -698,7 +1648,7 @@ export class TimelineEngine extends TimelineEngineState {
     return maxZoomScale;
   }
 
-  protected override clampZoomScale(scale: number) {
+  private clampZoomScale(scale: number) {
     return Math.max(this.minZoomScale, Math.min(scale, this.maxZoomScale));
   }
 
@@ -763,6 +1713,8 @@ export class TimelineEngine extends TimelineEngineState {
     const track = this.state.tracks.find((t) => t.id === trackId);
     if (track) {
       track.targeted = targeted !== undefined ? targeted : !track.targeted;
+      this.invalidateContent();
+      this.snapshot();
       this.emit('state:settled');
       this.emit('render');
     }
@@ -778,6 +1730,8 @@ export class TimelineEngine extends TimelineEngineState {
     const track = this.state.tracks.find((t) => t.id === trackId);
     if (track) {
       track.groupId = groupId;
+      this.invalidateContent();
+      this.snapshot();
       this.emit('state:settled');
       this.emit('render');
     }
@@ -789,7 +1743,7 @@ export class TimelineEngine extends TimelineEngineState {
    * Stores the current track and marker state in undo history.
    */
   snapshot() {
-    this.historyManager.snapshot();
+    this.historyManager.snapshot(this.selectionRevision);
   }
 
   /**
@@ -833,7 +1787,7 @@ export class TimelineEngine extends TimelineEngineState {
    * Copies selected clips into the clipboard, then removes them from their tracks.
    */
   cutSelection() {
-    this.clipboardManager.cutSelection();
+    return this.clipboardManager.cutSelection();
   }
 
   /**
@@ -846,7 +1800,7 @@ export class TimelineEngine extends TimelineEngineState {
    * @param targetTrackId - Optional destination track id.
    */
   pasteSelection(time: RationalTime, targetTrackId?: string) {
-    this.clipboardManager.pasteSelection(time, targetTrackId);
+    return this.clipboardManager.pasteSelection(time, targetTrackId);
   }
 
   /**
@@ -865,11 +1819,64 @@ export class TimelineEngine extends TimelineEngineState {
 
   // --- Getters ---
 
-  /**
-   * Returns the current engine state object.
-   */
-  getState(): TimelineState {
-    return this.state;
+  private renderSnapshot: TimelineStateSnapshot | undefined;
+  private renderedTracks: Track[] | null = null;
+
+  /** Returns readonly drawing content, including a non-mutating edit preview. */
+  getRenderState(): TimelineStateSnapshot {
+    if (!this.previewTracks) {
+      return this.getState();
+    }
+    this.renderSnapshot = createTimelineReadSnapshot(
+      { ...this.state, tracks: this.previewTracks },
+      this.renderSnapshot,
+      this.previewTracks !== this.renderedTracks
+    );
+    this.renderedTracks = this.previewTracks;
+    return this.renderSnapshot;
+  }
+
+  private selectionRevision = 0;
+  private readSnapshot: TimelineStateSnapshot | undefined;
+  private documentSnapshotDirty = true;
+  private snapshotDirty = true;
+
+  /** Returns a stable, deeply readonly snapshot with owned document values. */
+  getState(): TimelineStateSnapshot {
+    if (this.snapshotDirty || !this.readSnapshot) {
+      this.readSnapshot = createTimelineReadSnapshot(
+        this.state,
+        this.readSnapshot,
+        this.documentSnapshotDirty
+      );
+      this.snapshotDirty = false;
+      this.documentSnapshotDirty = false;
+    }
+    return this.readSnapshot;
+  }
+
+  override emit<Key extends keyof EngineEventMap>(
+    event: Key,
+    ...args: EngineEventMap[Key] extends void ? [] : [EngineEventMap[Key]]
+  ) {
+    if (['clip:select', 'keyframe:select', 'track:select'].includes(event)) {
+      this.selectionRevision++;
+    }
+    this.snapshotDirty = true;
+    if (
+      [
+        'content:change',
+        'clip:select',
+        'keyframe:select',
+        'keyframe:add',
+        'keyframe:update',
+        'keyframe:remove',
+        'track:select',
+      ].includes(event)
+    ) {
+      this.documentSnapshotDirty = true;
+    }
+    super.emit(event, ...args);
   }
 
   /**
@@ -897,7 +1904,7 @@ export class TimelineEngine extends TimelineEngineState {
    * @param rate - Tick rate for the returned rational time.
    * @returns Timeline time represented by the pixel.
    */
-  override pixelToTime(pixel: number, rate: number = 24000): RationalTime {
+  pixelToTime(pixel: number, rate: number = 24000): RationalTime {
     assertValidTimelineNumber(pixel, 'pixel');
     return fromSeconds((pixel + this.state.scrollLeft) / this.state.zoomScale, rate);
   }
@@ -918,11 +1925,11 @@ export class TimelineEngine extends TimelineEngineState {
    *
    * @param time - Desired playhead time.
    */
-  override updatePlayhead(time: RationalTime) {
+  updatePlayhead(time: RationalTime) {
     assertValidRationalTime(time, 'time');
     let clampedTime = maxRational({ v: 0, r: time.r }, time);
     clampedTime = minRational(clampedTime, this.maxContentTime);
-    this.state.playheadTime = clampedTime;
+    this.state.playheadTime = cloneRationalTime(clampedTime);
     this.emit('playhead:scrub', clampedTime);
     this.checkClipIntersections();
   }
@@ -931,7 +1938,7 @@ export class TimelineEngine extends TimelineEngineState {
     const time = this.state.playheadTime;
     const currentActive = new Set<string>();
 
-    for (const { clip } of this.getActiveClips(time)) {
+    for (const { clip } of this.media.getActiveClips(time)) {
       currentActive.add(clip.id);
       if (!this.activeClips.has(clip.id)) {
         this.emit('clip:enter', { clipId: clip.id, time });
@@ -950,468 +1957,18 @@ export class TimelineEngine extends TimelineEngineState {
   }
 
   /**
-   * Moves a clip to a new timeline start time and optionally into another track.
-   *
-   * Honors track and clip movement locks, track-kind compatibility, min/max
-   * bounds, snapping, and overwrite preview state when a drag is active.
-   *
-   * @param options - Clip move target, snapping, and cross-kind behavior.
-   * @returns Whether the move was applied.
-   */
-  moveClip(options: TimelineClipMoveOptions): boolean {
-    assertValidRationalTime(options.startTime, 'options.startTime');
-    if (this.dragSnapshot) {
-      this.state.tracks = createTrackSnapshots(JSON.parse(this.dragSnapshot));
-    }
-
-    const found = this.getClip(options.clipId);
-    if (!found || found.clip.movable === false || found.track.locked) {
-      return false;
-    }
-
-    const targetTrackId = options.targetTrackId ?? found.track.id;
-    const targetTrackIndex = this.state.tracks.findIndex((track) => track.id === targetTrackId);
-    if (targetTrackIndex === -1) {
-      return false;
-    }
-
-    const targetTrack = this.state.tracks[targetTrackIndex];
-    if (targetTrack.locked) {
-      return false;
-    }
-    if (targetTrack.kind !== found.track.kind && options.allowCrossKindTrackMove !== true) {
-      return false;
-    }
-    const linkedClipIds = this.getLinkedClipIds(options.clipId);
-    if (linkedClipIds.length > 1 && targetTrack.id !== found.track.id) {
-      return false;
-    }
-    for (const linkedClipId of linkedClipIds) {
-      const linked = this.getClip(linkedClipId);
-      if (!linked || linked.clip.movable === false || linked.track.locked) {
-        return false;
-      }
-    }
-
-    const previousStartTime = cloneRationalTime(found.clip.timelineStart);
-    const previousEndTime = cloneRationalTime(found.clip.timelineEnd);
-    let actualStart = options.startTime;
-    const duration = subRational(found.clip.timelineEnd, found.clip.timelineStart);
-
-    if (options.snap !== false) {
-      const snapStart = this.resolveSnap(actualStart, false);
-      const candidateEnd = addRational(actualStart, duration);
-      const snapEnd = this.resolveSnap(candidateEnd, false);
-      if (snapStart !== null && snapEnd !== null) {
-        if (Math.abs(snapStart.deltaSeconds) <= Math.abs(snapEnd.deltaSeconds)) {
-          actualStart = snapStart.snappedTime;
-          this.publishSnapFeedback(snapStart.feedback);
-        } else {
-          actualStart = subRational(snapEnd.snappedTime, duration);
-          this.publishSnapFeedback(snapEnd.feedback);
-        }
-      } else if (snapStart !== null) {
-        actualStart = snapStart.snappedTime;
-        this.publishSnapFeedback(snapStart.feedback);
-      } else if (snapEnd !== null) {
-        actualStart = subRational(snapEnd.snappedTime, duration);
-        this.publishSnapFeedback(snapEnd.feedback);
-      } else {
-        this.publishSnapFeedback(emptyTimelineSnapFeedback);
-      }
-    } else {
-      this.publishSnapFeedback(emptyTimelineSnapFeedback);
-    }
-
-    if (found.clip.minStart !== undefined) {
-      actualStart = maxRational(actualStart, found.clip.minStart);
-    }
-
-    let actualEnd = addRational(actualStart, duration);
-
-    if (found.clip.maxEnd !== undefined && compareRational(actualEnd, found.clip.maxEnd) > 0) {
-      actualEnd = found.clip.maxEnd;
-      actualStart = subRational(actualEnd, duration);
-    }
-
-    const deltaTime = subRational(actualStart, previousStartTime);
-    const changedClips: Clip[] = [];
-    for (const linkedClipId of linkedClipIds) {
-      const linked = this.getClip(linkedClipId);
-      if (!linked) {
-        return false;
-      }
-      const nextStart = addRational(linked.clip.timelineStart, deltaTime);
-      const nextEnd = addRational(linked.clip.timelineEnd, deltaTime);
-      if (
-        (linked.clip.minStart !== undefined &&
-          compareRational(nextStart, linked.clip.minStart) < 0) ||
-        (linked.clip.maxEnd !== undefined && compareRational(nextEnd, linked.clip.maxEnd) > 0)
-      ) {
-        return false;
-      }
-
-      const movingClip =
-        linkedClipId === options.clipId && targetTrack.id !== linked.track.id
-          ? createClipSnapshot(linked.clip)
-          : linked.clip;
-      movingClip.timelineStart = nextStart;
-      movingClip.timelineEnd = nextEnd;
-      shiftClipKeyframes(movingClip, deltaTime);
-
-      if (linkedClipId === options.clipId && targetTrack.id !== linked.track.id) {
-        linked.track.clips.splice(linked.clipIndex, 1);
-        targetTrack.clips.push(movingClip);
-      }
-      changedClips.push(createClipSnapshot(movingClip));
-    }
-
-    for (const track of this.state.tracks) {
-      this.sortTrackClips(track);
-    }
-
-    if (this.dragSnapshot) {
-      for (const linkedClipId of linkedClipIds) {
-        this.applyOverwrites(linkedClipId);
-      }
-    }
-
-    const moved = this.getClip(options.clipId);
-    if (!moved) {
-      return false;
-    }
-
-    const moveResult: TimelineClipMoveResult = {
-      clipId: options.clipId,
-      clip: moved.clip,
-      sourceTrackId: found.track.id,
-      destinationTrackId: moved.track.id,
-      sourceTrackIndex: found.trackIndex,
-      destinationTrackIndex: moved.trackIndex,
-      sourceClipIndex: found.clipIndex,
-      destinationClipIndex: moved.clipIndex,
-      previousStartTime,
-      previousEndTime,
-      startTime: cloneRationalTime(moved.clip.timelineStart),
-      endTime: cloneRationalTime(moved.clip.timelineEnd),
-      changedClips,
-    };
-    const phase = this.dragSnapshot ? 'preview' : 'commit';
-    this.emit('clip:move', { ...moveResult, phase });
-
-    if (this.dragSnapshot) {
-      this.pendingClipMoveCommitEvent = { ...moveResult, phase: 'commit' };
-    } else {
-      this.pendingClipMoveCommitEvent = null;
-      this.invalidateContent();
-      this.emit('render');
-    }
-
-    return true;
-  }
-
-  /**
-   * Trims one edge of a clip to a new timeline time.
-   *
-   * Start trims also shift `sourceStart` so the visible source frame remains
-   * aligned with the new timeline boundary.
-   *
-   * @param clipId - Clip id to trim.
-   * @param edge - Which clip boundary to edit.
-   * @param newTime - Desired boundary time.
-   */
-  trimClip(clipId: string, edge: 'start' | 'end', newTime: RationalTime) {
-    assertValidRationalTime(newTime, 'newTime');
-    let snapshotTaken = false;
-    if (this.dragSnapshot) {
-      this.state.tracks = createTrackSnapshots(JSON.parse(this.dragSnapshot));
-    }
-    const found = this.getClip(clipId);
-    if (found && found.clip.resizable !== false) {
-      const { clip } = found;
-
-      const targetTime = this.resolveSnap(newTime)?.snappedTime ?? newTime;
-
-      if (edge === 'start') {
-        const minDuration = fromSeconds(0.01, targetTime.r);
-        const maxStart = subRational(clip.timelineEnd, minDuration);
-        const originalStart = clip.timelineStart;
-        let actualStart = minRational(
-          maxRational(targetTime, fromSeconds(0, targetTime.r)),
-          maxStart
-        );
-        if (clip.minStart !== undefined) {
-          actualStart = maxRational(actualStart, clip.minStart);
-        }
-        clip.timelineStart = actualStart;
-        // sourceStart must shift accordingly
-        const delta = subRational(clip.timelineStart, originalStart);
-        clip.sourceStart = addRational(clip.sourceStart, delta);
-      } else {
-        const tenFrames = fromSeconds(0.01, targetTime.r);
-        let actualEnd = maxRational(targetTime, addRational(clip.timelineStart, tenFrames));
-        if (clip.maxEnd !== undefined) {
-          actualEnd = minRational(actualEnd, clip.maxEnd);
-        }
-        clip.timelineEnd = actualEnd;
-      }
-
-      filterClipKeyframesToClipRange(clip);
-      this.emit('clip:resize', { clip });
-      if (!this.dragSnapshot) {
-        this.invalidateContent();
-      }
-
-      if (this.dragSnapshot) {
-        this.applyOverwrites(clipId);
-      } else {
-        this.emit('render');
-      }
-
-      if (!this.dragSnapshot && !snapshotTaken) {
-        this.snapshot();
-        snapshotTaken = true;
-      }
-    }
-  }
-
-  /**
-   * Shifts a clip's source start without moving it on the timeline.
-   *
-   * @param clipId - Clip id to slip.
-   * @param deltaTime - Source-time offset to apply.
-   */
-  slipClip(clipId: string, deltaTime: RationalTime) {
-    assertValidRationalTime(deltaTime, 'deltaTime');
-    const found = this.getClip(clipId);
-    if (found && found.clip.resizable !== false) {
-      found.clip.sourceStart = addRational(found.clip.sourceStart, deltaTime);
-      if (toSeconds(found.clip.sourceStart) < 0) {
-        found.clip.sourceStart = { v: 0, r: deltaTime.r };
-      }
-      this.emit('clip:slip', { clip: found.clip });
-      this.invalidateContent();
-      this.emit('state:settled');
-      this.emit('render');
-      this.snapshot();
-    }
-  }
-
-  /**
-   * Moves a clip by a relative timeline offset.
-   *
-   * @param clipId - Clip id to slide.
-   * @param deltaTime - Timeline offset to apply.
-   */
-  slideClip(clipId: string, deltaTime: RationalTime) {
-    assertValidRationalTime(deltaTime, 'deltaTime');
-    // Basic slide: move clip in time by delta (similar to moveClip, but purely delta based)
-    const found = this.getClip(clipId);
-    if (found && found.clip.movable !== false) {
-      this.moveClip({
-        clipId,
-        startTime: addRational(found.clip.timelineStart, deltaTime),
-      });
-    }
-  }
-
-  /**
-   * Applies overwrite-edit rules for a clip against overlapping clips on its track.
-   *
-   * Fully covered clips are removed, partially covered clips are trimmed, and
-   * clips split by the winner are divided into two segments.
-   *
-   * @param winningClipId - Clip id whose interval should overwrite overlaps.
-   */
-  applyOverwrites(winningClipId: string) {
-    for (const track of this.state.tracks) {
-      const winnerIndex = track.clips.findIndex((c) => c.id === winningClipId);
-      if (winnerIndex === -1) {
-        continue;
-      }
-
-      const isPreview = this.dragSnapshot !== null;
-      const winner = track.clips[winnerIndex];
-      const newClips: Clip[] = [];
-      const createdClips: { clip: Clip; originClipId: string }[] = [];
-      const removedClips: Clip[] = [];
-      const impacts: TimelineEditImpact[] = [];
-
-      for (const clip of track.clips) {
-        if (clip.id === winningClipId) {
-          newClips.push(clip);
-          continue;
-        }
-
-        // Check for overlap
-        const overlap =
-          compareRational(winner.timelineStart, clip.timelineEnd) < 0 &&
-          compareRational(winner.timelineEnd, clip.timelineStart) > 0;
-        if (!overlap) {
-          newClips.push(clip);
-          continue;
-        }
-
-        // Handle overlap (Premiere style overwrite)
-        if (
-          compareRational(winner.timelineStart, clip.timelineStart) <= 0 &&
-          compareRational(winner.timelineEnd, clip.timelineEnd) >= 0
-        ) {
-          // Winner completely covers clip -> clip is deleted (don't push to newClips)
-          removedClips.push(createClipSnapshot(clip));
-          if (isPreview) {
-            impacts.push({
-              clipId: clip.id,
-              trackId: track.id,
-              originalClip: createClipSnapshot(clip),
-              resultClips: [],
-              effect: 'remove',
-              affectedStartTime: clip.timelineStart,
-              affectedEndTime: clip.timelineEnd,
-              cutStart: true,
-              cutEnd: true,
-            });
-          }
-        } else if (
-          compareRational(winner.timelineStart, clip.timelineStart) > 0 &&
-          compareRational(winner.timelineEnd, clip.timelineEnd) < 0
-        ) {
-          // Winner is entirely inside clip -> split clip
-          const clip1 = createClipSnapshot(clip, {
-            timelineEnd: winner.timelineStart,
-            editPreview: { operation: 'overwrite', cutEnd: true },
-          });
-          const clip2 = createClipSnapshot(clip, {
-            id: crypto.randomUUID(),
-            timelineStart: winner.timelineEnd,
-            sourceStart: addRational(
-              clip.sourceStart,
-              subRational(winner.timelineEnd, clip.timelineStart)
-            ),
-            editPreview: { operation: 'overwrite', cutStart: true },
-          });
-          filterClipKeyframesToClipRange(clip1);
-          filterClipKeyframesToClipRange(clip2);
-          newClips.push(clip1, clip2);
-          createdClips.push({ clip: createClipSnapshot(clip2), originClipId: clip.id });
-          if (isPreview) {
-            impacts.push({
-              clipId: clip.id,
-              trackId: track.id,
-              originalClip: createClipSnapshot(clip),
-              resultClips: [createClipSnapshot(clip1), createClipSnapshot(clip2)],
-              effect: 'split',
-              affectedStartTime: winner.timelineStart,
-              affectedEndTime: winner.timelineEnd,
-              cutStart: true,
-              cutEnd: true,
-            });
-          }
-        } else if (compareRational(winner.timelineStart, clip.timelineStart) <= 0) {
-          // Winner overlaps left side of clip
-          const delta = subRational(winner.timelineEnd, clip.timelineStart);
-          const newClip = createClipSnapshot(clip, {
-            timelineStart: winner.timelineEnd,
-            sourceStart: addRational(clip.sourceStart, delta),
-            editPreview: { operation: 'overwrite', cutStart: true },
-          });
-          filterClipKeyframesToClipRange(newClip);
-          newClips.push(newClip);
-          if (isPreview) {
-            impacts.push({
-              clipId: clip.id,
-              trackId: track.id,
-              originalClip: createClipSnapshot(clip),
-              resultClips: [createClipSnapshot(newClip)],
-              effect: 'trim-start',
-              affectedStartTime: clip.timelineStart,
-              affectedEndTime: winner.timelineEnd,
-              cutStart: true,
-            });
-          }
-        } else {
-          // Winner overlaps right side of clip
-          const newClip = createClipSnapshot(clip, {
-            timelineEnd: winner.timelineStart,
-            editPreview: { operation: 'overwrite', cutEnd: true },
-          });
-          filterClipKeyframesToClipRange(newClip);
-          newClips.push(newClip);
-          if (isPreview) {
-            impacts.push({
-              clipId: clip.id,
-              trackId: track.id,
-              originalClip: createClipSnapshot(clip),
-              resultClips: [createClipSnapshot(newClip)],
-              effect: 'trim-end',
-              affectedStartTime: winner.timelineStart,
-              affectedEndTime: clip.timelineEnd,
-              cutEnd: true,
-            });
-          }
-        }
-      }
-
-      // Always ensure winner is kept
-      if (!newClips.find((c) => c.id === winner.id)) {
-        newClips.push(winner);
-      }
-
-      track.clips = newClips;
-      this.sortTrackClips(track);
-      if (!isPreview) {
-        this.normalizeClipGroups();
-        this.invalidateContent();
-        for (const clip of removedClips) {
-          this.emit('clip:removed', {
-            clip,
-            reason: 'overwrite',
-          } satisfies ClipRemovedEvent);
-        }
-        for (const created of createdClips) {
-          this.emit('clip:created', {
-            clip: created.clip,
-            originClipId: created.originClipId,
-            reason: 'overwrite-split',
-          } satisfies ClipCreatedEvent);
-        }
-      }
-      this.emit('render');
-      if (this.dragSnapshot) {
-        this.editImpacts = createTimelineEditImpactsSnapshot(
-          impacts.length > 0
-            ? {
-                operation: 'overwrite',
-                sourceClipId: winner.id,
-                sourceTrackId: track.id,
-                impacts,
-              }
-            : null
-        );
-        this.emit('state:preview');
-        this.emit('edit:impacts', this.editImpacts);
-      }
-      return;
-    }
-  }
-
-  /**
-   * Captures the current track state for live drag preview.
+   * Clears edit feedback before a live keyframe interaction.
    */
   startDrag() {
-    this.dragSnapshot = stringifyTrackSnapshots(this.state.tracks);
     this.editImpacts = null;
-    this.pendingClipMoveCommitEvent = null;
   }
 
   /**
    * Ends live drag preview and clears temporary cut flags.
    */
   endDrag() {
-    this.dragSnapshot = null;
     this.editImpacts = null;
     this.editPreview = null;
-    this.editResolution = null;
     this.clearClipDropFeedback();
     for (const track of this.state.tracks) {
       for (const clip of track.clips) {
@@ -1434,10 +1991,6 @@ export class TimelineEngine extends TimelineEngineState {
       this.emit('render');
     }
     this.clearClipDropFeedback();
-    if (this.pendingClipMoveCommitEvent) {
-      this.emit('clip:move', this.pendingClipMoveCommitEvent);
-      this.pendingClipMoveCommitEvent = null;
-    }
     this.snapshot();
     this.emit('state:settled');
   }
@@ -1448,7 +2001,7 @@ export class TimelineEngine extends TimelineEngineState {
    * @param clipId - Clip id to select, or `null` to clear clip selection.
    */
   selectClip(clipId: string | null) {
-    const selectedClipIds = clipId === null ? [] : this.getLinkedClipIds(clipId);
+    const selectedClipIds = clipId === null ? [] : getLinkedClipIds(this.getEditContext(), clipId);
     this.selectClips(selectedClipIds);
   }
 
@@ -1486,34 +2039,22 @@ export class TimelineEngine extends TimelineEngineState {
    * @param selected - Optional explicit selected state.
    */
   toggleClipSelection(clipId: string, selected?: boolean) {
-    if (this.getClip(clipId) === undefined) {
+    if (this.geometry.getClip(clipId) === undefined) {
       return false;
     }
     const currentSelection = new Set(this.getSelectedClipIds());
     const nextSelected = selected ?? !currentSelection.has(clipId);
     if (nextSelected) {
-      for (const linkedClipId of this.getLinkedClipIds(clipId)) {
+      for (const linkedClipId of getLinkedClipIds(this.getEditContext(), clipId)) {
         currentSelection.add(linkedClipId);
       }
     } else {
-      for (const linkedClipId of this.getLinkedClipIds(clipId)) {
+      for (const linkedClipId of getLinkedClipIds(this.getEditContext(), clipId)) {
         currentSelection.delete(linkedClipId);
       }
     }
     this.selectClips([...currentSelection]);
     return true;
-  }
-
-  /**
-   * Splits a clip into two clips at a timeline time.
-   *
-   * @param clipId - Clip id to split.
-   * @param splitTime - Timeline time that must fall inside the clip bounds.
-   * @returns Whether the split was applied.
-   */
-  splitClip(clipId: string, splitTime: RationalTime) {
-    assertValidRationalTime(splitTime, 'splitTime');
-    return this.commitEdit({ type: 'split', time: splitTime, clipIds: [clipId] }).committed;
   }
 
   /**
@@ -1527,9 +2068,10 @@ export class TimelineEngine extends TimelineEngineState {
     clipId: string,
     properties: Partial<Pick<Clip, 'label' | 'opacity' | 'color'>>
   ) {
-    const found = this.getClip(clipId);
+    const found = this.geometry.getClip(clipId);
     if (found) {
       Object.assign(found.clip, properties);
+      this.invalidateContent();
       this.snapshot();
       this.emit('state:settled');
       this.emit('render');
@@ -1537,40 +2079,9 @@ export class TimelineEngine extends TimelineEngineState {
     }
     return false;
   }
-
-  /**
-   * Removes a clip from its containing track.
-   *
-   * @param clipId - Clip id to remove.
-   * @returns Whether the clip was found and deleted.
-   */
-  deleteClip(clipId: string) {
-    const found = this.getClip(clipId);
-    if (found) {
-      const clipIdsToRemove = new Set(this.getLinkedClipIds(clipId));
-      const removedClips: Clip[] = [];
-      for (const track of this.state.tracks) {
-        track.clips = track.clips.filter((clip) => {
-          if (clipIdsToRemove.has(clip.id)) {
-            removedClips.push(createClipSnapshot(clip));
-            return false;
-          }
-          return true;
-        });
-      }
-      this.normalizeClipGroups();
-      this.snapshot();
-      this.invalidateContent();
-      for (const clip of removedClips) {
-        this.emit('clip:removed', {
-          clip,
-          reason: 'delete',
-        } satisfies ClipRemovedEvent);
-      }
-      this.emit('state:settled');
-      this.emit('render');
-      return true;
-    }
-    return false;
+  /** Invalidates content-dependent queries and renderer snapshots. */
+  invalidateContent() {
+    this.state.contentRevision++;
+    this.emit('content:change', this.state.contentRevision);
   }
 }

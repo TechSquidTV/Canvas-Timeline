@@ -1,8 +1,8 @@
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 import type { ActiveLayerOptions, ActiveLayerResult } from '@techsquidtv/canvas-timeline-core';
 import { useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
-
 /**
  * Returns active timeline layers at a timeline time.
  *
@@ -54,23 +54,27 @@ import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayhe
 export function useActiveLayers<LayerName extends string = string>(
   options: ActiveLayerOptions<LayerName>
 ): ActiveLayerResult<LayerName> {
-  const timeline = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    tracks: state.tracks,
+    contentRevision: state.contentRevision,
+  }));
   const playheadTime = useTimelinePlayheadTime();
 
   // Keep the revision in this snapshot so memoized lookups refresh when clips move under a fixed time.
   const lookupSnapshot = useMemo(
     () => ({
       layers: options.layers,
-      revision: timeline.state.contentRevision,
+      revision: state.tracks,
       time: options.time ?? playheadTime,
     }),
-    [options.layers, options.time, timeline.state.contentRevision, playheadTime]
+    [options.layers, options.time, state.tracks, playheadTime]
   );
 
   return useMemo(() => {
-    return timeline.engine.getActiveLayers({
+    return engine.media.getActiveLayers({
       layers: lookupSnapshot.layers,
       time: lookupSnapshot.time,
     });
-  }, [lookupSnapshot, timeline.engine]);
+  }, [lookupSnapshot, engine]);
 }

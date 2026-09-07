@@ -1,11 +1,9 @@
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type DragEventHandler,
-} from 'react';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type {
+  TimelineCommandFailureReason,
+  TimelineCommandResult,
+} from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type {
   TimelineClipGroupPlacement,
   TimelineEditCommitResult,
@@ -13,16 +11,10 @@ import type {
   TimelineInteractionGeometry,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandFailureReason,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { DragEvent, DragEventHandler } from 'react';
 /** External-drop edit operation selected by app chrome or drop context. */
 export type TimelineExternalClipDropEditMode = 'insert' | 'overwrite';
 
@@ -46,10 +38,9 @@ export interface TimelineExternalClipDropGroupOptions {
  * timeline geometry math.
  *
  * @template DragData - App-owned payload resolved from the native drag event.
- * @template TrackKind - App-defined track kind values accepted by the drop
  * surface.
  */
-export interface TimelineExternalClipDropContext<DragData, TrackKind = string> {
+export interface TimelineExternalClipDropContext<DragData> {
   /** App-owned drag payload resolved from the native drag event. */
   data: DragData;
   /** Native React drag event for advanced app integrations. */
@@ -57,7 +48,7 @@ export interface TimelineExternalClipDropContext<DragData, TrackKind = string> {
   /** Native browser data transfer payload. */
   dataTransfer: DataTransfer;
   /** Track currently under the pointer. */
-  targetTrack: Track<TrackKind>;
+  targetTrack: Track<string>;
   /** Zero-based index of the target track. */
   targetTrackIndex: number;
   /** Timeline time under the pointer. */
@@ -86,10 +77,9 @@ export interface TimelineExternalClipDropGuardResult {
  * Custom policy for accepting or rejecting an external drop target.
  *
  * @template DragData - App-owned payload resolved from the native drag event.
- * @template TrackKind - App-defined track kind values used by candidate tracks.
  */
-export type TimelineExternalClipDropGuard<DragData, TrackKind = string> = (
-  context: TimelineExternalClipDropContext<DragData, TrackKind>
+export type TimelineExternalClipDropGuard<DragData> = (
+  context: TimelineExternalClipDropContext<DragData>
 ) => boolean | TimelineExternalClipDropGuardResult;
 
 /**
@@ -123,36 +113,32 @@ export interface TimelineExternalClipDropRootProps {
  * results around those app callbacks.
  *
  * @template DragData - App-owned payload resolved from the native drag event.
- * @template TrackKind - App-defined track kind values used by target tracks.
  *
  * @see {@link TimelineExternalClipDropContext}
  * @see {@link https://canvastimeline.com/demos/external-clip-drop | External clip drop demo}
  */
-export interface UseTimelineExternalClipDropOptions<
-  DragData,
-  TrackKind = string,
-> extends TimelineInteractionGeometry {
+export interface UseTimelineExternalClipDropOptions<DragData> extends TimelineInteractionGeometry {
   /** Optional viewport width used for track hit testing. Defaults to the drop surface width. */
   viewportWidth?: number;
   /** Edit mode for committed drops. Defaults to overwrite. */
   editMode?:
     | TimelineExternalClipDropEditMode
     | ((
-        context: Omit<TimelineExternalClipDropContext<DragData, TrackKind>, 'editMode'>
+        context: Omit<TimelineExternalClipDropContext<DragData>, 'editMode'>
       ) => TimelineExternalClipDropEditMode);
   /** Resolves app-owned drag data from the native drag event. */
   resolveDragData: (event: DragEvent<HTMLElement>) => DragData | null;
   /** Creates one or more clip placements from the resolved drop context. */
   createPlacements: (
-    context: TimelineExternalClipDropContext<DragData, TrackKind>
+    context: TimelineExternalClipDropContext<DragData>
   ) => readonly TimelineClipGroupPlacement[] | null;
   /** Optional app policy for rejecting target tracks before placement creation. */
-  canDropOnTrack?: TimelineExternalClipDropGuard<DragData, TrackKind>;
+  canDropOnTrack?: TimelineExternalClipDropGuard<DragData>;
   /** Optional metadata applied when a drop creates a grouped multi-placement edit. */
   group?:
     | TimelineExternalClipDropGroupOptions
     | ((
-        context: TimelineExternalClipDropContext<DragData, TrackKind>
+        context: TimelineExternalClipDropContext<DragData>
       ) => TimelineExternalClipDropGroupOptions | null | undefined);
   /** Whether to resolve magnetic snapping for placed clips. Multi-placement drops share one group delta. Defaults to true. */
   snap?: boolean;
@@ -168,10 +154,9 @@ export interface UseTimelineExternalClipDropOptions<
  * preview badge. `lastResult` keeps the last command outcome available after
  * hover feedback clears.
  *
- * @template TrackKind - App-defined track kind values carried by the current
  * target track.
  */
-export interface UseTimelineExternalClipDropResult<TrackKind = string> {
+export interface UseTimelineExternalClipDropResult {
   /** Props for the element that should accept native external drops. */
   rootProps: TimelineExternalClipDropRootProps;
   /** Whether an external drag is currently over the drop surface. */
@@ -181,7 +166,7 @@ export interface UseTimelineExternalClipDropResult<TrackKind = string> {
   /** Valid target track id currently accepting the payload. */
   targetTrackId: string | null;
   /** Valid target track currently accepting the payload. */
-  targetTrack: Track<TrackKind> | null;
+  targetTrack: Track<string> | null;
   /** Timeline time under the pointer, when a track is resolved. */
   dropTime: RationalTime | null;
   /** Timeline seconds under the pointer, when a track is resolved. */
@@ -196,25 +181,25 @@ export interface UseTimelineExternalClipDropResult<TrackKind = string> {
   clearDropFeedback: () => void;
 }
 
-interface ExternalDropFeedback<TrackKind = string> {
+interface ExternalDropFeedback {
   dragging: boolean;
   hoveredTrackId: string | null;
   targetTrackId: string | null;
-  targetTrack: Track<TrackKind> | null;
+  targetTrack: Track<string> | null;
   dropTime: RationalTime | null;
   dropSeconds: number | null;
   valid: boolean;
   reason: TimelineCommandFailureReason | null;
 }
 
-interface ResolvedExternalDropContext<DragData, TrackKind = string> {
-  context: TimelineExternalClipDropContext<DragData, TrackKind>;
+interface ResolvedExternalDropContext<DragData> {
+  context: TimelineExternalClipDropContext<DragData>;
   valid: boolean;
   reason: TimelineCommandFailureReason | null;
   message?: string;
 }
 
-function createEmptyExternalDropFeedback<TrackKind>(): ExternalDropFeedback<TrackKind> {
+function createEmptyExternalDropFeedback(): ExternalDropFeedback {
   return {
     dragging: false,
     hoveredTrackId: null,
@@ -262,7 +247,6 @@ function isLeavingCurrentTarget(event: DragEvent<HTMLElement>) {
  * @param options - Drop geometry, app payload callbacks, edit mode, and optional policy.
  * @returns Root props, feedback state, and the last drop command result.
  * @template DragData - App-owned payload resolved from the native drag event.
- * @template TrackKind - App-defined track kind values used by target tracks.
  *
  * @example
  * ```tsx
@@ -307,10 +291,10 @@ function isLeavingCurrentTarget(event: DragEvent<HTMLElement>) {
  * @see {@link useTimelineClipDropFeedback}
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
-export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
-  options: UseTimelineExternalClipDropOptions<DragData, TrackKind>
-): UseTimelineExternalClipDropResult<TrackKind> {
-  const { engine } = useTimeline();
+export function useTimelineExternalClipDrop<DragData>(
+  options: UseTimelineExternalClipDropOptions<DragData>
+): UseTimelineExternalClipDropResult {
+  const engine = useTimelineEngine();
   const {
     collapsedTrackHeight,
     canDropOnTrack,
@@ -325,7 +309,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
     trackHeight,
     viewportWidth,
   } = options;
-  const [feedback, setFeedback] = useState<ExternalDropFeedback<TrackKind>>(() =>
+  const [feedback, setFeedback] = useState<ExternalDropFeedback>(() =>
     createEmptyExternalDropFeedback()
   );
   const [lastResult, setLastResult] =
@@ -348,7 +332,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
   const resolveContext = useCallback(
     (
       event: DragEvent<HTMLElement>
-    ): ResolvedExternalDropContext<DragData, TrackKind> | TimelineCommandResult => {
+    ): ResolvedExternalDropContext<DragData> | TimelineCommandResult => {
       const data = resolveDragData(event);
       if (data === null) {
         return timelineCommandFail('unsupported');
@@ -357,7 +341,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
       const bounds = event.currentTarget.getBoundingClientRect();
       const viewportX = event.clientX - bounds.left;
       const viewportY = event.clientY - bounds.top;
-      const target = engine.getTrackAtPoint<TrackKind>({
+      const target = engine.geometry.getTrackAtPoint({
         collapsedTrackHeight,
         edgeThreshold,
         rulerHeight,
@@ -391,7 +375,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
         typeof editModeOption === 'function'
           ? editModeOption(baseContext)
           : (editModeOption ?? 'overwrite');
-      const context: TimelineExternalClipDropContext<DragData, TrackKind> = {
+      const context: TimelineExternalClipDropContext<DragData> = {
         ...baseContext,
         editMode,
       };
@@ -422,7 +406,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
   );
 
   const publishFeedback = useCallback(
-    (resolved: ResolvedExternalDropContext<DragData, TrackKind> | TimelineCommandResult) => {
+    (resolved: ResolvedExternalDropContext<DragData> | TimelineCommandResult) => {
       if ('context' in resolved) {
         setFeedback({
           dragging: true,
@@ -448,7 +432,7 @@ export function useTimelineExternalClipDrop<DragData, TrackKind = string>(
 
   const commitPlacements = useCallback(
     (
-      context: TimelineExternalClipDropContext<DragData, TrackKind>,
+      context: TimelineExternalClipDropContext<DragData>,
       placements: readonly TimelineClipGroupPlacement[]
     ): TimelineCommandResult<TimelineEditCommitResult> => {
       if (placements.length === 0) {

@@ -1,18 +1,13 @@
+import { isEditorTrack } from '#full-editor/features/project/demo-project';
+import { sanitizePersistedTimelineState } from '#full-editor/infrastructure/persistence/project/timeline-state-persistence';
+import type { PersistedTimelineState } from '#full-editor/infrastructure/persistence/project/types';
 import {
-  useTimelineClipGroups,
-  useTimelineMarkers,
   useTimelineScrollLeft,
   useTimelineScrollTop,
-  useTimelineSnapping,
   useTimelineState,
-  useTimelineTracks,
   useTimelineZoomScale,
 } from '@techsquidtv/canvas-timeline-react';
 import { useMemo } from 'react';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-import type { PersistedTimelineState } from '#full-editor/infrastructure/persistence/project/types';
-import { sanitizePersistedTimelineState } from '#full-editor/infrastructure/persistence/project/timeline-state-persistence';
-
 type PersistedTimelineContentState = Omit<
   PersistedTimelineState,
   'playheadTime' | 'scrollLeft' | 'scrollTop' | 'zoomScale'
@@ -25,27 +20,28 @@ export interface PersistableTimelineSnapshot {
 
 export function usePersistableTimelineSnapshot(): PersistableTimelineSnapshot {
   const state = useTimelineState();
-  const clipGroups = useTimelineClipGroups();
-  const markers = useTimelineMarkers();
   const scrollLeft = useTimelineScrollLeft();
   const scrollTop = useTimelineScrollTop();
-  const snapping = useTimelineSnapping();
-  const tracks = useTimelineTracks<EditorTrackKind>();
   const zoomScale = useTimelineZoomScale();
 
   const contentState = useMemo<PersistedTimelineContentState>(() => {
     const sanitizedState = sanitizePersistedTimelineState({
-      clipGroups: clipGroups.groups,
+      clipGroups: state.clipGroups,
       duration: state.duration,
       inPoint: state.inPoint,
-      markers: markers.markers,
+      markers: state.markers ?? [],
       outPoint: state.outPoint,
       playheadTime: { v: 0, r: 60000 },
       scrollLeft: 0,
       scrollTop: 0,
-      snapEnabled: snapping.enabled,
-      snapThresholdPixels: snapping.thresholdPixels,
-      tracks: tracks.tracks,
+      snapEnabled: state.snapEnabled,
+      snapThresholdPixels: state.snapThresholdPixels,
+      tracks: state.tracks.map((track) => {
+        if (!isEditorTrack(track)) {
+          throw new Error(`Unsupported editor track kind: ${track.kind}`);
+        }
+        return track;
+      }),
       zoomScale: 1,
     });
     return {
@@ -59,14 +55,14 @@ export function usePersistableTimelineSnapshot(): PersistableTimelineSnapshot {
       tracks: sanitizedState.tracks,
     };
   }, [
-    clipGroups.groups,
-    markers.markers,
+    state.clipGroups,
+    state.markers,
     state.inPoint,
     state.outPoint,
-    snapping.enabled,
-    snapping.thresholdPixels,
+    state.snapEnabled,
+    state.snapThresholdPixels,
     state.duration,
-    tracks.tracks,
+    state.tracks,
   ]);
 
   const timelineState = useMemo(

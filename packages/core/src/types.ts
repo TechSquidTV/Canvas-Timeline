@@ -3,7 +3,6 @@ import type {
   TimecodeFormatOptions,
   TimecodeFrameRate,
 } from '@techsquidtv/canvas-timeline-utils';
-
 /**
  * A value that may be available immediately or after asynchronous media lookup.
  *
@@ -68,7 +67,7 @@ export interface ClipSourceRange {
  * Use `ActiveClipQuery` when an integration needs one matching clip, such as a
  * focused preview thumbnail, inspector, subtitle renderer, or source-specific
  * media control. For named multi-layer playback surfaces, prefer
- * {@link ActiveLayerOptions} and {@link TimelineEngine.getActiveLayers}.
+ * {@link ActiveLayerOptions} and {@link TimelineMediaQueries.getActiveLayers}.
  *
  * @template TrackKind - App-defined track kind values used by your timeline,
  * such as `"visual"`, `"audio"`, or `"subtitle"`.
@@ -140,7 +139,7 @@ export type ActiveLayerSelector<TrackKind = string> = Omit<ActiveClipQuery<Track
  *
  * @see {@link ActiveLayerSelector}
  * @see {@link ActiveLayerResult}
- * @see {@link TimelineEngine.getActiveLayers}
+ * @see {@link TimelineMediaQueries.getActiveLayers}
  */
 export interface ActiveLayerOptions<LayerName extends string = string, TrackKind = string> {
   /** Timeline time to inspect. Defaults to the current playhead. */
@@ -175,7 +174,7 @@ export interface FirstContentTimeOptions<
  *
  * @example
  * ```ts
- * const activeLayers = engine.getActiveLayers({
+ * const activeLayers = engine.media.getActiveLayers({
  *   layers: {
  *     visuals: { trackKind: 'visual' },
  *     audio: { trackKind: 'audio' },
@@ -203,7 +202,6 @@ export interface ActiveLayerResult<LayerName extends string = string, TrackKind 
   /** Whether any requested layer matched active clips. */
   hasActiveClips: boolean;
   /** Earliest timeline start among clips that match any requested layer. */
-  firstContentTime?: RationalTime;
 }
 
 /** Region of a timeline clip hit by pointer interaction. */
@@ -1084,6 +1082,8 @@ export interface TimelineEditValidationResult {
 
 /** Clip placement command shared by insert and overwrite edits. */
 export interface TimelinePlaceClipCommand {
+  /** Original clip id when placing a clipboard copy. */
+  originClipId?: string;
   /** Clip to place on the timeline. Its timeline range is recalculated from startTime. */
   clip: Clip;
   /** Destination track id. */
@@ -1096,6 +1096,8 @@ export interface TimelinePlaceClipCommand {
 
 /** One deterministic clip placement used when inserting an already-associated clip group. */
 export interface TimelineClipGroupPlacement {
+  /** Original clip id when placing a clipboard copy. */
+  originClipId?: string;
   /** Clip to place on the timeline. Its timeline range is recalculated from startTime. */
   clip: Clip;
   /** Destination track id. */
@@ -1142,12 +1144,16 @@ export interface TimelineInsertClipGroupOptions {
 
 /** Command that moves an existing clip. */
 export interface TimelineMoveEditCommand extends TimelineClipMoveOptions {
+  /** Apply overwrite rules to overlapping clips. Defaults to false. */
+  overwrite?: boolean;
   /** Command discriminator for clip body movement. */
   type: 'move';
 }
 
 /** Command that trims one existing clip boundary. */
 export interface TimelineTrimEditCommand {
+  /** Apply overwrite rules to overlapping clips. Defaults to false. */
+  overwrite?: boolean;
   /** Command discriminator for single-edge trimming. */
   type: 'trim';
   /** Clip whose boundary should move. */
@@ -1214,6 +1220,8 @@ export interface TimelineSplitEditCommand {
 
 /** Command that deletes existing clips and any linked group members. */
 export interface TimelineDeleteClipsEditCommand {
+  /** Removal lifecycle reason. Clipboard cuts use `cut`. */
+  reason?: 'delete' | 'cut';
   type: 'delete-clips';
   clipIds: readonly string[];
 }
@@ -1354,6 +1362,8 @@ export interface TimelineEditPolicy {
 
 /** Shared preview result produced for every edit command. */
 export interface TimelineEditPreview {
+  /** Resolved movement details for a valid body-drag preview. */
+  moveResult?: TimelineClipMoveResult;
   /** Command that produced this preview. */
   command: TimelineEditCommand;
   /** Whether the command can be committed. */
@@ -1718,3 +1728,10 @@ export interface TimelineState {
   /** Explicit duration of the timeline. If set, this overrides the dynamic duration calculated from clips. */
   duration?: RationalTime;
 }
+
+/** Deeply readonly view of a timeline value. */
+export type TimelineReadonly<Value> = Value extends object
+  ? { readonly [Key in keyof Value]: TimelineReadonly<Value[Key]> }
+  : Value;
+/** Owned read snapshot of timeline state. Mutate through engine commands. */
+export type TimelineStateSnapshot = TimelineReadonly<TimelineState>;

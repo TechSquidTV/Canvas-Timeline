@@ -1,7 +1,6 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type { EngineEventMap, TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-
+import { useCallback, useSyncExternalStore } from 'react';
 type TimelineExternalStoreEvent = keyof EngineEventMap;
 type TimelineExternalStoreSnapshot<T> = (engine: TimelineEngine) => T;
 
@@ -12,7 +11,7 @@ export function useTimelineExternalStore<T>(
   events: readonly TimelineExternalStoreEvent[],
   getSnapshotForEngine: TimelineExternalStoreSnapshot<T>
 ): T {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
 
   const subscribe = useCallback(
     (onStoreChange: () => void) => {

@@ -1,36 +1,31 @@
-import { useEffect, useState } from 'react';
-import {
-  useTimelineClips,
-  useTimelineState,
-  useTimelineTracks,
-} from '@techsquidtv/canvas-timeline-react';
-import { Button } from '#full-editor/shared/ui/button';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-import { useEditorProject } from '#full-editor/features/project/project-context';
-import { formatRationalTime } from '#full-editor/shared/lib/timeline-format';
-import { normalizeProjectTitle } from '#full-editor/features/project/project-metadata';
 import {
   formatProjectFrameRate,
   getProjectFrameRatePresetId,
   isProjectFrameRatePresetId,
   projectFrameRatePresets,
-  type ProjectFrameRatePresetId,
 } from '#full-editor/features/project/frame-rate';
+import type { ProjectFrameRatePresetId } from '#full-editor/features/project/frame-rate';
+import { useEditorProject } from '#full-editor/features/project/project-context';
+import { normalizeProjectTitle } from '#full-editor/features/project/project-metadata';
 import {
   defaultVideoResolutionPresetId,
   formatVideoResolution,
   getVideoResolutionPresetId,
   isVideoResolutionPresetId,
-  type VideoResolutionPresetId,
   videoResolutionPresets,
 } from '#full-editor/features/project/video-settings';
+import type { VideoResolutionPresetId } from '#full-editor/features/project/video-settings';
 import {
   editorRulerFormats,
   formatEditorRulerFormat,
   isEditorRulerFormat,
-  type EditorRulerFormat,
 } from '#full-editor/features/timeline/ruler-format';
-
+import type { EditorRulerFormat } from '#full-editor/features/timeline/ruler-format';
+import { useEditorTracks } from '#full-editor/features/timeline/useEditorTracks';
+import { formatRationalTime } from '#full-editor/shared/lib/timeline-format';
+import { Button } from '#full-editor/shared/ui/button';
+import { useTimelineClips, useTimelineState } from '@techsquidtv/canvas-timeline-react';
+import { useEffect, useState } from 'react';
 export function ProjectPanel() {
   const state = useTimelineState();
   const {
@@ -42,8 +37,8 @@ export function ProjectPanel() {
     setProjectTitle,
     setRulerFormat,
   } = useEditorProject();
-  const { clips } = useTimelineClips<EditorTrackKind>();
-  const { tracks } = useTimelineTracks<EditorTrackKind>();
+  const { clips } = useTimelineClips();
+  const { tracks } = useEditorTracks();
   const currentResolutionPresetId =
     getVideoResolutionPresetId(metadata) ?? defaultVideoResolutionPresetId;
   const currentFrameRatePresetId = getProjectFrameRatePresetId(metadata.frameRate);

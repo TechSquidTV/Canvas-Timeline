@@ -1,15 +1,11 @@
-import type React from 'react';
-import { useCallback, useMemo } from 'react';
-import {
-  resolveTimecodeFrameRate,
-  type TimecodeFrameRate,
-} from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
 import { useTimelineMarkers } from '#react/hooks/markers/useTimelineMarkers';
 import { useTimelinePlayback } from '#react/hooks/playback/useTimelinePlayback';
-import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
 import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
-
+import { resolveTimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
+import type { TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
+import React, { useCallback, useMemo } from 'react';
 /** Named shortcut presets for `useTimelineKeyboard`. */
 export type TimelineKeyboardPreset = 'professionalEditor' | 'minimal';
 
@@ -323,7 +319,7 @@ export function useTimelineKeyboard(
     stopPropagation = false,
     zoomStepRatio = 1.2,
   } = options;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const playback = useTimelinePlayback();
   const markers = useTimelineMarkers();
   const snapping = useTimelineSnapping();

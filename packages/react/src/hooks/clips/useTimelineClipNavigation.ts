@@ -1,16 +1,14 @@
-import type React from 'react';
-import { useCallback, useMemo, useState } from 'react';
-import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
-import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { getClipAccessibleDescription, getClipAccessibleName } from '#react/accessibility';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
+import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 import { useTimelineClips } from '#react/hooks/clips/useTimelineClips';
+import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
 import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
-import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
-import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
-
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import React, { useCallback, useMemo, useState } from 'react';
 /**
  * Metadata for one canvas-rendered clip exposed through clip navigation.
  *
@@ -20,16 +18,14 @@ import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
  * gives a single DOM focus target enough metadata to announce and manipulate
  * whichever canvas clip is currently active.
  *
- * @template TrackKind - App-defined track kind values carried by the containing
- * track.
  *
  * @see {@link useTimelineClipNavigation}
  */
-export interface TimelineNavigableClip<TrackKind = string> {
+export interface TimelineNavigableClip {
   /** Raw timeline clip represented by this navigation item. */
   clip: Clip;
   /** Track containing the clip. */
-  track: Track<TrackKind>;
+  track: Track<string>;
   /** Zero-based track index in timeline order. */
   trackIndex: number;
   /** Zero-based clip index inside the track. */
@@ -56,10 +52,9 @@ export interface TimelineNavigableClip<TrackKind = string> {
  * workflows; leave it disabled when navigation should move a virtual cursor
  * without mutating timeline selection.
  *
- * @template TrackKind - App-defined track kind values passed to custom label
  * and description formatters.
  */
-export interface TimelineClipNavigationOptions<TrackKind = string> {
+export interface TimelineClipNavigationOptions {
   /** Initial active clip id. Defaults to selected clip, then the first clip. */
   initialClipId?: string | null;
   /** Whether next/previous navigation wraps around the clip list. Defaults to true. */
@@ -67,16 +62,16 @@ export interface TimelineClipNavigationOptions<TrackKind = string> {
   /** Whether navigation also selects the active clip in the engine. Defaults to false. */
   selectOnNavigate?: boolean;
   /** Optional accessible label formatter for a canvas-rendered clip. */
-  getClipAriaLabel?: (clip: Clip, track: Track<TrackKind>) => string;
+  getClipAriaLabel?: (clip: Clip, track: Track<string>) => string;
   /** Optional accessible description formatter for a canvas-rendered clip. */
-  getClipAriaDescription?: (clip: Clip, track: Track<TrackKind>) => string;
+  getClipAriaDescription?: (clip: Clip, track: Track<string>) => string;
 }
 
-function buildNavigableClips<TrackKind>(
-  clipEntries: TimelineClipEntry<TrackKind>[],
-  getClipAriaLabel?: (clip: Clip, track: Track<TrackKind>) => string,
-  getClipAriaDescription?: (clip: Clip, track: Track<TrackKind>) => string
-): TimelineNavigableClip<TrackKind>[] {
+function buildNavigableClips(
+  clipEntries: TimelineClipEntry<string>[],
+  getClipAriaLabel?: (clip: Clip, track: Track<string>) => string,
+  getClipAriaDescription?: (clip: Clip, track: Track<string>) => string
+): TimelineNavigableClip[] {
   return clipEntries.map(({ clip, clipIndex, track, trackIndex }, index) => ({
     clip,
     track,
@@ -90,10 +85,7 @@ function buildNavigableClips<TrackKind>(
   }));
 }
 
-function getActiveClipStatus<TrackKind>(
-  activeClip: TimelineNavigableClip<TrackKind> | null,
-  clipCount: number
-) {
+function getActiveClipStatus(activeClip: TimelineNavigableClip | null, clipCount: number) {
   if (!activeClip) {
     return clipCount === 0 ? 'No clips in timeline' : 'No active clip';
   }
@@ -113,7 +105,6 @@ function getActiveClipStatus<TrackKind>(
  *
  * @param options - Initial active clip and navigation behavior options.
  * @returns Active clip metadata, flattened clip list, navigation commands, edit commands, and optional focus-target props.
- * @template TrackKind - App-defined track kind values carried by navigable
  * clips.
  *
  * @example
@@ -140,9 +131,7 @@ function getActiveClipStatus<TrackKind>(
  * @see {@link TimelineNavigableClip}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export function useTimelineClipNavigation<TrackKind = string>(
-  options: TimelineClipNavigationOptions<TrackKind> = {}
-) {
+export function useTimelineClipNavigation(options: TimelineClipNavigationOptions = {}) {
   const {
     getClipAriaDescription,
     getClipAriaLabel,
@@ -150,8 +139,9 @@ export function useTimelineClipNavigation<TrackKind = string>(
     selectOnNavigate = false,
     wrap = true,
   } = options;
-  const { engine, state } = useTimeline();
-  const { clips: clipEntries, selectedClipId } = useTimelineClips<TrackKind>();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
+  const { clips: clipEntries, selectedClipId } = useTimelineClips();
   const { moveClip, trimClip } = useTimelineEditCommands();
   const { prepareSnapping, settle } = useTimelineSnapping();
   const clips = useMemo(
@@ -221,7 +211,7 @@ export function useTimelineClipNavigation<TrackKind = string>(
       }
 
       const nextTrackIndex = activeClip.trackIndex + delta;
-      const nextTrack = getTimelineTracks<TrackKind>(state.tracks)[nextTrackIndex];
+      const nextTrack = state.tracks[nextTrackIndex];
       if (!nextTrack || nextTrack.clips.length === 0) {
         return activeClip;
       }
@@ -254,7 +244,7 @@ export function useTimelineClipNavigation<TrackKind = string>(
       if (!activeClip?.canMove) {
         return timelineCommandFail('locked');
       }
-      const found = engine.getClip(activeClip.clip.id);
+      const found = engine.geometry.getClip(activeClip.clip.id);
       if (!found) {
         return timelineCommandFail('not-found');
       }
@@ -279,14 +269,12 @@ export function useTimelineClipNavigation<TrackKind = string>(
       if (!activeClip?.canMove) {
         return timelineCommandFail('locked');
       }
-      const found = engine.getClip(activeClip.clip.id);
+      const found = engine.geometry.getClip(activeClip.clip.id);
       if (!found) {
         return timelineCommandFail('not-found');
       }
 
-      const nextTrack = getTimelineTracks<TrackKind>(state.tracks)[
-        found.trackIndex + deltaTrackIndex
-      ];
+      const nextTrack = state.tracks[found.trackIndex + deltaTrackIndex];
       if (!nextTrack) {
         return timelineCommandFail('invalid-track');
       }
@@ -310,7 +298,7 @@ export function useTimelineClipNavigation<TrackKind = string>(
       if (!activeClip?.canTrim) {
         return timelineCommandFail('locked');
       }
-      const found = engine.getClip(activeClip.clip.id);
+      const found = engine.geometry.getClip(activeClip.clip.id);
       if (!found) {
         return timelineCommandFail('not-found');
       }

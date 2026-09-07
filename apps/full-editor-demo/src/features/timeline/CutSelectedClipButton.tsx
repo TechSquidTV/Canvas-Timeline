@@ -1,13 +1,12 @@
+import { Button } from '#full-editor/shared/ui/button';
 import {
   useTimeline,
   useTimelineClips,
   useTimelineEditCommands,
 } from '@techsquidtv/canvas-timeline-react';
-import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { Scissors } from 'lucide-react';
-import { Button } from '#full-editor/shared/ui/button';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-
 interface TimelineBoundedClip {
   timelineEnd: RationalTime;
   timelineStart: RationalTime;
@@ -15,7 +14,7 @@ interface TimelineBoundedClip {
 
 export function CutSelectedClipButton({ playheadSeconds }: { playheadSeconds: number }) {
   const { engine } = useTimeline();
-  const { selectedClip } = useTimelineClips<EditorTrackKind>();
+  const { selectedClip } = useTimelineClips();
   const { splitClip } = useTimelineEditCommands();
   const canCutSelectedClip =
     selectedClip !== null && containsTimelineSeconds(selectedClip, playheadSeconds);

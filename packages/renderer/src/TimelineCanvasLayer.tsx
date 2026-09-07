@@ -1,9 +1,7 @@
-import React, { useCallback, useRef, type CanvasHTMLAttributes } from 'react';
-import {
-  useTimelineCanvasLayer,
-  type UseTimelineCanvasLayerOptions,
-} from '#renderer/useTimelineCanvasLayer';
-
+import { useTimelineCanvasLayer } from '#renderer/useTimelineCanvasLayer';
+import type { UseTimelineCanvasLayerOptions } from '#renderer/useTimelineCanvasLayer';
+import React, { useCallback, useRef } from 'react';
+import type { CanvasHTMLAttributes } from 'react';
 /**
  * Props for the package custom canvas layer component.
  *
@@ -14,13 +12,11 @@ import {
  * should fill its positioned parent automatically; use the hook directly when
  * an app owns a bespoke canvas element or layout.
  *
- * @template TrackKind - App-defined track kind values carried by custom draw
- * geometry.
  */
-export interface TimelineCanvasLayerProps<TrackKind = string>
+export interface TimelineCanvasLayerProps
   extends
     Omit<CanvasHTMLAttributes<HTMLCanvasElement>, 'children'>,
-    UseTimelineCanvasLayerOptions<TrackKind> {}
+    UseTimelineCanvasLayerOptions {}
 
 /**
  * App-owned canvas layer for drawing custom dense timeline visuals.

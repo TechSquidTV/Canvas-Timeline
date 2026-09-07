@@ -1,20 +1,16 @@
-import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import type {
   TimelineClipGeometryOptions,
   TimelineClipRect,
   TimelineKeyframeRect,
-  TimelineState,
+  TimelineStateSnapshot,
   VisibleTimelineClip,
   VisibleTimelineKeyframe,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimeline } from '@techsquidtv/canvas-timeline-react';
-import {
-  clamp,
-  fromSeconds,
-  toSeconds,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-
+import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 /** Reason a custom canvas layer redraw was requested. */
 export type TimelineCanvasLayerRenderReason =
   | 'init'
@@ -60,10 +56,9 @@ export interface TimelineCanvasLayerViewport {
  * Prefer `visibleClips` and `visibleKeyframes` for dense rendering; use the
  * full rect arrays only for overlays that truly need offscreen state.
  *
- * @template TrackKind - App-defined track kind values carried by clip and
  * keyframe geometry entries.
  */
-export interface TimelineCanvasLayerDrawContext<TrackKind = string> {
+export interface TimelineCanvasLayerDrawContext {
   /** Canvas 2D context scaled to CSS pixels. */
   ctx: CanvasRenderingContext2D;
   /** App-owned canvas element being drawn. */
@@ -75,15 +70,15 @@ export interface TimelineCanvasLayerDrawContext<TrackKind = string> {
   /** Canvas height in CSS pixels. */
   height: number;
   /** Current timeline state snapshot. */
-  state: TimelineState;
+  state: TimelineStateSnapshot;
   /** All clip rectangles in track order. */
-  clipRects: TimelineClipRect<TrackKind>[];
+  clipRects: TimelineClipRect<string>[];
   /** All keyframe rectangles in track order. */
-  keyframeRects: TimelineKeyframeRect<TrackKind>[];
+  keyframeRects: TimelineKeyframeRect<string>[];
   /** Viewport-intersecting clips in track order. */
-  visibleClips: VisibleTimelineClip<TrackKind>[];
+  visibleClips: VisibleTimelineClip<string>[];
   /** Viewport-intersecting keyframes in track order. */
-  visibleKeyframes: VisibleTimelineKeyframe<TrackKind>[];
+  visibleKeyframes: VisibleTimelineKeyframe<string>[];
   /** Current viewport metrics. */
   viewport: TimelineCanvasLayerViewport;
   /** Reason this draw was scheduled. */
@@ -95,11 +90,8 @@ export interface TimelineCanvasLayerDrawContext<TrackKind = string> {
 /**
  * Draw callback used by custom canvas layers.
  *
- * @template TrackKind - App-defined track kind values carried by draw geometry.
  */
-export type TimelineCanvasLayerDraw<TrackKind = string> = (
-  context: TimelineCanvasLayerDrawContext<TrackKind>
-) => void;
+export type TimelineCanvasLayerDraw = (context: TimelineCanvasLayerDrawContext) => void;
 
 /**
  * Options for `useTimelineCanvasLayer`.
@@ -111,16 +103,13 @@ export type TimelineCanvasLayerDraw<TrackKind = string> = (
  * options should match the primary renderer so custom drawings line up with
  * clip and keyframe positions.
  *
- * @template TrackKind - App-defined track kind values carried by draw geometry.
  *
  * @see {@link TimelineCanvasLayerDraw}
  * @see {@link https://canvastimeline.com/docs/renderer-customization | Canvas renderer customization}
  */
-export interface UseTimelineCanvasLayerOptions<
-  TrackKind = string,
-> extends TimelineClipGeometryOptions {
+export interface UseTimelineCanvasLayerOptions extends TimelineClipGeometryOptions {
   /** Draws custom timeline visuals into an app-owned canvas. */
-  draw: TimelineCanvasLayerDraw<TrackKind>;
+  draw: TimelineCanvasLayerDraw;
   /** Extra pixels around the viewport included in visible clip queries. */
   overscanPixels?: number;
   /** Redraw when only the playhead changes. Defaults to false. */
@@ -139,7 +128,7 @@ function getCanvasBitmapSize(cssSize: number, dpr: number) {
   return Math.ceil(cssSize * dpr);
 }
 
-function createViewport(state: TimelineState, maxContentTime: RationalTime, width: number) {
+function createViewport(state: TimelineStateSnapshot, maxContentTime: RationalTime, width: number) {
   const safeZoomScale = Math.max(state.zoomScale || 0, 0.1);
   const viewportDurationSeconds = width / safeZoomScale;
   const visibleStartSeconds = clamp(state.scrollLeft / safeZoomScale, 0, toSeconds(maxContentTime));
@@ -172,7 +161,6 @@ function createViewport(state: TimelineState, maxContentTime: RationalTime, widt
  *
  * @param canvasRef - Ref for the app-owned canvas element to size and draw.
  * @param options - Drawing callback, geometry overrides, and redraw behavior.
- * @template TrackKind - App-defined track kind values carried by draw geometry.
  * @returns Imperative handle for manually scheduling redraws.
  *
  * @example
@@ -202,9 +190,9 @@ function createViewport(state: TimelineState, maxContentTime: RationalTime, widt
  * @see {@link TimelineCanvasLayer}
  * @see {@link https://canvastimeline.com/docs/renderer-customization | Canvas renderer customization}
  */
-export function useTimelineCanvasLayer<TrackKind = string>(
+export function useTimelineCanvasLayer(
   canvasRef: RefObject<HTMLCanvasElement | null>,
-  options: UseTimelineCanvasLayerOptions<TrackKind>
+  options: UseTimelineCanvasLayerOptions
 ): TimelineCanvasLayerHandle {
   const { engine } = useTimeline();
   const drawRef = useRef(options.draw);
@@ -267,10 +255,10 @@ export function useTimelineCanvasLayer<TrackKind = string>(
         touchEdgeThreshold: latest.touchEdgeThreshold,
         trackHeight: latest.trackHeight,
       };
-      let clipRects: TimelineClipRect<TrackKind>[] | null = null;
-      let keyframeRects: TimelineKeyframeRect<TrackKind>[] | null = null;
-      let visibleClips: VisibleTimelineClip<TrackKind>[] | null = null;
-      let visibleKeyframes: VisibleTimelineKeyframe<TrackKind>[] | null = null;
+      let clipRects: TimelineClipRect<string>[] | null = null;
+      let keyframeRects: TimelineKeyframeRect<string>[] | null = null;
+      let visibleClips: VisibleTimelineClip<string>[] | null = null;
+      let visibleKeyframes: VisibleTimelineKeyframe<string>[] | null = null;
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
@@ -286,15 +274,15 @@ export function useTimelineCanvasLayer<TrackKind = string>(
         height,
         state,
         get clipRects() {
-          clipRects ??= engine.getClipRects<TrackKind>(clipGeometry);
+          clipRects ??= engine.geometry.getClipRects(clipGeometry);
           return clipRects;
         },
         get keyframeRects() {
-          keyframeRects ??= engine.getKeyframeRects<TrackKind>(clipGeometry);
+          keyframeRects ??= engine.keyframes.getKeyframeRects(clipGeometry);
           return keyframeRects;
         },
         get visibleClips() {
-          visibleClips ??= engine.getVisibleTimelineClips<TrackKind>({
+          visibleClips ??= engine.geometry.getVisibleTimelineClips({
             ...clipGeometry,
             overscanPixels: latest.overscanPixels,
             viewportHeight: height,
@@ -303,7 +291,7 @@ export function useTimelineCanvasLayer<TrackKind = string>(
           return visibleClips;
         },
         get visibleKeyframes() {
-          visibleKeyframes ??= engine.getVisibleKeyframes<TrackKind>({
+          visibleKeyframes ??= engine.keyframes.getVisibleKeyframes({
             ...clipGeometry,
             overscanPixels: latest.overscanPixels,
             viewportHeight: height,

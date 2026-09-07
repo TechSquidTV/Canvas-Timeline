@@ -1,11 +1,10 @@
-import { useMemo } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import type {
   VisibleTimelineClip,
   VisibleTimelineClipOptions,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-
+import { useMemo } from 'react';
 /**
  * Options accepted by `useTimelineVisibleClips`.
  *
@@ -32,8 +31,6 @@ export type UseTimelineVisibleClipsOptions = VisibleTimelineClipOptions;
  *
  * @param options - Viewport, overscan, and optional renderer-aligned geometry settings.
  * @returns Visible clip entries in track order.
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries.
  *
  * @example
  * ```tsx
@@ -55,10 +52,10 @@ export type UseTimelineVisibleClipsOptions = VisibleTimelineClipOptions;
  * @see {@link useTimelineClipRects}
  * @see {@link https://canvastimeline.com/docs/renderer-customization | Canvas renderer customization}
  */
-export function useTimelineVisibleClips<TrackKind = string>(
+export function useTimelineVisibleClips(
   options: UseTimelineVisibleClipsOptions = {}
-): VisibleTimelineClip<TrackKind>[] {
-  const { engine } = useTimeline();
+): VisibleTimelineClip<string>[] {
+  const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision();
   const {
     collapsedTrackHeight,
@@ -73,7 +70,7 @@ export function useTimelineVisibleClips<TrackKind = string>(
 
   return useMemo(() => {
     void revision;
-    return engine.getVisibleTimelineClips<TrackKind>({
+    return engine.geometry.getVisibleTimelineClips({
       collapsedTrackHeight,
       edgeThreshold,
       overscanPixels,

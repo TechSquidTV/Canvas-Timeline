@@ -1,4 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
+import { useTimelineKeyframeDrag, useTimelineKeyframes } from '#react/hooks';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineEngine,
   TimelineInteractionGeometry,
@@ -6,11 +10,8 @@ import type {
   TimelineKeyframePropertyId,
   TimelineKeyframeRect,
 } from '@techsquidtv/canvas-timeline-core';
-import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline, useTimelineKeyframeDrag, useTimelineKeyframes } from '#react/hooks';
-import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 interface HoveredKeyframe {
   clipId: string;
   keyframeId: string;
@@ -122,7 +123,11 @@ export const KeyframeInteractionLayer = React.forwardRef<
     },
     forwardedRef
   ) => {
-    const { engine, state } = useTimeline();
+    const engine = useTimelineEngine();
+    const state = useTimelineSelector((state) => ({
+      viewportHeight: state.viewportHeight,
+      viewportWidth: state.viewportWidth,
+    }));
     const internalRef = useRef<HTMLDivElement>(null);
     const activeKeyframeRef = useRef<ActiveKeyframe | null>(null);
     const fallbackListenersRef = useRef<(() => void) | null>(null);
@@ -293,7 +298,7 @@ export const KeyframeInteractionLayer = React.forwardRef<
       event.stopPropagation();
 
       engine.selectClip(hit.clip.id);
-      engine.selectClipKeyframe(hit.clip.id, hit.keyframe.id);
+      engine.keyframes.selectClipKeyframe(hit.clip.id, hit.keyframe.id);
 
       if (onKeyframeDoubleClick && consumeTimelineDoubleTap(event)) {
         onKeyframeDoubleClick(hit, {

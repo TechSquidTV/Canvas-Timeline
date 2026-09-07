@@ -1,4 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type {
+  TimelineCommandFailureReason,
+  TimelineCommandResult,
+} from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type {
   Clip,
   TimelineDeleteRangeEditCommand,
@@ -18,15 +24,7 @@ import type {
   TimelineTrimEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandFailureReason,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineEditCommands`. */
 export interface UseTimelineEditCommandsResult {
   /** Validates a typed edit command without mutating timeline state. */
@@ -118,7 +116,7 @@ function toTimelineCommandFailureReason(
  * @returns Typed command builders and generic command-layer APIs.
  */
 export function useTimelineEditCommands(): UseTimelineEditCommandsResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const { selectedClipIds } = useTimelineSelection();
 
   const validateEdit = useCallback(

@@ -1,17 +1,17 @@
+import type { CanvasRendererWorkerMessage } from '#renderer/worker-protocol';
 import { act, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import {
   createTimelineScalarKeyframeProperty,
   TimelineEngine,
-  type TimelineKeyframePropertyDefinition,
 } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineKeyframePropertyDefinition } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { CanvasRenderer } from '#renderer/CanvasRenderer';
 import { TimelineCanvasLayer } from '#renderer/TimelineCanvasLayer';
 import type { TimelineCanvasLayerDrawContext } from '#renderer/useTimelineCanvasLayer';
-
 const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'level',
   min: 0,
@@ -212,6 +212,51 @@ describe('CanvasRenderer', () => {
       delete (HTMLCanvasElement.prototype as Partial<HTMLCanvasElement>).transferControlToOffscreen;
     }
     vi.unstubAllGlobals();
+  });
+
+  it('coalesces viewport bursts and sends document data only when content changes', () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const engine = createEngineWithClip();
+    const { unmount } = render(
+      <TimelineProvider engine={engine}>
+        <CanvasRenderer />
+      </TimelineProvider>
+    );
+    const worker = MockWorker.instances[0];
+    worker.messages = [];
+    act(() => {
+      engine.setScrollLeft(10);
+      engine.setScrollLeft(20);
+      engine.setZoomScale(250);
+    });
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()?.(16));
+    const viewport = getMessage<Extract<CanvasRendererWorkerMessage, { type: 'UPDATE_STATE' }>>(
+      worker,
+      'UPDATE_STATE'
+    );
+    expect(viewport?.state.zoomScale).toBe(250);
+    expect(viewport?.state.tracks).toBeUndefined();
+    expect(worker.messages).toHaveLength(1);
+    worker.messages = [];
+    act(() => {
+      engine.updateClipProperties('clip-1', { label: 'edited' });
+    });
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()?.(32));
+    const content = getMessage<Extract<CanvasRendererWorkerMessage, { type: 'UPDATE_STATE' }>>(
+      worker,
+      'UPDATE_STATE'
+    );
+    expect(content?.state.tracks?.[0].clips[0].label).toBe('edited');
+    unmount();
+    requestFrame.mockRestore();
   });
 
   it('posts resolved renderer theme options to the worker on init', async () => {

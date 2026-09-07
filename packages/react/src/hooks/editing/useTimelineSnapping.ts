@@ -1,4 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type {
   SnapPreparationOptions,
   TimelineSnapFeedback,
@@ -6,12 +9,7 @@ import type {
   TimelineSnapTarget,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineSnapping`. */
 export interface UseTimelineSnappingResult {
   /** Whether magnetic snapping is enabled. */
@@ -40,7 +38,12 @@ export interface UseTimelineSnappingResult {
  * @returns Snap settings, active feedback, and commands for preparing/resolving snap targets.
  */
 export function useTimelineSnapping(): UseTimelineSnappingResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    snapEnabled: state.snapEnabled,
+    snapFeedback: state.snapFeedback,
+    snapThresholdPixels: state.snapThresholdPixels,
+  }));
 
   const setEnabled = useCallback(
     (enabled: boolean) => {

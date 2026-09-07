@@ -1,16 +1,14 @@
-import { fireEvent, render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
-import {
-  createTimelineScalarKeyframeProperty,
-  TimelineEngine,
-  type Clip,
-  type Track,
-} from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
 import { KeyframeInteractionLayer } from '#react/components/interactions/KeyframeInteractionLayer';
 import { resetTimelineTapState } from '#react/components/interactions/tapState';
-
+import {
+  createTimelineScalarKeyframeProperty,
+  TimelineEngine,
+} from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fireEvent, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 function getElementPrototypeMethod<
   K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',
 >(name: K): Element[K] | undefined {
@@ -147,7 +145,7 @@ describe('KeyframeInteractionLayer', () => {
       </TimelineProvider>
     );
 
-    const rect = engine
+    const rect = engine.keyframes
       .getKeyframeRects({ keyframeSize: 6 })
       .find((entry) => entry.keyframe.id === 'opacity-middle')?.rect;
     const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
@@ -193,7 +191,7 @@ describe('KeyframeInteractionLayer', () => {
       pointerId: 1,
     });
 
-    const keyframes = engine.getClipKeyframes('clip-1') as Array<{
+    const keyframes = engine.keyframes.getClipKeyframes('clip-1') as Array<{
       id: string;
       time: { v: number; r: number };
     }>;
@@ -261,7 +259,7 @@ describe('KeyframeInteractionLayer', () => {
     const handle = container.querySelector('[data-keyframe-id="opacity-middle"]') as HTMLElement;
     fireEvent.keyDown(handle, { key: 'Delete' });
 
-    expect(engine.getClipKeyframes('clip-1')).toHaveLength(3);
+    expect(engine.keyframes.getClipKeyframes('clip-1')).toHaveLength(3);
 
     const onKeyframeDelete = vi.fn();
     rerender(
@@ -279,7 +277,7 @@ describe('KeyframeInteractionLayer', () => {
     ) as HTMLElement;
     fireEvent.keyDown(nextHandle, { key: 'Backspace' });
 
-    expect(engine.getClipKeyframes('clip-1')).toHaveLength(3);
+    expect(engine.keyframes.getClipKeyframes('clip-1')).toHaveLength(3);
     expect(onKeyframeDelete).toHaveBeenCalledWith(
       expect.objectContaining({
         clip: expect.objectContaining({ id: 'clip-1' }),

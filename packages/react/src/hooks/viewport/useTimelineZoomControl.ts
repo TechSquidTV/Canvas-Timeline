@@ -1,10 +1,9 @@
-import { useCallback, useMemo } from 'react';
-import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineZoomScale } from '#react/hooks/viewport/useTimelineZoomScale';
-
+import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo } from 'react';
 /**
  * Options for adapting timeline zoom to a scalar control.
  */
@@ -61,7 +60,7 @@ function formatZoomValue(value: number) {
  */
 export function useTimelineZoomControl(options: TimelineZoomControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const zoomScale = useTimelineZoomScale();
   const control = useMemo(() => {
     const engineMin = engine.minZoomScale;

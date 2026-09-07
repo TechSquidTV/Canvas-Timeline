@@ -1,7 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type { EngineEventMap } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-
+import { useEffect, useRef } from 'react';
 /**
  * Callback signature for a typed TimelineEngine event subscription.
  *
@@ -61,7 +60,7 @@ export function useTimelineEvent<EventName extends keyof EngineEventMap>(
   options: TimelineEventOptions = {}
 ) {
   const { enabled = true } = options;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const handlerRef = useRef(handler);
 
   useEffect(() => {

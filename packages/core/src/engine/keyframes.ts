@@ -1,7 +1,12 @@
+import type { TypedEventEmitter } from '#core/emitter';
+import { clampViewportCoordinate, defaultTimelineViewportWidth } from '#core/engine/geometry';
+import type { TimelineGeometry } from '#core/engine/interaction-geometry';
+import type { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
 import type {
   ClipKeyframeChangeEvent,
   ClipKeyframeRemoveEvent,
   ClipKeyframeSelectEvent,
+  EngineEventMap,
 } from '#core/events';
 import {
   defaultTimelineIncomingBezierHandle,
@@ -17,7 +22,6 @@ import { cloneRationalTime, cloneTimelineKeyframe, sortTimelineKeyframes } from 
 import type {
   Clip,
   ClipViewportRect,
-  TimelineClipGeometryOptions,
   TimelineKeyframe,
   TimelineKeyframeGeometryOptions,
   TimelineKeyframeHitTestInput,
@@ -40,6 +44,7 @@ import type {
   TimelineKeyframeTangentHitTestInput,
   TimelineRegisteredKeyframePropertyDefinition,
   TimelineSetClipKeyframeOptions,
+  TimelineState,
   TimelineUpdateClipKeyframeOptions,
   TimelineUpdateClipKeyframeSideOptions,
   TimelineUpdateClipKeyframeSidesOptions,
@@ -47,7 +52,6 @@ import type {
   VisibleTimelineKeyframe,
   VisibleTimelineKeyframeSegment,
 } from '#core/types';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import {
   assertValidRationalTime,
   compareRational,
@@ -56,37 +60,36 @@ import {
   subRational,
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineClipLookup } from '#core/engine/types';
-import { clampViewportCoordinate, defaultTimelineViewportWidth } from '#core/engine/geometry';
-import { TimelineEngineEditing } from '#core/engine/editing';
-
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 function isSameRationalTime(left: RationalTime, right: RationalTime) {
   return compareRational(left, right) === 0;
 }
 
-export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
-  abstract override getClip(clipId: string): TimelineClipLookup | undefined;
-  abstract timeToPixel(time: RationalTime): number;
-  protected abstract forEachTimelineClipGeometry<TrackKind>(
-    options: TimelineClipGeometryOptions,
-    visit: (
-      track: Track<TrackKind>,
-      clip: Clip,
-      trackIndex: number,
-      clipIndex: number,
-      rect: ClipViewportRect
-    ) => void
-  ): void;
+interface KeyframeContext {
+  state: TimelineState;
+  geometry: TimelineGeometry;
+  keyframeProperties: KeyframePropertyRegistry;
+  emit: TypedEventEmitter<EngineEventMap>['emit'];
+  timeToPixel: (time: RationalTime) => number;
+  invalidateContent: () => void;
+  snapshot: () => void;
+}
 
-  protected resolveClip(clipIdOrClip: string | Clip): Clip | undefined {
-    return typeof clipIdOrClip === 'string' ? this.getClip(clipIdOrClip)?.clip : clipIdOrClip;
+/** Registered keyframe queries, editing, and drawing geometry. */
+export class TimelineKeyframes {
+  constructor(private context: KeyframeContext) {}
+
+  private resolveClip(clipIdOrClip: string | Clip): Clip | undefined {
+    return typeof clipIdOrClip === 'string'
+      ? this.context.geometry.getClip(clipIdOrClip)?.clip
+      : clipIdOrClip;
   }
 
   /**
    * Returns keyframes owned by one clip, optionally filtered by property.
    */
   getClipKeyframes(clipId: string, property?: TimelineKeyframePropertyId): TimelineKeyframe[] {
-    const clip = this.getClip(clipId)?.clip;
+    const clip = this.context.geometry.getClip(clipId)?.clip;
     if (clip?.keyframes === undefined) {
       return [];
     }
@@ -102,7 +105,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   getClipPropertyValueAtTime(
     clipIdOrClip: string | Clip,
     property: TimelineKeyframePropertyId,
-    timelineTime: RationalTime = this.state.playheadTime
+    timelineTime: RationalTime = this.context.state.playheadTime
   ): number | undefined {
     const clip = this.resolveClip(clipIdOrClip);
     const definition = this.getRequiredKeyframePropertyDefinition(property);
@@ -116,7 +119,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     }
 
     const fallback = definition.getBaseValue
-      ? this.keyframeProperties.clampDefinitionValue(
+      ? this.context.keyframeProperties.clampDefinitionValue(
           definition,
           definition.getBaseValue(clip),
           `keyframe property "${property}" base value`
@@ -138,19 +141,23 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     const first = keyframes[0];
     const last = keyframes[keyframes.length - 1];
     if (compareRational(timelineTime, first.time) <= 0) {
-      return this.keyframeProperties.clampDefinitionValue(
+      return this.context.keyframeProperties.clampDefinitionValue(
         definition,
         first.value,
         'keyframe value'
       );
     }
     if (compareRational(timelineTime, last.time) >= 0) {
-      return this.keyframeProperties.clampDefinitionValue(definition, last.value, 'keyframe value');
+      return this.context.keyframeProperties.clampDefinitionValue(
+        definition,
+        last.value,
+        'keyframe value'
+      );
     }
 
     const exact = keyframes.find((keyframe) => isSameRationalTime(keyframe.time, timelineTime));
     if (exact !== undefined) {
-      return this.keyframeProperties.clampDefinitionValue(
+      return this.context.keyframeProperties.clampDefinitionValue(
         definition,
         exact.value,
         'keyframe value'
@@ -179,7 +186,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
               ? 'bezier'
               : 'linear';
         if (interpolation === 'hold') {
-          return this.keyframeProperties.clampDefinitionValue(
+          return this.context.keyframeProperties.clampDefinitionValue(
             definition,
             left.value,
             'keyframe value'
@@ -187,7 +194,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
         }
         const spanSeconds = toSeconds(subRational(right.time, left.time));
         if (spanSeconds <= 0) {
-          return this.keyframeProperties.clampDefinitionValue(
+          return this.context.keyframeProperties.clampDefinitionValue(
             definition,
             right.value,
             'keyframe value'
@@ -200,18 +207,18 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
           outgoing.handle,
           incoming.handle
         );
-        const leftNormalized = this.keyframeProperties.normalizeDefinitionValue(
+        const leftNormalized = this.context.keyframeProperties.normalizeDefinitionValue(
           definition,
           left.value,
           'left keyframe value'
         );
-        const rightNormalized = this.keyframeProperties.normalizeDefinitionValue(
+        const rightNormalized = this.context.keyframeProperties.normalizeDefinitionValue(
           definition,
           right.value,
           'right keyframe value'
         );
         const normalizedValue = leftNormalized + (rightNormalized - leftNormalized) * easedProgress;
-        return this.keyframeProperties.denormalizeDefinitionValue(
+        return this.context.keyframeProperties.denormalizeDefinitionValue(
           definition,
           normalizedValue,
           'interpolated keyframe value'
@@ -233,7 +240,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
     assertValidRationalTime(input.time, 'input.time');
-    const found = this.getClip(input.clipId);
+    const found = this.context.geometry.getClip(input.clipId);
     if (!found || found.track.locked) {
       return null;
     }
@@ -277,7 +284,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
       found.clip.keyframes.push(keyframe);
     }
     this.normalizeClipKeyframes(found.clip);
-    this.emit(eventName, {
+    this.context.emit(eventName, {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
@@ -297,7 +304,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     input: TimelineUpdateClipKeyframeOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = this.getClip(input.clipId);
+    const found = this.context.geometry.getClip(input.clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return null;
     }
@@ -352,7 +359,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     }
 
     this.normalizeClipKeyframes(found.clip);
-    this.emit('keyframe:update', {
+    this.context.emit('keyframe:update', {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
@@ -384,13 +391,13 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     input: TimelineUpdateClipKeyframeSidesOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = this.getClip(input.clipId);
+    const found = this.context.geometry.getClip(input.clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return null;
     }
 
     const keyframe = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
-    if (keyframe === undefined || !this.keyframeProperties.has(keyframe.property)) {
+    if (keyframe === undefined || !this.context.keyframeProperties.has(keyframe.property)) {
       return null;
     }
 
@@ -425,7 +432,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     }
 
     this.normalizeClipKeyframes(found.clip);
-    this.emit('keyframe:update', {
+    this.context.emit('keyframe:update', {
       clipId: input.clipId,
       keyframe: cloneTimelineKeyframe(keyframe),
     } satisfies ClipKeyframeChangeEvent);
@@ -441,7 +448,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     keyframeId: string,
     options: TimelineKeyframeMutationOptions = {}
   ): boolean {
-    const found = this.getClip(clipId);
+    const found = this.context.geometry.getClip(clipId);
     if (!found || found.track.locked || found.clip.keyframes === undefined) {
       return false;
     }
@@ -452,7 +459,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     }
 
     const [removed] = found.clip.keyframes.splice(keyframeIndex, 1);
-    this.emit('keyframe:remove', {
+    this.context.emit('keyframe:remove', {
       clipId,
       keyframe: cloneTimelineKeyframe(removed),
     } satisfies ClipKeyframeRemoveEvent);
@@ -465,7 +472,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
    */
   selectClipKeyframe(clipId: string | null, keyframeId: string | null) {
     let selectedKeyframe: TimelineKeyframe | null = null;
-    for (const track of this.state.tracks) {
+    for (const track of this.context.state.tracks) {
       for (const clip of track.clips) {
         for (const keyframe of clip.keyframes ?? []) {
           const selected = clip.id === clipId && keyframe.id === keyframeId;
@@ -477,12 +484,12 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
       }
     }
 
-    this.emit('keyframe:select', {
+    this.context.emit('keyframe:select', {
       clipId,
       keyframeId,
       keyframe: selectedKeyframe ? cloneTimelineKeyframe(selectedKeyframe) : null,
     } satisfies ClipKeyframeSelectEvent);
-    this.emit('render');
+    this.context.emit('render');
   }
 
   /**
@@ -495,12 +502,10 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Returns viewport rectangles for keyframes in track order.
    */
-  getKeyframeRects<TrackKind = string>(
-    options: TimelineKeyframeGeometryOptions = {}
-  ): TimelineKeyframeRect<TrackKind>[] {
-    const keyframeRects: TimelineKeyframeRect<TrackKind>[] = [];
+  getKeyframeRects(options: TimelineKeyframeGeometryOptions = {}): TimelineKeyframeRect<string>[] {
+    const keyframeRects: TimelineKeyframeRect<string>[] = [];
 
-    this.forEachTimelineClipGeometry<TrackKind>(
+    this.context.geometry.forEachTimelineClipGeometry(
       options,
       (track, clip, trackIndex, clipIndex, clipRect) => {
         if (options.selectedClipOnly && !clip.selected) {
@@ -536,12 +541,12 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Returns keyframes intersecting the current viewport, plus optional overscan.
    */
-  getVisibleKeyframes<TrackKind = string>(
+  getVisibleKeyframes(
     options: TimelineKeyframeGeometryOptions = {}
-  ): VisibleTimelineKeyframe<TrackKind>[] {
+  ): VisibleTimelineKeyframe<string>[] {
     const viewportWidth = Math.max(
       0,
-      options.viewportWidth ?? this.state.viewportWidth ?? defaultTimelineViewportWidth
+      options.viewportWidth ?? this.context.state.viewportWidth ?? defaultTimelineViewportWidth
     );
     const viewportHeight =
       options.viewportHeight === undefined ? undefined : Math.max(0, options.viewportHeight);
@@ -551,7 +556,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     const minY = -overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
 
-    return this.getKeyframeRects<TrackKind>(options).filter(({ rect }) => {
+    return this.getKeyframeRects(options).filter(({ rect }) => {
       const rectRight = rect.x + rect.width;
       const rectBottom = rect.y + rect.height;
       if (rectRight < minX || rect.x > maxX) {
@@ -564,11 +569,11 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Hit-tests timeline keyframes in viewport coordinates.
    */
-  getKeyframeAtPoint<TrackKind = string>(
+  getKeyframeAtPoint(
     input: TimelineKeyframeHitTestInput
-  ): TimelineKeyframeHitTestResult<TrackKind> | null {
+  ): TimelineKeyframeHitTestResult<string> | null {
     const hitPadding = input.pointerType === 'touch' ? 8 : 2;
-    const rects = this.getVisibleKeyframes<TrackKind>(input);
+    const rects = this.getVisibleKeyframes(input);
     for (let index = rects.length - 1; index >= 0; index--) {
       const rect = rects[index].rect;
       if (
@@ -587,12 +592,12 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Returns keyframe segments in track order.
    */
-  getKeyframeSegments<TrackKind = string>(
+  getKeyframeSegments(
     options: TimelineKeyframeSegmentGeometryOptions = {}
-  ): TimelineKeyframeSegment<TrackKind>[] {
-    const segments: TimelineKeyframeSegment<TrackKind>[] = [];
+  ): TimelineKeyframeSegment<string>[] {
+    const segments: TimelineKeyframeSegment<string>[] = [];
 
-    this.forEachTimelineClipGeometry<TrackKind>(
+    this.context.geometry.forEachTimelineClipGeometry(
       options,
       (track, clip, trackIndex, clipIndex, clipRect) => {
         if (options.selectedClipOnly && !clip.selected) {
@@ -645,12 +650,12 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Returns keyframe segments intersecting the current viewport.
    */
-  getVisibleKeyframeSegments<TrackKind = string>(
+  getVisibleKeyframeSegments(
     options: TimelineKeyframeSegmentGeometryOptions = {}
-  ): VisibleTimelineKeyframeSegment<TrackKind>[] {
+  ): VisibleTimelineKeyframeSegment<string>[] {
     const viewportWidth = Math.max(
       0,
-      options.viewportWidth ?? this.state.viewportWidth ?? defaultTimelineViewportWidth
+      options.viewportWidth ?? this.context.state.viewportWidth ?? defaultTimelineViewportWidth
     );
     const viewportHeight =
       options.viewportHeight === undefined ? undefined : Math.max(0, options.viewportHeight);
@@ -660,7 +665,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     const minY = -overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
 
-    return this.getKeyframeSegments<TrackKind>(options).filter((segment) => {
+    return this.getKeyframeSegments(options).filter((segment) => {
       const bounds = this.getTimelineKeyframeSegmentBounds(segment);
       if (bounds.right < minX || bounds.left > maxX) {
         return false;
@@ -675,7 +680,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   getKeyframeRenderGeometry(
     options: TimelineKeyframeRenderGeometryOptions
   ): TimelineKeyframeRenderGeometry {
-    if (!this.keyframeProperties.has(options.property)) {
+    if (!this.context.keyframeProperties.has(options.property)) {
       throw new RangeError(`Unregistered keyframe property "${options.property}".`);
     }
 
@@ -743,11 +748,11 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   /**
    * Hit-tests Bezier tangent handles in viewport coordinates.
    */
-  getKeyframeTangentHandleAtPoint<TrackKind = string>(
+  getKeyframeTangentHandleAtPoint(
     input: TimelineKeyframeTangentHitTestInput
-  ): TimelineKeyframeTangentHandleHitTestResult<TrackKind> | null {
+  ): TimelineKeyframeTangentHandleHitTestResult<string> | null {
     const hitPadding = input.pointerType === 'touch' ? 8 : 3;
-    const segments = this.getVisibleKeyframeSegments<TrackKind>(input);
+    const segments = this.getVisibleKeyframeSegments(input);
     for (let segmentIndex = segments.length - 1; segmentIndex >= 0; segmentIndex--) {
       const handles = segments[segmentIndex].handles;
       for (let handleIndex = handles.length - 1; handleIndex >= 0; handleIndex--) {
@@ -767,8 +772,8 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     return null;
   }
 
-  private createTimelineKeyframeRect<TrackKind>(
-    track: Track<TrackKind>,
+  private createTimelineKeyframeRect(
+    track: Track<string>,
     clip: Clip,
     trackIndex: number,
     clipIndex: number,
@@ -776,7 +781,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     keyframeIndex: number,
     clipRect: ClipViewportRect,
     options: TimelineKeyframeGeometryOptions
-  ): TimelineKeyframeRect<TrackKind> {
+  ): TimelineKeyframeRect<string> {
     const size = Math.max(4, options.keyframeSize ?? 8);
     const valuePadding = Math.max(0, options.keyframeValuePadding ?? 7);
     const point = this.createTimelineKeyframePoint(keyframe, clipRect, size, valuePadding);
@@ -810,7 +815,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     valuePadding: number
   ): TimelineKeyframePoint {
     return getTimelineKeyframeValuePoint({
-      timeX: this.timeToPixel(keyframe.time),
+      timeX: this.context.timeToPixel(keyframe.time),
       value: this.normalizeKeyframeValue(keyframe.property, keyframe.value) ?? 0,
       clipX: clipRect.x,
       clipWidth: clipRect.width,
@@ -821,8 +826,8 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     });
   }
 
-  private createTimelineKeyframeSegment<TrackKind>(
-    track: Track<TrackKind>,
+  private createTimelineKeyframeSegment(
+    track: Track<string>,
     clip: Clip,
     trackIndex: number,
     clipIndex: number,
@@ -832,7 +837,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     endKeyframeIndex: number,
     clipRect: ClipViewportRect,
     options: TimelineKeyframeSegmentGeometryOptions
-  ): TimelineKeyframeSegment<TrackKind> {
+  ): TimelineKeyframeSegment<string> {
     const keyframeSize = Math.max(4, options.keyframeSize ?? 8);
     const tangentHandleSize = Math.max(4, options.tangentHandleSize ?? 7);
     const valuePadding = Math.max(0, options.keyframeValuePadding ?? 7);
@@ -865,7 +870,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     const segmentId = `${clip.id}:${startKeyframe.id}:${endKeyframe.id}:${startKeyframe.property}`;
     const canEdit = !track.locked;
     const base: Omit<
-      TimelineKeyframeSegment<TrackKind>,
+      TimelineKeyframeSegment<string>,
       'controlPoint1' | 'controlPoint2' | 'handles'
     > = {
       clip,
@@ -907,7 +912,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
       incoming.handle,
       defaultTimelineIncomingBezierHandle
     );
-    const handles: TimelineKeyframeTangentHandle<TrackKind>[] = [
+    const handles: TimelineKeyframeTangentHandle<string>[] = [
       this.createTimelineKeyframeTangentHandle({
         track,
         clip,
@@ -954,8 +959,8 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     };
   }
 
-  private createTimelineKeyframeTangentHandle<TrackKind>(input: {
-    track: Track<TrackKind>;
+  private createTimelineKeyframeTangentHandle(input: {
+    track: Track<string>;
     clip: Clip;
     trackIndex: number;
     clipIndex: number;
@@ -971,7 +976,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     tangent: NonNullable<TimelineKeyframeTangentHandle['tangent']>;
     size: number;
     canEdit: boolean;
-  }): TimelineKeyframeTangentHandle<TrackKind> {
+  }): TimelineKeyframeTangentHandle<string> {
     return {
       track: input.track,
       clip: input.clip,
@@ -1003,9 +1008,7 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
     };
   }
 
-  private getTimelineKeyframeSegmentBounds<TrackKind>(
-    segment: TimelineKeyframeSegment<TrackKind>
-  ): {
+  private getTimelineKeyframeSegmentBounds(segment: TimelineKeyframeSegment<string>): {
     left: number;
     right: number;
     top: number;
@@ -1042,26 +1045,27 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   private getRequiredKeyframePropertyDefinition(
     property: TimelineKeyframePropertyId
   ): TimelineRegisteredKeyframePropertyDefinition | null {
-    return this.keyframeProperties.get(property);
+    return this.context.keyframeProperties.get(property);
   }
 
   private clampKeyframeValue(property: TimelineKeyframePropertyId, value: number): number | null {
-    return this.keyframeProperties.clampValue(property, value);
+    return this.context.keyframeProperties.clampValue(property, value);
   }
 
   private normalizeKeyframeValue(
     property: TimelineKeyframePropertyId,
     value: number
   ): number | null {
-    return this.keyframeProperties.normalizeValue(property, value);
+    return this.context.keyframeProperties.normalizeValue(property, value);
   }
 
   private normalizeClipKeyframes(clip: Clip) {
-    this.keyframeProperties.normalizeClipKeyframes(clip);
+    this.context.keyframeProperties.normalizeClipKeyframes(clip);
   }
 
-  protected validateRegisteredClipKeyframes() {
-    for (const track of this.state.tracks) {
+  /** @internal Normalizes initial keyframes after registration. */
+  validateRegisteredClipKeyframes() {
+    for (const track of this.context.state.tracks) {
       for (const clip of track.clips) {
         this.normalizeClipKeyframes(clip);
       }
@@ -1069,13 +1073,14 @@ export abstract class TimelineEngineKeyframes extends TimelineEngineEditing {
   }
 
   private commitKeyframeMutation(options: TimelineKeyframeMutationOptions) {
-    this.emit('render');
+    this.context.emit('render');
     if (options.commit === false) {
-      this.emit('state:preview');
+      this.context.emit('state:preview');
       return;
     }
 
-    this.snapshot();
-    this.emit('state:settled');
+    this.context.invalidateContent();
+    this.context.snapshot();
+    this.context.emit('state:settled');
   }
 }

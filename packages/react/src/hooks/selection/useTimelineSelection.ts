@@ -1,11 +1,8 @@
+import { deriveTimelineSelection } from '#react/hooks/clips/timelineClipModel';
+import type { TimelineSelectionState } from '#react/hooks/clips/timelineClipModel';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
-import {
-  deriveTimelineSelection,
-  type TimelineSelectionState,
-} from '#react/hooks/clips/timelineClipModel';
-
 export type { TimelineSelectionState } from '#react/hooks/clips/timelineClipModel';
 
 /**
@@ -18,15 +15,11 @@ export type { TimelineSelectionState } from '#react/hooks/clips/timelineClipMode
  * includes both primary selection fields and multi-selection arrays so product
  * chrome can avoid re-deriving selection from raw tracks.
  *
- * @template TrackKind - App-defined track kind values carried by selected
- * tracks.
  *
  * @see {@link useTimelineClips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export interface UseTimelineSelectionResult<
-  TrackKind = string,
-> extends TimelineSelectionState<TrackKind> {
+export interface UseTimelineSelectionResult extends TimelineSelectionState {
   /** Selects a clip by id, or clears clip selection when passed null. */
   selectClip: (clipId: string | null) => void;
   /** Selects multiple clips by id, clearing clips not included. */
@@ -49,8 +42,6 @@ export interface UseTimelineSelectionResult<
  * selection badges, grouped-clip panels, and toolbar enablement.
  *
  * @returns Selected clip and track state plus selection commands.
- * @template TrackKind - App-defined track kind values carried by selected
- * tracks.
  *
  * @example
  * ```tsx
@@ -75,10 +66,14 @@ export interface UseTimelineSelectionResult<
  * @see {@link useTimelineClips}
  * @see {@link https://canvastimeline.com/demos/clip-grouping-import | Clip grouping import demo}
  */
-export function useTimelineSelection<TrackKind = string>(): UseTimelineSelectionResult<TrackKind> {
-  const { engine, state } = useTimeline();
+export function useTimelineSelection(): UseTimelineSelectionResult {
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    clipGroups: state.clipGroups,
+    tracks: state.tracks,
+  }));
   const selection = useMemo(
-    () => deriveTimelineSelection(getTimelineTracks<TrackKind>(state.tracks), state.clipGroups),
+    () => deriveTimelineSelection(state.tracks, state.clipGroups),
     [state.clipGroups, state.tracks]
   );
 

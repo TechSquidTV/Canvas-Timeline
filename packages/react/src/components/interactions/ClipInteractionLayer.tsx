@@ -1,4 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
+import { useTimelineClipDrag, useTimelineClipNavigation } from '#react/hooks';
+import type { TimelineClipNavigationOptions } from '#react/hooks';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import type {
   ClipHitRegion,
   ClipHitTestResult,
@@ -6,16 +11,8 @@ import type {
   TimelineEngine,
   TimelineInteractionGeometry,
 } from '@techsquidtv/canvas-timeline-core';
-import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import {
-  useTimeline,
-  useTimelineClipDrag,
-  useTimelineClipNavigation,
-  type TimelineClipNavigationOptions,
-} from '#react/hooks';
-import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 interface OverlayState {
   clipId: string;
   region: ClipHitRegion;
@@ -81,7 +78,7 @@ export interface ClipInteractionLayerProps
   getClipAriaDescription?: TimelineClipNavigationOptions['getClipAriaDescription'];
 }
 
-function getSelectedClipId(tracks: ReturnType<typeof useTimeline>['state']['tracks']) {
+function getSelectedClipId(tracks: ReturnType<TimelineEngine['getState']>['tracks']) {
   for (const track of tracks) {
     const clip = track.clips.find((candidate) => candidate.selected);
     if (clip) {
@@ -134,7 +131,8 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
     },
     forwardedRef
   ) => {
-    const { engine, state } = useTimeline();
+    const engine = useTimelineEngine();
+    const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
     const internalRef = useRef<HTMLDivElement>(null);
     const activeEditRef = useRef<ActiveEdit | null>(null);
     const [hoveredClipId, setHoveredClipId] = useState<string | null>(null);
@@ -223,8 +221,8 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           return;
         }
 
-        const found = engine.getClip(clipId);
-        const rect = engine.getClipRect(clipId, geometry);
+        const found = engine.geometry.getClip(clipId);
+        const rect = engine.geometry.getClipRect(clipId, geometry);
         if (!found || !rect) {
           setOverlay(null);
           return;
@@ -263,8 +261,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           if (activeEditRef.current.region === 'body') {
             cancelClipDrag();
           } else {
-            engine.endDrag();
-            engine.settle();
+            engine.cancelEdit();
           }
         }
       };
@@ -279,17 +276,21 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
 
         const deltaX = event.clientX - activeEdit.startClientX;
         if (activeEdit.region === 'start-edge') {
-          engine.trimClip(
-            activeEdit.clipId,
-            'start',
-            engine.pixelToTime(activeEdit.startLeft + deltaX)
-          );
+          engine.previewEdit({
+            type: 'trim',
+            overwrite: true,
+            clipId: activeEdit.clipId,
+            edge: 'start',
+            newTime: engine.pixelToTime(activeEdit.startLeft + deltaX),
+          });
         } else if (activeEdit.region === 'end-edge') {
-          engine.trimClip(
-            activeEdit.clipId,
-            'end',
-            engine.pixelToTime(activeEdit.startRight + deltaX)
-          );
+          engine.previewEdit({
+            type: 'trim',
+            overwrite: true,
+            clipId: activeEdit.clipId,
+            edge: 'end',
+            newTime: engine.pixelToTime(activeEdit.startRight + deltaX),
+          });
         } else {
           const point = getViewportPoint(event);
           if (!point) {
@@ -317,16 +318,31 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
 
         if (activeEdit?.dragging) {
           if (activeEdit.region === 'body') {
-            endClipDrag();
+            if (event.type === 'pointercancel') {
+              cancelClipDrag();
+            } else {
+              endClipDrag();
+            }
           } else {
-            engine.endDrag();
-            engine.settle();
+            const command = engine.getEditPreview()?.command;
+            if (command && event.type !== 'pointercancel') {
+              engine.commitEdit(command);
+            }
+            engine.cancelEdit();
           }
         }
 
         refreshOverlay(hoveredClipId ?? selectedClipId, hoveredRegion);
       },
-      [endClipDrag, engine, hoveredClipId, hoveredRegion, refreshOverlay, selectedClipId]
+      [
+        cancelClipDrag,
+        endClipDrag,
+        engine,
+        hoveredClipId,
+        hoveredRegion,
+        refreshOverlay,
+        selectedClipId,
+      ]
     );
 
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -341,7 +357,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
 
       const point = getViewportPoint(event);
       const hit = point
-        ? engine.getClipAtPoint({
+        ? engine.geometry.getClipAtPoint({
             ...geometry,
             ...point,
             pointerType: event.pointerType,
@@ -402,7 +418,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
         return;
       }
 
-      const hit = engine.getClipAtPoint({
+      const hit = engine.geometry.getClipAtPoint({
         ...geometry,
         ...point,
         pointerType: event.pointerType,
@@ -455,7 +471,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
         });
       } else {
         engine.prepareSnapping(hit.clip.id);
-        engine.startDrag();
+        engine.cancelEdit();
       }
 
       activeEditRef.current = {

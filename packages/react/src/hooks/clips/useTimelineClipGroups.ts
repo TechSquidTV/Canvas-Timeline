@@ -1,13 +1,10 @@
-import { useCallback, useMemo } from 'react';
-import type { TimelineClipEntry, TimelineClipGroup } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import type { TimelineClipEntry, TimelineClipGroup } from '@techsquidtv/canvas-timeline-core';
+import { useCallback, useMemo } from 'react';
 /** Result returned by `useTimelineClipGroups`. */
 export interface UseTimelineClipGroupsResult {
   /** Current clip groups. */
@@ -39,7 +36,8 @@ export interface UseTimelineClipGroupsResult {
  * @returns Clip group collection, selected group metadata, lookups, and commands.
  */
 export function useTimelineClipGroups(): UseTimelineClipGroupsResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ clipGroups: state.clipGroups }));
   const { selectedClipIds, selectedGroup, selectedGroupId } = useTimelineSelection();
   const groups = useMemo(() => state.clipGroups, [state.clipGroups]);
 

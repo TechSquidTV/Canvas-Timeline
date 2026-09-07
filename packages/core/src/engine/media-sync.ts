@@ -6,7 +6,7 @@ export function createClipSourceRange(clip: Clip): ClipSourceRange {
   const duration = subRational(clip.timelineEnd, clip.timelineStart);
   return {
     sourceId: clip.sourceId,
-    start: clip.sourceStart,
+    start: { ...clip.sourceStart },
     end: addRational(clip.sourceStart, duration),
     duration,
   };

@@ -1,11 +1,11 @@
-import { useCallback, useMemo } from 'react';
-import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { formatTimelineTimeValue } from '#react/accessibility';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
-
+import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo } from 'react';
 /**
  * Options for adapting the timeline playhead to a scalar control.
  */
@@ -57,7 +57,11 @@ export interface TimelinePlayheadControlOptions {
  */
 export function useTimelinePlayheadControl(options: TimelinePlayheadControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    duration: state.duration,
+    tracks: state.tracks,
+  }));
   const playheadTime = useTimelinePlayheadTime();
   const max = useMemo(() => {
     if (optionMax !== undefined) {
