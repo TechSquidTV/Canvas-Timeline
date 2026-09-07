@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
+import { preProcessFile } from 'typescript';
 import { describe, expect, it } from 'vite-plus/test';
 import { demoCodeExamples } from '#www/data/demo-code';
 import { toCopyableDemoSource } from '#www/data/demo-snippets';
@@ -105,3 +108,42 @@ describe('demo code examples', () => {
     }
   });
 });
+
+it.each(Object.entries(demoCodeExamples))(
+  '%s includes every local module referenced by its code tabs',
+  (_id, example) => {
+    const codeTabs = [
+      example.tsx,
+      example.data,
+      ...(example.extraTabs ?? []).map((tab) => tab.code),
+    ];
+    const files = [
+      example.sourceFiles.component,
+      example.sourceFiles.data,
+      ...[example.sourceFiles.utilities ?? []].flat(),
+    ];
+    const repositoryRoot = process.cwd();
+    for (const source of codeTabs) {
+      for (const { fileName } of preProcessFile(source).importedFiles) {
+        expect(fileName).not.toMatch(/^(?:#|@\/)/);
+        if (!fileName.startsWith('.')) {
+          continue;
+        }
+        if (fileName.endsWith('.css')) {
+          expect(example.css).toBeTruthy();
+          expect(fileName).toBe(`./${basename(example.sourceFiles.styles ?? '')}`);
+          continue;
+        }
+        const dependency = files.find(
+          (file) => basename(file).replace(/\.tsx?$/, '') === fileName.slice(2)
+        );
+        expect(dependency, `Missing source for ${fileName}`).toBeDefined();
+        if (dependency !== undefined) {
+          expect(codeTabs, `Missing code tab for ${fileName}`).toContain(
+            toCopyableDemoSource(readFileSync(resolve(repositoryRoot, dependency), 'utf8'))
+          );
+        }
+      }
+    }
+  }
+);

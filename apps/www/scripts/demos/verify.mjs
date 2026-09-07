@@ -1,5 +1,7 @@
+import { preProcessFile } from 'typescript';
+import { toCopyableDemoSource } from '../../src/data/demo-snippets.ts';
 import { access, readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -70,7 +72,25 @@ for (const id of registryIds) {
     try {
       const absolutePath = resolve(appDir, '..', '..', file);
       await access(absolutePath);
-      const source = await readFile(absolutePath, 'utf8');
+      const source = toCopyableDemoSource(await readFile(absolutePath, 'utf8'));
+
+      if (/\.tsx?$/.test(file)) {
+        for (const { fileName } of preProcessFile(source).importedFiles) {
+          if (/^(?:#|@\/)/.test(fileName)) {
+            errors.push(`demoCodeExamples["${id}"] exposes private import ${fileName} in ${file}.`);
+          }
+          if (
+            fileName.startsWith('.') &&
+            !files.some(
+              (candidate) => `./${basename(candidate).replace(/\.tsx?$/, '')}` === fileName
+            )
+          ) {
+            errors.push(
+              `demoCodeExamples["${id}"] is missing source for local import ${fileName}.`
+            );
+          }
+        }
+      }
 
       if (/import\s+['"]\.\/timeline-editor\.css['"]/.test(source)) {
         if (!/\bcss:\s*/.test(block)) {

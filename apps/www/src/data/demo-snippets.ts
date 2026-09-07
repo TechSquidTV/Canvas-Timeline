@@ -67,5 +67,11 @@ export function toCopyableDemoSource(source: string): string {
     source
   );
 
-  return mergePublicPackageImports(publicPackageSource);
+  // Code tabs form one copyable folder, including shared demo helpers and styles.
+  const localModuleSource = publicPackageSource.replace(
+    /((?:\bfrom\s+|\bimport\s*)['"])#www\/(?:[^/'"\n]+\/)*([^/'"\n]+)(['"])/g,
+    '$1./$2$3'
+  );
+
+  return mergePublicPackageImports(localModuleSource);
 }

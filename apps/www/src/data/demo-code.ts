@@ -31,6 +31,7 @@ import customPlayheadTimelineSource from '#www/demos/custom-playhead/CustomPlayh
 import customPlayheadDataSource from '#www/demos/custom-playhead/timeline-demo-data?raw';
 import demoClipColorsSource from '#www/demos/demo-clip-colors?raw';
 import demoInstrumentationSource from '#www/demos/demo-instrumentation?raw';
+import metricsCommonSource from '#www/lib/metrics-common?raw';
 import { toCopyableDemoSource } from '#www/data/demo-snippets';
 
 interface DemoCodeTab {
@@ -64,6 +65,13 @@ const demoInstrumentationTab: DemoCodeTab = {
   id: 'instrumentation',
   label: 'Instrumentation',
   code: toCopyableDemoSource(demoInstrumentationSource),
+  lang: 'ts',
+};
+
+const metricsCommonTab: DemoCodeTab = {
+  id: 'metrics-common',
+  label: 'Metric helpers',
+  code: toCopyableDemoSource(metricsCommonSource),
   lang: 'ts',
 };
 
@@ -101,26 +109,28 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
   'media-sync': {
     tsx: toCopyableDemoSource(mediaSyncTimelineSource),
     data: toCopyableDemoSource(mediaSyncDataSource),
-    extraTabs: [demoClipColorsTab, demoInstrumentationTab],
+    extraTabs: [demoClipColorsTab, demoInstrumentationTab, metricsCommonTab],
     sourceFiles: {
       component: 'apps/www/src/demos/media-preview-sync/MediaTimelineSync.tsx',
       data: 'apps/www/src/demos/media-preview-sync/timeline-demo-data.ts',
       utilities: [
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/lib/metrics-common.ts',
       ],
     },
   },
   'html-media-sync': {
     tsx: toCopyableDemoSource(htmlMediaSyncTimelineSource),
     data: toCopyableDemoSource(htmlMediaSyncDataSource),
-    extraTabs: [demoClipColorsTab, demoInstrumentationTab],
+    extraTabs: [demoClipColorsTab, demoInstrumentationTab, metricsCommonTab],
     sourceFiles: {
       component: 'apps/www/src/demos/html-media-sync/HTMLMediaTimelineSync.tsx',
       data: 'apps/www/src/demos/html-media-sync/timeline-demo-data.ts',
       utilities: [
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/lib/metrics-common.ts',
       ],
     },
   },
@@ -183,6 +193,8 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
     css: keyframeOpacityStylesSource,
     extraTabs: [
       demoClipColorsTab,
+      demoInstrumentationTab,
+      metricsCommonTab,
       {
         id: 'keyframe-utils',
         label: 'Keyframe utilities',
@@ -195,6 +207,8 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
       component: 'apps/www/src/demos/keyframe-opacity/KeyframeOpacityTimeline.tsx',
       utilities: [
         'apps/www/src/demos/keyframe-opacity/keyframe-opacity-utils.ts',
+        'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/lib/metrics-common.ts',
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/shared-timeline-editor.css',
       ],
@@ -207,6 +221,7 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
     extraTabs: [
       demoClipColorsTab,
       demoInstrumentationTab,
+      metricsCommonTab,
       {
         id: 'controls',
         label: 'Benchmark controls',
@@ -228,6 +243,7 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
         'apps/www/src/demos/react-dom-timeline/DOMTimelineComponents.tsx',
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/lib/metrics-common.ts',
       ],
       data: 'apps/www/src/demos/timeline-stress-test/timeline-demo-data.ts',
     },
