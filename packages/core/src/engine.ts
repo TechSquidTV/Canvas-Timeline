@@ -1,4 +1,5 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
+import type { createDocumentSnapshot } from '#core/document-snapshot';
 import {
   timelineCommandOk,
   timelineCommandFail,
@@ -157,7 +158,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param label - Optional visible marker label.
    * @param color - Optional marker color.
    * @param description - Optional longer marker note.
-   * @returns The created marker.
+   * @returns An owned copy of the created marker.
    */
   addMarker(time: RationalTime, label?: string, color?: string, description?: string) {
     assertValidRationalTime(time, 'time');
@@ -174,10 +175,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.markers.push(marker);
     this.invalidateContent();
     this.snapshot();
-    this.emit('marker:add', { marker });
+    this.emit('marker:add', { marker: createMarkerSnapshots([marker])[0] });
     this.emit('state:settled');
     this.emit('render');
-    return marker;
+    return createMarkerSnapshots([marker])[0];
   }
 
   /**
@@ -207,7 +208,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    *
    * @param id - Marker id to update.
    * @param updates - Marker fields to merge into the existing marker.
-   * @returns The updated marker, or `null` when no marker was found.
+   * @returns An owned copy of the updated marker, or `null` when no marker was found.
    */
   updateMarker(id: string, updates: Partial<Omit<Marker, 'id'>>) {
     if (updates.time !== undefined) {
@@ -229,14 +230,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
           marker.description = updates.description;
         }
         if (Object.hasOwn(updates, 'snap')) {
-          marker.snap = updates.snap;
+          marker.snap = createMarkerSnapshots([{ ...marker, snap: updates.snap }])[0].snap;
         }
         this.invalidateContent();
         this.snapshot();
-        this.emit('marker:update', { marker });
+        this.emit('marker:update', { marker: createMarkerSnapshots([marker])[0] });
         this.emit('state:settled');
         this.emit('render');
-        return marker;
+        return createMarkerSnapshots([marker])[0];
       }
     }
     return null;
@@ -852,17 +853,21 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Clears the active command-layer edit preview and snap guides.
    */
   cancelEdit() {
+    this.clearEditPreview();
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    this.emit('state:preview');
+    this.emit('render');
+  }
+
+  private clearEditPreview() {
     this.previewIds.clear();
     this.previewTracks = null;
     this.renderSnapshot = undefined;
     this.renderedTracks = null;
     this.editPreview = null;
     this.editImpacts = null;
-    this.publishSnapFeedback(emptyTimelineSnapFeedback);
-    this.emit('edit:preview', null);
-    this.emit('edit:impacts', null);
-    this.emit('state:preview');
-    this.emit('render');
   }
 
   private publishEditPreview(preview: TimelineEditPreview) {
@@ -1236,7 +1241,12 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       getClip: (id) => this.geometry.getClip(id),
     });
     this.playbackManager = new PlaybackManager(this, this.state);
-    this.historyManager = new HistoryManager(this, this.state, initialState.history);
+    this.historyManager = new HistoryManager(
+      this,
+      this.state,
+      (snapshot) => this.restoreHistoryDocument(snapshot),
+      initialState.history
+    );
     this.clipboardManager = new ClipboardManager(this);
     this.normalizeClipGroups();
     this.keyframes.validateRegisteredClipKeyframes();
@@ -1901,6 +1911,38 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   // --- Undo / Redo ---
+
+  private restoreHistoryDocument(snapshot: ReturnType<typeof createDocumentSnapshot>) {
+    const tracks = createTrackSnapshots(snapshot.tracks);
+    const markers = createMarkerSnapshots(snapshot.markers);
+    const clipGroups = createClipGroupSnapshots(snapshot.clipGroups);
+    const previousScrollLeft = this.state.scrollLeft;
+    const previousScrollTop = this.state.scrollTop;
+    const previousZoomScale = this.state.zoomScale;
+    this.state.tracks = tracks;
+    this.state.markers = markers;
+    this.state.clipGroups = clipGroups;
+    this.clearEditPreview();
+    this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
+    this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
+    this.clampScrollTop();
+    this.invalidateContent();
+    this.publishSnapFeedback(emptyTimelineSnapFeedback);
+    this.clearClipDropFeedback();
+    this.emit('edit:preview', null);
+    this.emit('edit:impacts', null);
+    if (previousZoomScale !== this.state.zoomScale) {
+      this.emit('zoom:change', this.state.zoomScale);
+    }
+    if (
+      previousScrollLeft !== this.state.scrollLeft ||
+      previousScrollTop !== this.state.scrollTop
+    ) {
+      this.emitScrollChange();
+    }
+    this.emit('state:settled');
+    this.emit('render');
+  }
 
   /**
    * Stores the current track and marker state in undo history.

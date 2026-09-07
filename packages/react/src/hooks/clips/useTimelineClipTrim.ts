@@ -1,5 +1,6 @@
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
+import { TimelineEditGesture } from '#react/hooks/editing/timelineEditGesture';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
@@ -39,7 +40,7 @@ export interface UseTimelineClipTrimResult {
 interface ActiveTrim extends TimelineClipTrimStartInput {
   startTime: RationalTime;
   zoomScale: number;
-  preview: TimelineEditPreview | null;
+  gesture: TimelineEditGesture;
 }
 
 /**
@@ -74,25 +75,16 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
   const activeRef = useRef<ActiveTrim | null>(null);
   const [trimming, setTrimming] = useState(false);
 
-  const clearPreview = useCallback(
-    (active: ActiveTrim) => {
-      if (engine.getEditPreview() === active.preview) {
-        engine.cancelEdit();
-      }
-    },
-    [engine]
-  );
-
   useEffect(
     () => () => {
       const active = activeRef.current;
       activeRef.current = null;
       if (active) {
-        clearPreview(active);
+        active.gesture.cancel();
         setTrimming(false);
       }
     },
-    [clearPreview]
+    [engine]
   );
 
   const startClipTrim = useCallback(
@@ -118,7 +110,7 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
           ...(input.edge === 'start' ? found.clip.timelineStart : found.clip.timelineEnd),
         },
         zoomScale: engine.zoomScale,
-        preview: null,
+        gesture: new TimelineEditGesture(engine),
       };
       setTrimming(true);
       return timelineCommandOk();
@@ -138,10 +130,10 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
         if (!Number.isFinite(input.clientX)) {
           return timelineCommandFail('invalid-input');
         }
-        if (engine.getEditPreview() !== active.preview) {
+        if (!active.gesture.isCurrent()) {
           return timelineCommandFail('unsupported', 'The trim preview was replaced.');
         }
-        const preview = engine.previewEdit({
+        const preview = active.gesture.publish({
           type: 'trim',
           overwrite: true,
           clipId: active.clipId,
@@ -151,12 +143,11 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
             fromSeconds((input.clientX - active.clientX) / active.zoomScale, active.startTime.r)
           ),
         });
-        active.preview = preview;
         return preview.valid
           ? timelineCommandOk(preview)
           : timelineCommandFail(preview.reason ?? 'unsupported', preview.message);
       }),
-    [engine]
+    []
   );
 
   const endClipTrim = useCallback((): TimelineCommandResult => {
@@ -166,20 +157,23 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
     }
     activeRef.current = null;
     setTrimming(false);
-    if (engine.getEditPreview() !== active.preview) {
+    const current = active.gesture.isCurrent();
+    const preview = active.gesture.preview;
+    active.gesture.release();
+    if (!current) {
       return timelineCommandFail('unsupported', 'The trim preview was replaced.');
     }
-    if (!active.preview) {
-      clearPreview(active);
+    if (!preview) {
+      engine.cancelEdit();
       return timelineCommandOk();
     }
-    const result = engine.commitEdit(active.preview.command);
+    const result = engine.commitEdit(preview.command);
     // Failed commits publish a fresh preview; it still belongs to this gesture.
     engine.cancelEdit();
     return result.committed
       ? timelineCommandOk()
       : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
-  }, [clearPreview, engine]);
+  }, [engine]);
 
   const cancelClipTrim = useCallback((): TimelineCommandResult => {
     const active = activeRef.current;
@@ -188,9 +182,9 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
     }
     activeRef.current = null;
     setTrimming(false);
-    clearPreview(active);
+    active.gesture.cancel();
     return timelineCommandOk();
-  }, [clearPreview]);
+  }, []);
 
   return useMemo(
     () => ({ trimming, startClipTrim, moveClipTrim, endClipTrim, cancelClipTrim }),

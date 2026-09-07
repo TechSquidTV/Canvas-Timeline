@@ -9,6 +9,55 @@ import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
+test('paused media refreshes changed layer membership without seeking for equivalent inline selectors', async () => {
+  const engine = createMediaSyncEngine();
+  let frame: FrameRequestCallback | undefined;
+  const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    frame = callback;
+    return 1;
+  });
+  const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+    frame = undefined;
+  });
+  const seek = vi.fn<NonNullable<TimelineMediaSyncAdapter['seek']>>();
+  const adapter = { getClockTime: () => 1, startClock: () => true, seek };
+  const { rerender, unmount } = renderHook(
+    ({ enabled }) =>
+      useTimelineMediaSync({
+        adapter,
+        layers: { visuals: { trackKind: 'visual', predicate: () => enabled } },
+      }),
+    {
+      initialProps: { enabled: true },
+      wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
+    }
+  );
+  const flushFrame = async () => {
+    const pending = frame;
+    frame = undefined;
+    await act(async () => {
+      pending?.(0);
+    });
+  };
+  try {
+    await flushFrame();
+    expect(seek).toHaveBeenCalledOnce();
+    rerender({ enabled: true });
+    expect(frame).toBeUndefined();
+    rerender({ enabled: false });
+    await flushFrame();
+    expect(seek).toHaveBeenCalledTimes(2);
+    expect(seek.mock.calls[1]?.[1].hasActiveClips).toBe(false);
+    rerender({ enabled: true });
+    await flushFrame();
+    expect(seek.mock.calls[2]?.[1].hasActiveClips).toBe(true);
+  } finally {
+    unmount();
+    raf.mockRestore();
+    cancel.mockRestore();
+  }
+});
+
 test('useTimelineMediaSync reports loop clock restart failures', async () => {
   const engine = createMediaSyncEngine();
   engine.setInPoint(fromSeconds(1), false);

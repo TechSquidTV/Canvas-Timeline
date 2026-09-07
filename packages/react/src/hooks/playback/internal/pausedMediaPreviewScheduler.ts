@@ -72,6 +72,7 @@ export function usePausedMediaPreviewSynchronization<LayerName extends string>({
   const playingRef = useRef(playing);
   const onErrorRef = useRef(onError);
   const primedRef = useRef(false);
+  const layerSelectionRef = useRef<{ engine: TimelineEngine; signature: string } | null>(null);
   const [scheduler] = useState(() => new PausedMediaPreviewScheduler());
 
   useEffect(() => {
@@ -142,6 +143,24 @@ export function usePausedMediaPreviewSynchronization<LayerName extends string>({
       });
     });
   }, [canSeek, engine, operationQueue, scheduler]);
+
+  useEffect(() => {
+    if (!canSeek()) {
+      return;
+    }
+    const activeLayers = engine.media.getActiveLayers({ layers });
+    const signature = JSON.stringify(
+      (Object.keys(activeLayers.layers) as LayerName[]).map((name) => [
+        name,
+        activeLayers.layers[name].map((entry) => entry.syncKey),
+      ])
+    );
+    const previous = layerSelectionRef.current;
+    layerSelectionRef.current = { engine, signature };
+    if (previous && (previous.engine !== engine || previous.signature !== signature)) {
+      schedule();
+    }
+  }, [canSeek, engine, layers, playing, ready, schedule]);
 
   useEffect(() => {
     const unsubscribers = [
