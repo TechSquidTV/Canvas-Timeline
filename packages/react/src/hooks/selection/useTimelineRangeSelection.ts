@@ -1,3 +1,4 @@
+import { timelineCommandOk, timelineCommandFail } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
   TimelineEditCommitResult,
@@ -22,9 +23,9 @@ export interface UseTimelineRangeSelectionResult {
   /** Whether a complete range is selected. */
   hasRange: boolean;
   /** Sets both range boundaries. */
-  setRange: (range: TimelineRangeSelection) => void;
+  setRange: (range: TimelineRangeSelection) => TimelineCommandResult;
   /** Clears the range boundaries. */
-  clearRange: () => void;
+  clearRange: () => TimelineCommandResult;
   /** Deletes the selected range, closing the gap by default. */
   deleteRange: (options?: {
     trackIds?: readonly string[];
@@ -63,43 +64,45 @@ export function useTimelineRangeSelection(): UseTimelineRangeSelectionResult {
 
   const setRange = useCallback(
     (nextRange: TimelineRangeSelection) => {
-      engine.setInPoint(nextRange.startTime);
-      engine.setOutPoint(nextRange.endTime);
+      return engine.setInOutRange(nextRange.startTime, nextRange.endTime);
     },
     [engine]
   );
 
   const clearRange = useCallback(() => {
     engine.clearInOutPoints();
+    return timelineCommandOk();
   }, [engine]);
 
   const deleteRange = useCallback(
     (options: { trackIds?: readonly string[]; ripple?: boolean } = {}) => {
-      if (range === null) {
-        return { ok: false as const, reason: 'invalid-range' as const };
+      const { inPoint, outPoint } = engine.getState();
+      if (inPoint === undefined || outPoint === undefined) {
+        return timelineCommandFail<TimelineEditCommitResult>('invalid-range');
       }
       return commitDeleteRange({
-        startTime: range.startTime,
-        endTime: range.endTime,
+        startTime: inPoint,
+        endTime: outPoint,
         trackIds: options.trackIds,
         ripple: options.ripple,
       });
     },
-    [commitDeleteRange, range]
+    [commitDeleteRange, engine]
   );
 
   const liftRange = useCallback(
     (options: { trackIds?: readonly string[] } = {}) => {
-      if (range === null) {
-        return { ok: false as const, reason: 'invalid-range' as const };
+      const { inPoint, outPoint } = engine.getState();
+      if (inPoint === undefined || outPoint === undefined) {
+        return timelineCommandFail<TimelineEditCommitResult>('invalid-range');
       }
       return commitLiftRange({
-        startTime: range.startTime,
-        endTime: range.endTime,
+        startTime: inPoint,
+        endTime: outPoint,
         trackIds: options.trackIds,
       });
     },
-    [commitLiftRange, range]
+    [commitLiftRange, engine]
   );
 
   return useMemo(

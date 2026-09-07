@@ -1,3 +1,4 @@
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import { formatTimelineRangeValue, formatTimelineTimeValue } from '#react/accessibility';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -83,15 +84,15 @@ export function useTimelineInOutRangeControl(options: TimelineInOutRangeControlO
     step,
   } = options;
   const engine = useTimelineEngine();
+  const bounds = useTimelineViewportBounds();
   const state = useTimelineSelector((state) => ({
-    duration: state.duration,
     inPoint: state.inPoint,
     outPoint: state.outPoint,
   }));
   const preparedSnapIndexRef = useRef<number | null>(null);
   const control = useMemo(() => {
     const min = optionMin ?? 0;
-    const max = optionMax ?? (state.duration ? toSeconds(state.duration) : 100);
+    const max = optionMax ?? toSeconds(bounds.maxContentTime);
     const value: [number, number] = [
       state.inPoint ? toSeconds(state.inPoint) : min,
       state.outPoint ? toSeconds(state.outPoint) : max,
@@ -106,7 +107,7 @@ export function useTimelineInOutRangeControl(options: TimelineInOutRangeControlO
       value,
       valueText: formatTimelineRangeValue(value[0], value[1], { includeDuration: true }),
     };
-  }, [optionMax, optionMin, state.duration, state.inPoint, state.outPoint, step]);
+  }, [optionMax, optionMin, bounds.maxContentTime, state.inPoint, state.outPoint, step]);
 
   const setValue = useCallback(
     (nextValue: number[], eventDetails?: RangeChangeDetails) => {
@@ -128,6 +129,17 @@ export function useTimelineInOutRangeControl(options: TimelineInOutRangeControlO
         nextValue[0] === undefined ? undefined : clamp(nextValue[0], control.min, control.max);
       const nextOut =
         nextValue[1] === undefined ? undefined : clamp(nextValue[1], control.min, control.max);
+
+      if (
+        !shouldSnap &&
+        nextIn !== undefined &&
+        nextOut !== undefined &&
+        nextIn !== control.value[0] &&
+        nextOut !== control.value[1]
+      ) {
+        engine.setInOutRange(fromSeconds(nextIn), fromSeconds(nextOut));
+        return;
+      }
 
       if (nextIn !== undefined && nextIn !== control.value[0]) {
         engine.setInPoint(fromSeconds(nextIn), shouldSnap && activeThumbIndex === 0);

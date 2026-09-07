@@ -1,3 +1,4 @@
+import { useTimelineViewportBounds } from '#react/hooks/viewport/useTimelineViewportBounds';
 import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -65,6 +66,7 @@ export interface UseTimelineViewportResult {
  */
 export function useTimelineViewport(): UseTimelineViewportResult {
   const engine = useTimelineEngine();
+  const bounds = useTimelineViewportBounds();
   const state = useTimelineSelector((state) => ({
     duration: state.duration,
     viewportHeight: state.viewportHeight,
@@ -125,10 +127,10 @@ export function useTimelineViewport(): UseTimelineViewportResult {
   const viewportWidth = state.viewportWidth || 1000;
   const viewportHeight = state.viewportHeight ?? 600;
   const safeZoomScale = Math.max(zoomScale || 0, 0.1);
-  const maxContentTime = engine.maxContentTime;
+  const maxContentTime = bounds.maxContentTime;
   const duration = state.duration;
-  const maxScrollLeft = engine.maxScrollLeft;
-  const maxScrollTop = engine.maxScrollTop;
+  const maxScrollLeft = bounds.maxScrollLeft;
+  const maxScrollTop = bounds.maxScrollTop;
   const viewportDurationSeconds = viewportWidth / safeZoomScale;
   const visibleStartSeconds = clamp(scrollLeft / safeZoomScale, 0, toSeconds(maxContentTime));
   const visibleEndSeconds = Math.min(
