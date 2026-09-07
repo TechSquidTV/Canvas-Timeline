@@ -1,15 +1,15 @@
-import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
-import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { useSourceBinMedia } from '#full-editor/features/source-bin/source-bin-context';
-import {
-  EditorMediaSyncContext,
-  type EditorMediaSyncContextValue,
-  type PreviewLayerName,
+import { EditorMediaSyncContext } from '#full-editor/features/media/media-sync-context';
+import type {
+  EditorMediaSyncContextValue,
+  PreviewLayerName,
 } from '#full-editor/features/media/media-sync-context';
-import { useEditorProject } from '#full-editor/features/project/project-context';
 import { getProjectFrameRatePreset } from '#full-editor/features/project/frame-rate';
-
+import { useEditorProject } from '#full-editor/features/project/project-context';
+import { useSourceBinMedia } from '#full-editor/features/source-bin/source-bin-context';
+import type { MediabunnySource } from '@techsquidtv/canvas-timeline-mediabunny-adapter';
+import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+import { useCallback, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual' },
   audio: { trackKind: 'audio' },
@@ -84,7 +84,7 @@ function IdleMediaSyncProvider({ children }: { children: ReactNode }) {
   const canvasRef = useCallback(() => {}, []);
   const clearPlaybackError = useCallback(() => {}, []);
   const pause = useCallback(
-    () => ({ ok: false, reason: 'disabled' as const, message: 'No media loaded.' }),
+    () => ({ ok: false as const, reason: 'disabled' as const, message: 'No media loaded.' }),
     []
   );
   const play = useCallback(

@@ -1,10 +1,10 @@
-import { useCallback, useMemo } from 'react';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import type { TimelineEditCommitResult } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
 import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
+import type { TimelineEditCommitResult } from '@techsquidtv/canvas-timeline-core';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo } from 'react';
 /** Timeline range selected for range edit commands. */
 export interface TimelineRangeSelection {
   /** Inclusive selected range start. */
@@ -43,7 +43,11 @@ export interface UseTimelineRangeSelectionResult {
  * @returns Range selection state and range edit commands.
  */
 export function useTimelineRangeSelection(): UseTimelineRangeSelectionResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    inPoint: state.inPoint,
+    outPoint: state.outPoint,
+  }));
   const { deleteRange: commitDeleteRange, liftRange: commitLiftRange } = useTimelineEditCommands();
   const range = useMemo(() => {
     if (state.inPoint === undefined || state.outPoint === undefined) {

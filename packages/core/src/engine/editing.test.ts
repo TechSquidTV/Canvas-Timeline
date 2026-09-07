@@ -1,15 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vite-plus/test';
 import { TimelineEngine } from '#core/engine';
+import type { ClipCreatedEvent, ClipMoveEvent, ClipRemovedEvent } from '#core/events';
 import { createTimelineScalarKeyframeProperty } from '#core/keyframes';
 import type { Clip, Track } from '#core/types';
-import type { ClipCreatedEvent, ClipMoveEvent, ClipRemovedEvent } from '#core/events';
+import { expectDefined } from '#test-utils/assertions';
 import {
   assertValidRationalTime,
   fromSeconds,
   toSeconds,
 } from '@techsquidtv/canvas-timeline-utils';
-import { expectDefined } from '#test-utils/assertions';
-
+import { beforeEach, describe, expect, it } from 'vite-plus/test';
 const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',
   label: 'Opacity',
@@ -91,7 +90,9 @@ describe('TimelineEngine editing', () => {
       expect(preview.valid).toBe(true);
       expect(preview.changedClips[0].id).toBe('clip1');
       expect(toSeconds(preview.changedClips[0].timelineEnd)).toBe(3);
-      expect(toSeconds(engine.getClip('clip1')?.clip.timelineEnd ?? fromSeconds(0))).toBe(5);
+      expect(toSeconds(engine.geometry.getClip('clip1')?.clip.timelineEnd ?? fromSeconds(0))).toBe(
+        5
+      );
       expect(engine.getEditPreview()).toBe(preview);
       expect(engine.getEditImpacts()?.operation).toBe('trim');
 
@@ -113,14 +114,18 @@ describe('TimelineEngine editing', () => {
       });
 
       expect(result.committed).toBe(true);
-      expect(toSeconds(engine.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))).toBe(2);
+      expect(
+        toSeconds(engine.geometry.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(2);
       expect(moveEvents).toHaveLength(1);
       expect(moveEvents[0].phase).toBe('commit');
       expect(toSeconds(moveEvents[0].startTime)).toBe(2);
 
       engine.undo();
 
-      expect(toSeconds(engine.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))).toBe(1);
+      expect(
+        toSeconds(engine.geometry.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(1);
     });
 
     it('rejects invalid commands before policy and app policy can reject valid commands', () => {
@@ -143,7 +148,9 @@ describe('TimelineEngine editing', () => {
           startTime: fromSeconds(2),
         }).preview.reason
       ).toBe('policy-rejected');
-      expect(toSeconds(engine.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))).toBe(1);
+      expect(
+        toSeconds(engine.geometry.getClip('clip1')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(1);
     });
 
     it('commits insert, overwrite, and range removal commands', () => {
@@ -183,7 +190,7 @@ describe('TimelineEngine editing', () => {
       });
 
       expect(overwriteResult.preview.removedClips.map((clip) => clip.id)).toContain('b');
-      expect(commandEngine.getClip('winner')).toBeDefined();
+      expect(commandEngine.geometry.getClip('winner')).toBeDefined();
 
       const overwritePreviewEngine = new TimelineEngine({
         tracks: [createEditTrack('track1', [createEditClip('victim', 0, 10)])],
@@ -210,7 +217,10 @@ describe('TimelineEngine editing', () => {
         trackIds: ['track1'],
       });
 
-      const remainingWinner = expectDefined(commandEngine.getClip('winner'), 'winner clip').clip;
+      const remainingWinner = expectDefined(
+        commandEngine.geometry.getClip('winner'),
+        'winner clip'
+      ).clip;
       expect(toSeconds(remainingWinner.timelineStart)).toBe(4);
       expect(toSeconds(remainingWinner.timelineEnd)).toBe(5.5);
       expect(
@@ -233,7 +243,7 @@ describe('TimelineEngine editing', () => {
 
       expect(preview.valid).toBe(true);
       expect(preview.removedClips.map((clip) => clip.id).sort()).toEqual(['b', 'linked']);
-      expect(deleteEngine.getClip('b')).toBeDefined();
+      expect(deleteEngine.geometry.getClip('b')).toBeDefined();
       expect(deleteEngine.getEditImpacts()).toMatchObject({
         operation: 'delete-clips',
         sourceClipId: 'b',
@@ -244,16 +254,16 @@ describe('TimelineEngine editing', () => {
       const result = deleteEngine.commitEdit({ type: 'delete-clips', clipIds: ['b'] });
 
       expect(result.committed).toBe(true);
-      expect(deleteEngine.getClip('b')).toBeUndefined();
-      expect(deleteEngine.getClip('linked')).toBeUndefined();
+      expect(deleteEngine.geometry.getClip('b')).toBeUndefined();
+      expect(deleteEngine.geometry.getClip('linked')).toBeUndefined();
       expect(deleteEngine.clipGroups).toEqual([]);
       expect(removed.map((event) => event.clip.id).sort()).toEqual(['b', 'linked']);
       expect(removed.every((event) => event.reason === 'delete')).toBe(true);
 
       deleteEngine.undo();
 
-      expect(deleteEngine.getClip('b')).toBeDefined();
-      expect(deleteEngine.getClip('linked')).toBeDefined();
+      expect(deleteEngine.geometry.getClip('b')).toBeDefined();
+      expect(deleteEngine.geometry.getClip('linked')).toBeDefined();
       expect(deleteEngine.clipGroups[0]?.clipIds).toEqual(['b', 'linked']);
     });
 
@@ -277,7 +287,7 @@ describe('TimelineEngine editing', () => {
 
       expect(result.committed).toBe(false);
       expect(result.preview.reason).toBe('policy-rejected');
-      expect(engine.getClip('clip1')).toBeDefined();
+      expect(engine.geometry.getClip('clip1')).toBeDefined();
     });
 
     it('supports ripple trim and roll trim command resolution', () => {
@@ -299,8 +309,12 @@ describe('TimelineEngine editing', () => {
         snap: false,
       });
 
-      expect(toSeconds(trimEngine.getClip('left')?.clip.timelineEnd ?? fromSeconds(0))).toBe(5);
-      expect(toSeconds(trimEngine.getClip('right')?.clip.timelineStart ?? fromSeconds(0))).toBe(5);
+      expect(
+        toSeconds(trimEngine.geometry.getClip('left')?.clip.timelineEnd ?? fromSeconds(0))
+      ).toBe(5);
+      expect(
+        toSeconds(trimEngine.geometry.getClip('right')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(5);
 
       trimEngine.commitEdit({
         type: 'ripple-trim',
@@ -310,7 +324,9 @@ describe('TimelineEngine editing', () => {
         snap: false,
       });
 
-      expect(toSeconds(trimEngine.getClip('later')?.clip.timelineStart ?? fromSeconds(0))).toBe(9);
+      expect(
+        toSeconds(trimEngine.geometry.getClip('later')?.clip.timelineStart ?? fromSeconds(0))
+      ).toBe(9);
     });
 
     it('commits the active preview resolution so split clip ids stay stable', () => {
@@ -332,7 +348,7 @@ describe('TimelineEngine editing', () => {
 
       previewEngine.commitEdit(command);
 
-      expect(previewEngine.getClip(previewSplitClip.id)).toBeDefined();
+      expect(previewEngine.geometry.getClip(previewSplitClip.id)).toBeDefined();
     });
 
     it('commits active grouped overwrite previews so split clip ids stay stable', () => {
@@ -369,7 +385,7 @@ describe('TimelineEngine editing', () => {
 
       previewEngine.commitEdit(command);
 
-      expect(previewEngine.getClip(previewSplitClip.id)).toBeDefined();
+      expect(previewEngine.geometry.getClip(previewSplitClip.id)).toBeDefined();
       expect(previewEngine.getClipGroup('preview-group')?.clipIds).toEqual([
         'video-winner',
         'audio-winner',
@@ -460,10 +476,10 @@ describe('TimelineEngine editing', () => {
       lifecycleEngine.undo();
 
       expect(lifecycleEngine.getClipGroup('lifecycle-group')).toBeUndefined();
-      expect(lifecycleEngine.getClip('video-drop')).toBeUndefined();
-      expect(lifecycleEngine.getClip('audio-drop')).toBeUndefined();
-      expect(lifecycleEngine.getClip('video-victim')).toBeDefined();
-      expect(lifecycleEngine.getClip('audio-victim')).toBeDefined();
+      expect(lifecycleEngine.geometry.getClip('video-drop')).toBeUndefined();
+      expect(lifecycleEngine.geometry.getClip('audio-drop')).toBeUndefined();
+      expect(lifecycleEngine.geometry.getClip('video-victim')).toBeDefined();
+      expect(lifecycleEngine.geometry.getClip('audio-victim')).toBeDefined();
 
       lifecycleEngine.redo();
 
@@ -471,8 +487,8 @@ describe('TimelineEngine editing', () => {
         'video-drop',
         'audio-drop',
       ]);
-      expect(lifecycleEngine.getClip('video-victim')).toBeUndefined();
-      expect(lifecycleEngine.getClip('audio-victim')).toBeUndefined();
+      expect(lifecycleEngine.geometry.getClip('video-victim')).toBeUndefined();
+      expect(lifecycleEngine.geometry.getClip('audio-victim')).toBeUndefined();
     });
 
     it('groups arbitrary clips, expands selection, and moves linked clips together', () => {
@@ -524,8 +540,8 @@ describe('TimelineEngine editing', () => {
       expect(group.clipIds).toEqual(['video-clip', 'audio-clip']);
 
       groupedEngine.selectClip('video-clip');
-      expect(groupedEngine.getClip('video-clip')?.clip.selected).toBe(true);
-      expect(groupedEngine.getClip('audio-clip')?.clip.selected).toBe(true);
+      expect(groupedEngine.geometry.getClip('video-clip')?.clip.selected).toBe(true);
+      expect(groupedEngine.geometry.getClip('audio-clip')?.clip.selected).toBe(true);
 
       const move = groupedEngine.commitEdit({
         type: 'move',
@@ -538,10 +554,14 @@ describe('TimelineEngine editing', () => {
         'video-clip',
       ]);
       expect(
-        toSeconds(groupedEngine.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBeCloseTo(4);
       expect(
-        toSeconds(groupedEngine.getClip('audio-clip')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('audio-clip')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBeCloseTo(5);
     });
 
@@ -612,10 +632,12 @@ describe('TimelineEngine editing', () => {
 
       expect(group?.clipIds).toEqual(['video-clip', 'audio-clip']);
       expect(
-        toSeconds(groupedEngine.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('video-clip')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBe(5);
       expect(
-        groupedEngine
+        groupedEngine.geometry
           .getClip('video-clip')
           ?.clip.keyframes?.map((keyframe) => toSeconds(keyframe.time))
       ).toEqual([6]);
@@ -639,8 +661,8 @@ describe('TimelineEngine editing', () => {
       });
 
       expect(failed).toBeNull();
-      expect(groupedEngine.getClip('valid-clip')).toBeUndefined();
-      expect(groupedEngine.getClip('invalid-clip')).toBeUndefined();
+      expect(groupedEngine.geometry.getClip('valid-clip')).toBeUndefined();
+      expect(groupedEngine.geometry.getClip('invalid-clip')).toBeUndefined();
       expect(groupedEngine.clipGroups).toHaveLength(1);
     });
 
@@ -687,10 +709,14 @@ describe('TimelineEngine editing', () => {
         clipIds: ['video-drop', 'audio-drop'],
       });
       expect(
-        toSeconds(groupedEngine.getClip('video-after')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('video-after')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBe(7);
       expect(
-        toSeconds(groupedEngine.getClip('audio-after')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('audio-after')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBe(9);
     });
 
@@ -724,10 +750,14 @@ describe('TimelineEngine editing', () => {
 
       expect(result.committed).toBe(true);
       expect(
-        toSeconds(groupedEngine.getClip('video-drop')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('video-drop')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBeCloseTo(3);
       expect(
-        toSeconds(groupedEngine.getClip('audio-drop')?.clip.timelineStart ?? fromSeconds(0))
+        toSeconds(
+          groupedEngine.geometry.getClip('audio-drop')?.clip.timelineStart ?? fromSeconds(0)
+        )
       ).toBeCloseTo(6.81);
     });
 
@@ -767,8 +797,8 @@ describe('TimelineEngine editing', () => {
         'audio-victim',
         'video-victim',
       ]);
-      expect(groupedEngine.getClip('video-victim')).toBeDefined();
-      expect(groupedEngine.getClip('audio-victim')).toBeDefined();
+      expect(groupedEngine.geometry.getClip('video-victim')).toBeDefined();
+      expect(groupedEngine.geometry.getClip('audio-victim')).toBeDefined();
       expect(groupedEngine.tracks[0].clips.map((clip) => clip.id)).toHaveLength(3);
       expect(groupedEngine.tracks[1].clips.map((clip) => clip.id)).toHaveLength(3);
     });
@@ -816,17 +846,23 @@ describe('TimelineEngine editing', () => {
       });
       groupedEngine.createClipGroup({ id: 'linked-av', clipIds: ['video-clip', 'audio-clip'] });
 
-      groupedEngine.startDrag();
       expect(
-        groupedEngine.moveClip({
+        groupedEngine.previewEdit({
+          type: 'move',
+          overwrite: true,
           clipId: 'video-clip',
           startTime: fromSeconds(4),
           snap: false,
-        })
+        }).valid
       ).toBe(true);
 
-      expect(groupedEngine.getClip('audio-victim')).toBeUndefined();
-      groupedEngine.endDrag();
+      expect(
+        groupedEngine
+          .getRenderState()
+          .tracks.flatMap((track) => track.clips)
+          .find((clip) => clip.id === 'audio-victim')
+      ).toBeUndefined();
+      groupedEngine.cancelEdit();
     });
 
     it('splits selected grouped clips and repartitions the group at the blade time', () => {
@@ -892,7 +928,7 @@ describe('TimelineEngine editing', () => {
       );
       expect(rightGroup.clipIds).toHaveLength(2);
       expect(
-        rightGroup.clipIds.every((clipId) => groupedEngine.getClip(clipId) !== undefined)
+        rightGroup.clipIds.every((clipId) => groupedEngine.geometry.getClip(clipId) !== undefined)
       ).toBe(true);
     });
 
@@ -947,15 +983,22 @@ describe('TimelineEngine editing', () => {
 
       for (let index = 0; index < 8; index += 1) {
         expect(
-          groupedEngine.moveClip({
+          groupedEngine.commitEdit({
+            type: 'move',
             clipId: 'video-clip',
-            startTime: fromSeconds(4 + index * 0.01, 24000),
-          })
+            startTime: fromSeconds(4 + index * 0.01, 24e3),
+          }).committed
         ).toBe(true);
       }
 
-      const videoClip = expectDefined(groupedEngine.getClip('video-clip')?.clip, 'video clip');
-      const audioClip = expectDefined(groupedEngine.getClip('audio-clip')?.clip, 'audio clip');
+      const videoClip = expectDefined(
+        groupedEngine.geometry.getClip('video-clip')?.clip,
+        'video clip'
+      );
+      const audioClip = expectDefined(
+        groupedEngine.geometry.getClip('audio-clip')?.clip,
+        'audio clip'
+      );
       assertValidRationalTime(videoClip.timelineStart, 'videoClip.timelineStart');
       assertValidRationalTime(audioClip.timelineStart, 'audioClip.timelineStart');
       expect(videoClip.timelineStart.r).toBeLessThanOrEqual(120000);
@@ -989,8 +1032,8 @@ describe('TimelineEngine editing', () => {
 
       expect(split.committed).toBe(false);
       expect(split.preview.reason).toBe('locked');
-      expect(groupedEngine.getClip('video-clip')?.track.clips).toHaveLength(1);
-      expect(groupedEngine.getClip('audio-clip')?.track.clips).toHaveLength(1);
+      expect(groupedEngine.geometry.getClip('video-clip')?.track.clips).toHaveLength(1);
+      expect(groupedEngine.geometry.getClip('audio-clip')?.track.clips).toHaveLength(1);
       expect(groupedEngine.getClipGroup('linked-av')?.clipIds).toEqual([
         'video-clip',
         'audio-clip',
@@ -1018,7 +1061,7 @@ describe('TimelineEngine editing', () => {
 
       expect(split.committed).toBe(true);
       expect(split.preview.createdClips).toHaveLength(1);
-      expect(splitEngine.getClip('selected-overlap')?.track.clips).toHaveLength(3);
+      expect(splitEngine.geometry.getClip('selected-overlap')?.track.clips).toHaveLength(3);
     });
 
     it('preserves copied group membership on paste and restores groups through history', () => {
@@ -1165,7 +1208,9 @@ describe('TimelineEngine editing', () => {
           boundaryTime: fromSeconds(0.04),
         }).committed
       ).toBe(false);
-      expect(toSeconds(rollEngine.getClip('left')?.clip.timelineEnd ?? fromSeconds(0))).toBe(1);
+      expect(
+        toSeconds(rollEngine.geometry.getClip('left')?.clip.timelineEnd ?? fromSeconds(0))
+      ).toBe(1);
     });
   });
 });

@@ -1,16 +1,14 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { TimelineProvider } from '#react/Provider';
+import { useTimelineMediaSync } from '#react/hooks';
+import type { TimelineMediaPlayResult } from '#react/hooks';
+import { createMediaSyncEngine, mediaSyncLayers } from '#react/hooks/integration/testHelpers';
+import { TimelineEngine, TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineMediaSyncAdapter } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { expect, test, vi } from 'vite-plus/test';
-import {
-  TimelineEngine,
-  TimelineMediaError,
-  type TimelineMediaSyncAdapter,
-} from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { useTimelineMediaSync, type TimelineMediaPlayResult } from '#react/hooks';
-import { createMediaSyncEngine, mediaSyncLayers } from '#react/hooks/integration/testHelpers';
-
 test('useTimelineMediaSync reports loop clock restart failures', async () => {
   const engine = createMediaSyncEngine();
   engine.setInPoint(fromSeconds(1), false);
@@ -647,7 +645,11 @@ test('useTimelineMediaSync suppresses paused previews during pending startup', a
   expect(seek).toHaveBeenCalledTimes(1);
 
   act(() => {
-    engine.moveClip({ clipId: 'audio-clip', startTime: fromSeconds(0.5) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'audio-clip',
+      startTime: fromSeconds(0.5),
+    });
     previewTicks.at(-1)?.(16);
   });
   resolveStartupSeek();
@@ -1401,7 +1403,11 @@ test('useTimelineMediaSync keeps a rate change ahead of a later paused preview s
 
   const rateResult = result.current.setPlaybackRate(2);
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(1.5) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(1.5),
+    });
     previewTicks.shift()?.(16);
   });
 
@@ -2200,7 +2206,11 @@ test('useTimelineMediaSync completes a queued paused seek through the latest inl
   expect(firstSeek).toHaveBeenCalledOnce();
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(0.5) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(0.5),
+    });
   });
   await act(async () => {
     previewTicks[1]?.(32);
@@ -2250,7 +2260,11 @@ test('useTimelineMediaSync refreshes paused preview when a clip move changes act
   );
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
   });
 
   expect(seek).not.toHaveBeenCalled();
@@ -2300,7 +2314,11 @@ test('useTimelineMediaSync skips paused preview seeks until the adapter is ready
   );
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
   });
 
   expect(rafSpy).not.toHaveBeenCalled();
@@ -2310,7 +2328,11 @@ test('useTimelineMediaSync skips paused preview seeks until the adapter is ready
   rerender();
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(7) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(7),
+    });
   });
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
@@ -2357,7 +2379,11 @@ test('useTimelineMediaSync skips a queued paused preview seek if the adapter bec
   );
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
   });
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
@@ -2404,9 +2430,17 @@ test('useTimelineMediaSync coalesces initial and media edit events into one paus
   );
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(7) });
-    engine.slipClip('audio-clip', fromSeconds(0.5));
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(7),
+    });
+    engine.commitEdit({ type: 'slip', clipId: 'audio-clip', deltaTime: fromSeconds(0.5) });
   });
 
   expect(rafSpy).toHaveBeenCalledTimes(1);
@@ -2448,7 +2482,11 @@ test('useTimelineMediaSync skips paused preview seeks while playback is active',
   );
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
   });
 
   expect(rafSpy).not.toHaveBeenCalled();

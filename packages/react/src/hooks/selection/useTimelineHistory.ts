@@ -1,11 +1,7 @@
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
 /** Result returned by `useTimelineHistory`. */
 export interface UseTimelineHistoryResult {
   /** Whether an undo snapshot is available. */
@@ -24,7 +20,7 @@ export interface UseTimelineHistoryResult {
  * @returns Undo/redo availability and commands.
  */
 export function useTimelineHistory(): UseTimelineHistoryResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
 
   const undo = useCallback(() => {
     if (!engine.canUndo) {

@@ -1,15 +1,18 @@
-import type { Clip, Marker, TimelineClipGroup, TimelineKeyframe, Track } from '#core/types';
 import {
   defaultTimelineIncomingBezierHandle,
   defaultTimelineOutgoingBezierHandle,
   normalizeTimelineKeyframeSideInterpolation,
 } from '#core/keyframes';
-import {
-  assertValidRationalTime,
-  compareRational,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-
+import type {
+  Clip,
+  Marker,
+  TimelineClipGroup,
+  TimelineKeyframe,
+  TimelineReadonly,
+  Track,
+} from '#core/types';
+import { assertValidRationalTime, compareRational } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export function assertValidTimelineNumber(value: number, label: string) {
   if (!Number.isFinite(value)) {
     throw new RangeError(`${label} must be a finite number.`);
@@ -30,7 +33,7 @@ export function assertPositiveTimelineNumber(value: number, label: string) {
   }
 }
 
-export function assertValidClipTiming(clip: Clip, label: string) {
+export function assertValidClipTiming(clip: TimelineReadonly<Clip>, label: string) {
   assertValidRationalTime(clip.timelineStart, `${label}.timelineStart`);
   assertValidRationalTime(clip.timelineEnd, `${label}.timelineEnd`);
   assertValidRationalTime(clip.sourceStart, `${label}.sourceStart`);
@@ -66,7 +69,9 @@ function assertValidKeyframe(keyframe: TimelineKeyframe, label: string) {
   assertValidTimelineNumber(keyframe.value, `${label}.value`);
 }
 
-export function cloneTimelineKeyframe(keyframe: TimelineKeyframe): TimelineKeyframe {
+export function cloneTimelineKeyframe(
+  keyframe: TimelineReadonly<TimelineKeyframe>
+): TimelineKeyframe {
   assertValidKeyframe(keyframe, `keyframe "${keyframe.id}"`);
   const next: TimelineKeyframe = {
     id: keyframe.id,
@@ -102,7 +107,7 @@ export function sortTimelineKeyframes(keyframes: TimelineKeyframe[]) {
 }
 
 export function cloneTimelineKeyframes(
-  keyframes: TimelineKeyframe[] | undefined
+  keyframes: readonly TimelineReadonly<TimelineKeyframe>[] | undefined
 ): TimelineKeyframe[] {
   const next = (keyframes ?? []).map((keyframe) => cloneTimelineKeyframe(keyframe));
   sortTimelineKeyframes(next);
@@ -113,13 +118,17 @@ export function hasTimelineKeyframes(clip: Clip) {
   return (clip.keyframes?.length ?? 0) > 0;
 }
 
-export function createClipSnapshot(clip: Clip, overrides: Partial<Clip> = {}): Clip {
+export function createClipSnapshot(
+  clip: TimelineReadonly<Clip>,
+  overrides: Partial<Clip> = {}
+): Clip {
+  assertValidClipTiming({ ...clip, ...overrides }, `clip "${clip.id}"`);
   const next: Clip = {
     id: overrides.id ?? clip.id,
     sourceId: overrides.sourceId ?? clip.sourceId,
-    timelineStart: overrides.timelineStart ?? clip.timelineStart,
-    timelineEnd: overrides.timelineEnd ?? clip.timelineEnd,
-    sourceStart: overrides.sourceStart ?? clip.sourceStart,
+    timelineStart: cloneRationalTime(overrides.timelineStart ?? clip.timelineStart),
+    timelineEnd: cloneRationalTime(overrides.timelineEnd ?? clip.timelineEnd),
+    sourceStart: cloneRationalTime(overrides.sourceStart ?? clip.sourceStart),
     selected: overrides.selected ?? clip.selected,
   };
 
@@ -155,17 +164,17 @@ export function createClipSnapshot(clip: Clip, overrides: Partial<Clip> = {}): C
 
   const minStart = overrides.minStart ?? clip.minStart;
   if (minStart !== undefined) {
-    next.minStart = minStart;
+    next.minStart = cloneRationalTime(minStart);
   }
 
   const maxEnd = overrides.maxEnd ?? clip.maxEnd;
   if (maxEnd !== undefined) {
-    next.maxEnd = maxEnd;
+    next.maxEnd = cloneRationalTime(maxEnd);
   }
 
   const editPreview = overrides.editPreview ?? clip.editPreview;
   if (editPreview !== undefined) {
-    next.editPreview = editPreview;
+    next.editPreview = { ...editPreview };
   }
 
   const snap = overrides.snap ?? clip.snap;
@@ -180,21 +189,23 @@ export function createClipSnapshot(clip: Clip, overrides: Partial<Clip> = {}): C
 
   const metadata = overrides.metadata ?? clip.metadata;
   if (metadata !== undefined) {
-    next.metadata = typeof metadata === 'object' && metadata !== null ? { ...metadata } : metadata;
+    next.metadata = structuredClone(metadata);
   }
 
   assertValidClipTiming(next, `clip "${next.id}"`);
   return next;
 }
 
-export function createTrackSnapshot(track: Track): Track {
+export function createTrackSnapshot(track: TimelineReadonly<Track>): Track {
   if (track.height !== undefined) {
     assertPositiveTimelineNumber(track.height, `track "${track.id}".height`);
   }
   const next: Track = {
     id: track.id,
     kind: track.kind,
-    clips: track.clips.map((clip) => createClipSnapshot(clip)),
+    clips: track.clips
+      .map((clip) => createClipSnapshot(clip))
+      .sort((a, b) => compareRational(a.timelineStart, b.timelineStart)),
     selected: track.selected,
     locked: track.locked,
     muted: track.muted,
@@ -224,23 +235,27 @@ export function createTrackSnapshot(track: Track): Track {
   return next;
 }
 
-export function createTrackSnapshots(tracks: Track[]): Track[] {
+export function createTrackSnapshots(tracks: readonly TimelineReadonly<Track>[]): Track[] {
   return tracks.map((track) => createTrackSnapshot(track));
 }
 
-export function stringifyTrackSnapshots(tracks: Track[]): string {
-  return JSON.stringify(createTrackSnapshots(tracks));
-}
-
-export function createMarkerSnapshots(markers: Marker[] | undefined): Marker[] {
+export function createMarkerSnapshots(
+  markers: readonly TimelineReadonly<Marker>[] | undefined
+): Marker[] {
   return (markers ?? []).map((marker) => {
     assertValidMarkerTiming(marker, `marker "${marker.id}"`);
-    return { ...marker };
+    return {
+      ...marker,
+      time: cloneRationalTime(marker.time),
+      ...(typeof marker.snap === 'object' && marker.snap !== null
+        ? { snap: { ...marker.snap } }
+        : {}),
+    };
   });
 }
 
 export function createClipGroupSnapshots(
-  clipGroups: TimelineClipGroup[] | undefined
+  clipGroups: readonly TimelineReadonly<TimelineClipGroup>[] | undefined
 ): TimelineClipGroup[] {
   const groupIds = new Set<string>();
   const groupedClipIds = new Set<string>();

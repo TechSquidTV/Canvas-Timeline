@@ -1,4 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type {
   Clip,
   TimelineClipDropFailureReason,
@@ -8,10 +10,7 @@ import type {
   Track,
   TrackHitTestInput,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-
+import { useCallback, useMemo } from 'react';
 /**
  * Context passed to custom clip track-drop guards.
  *
@@ -22,16 +21,15 @@ import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeomet
  * express app policy such as visual-only tracks, audio-only tracks, locked
  * groups, or modifier-key cross-kind moves.
  *
- * @template TrackKind - App-defined track kind values carried by source and
  * target tracks.
  */
-export interface TimelineTrackDropContext<TrackKind = string> {
+export interface TimelineTrackDropContext {
   /** Clip being moved. */
   clip: Clip;
   /** Track that contained the clip at drag start. */
-  sourceTrack: Track<TrackKind>;
+  sourceTrack: Track;
   /** Candidate destination track. */
-  targetTrack: Track<TrackKind>;
+  targetTrack: Track;
   /** Source track index at drag start. */
   sourceTrackIndex: number;
   /** Candidate destination track index. */
@@ -51,11 +49,10 @@ export interface TimelineTrackDropResult {
 /**
  * Custom policy for accepting or rejecting track drop targets.
  *
- * @template TrackKind - App-defined track kind values carried by source and
  * target tracks.
  */
-export type TimelineTrackDropGuard<TrackKind = string> = (
-  context: TimelineTrackDropContext<TrackKind>
+export type TimelineTrackDropGuard = (
+  context: TimelineTrackDropContext
 ) => boolean | TimelineTrackDropResult;
 
 /**
@@ -66,16 +63,13 @@ export type TimelineTrackDropGuard<TrackKind = string> = (
  * Geometry options should match the renderer and interaction layer. The optional
  * guard runs after built-in checks for missing, locked, and same-kind tracks.
  *
- * @template TrackKind - App-defined track kind values carried by track targets.
  *
  * @see {@link TimelineTrackDropGuard}
  * @see {@link useTimelineClipDrag}
  */
-export interface UseTimelineTrackDropTargetsOptions<
-  TrackKind = string,
-> extends TimelineTrackGeometryOptions {
+export interface UseTimelineTrackDropTargetsOptions extends TimelineTrackGeometryOptions {
   /** Optional app policy for accepting, rejecting, or expanding drop targets. */
-  canDropClipOnTrack?: TimelineTrackDropGuard<TrackKind>;
+  canDropClipOnTrack?: TimelineTrackDropGuard;
 }
 
 /**
@@ -87,15 +81,12 @@ export interface UseTimelineTrackDropTargetsOptions<
  * {@link useTimelineClipDrag}. `trackTargets` are viewport-space rows in
  * timeline order and `canDropClipOnTrack` applies both engine and app policy.
  *
- * @template TrackKind - App-defined track kind values carried by track targets.
  */
-export interface UseTimelineTrackDropTargetsResult<TrackKind = string> {
+export interface UseTimelineTrackDropTargetsResult {
   /** Viewport-space track rows in timeline order. */
-  trackTargets: TimelineTrackHitTestResult<TrackKind>[];
+  trackTargets: TimelineTrackHitTestResult[];
   /** Hit-tests timeline tracks in viewport coordinates. */
-  getTrackAtViewportPoint: (
-    input: TrackHitTestInput
-  ) => TimelineTrackHitTestResult<TrackKind> | null;
+  getTrackAtViewportPoint: (input: TrackHitTestInput) => TimelineTrackHitTestResult | null;
   /** Resolves whether one clip may drop on one candidate track. */
   canDropClipOnTrack: (
     clipId: string,
@@ -110,9 +101,9 @@ const acceptedDropResult: TimelineTrackDropResult = {
   allowCrossKindTrackMove: false,
 };
 
-function isTrackDropTarget<TrackKind>(
-  target: TimelineTrackHitTestResult<TrackKind> | null
-): target is TimelineTrackHitTestResult<TrackKind> {
+function isTrackDropTarget(
+  target: TimelineTrackHitTestResult | null
+): target is TimelineTrackHitTestResult {
   return target !== null;
 }
 
@@ -148,7 +139,6 @@ function normalizeGuardResult(
  * interaction chrome.
  *
  * @param options - Track geometry and optional drop policy used to resolve compatible tracks.
- * @template TrackKind - App-defined track kind values carried by track targets.
  * @returns Track hit targets, viewport hit testing, and drop-policy resolution helpers.
  *
  * @example
@@ -176,9 +166,9 @@ function normalizeGuardResult(
  * @see {@link useTimelineClipDrag}
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
-export function useTimelineTrackDropTargets<TrackKind = string>(
-  options: UseTimelineTrackDropTargetsOptions<TrackKind> = {}
-): UseTimelineTrackDropTargetsResult<TrackKind> {
+export function useTimelineTrackDropTargets(
+  options: UseTimelineTrackDropTargetsOptions = {}
+): UseTimelineTrackDropTargetsResult {
   const customCanDropClipOnTrack = options.canDropClipOnTrack;
   const collapsedTrackHeight = options.collapsedTrackHeight;
   const edgeThreshold = options.edgeThreshold;
@@ -186,7 +176,8 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
   const touchEdgeThreshold = options.touchEdgeThreshold;
   const trackHeight = options.trackHeight;
   const viewportWidth = options.viewportWidth;
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
   const revision = useTimelineGeometryRevision();
 
   const geometry = useMemo<TimelineInteractionGeometry>(
@@ -202,8 +193,8 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
 
   const trackTargets = useMemo(() => {
     void revision;
-    const tracks = getTimelineTracks<TrackKind>(state.tracks);
-    return engine
+    const tracks = state.tracks;
+    return engine.geometry
       .getTrackRects({ ...geometry, viewportWidth })
       .map((rect) => {
         const track = tracks[rect.trackIndex];
@@ -220,7 +211,7 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
 
   const getTrackAtViewportPoint = useCallback(
     (input: TrackHitTestInput) =>
-      engine.getTrackAtPoint<TrackKind>({
+      engine.geometry.getTrackAtPoint({
         ...geometry,
         viewportWidth,
         ...input,
@@ -230,12 +221,12 @@ export function useTimelineTrackDropTargets<TrackKind = string>(
 
   const canDropClipOnTrack = useCallback(
     (clipId: string, targetTrackId: string, sourceTrackId?: string): TimelineTrackDropResult => {
-      const found = engine.getClip(clipId);
+      const found = engine.geometry.getClip(clipId);
       if (!found) {
         return { canDrop: false, reason: 'not-found', allowCrossKindTrackMove: false };
       }
 
-      const tracks = getTimelineTracks<TrackKind>(state.tracks);
+      const tracks = state.tracks;
       const sourceTrack =
         sourceTrackId === undefined
           ? tracks[found.trackIndex]

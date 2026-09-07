@@ -92,14 +92,14 @@ Apps own property definitions, inspector UI, presets, shortcuts, graph-editor la
 Use the core engine for persistence-safe edits and evaluation:
 
 ```ts
-engine.setClipKeyframe({
+engine.keyframes.setClipKeyframe({
   clipId: 'intro',
   property: 'opacity',
   time: fromSeconds(3),
   value: 0.6,
 });
 
-engine.updateClipKeyframeSide({
+engine.keyframes.updateClipKeyframeSide({
   clipId: 'intro',
   keyframeId: 'fade-out-start',
   side: 'outgoing',
@@ -109,7 +109,7 @@ engine.updateClipKeyframeSide({
   },
 });
 
-engine.updateClipKeyframeSides({
+engine.keyframes.updateClipKeyframeSides({
   clipId: 'intro',
   keyframeId: 'fade-out-end',
   incoming: {
@@ -118,7 +118,7 @@ engine.updateClipKeyframeSides({
   },
 });
 
-const opacity = engine.getClipPropertyValueAtTime('intro', 'opacity', fromSeconds(3.5));
+const opacity = engine.keyframes.getClipPropertyValueAtTime('intro', 'opacity', fromSeconds(3.5));
 ```
 
 `setClipKeyframe()` adds or updates a keyframe at an exact clip/property/time. New keyframes do not inherit side data from neighbors; missing side data normalizes to linear during evaluation. Use `updateClipKeyframe()`, `updateClipKeyframeSide()`, `updateClipKeyframeSides()`, and `removeClipKeyframe()` for existing keyframes. Pass `handle: null` in a side patch to reset a Bezier tangent to its deterministic default instead of preserving the current handle.

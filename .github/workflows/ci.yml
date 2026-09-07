@@ -42,8 +42,10 @@ jobs:
         run: vp install --frozen-lockfile
 
       - name: Lint pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          printf '%s\n' "${{ github.event.pull_request.title }}" | vp exec commitlint --verbose
+          printf '%s\n' "$PR_TITLE" | vp exec commitlint --verbose
 
       - name: Lint commit messages
         run: vp exec commitlint --verbose --from=${{ github.event.pull_request.base.sha }} --to=${{ github.event.pull_request.head.sha }}

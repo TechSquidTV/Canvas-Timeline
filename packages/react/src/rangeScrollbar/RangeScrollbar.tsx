@@ -1,6 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { clamp } from '@techsquidtv/canvas-timeline-utils';
-
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 const DEFAULT_KEYBOARD_STEP = 1;
 const DEFAULT_KEYBOARD_PAGE_STEP = 10;
 
@@ -100,11 +99,9 @@ export interface UseRangeScrollbarResult {
   /** Visible range span, equal to `value.end - value.start`. */
   rangeSpan: number;
   /** CSS percent offset for the visible range thumb. */
-  thumbLeftPercent: number;
   /** CSS percent offset for the visible range thumb on the active axis. */
   thumbOffsetPercent: number;
   /** CSS percent width for the visible range thumb. */
-  thumbWidthPercent: number;
   /** CSS percent size for the visible range thumb on the active axis. */
   thumbSizePercent: number;
   /** Requests an explicit visible range. */
@@ -350,7 +347,7 @@ function scrollbarRoleProps(
  *   onValueChange: setValue,
  * });
  *
- * return <span>{scrollbar.thumbWidthPercent}% visible</span>;
+ * return <span>{scrollbar.thumbSizePercent}% visible</span>;
  * ```
  */
 // oxlint-disable-next-line react-refresh/only-export-components
@@ -387,10 +384,8 @@ export function useRangeScrollbar(options: UseRangeScrollbarOptions): UseRangeSc
   );
 
   const rangeSpan = value.end - value.start;
-  const thumbLeftPercent = domainSpan > 0 ? ((value.start - domain.min) / domainSpan) * 100 : 0;
-  const thumbWidthPercent = domainSpan > 0 ? (rangeSpan / domainSpan) * 100 : 100;
-  const thumbOffsetPercent = thumbLeftPercent;
-  const thumbSizePercent = thumbWidthPercent;
+  const thumbOffsetPercent = domainSpan > 0 ? ((value.start - domain.min) / domainSpan) * 100 : 0;
+  const thumbSizePercent = domainSpan > 0 ? (rangeSpan / domainSpan) * 100 : 100;
 
   return useMemo(
     () => ({
@@ -400,9 +395,7 @@ export function useRangeScrollbar(options: UseRangeScrollbarOptions): UseRangeSc
       minSpan,
       domainSpan,
       rangeSpan,
-      thumbLeftPercent,
       thumbOffsetPercent,
-      thumbWidthPercent,
       thumbSizePercent,
       setValue,
       panBy,
@@ -415,9 +408,7 @@ export function useRangeScrollbar(options: UseRangeScrollbarOptions): UseRangeSc
       minSpan,
       domainSpan,
       rangeSpan,
-      thumbLeftPercent,
       thumbOffsetPercent,
-      thumbWidthPercent,
       thumbSizePercent,
       setValue,
       panBy,

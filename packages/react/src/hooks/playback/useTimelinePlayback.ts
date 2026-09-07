@@ -1,18 +1,11 @@
-import { useCallback } from 'react';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { PlaybackOptions } from '@techsquidtv/canvas-timeline-core';
-import {
-  addRational,
-  fromSeconds,
-  subRational,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { addRational, fromSeconds, subRational } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback } from 'react';
 /** Result returned by `useTimelinePlayback`. */
 export interface UseTimelinePlaybackResult {
   /** Whether the timeline is currently playing. */
@@ -54,7 +47,13 @@ export interface UseTimelinePlaybackResult {
  * @returns Playback state and transport commands for headless timeline controls.
  */
 export function useTimelinePlayback(): UseTimelinePlaybackResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    inPoint: state.inPoint,
+    outPoint: state.outPoint,
+    playbackRate: state.playbackRate,
+    playing: state.playing,
+  }));
 
   const play = useCallback(
     (options?: PlaybackOptions) => {

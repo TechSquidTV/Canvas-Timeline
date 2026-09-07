@@ -1,20 +1,17 @@
-import { useCallback, useMemo, useRef } from 'react';
-import {
-  defaultTimelineInteractionGeometry,
-  type TimelineTrackHeightUpdate,
-} from '@techsquidtv/canvas-timeline-core';
-import { clamp } from '@techsquidtv/canvas-timeline-utils';
-import {
-  useRangeScrollbar,
-  type RangeScrollbarHandleSide,
-  type RangeScrollbarRootProps,
-  type RangeScrollbarValue,
-  type RangeScrollbarValueChangeDetails,
-  type UseRangeScrollbarResult,
-} from '#react/rangeScrollbar';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineViewport } from '#react/hooks/viewport/useTimelineViewport';
-
+import { useRangeScrollbar } from '#react/rangeScrollbar';
+import type {
+  RangeScrollbarHandleSide,
+  RangeScrollbarRootProps,
+  RangeScrollbarValue,
+  RangeScrollbarValueChangeDetails,
+  UseRangeScrollbarResult,
+} from '#react/rangeScrollbar';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineTrackHeightUpdate } from '@techsquidtv/canvas-timeline-core';
+import { clamp } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo, useRef } from 'react';
 const KEYBOARD_NUDGE_PX = 40;
 const KEYBOARD_PAGE_NUDGE_RATIO = 0.8;
 const MIN_VERTICAL_TRACK_HEIGHT = defaultTimelineInteractionGeometry.collapsedTrackHeight;
@@ -79,7 +76,7 @@ export interface UseTimelineVerticalScrollbarResult {
  * @returns Timeline vertical metrics plus `RangeScrollbar.Root` control props.
  */
 export function useTimelineVerticalScrollbar(): UseTimelineVerticalScrollbarResult {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const viewport = useTimelineViewport();
   const zoomDragSessionRef = useRef<VerticalZoomDragSession | null>(null);
   const metrics = useMemo(() => {

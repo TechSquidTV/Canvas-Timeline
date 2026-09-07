@@ -1,18 +1,15 @@
+import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
 import type {
   TimelineTrackGeometryOptions,
   TimelineTrackRect,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
-import {
-  timelineCommandFail,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
-
 /**
  * Result returned by `useTimelineTrack`.
  *
@@ -22,17 +19,15 @@ import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
  * row-level commands. It also includes `rect`, which is aligned with canvas
  * track geometry for DOM overlays, resize handles, and track header layouts.
  *
- * @template TrackKind - App-defined track kind value carried by the requested
- * track.
  *
  * @see {@link useTimelineTrackHeader}
  * @see {@link useTimelineTracks}
  */
-export interface UseTimelineTrackResult<TrackKind extends string = string> {
+export interface UseTimelineTrackResult {
   /** Requested track id. */
   trackId: string;
   /** Current track, or null when the id is missing. */
-  track: Track<TrackKind> | null;
+  track: Track | null;
   /** Zero-based track index, or -1 when the track is missing. */
   trackIndex: number;
   /** Viewport row rectangle matching canvas track geometry. */
@@ -40,7 +35,7 @@ export interface UseTimelineTrackResult<TrackKind extends string = string> {
   /** Whether the requested track exists. */
   exists: boolean;
   /** App-defined track kind, or null when the track is missing. */
-  kind: TrackKind | null;
+  kind: string | null;
   /** User-facing track name, when set. */
   name: string | undefined;
   /** Optional track group id. */
@@ -95,8 +90,6 @@ export interface UseTimelineTrackResult<TrackKind extends string = string> {
  *
  * @param trackId - Track id to read and update.
  * @param options - Optional track geometry overrides matching the renderer.
- * @template TrackKind - App-defined track kind value carried by the requested
- * track.
  * @returns Track row state, canvas-aligned geometry, and row-scoped commands.
  *
  * @example
@@ -118,16 +111,17 @@ export interface UseTimelineTrackResult<TrackKind extends string = string> {
  * @see {@link useTimelineTrackHeader}
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
-export function useTimelineTrack<TrackKind extends string = string>(
+export function useTimelineTrack(
   trackId: string,
   options: TimelineTrackGeometryOptions = {}
-): UseTimelineTrackResult<TrackKind> {
-  const { engine, state } = useTimeline();
-  const tracksState = useTimelineTracks<TrackKind>();
+): UseTimelineTrackResult {
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
+  const tracksState = useTimelineTracks();
   const revision = useTimelineGeometryRevision();
   const trackSnapshot = useMemo(() => {
     void revision;
-    const tracks = getTimelineTracks<TrackKind>(state.tracks);
+    const tracks = state.tracks;
     const trackIndex = tracks.findIndex((candidate) => candidate.id === trackId);
     const track = trackIndex === -1 ? null : tracks[trackIndex];
 
@@ -140,7 +134,7 @@ export function useTimelineTrack<TrackKind extends string = string>(
     }
 
     const rect =
-      engine.getTrackRects({
+      engine.geometry.getTrackRects({
         collapsedTrackHeight: options.collapsedTrackHeight,
         edgeThreshold: options.edgeThreshold,
         rulerHeight: options.rulerHeight,

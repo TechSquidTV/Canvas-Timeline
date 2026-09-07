@@ -1,24 +1,23 @@
-import { useCallback, useMemo } from 'react';
+import {
+  timelineCommandFail,
+  timelineCommandInvalidInput,
+  timelineCommandOk,
+} from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import type {
   TimelineKeyframe,
   TimelineKeyframeGeometryOptions,
+  TimelineKeyframeMutationOptions,
   TimelineKeyframePropertyId,
   TimelineKeyframeRect,
-  TimelineKeyframeMutationOptions,
   TimelineSetClipKeyframeOptions,
   TimelineUpdateClipKeyframeOptions,
   VisibleTimelineKeyframe,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-import {
-  timelineCommandFail,
-  timelineCommandInvalidInput,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useMemo } from 'react';
 /**
  * Options accepted by `useTimelineKeyframes`.
  *
@@ -48,19 +47,17 @@ export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOpt
  * it with {@link useTimelineKeyframeDrag}; for Bezier easing handles, combine
  * it with {@link useTimelineKeyframeTangentDrag}.
  *
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries.
  *
  * @see {@link useTimelineKeyframeTangentDrag}
  * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
  */
-export interface UseTimelineKeyframesResult<TrackKind = string> {
+export interface UseTimelineKeyframesResult {
   /** Clip-scoped keyframes for `clipId`, or all keyframes from visible rects when no clip is scoped. */
   keyframes: TimelineKeyframe[];
   /** Viewport-space keyframe geometry in track order. */
-  keyframeRects: TimelineKeyframeRect<TrackKind>[];
+  keyframeRects: TimelineKeyframeRect<string>[];
   /** Viewport-intersecting keyframe geometry in track order. */
-  visibleKeyframes: VisibleTimelineKeyframe<TrackKind>[];
+  visibleKeyframes: VisibleTimelineKeyframe<string>[];
   /** Evaluates a keyframed property at a timeline time. */
   getPropertyValueAtTime: (
     clipId: string,
@@ -100,8 +97,6 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
  * {@link TimelineCommandResult} values and respect locked tracks.
  *
  * @param options - Optional clip/property filters and renderer-aligned geometry settings.
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries.
  * @returns Keyframe lists, viewport geometry, visible geometry, property evaluation, and mutation commands.
  *
  * @example
@@ -150,10 +145,10 @@ export interface UseTimelineKeyframesResult<TrackKind = string> {
  * @see {@link useTimelineKeyframeTangentDrag}
  * @see {@link https://canvastimeline.com/demos/keyframe-opacity | Keyframe opacity demo}
  */
-export function useTimelineKeyframes<TrackKind = string>(
+export function useTimelineKeyframes(
   options: UseTimelineKeyframesOptions = {}
-): UseTimelineKeyframesResult<TrackKind> {
-  const { engine } = useTimeline();
+): UseTimelineKeyframesResult {
+  const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision({ redrawOnPreview: true });
   const {
     clipId,
@@ -204,21 +199,21 @@ export function useTimelineKeyframes<TrackKind = string>(
 
   const keyframeRects = useMemo(() => {
     void revision;
-    return engine
-      .getKeyframeRects<TrackKind>(geometry)
+    return engine.keyframes
+      .getKeyframeRects(geometry)
       .filter((entry) => clipId === undefined || entry.clip.id === clipId);
   }, [clipId, engine, geometry, revision]);
 
   const visibleKeyframes = useMemo(() => {
     void revision;
-    return engine
-      .getVisibleKeyframes<TrackKind>(geometry)
+    return engine.keyframes
+      .getVisibleKeyframes(geometry)
       .filter((entry) => clipId === undefined || entry.clip.id === clipId);
   }, [clipId, engine, geometry, revision]);
 
   const keyframes = useMemo(() => {
     if (clipId !== undefined) {
-      return engine.getClipKeyframes(clipId, property);
+      return engine.keyframes.getClipKeyframes(clipId, property);
     }
 
     return keyframeRects.map((entry) => entry.keyframe);
@@ -226,7 +221,7 @@ export function useTimelineKeyframes<TrackKind = string>(
 
   const getPropertyValueAtTime = useCallback(
     (targetClipId: string, targetProperty: TimelineKeyframePropertyId, time?: RationalTime) =>
-      engine.getClipPropertyValueAtTime(targetClipId, targetProperty, time),
+      engine.keyframes.getClipPropertyValueAtTime(targetClipId, targetProperty, time),
     [engine]
   );
 
@@ -235,10 +230,10 @@ export function useTimelineKeyframes<TrackKind = string>(
       input: TimelineSetClipKeyframeOptions,
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframe> => {
-      const found = engine.getClip(input.clipId);
+      const found = engine.geometry.getClip(input.clipId);
       let keyframe: TimelineKeyframe | null;
       try {
-        keyframe = engine.setClipKeyframe(input, mutationOptions);
+        keyframe = engine.keyframes.setClipKeyframe(input, mutationOptions);
       } catch (setError: unknown) {
         return timelineCommandInvalidInput(
           'Timeline keyframe could not be created from the provided input.',
@@ -261,10 +256,10 @@ export function useTimelineKeyframes<TrackKind = string>(
       input: TimelineUpdateClipKeyframeOptions,
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframe> => {
-      const found = engine.getClip(input.clipId);
+      const found = engine.geometry.getClip(input.clipId);
       let keyframe: TimelineKeyframe | null;
       try {
-        keyframe = engine.updateClipKeyframe(input, mutationOptions);
+        keyframe = engine.keyframes.updateClipKeyframe(input, mutationOptions);
       } catch (updateError: unknown) {
         return timelineCommandInvalidInput(
           'Timeline keyframe could not be updated from the provided input.',
@@ -289,9 +284,13 @@ export function useTimelineKeyframes<TrackKind = string>(
       keyframeId: string,
       mutationOptions?: TimelineKeyframeMutationOptions
     ): TimelineCommandResult<TimelineKeyframe> => {
-      const found = engine.getClip(targetClipId);
+      const found = engine.geometry.getClip(targetClipId);
       const keyframe = found?.clip.keyframes?.find((candidate) => candidate.id === keyframeId);
-      const removed = engine.removeClipKeyframe(targetClipId, keyframeId, mutationOptions);
+      const removed = engine.keyframes.removeClipKeyframe(
+        targetClipId,
+        keyframeId,
+        mutationOptions
+      );
       if (removed && keyframe) {
         const removedKeyframe: TimelineKeyframe = {
           ...keyframe,
@@ -317,20 +316,20 @@ export function useTimelineKeyframes<TrackKind = string>(
   const selectKeyframe = useCallback(
     (targetClipId: string | null, keyframeId: string | null): TimelineCommandResult => {
       if (targetClipId !== null && keyframeId !== null) {
-        const found = engine.getClip(targetClipId);
+        const found = engine.geometry.getClip(targetClipId);
         if (!found?.clip.keyframes?.some((keyframe) => keyframe.id === keyframeId)) {
           return timelineCommandFail('not-found');
         }
       }
 
-      engine.selectClipKeyframe(targetClipId, keyframeId);
+      engine.keyframes.selectClipKeyframe(targetClipId, keyframeId);
       return timelineCommandOk();
     },
     [engine]
   );
 
   const clearKeyframeSelection = useCallback((): TimelineCommandResult => {
-    engine.clearKeyframeSelection();
+    engine.keyframes.clearKeyframeSelection();
     return timelineCommandOk();
   }, [engine]);
 

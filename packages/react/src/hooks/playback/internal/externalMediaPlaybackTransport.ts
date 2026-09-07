@@ -1,3 +1,13 @@
+import {
+  timelineCommandFail,
+  timelineCommandInvalidInput,
+  timelineCommandOk,
+} from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { toMediaError } from '#react/hooks/playback/mediaError';
+import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import type {
   ActiveLayerResult,
   ActiveLayerSelector,
@@ -13,20 +23,9 @@ import {
   rationalEquals,
   resolveTimecodeFrameRate,
   toSeconds,
-  type RationalTime,
-  type TimecodeFrameRate,
 } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime, TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
-import { toMediaError } from '#react/hooks/playback/mediaError';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandInvalidInput,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
 /**
  * Options for coordinating timeline playback with an external media clock.
  *
@@ -192,7 +191,11 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
   options: UseTimelineMediaPlaybackOptions<LayerName>,
   delegatedSynchronization?: TimelineMediaPlaybackSynchronizationRunner
 ): UseTimelineMediaPlaybackResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    playbackRate: state.playbackRate,
+    playing: state.playing,
+  }));
   const optionsRef = useRef(options);
   const animationFrameRef = useRef<number | null>(null);
   const pausingRef = useRef(false);
@@ -221,7 +224,7 @@ export function useTimelineMediaPlaybackInternal<LayerName extends string = stri
 
   const getActiveLayers = useCallback(
     (time: RationalTime) => {
-      return engine.getActiveLayers({
+      return engine.media.getActiveLayers({
         time,
         layers: optionsRef.current.layers,
       });

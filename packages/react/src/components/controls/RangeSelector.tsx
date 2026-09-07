@@ -1,14 +1,13 @@
-import React from 'react';
+import { formatTimelineTimeValue } from '#react/accessibility';
+import { useTimelineInOutRangeControl } from '#react/hooks';
+import type { TimelineInOutRangeControlOptions } from '#react/hooks';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { Slider } from '@base-ui/react/slider';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { type RationalTime, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { formatTimelineTimeValue } from '#react/accessibility';
-import {
-  type TimelineInOutRangeControlOptions,
-  useTimeline,
-  useTimelineInOutRangeControl,
-} from '#react/hooks';
-
+import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import React from 'react';
 /** Timeline range boundary controlled by an In/Out grabber. */
 export type InOutBoundary = 'in' | 'out';
 
@@ -274,7 +273,11 @@ const RangeSelectorComponent = React.forwardRef<HTMLDivElement, RangeSelectorPro
     },
     forwardedRef
   ) => {
-    const { engine, state } = useTimeline();
+    const engine = useTimelineEngine();
+    const state = useTimelineSelector((state) => ({
+      inPoint: state.inPoint,
+      outPoint: state.outPoint,
+    }));
     const internalRef = React.useRef<HTMLDivElement>(null);
 
     const resolveMax = React.useCallback(() => {

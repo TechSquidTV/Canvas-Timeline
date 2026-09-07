@@ -1,23 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineTrackDropTargets } from '#react/hooks/tracks/useTimelineTrackDropTargets';
 import type {
-  TimelineClipMoveResult,
+  TimelineTrackDropGuard,
+  TimelineTrackDropResult,
+} from '#react/hooks/tracks/useTimelineTrackDropTargets';
+import type {
   ClipViewportRect,
   TimelineClipDropFeedback,
+  TimelineClipMoveResult,
   TimelineInteractionGeometry,
   TimelineTrackHitTestResult,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  useTimelineTrackDropTargets,
-  type TimelineTrackDropGuard,
-  type TimelineTrackDropResult,
-} from '#react/hooks/tracks/useTimelineTrackDropTargets';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a clip body drag. */
 export interface TimelineClipDragStartInput {
   /** Clip being dragged. */
@@ -48,15 +44,11 @@ export interface TimelineClipDragMoveInput {
  * domain rules such as preventing audio clips from moving to visual tracks
  * unless a modifier key or tool mode allows it.
  *
- * @template TrackKind - App-defined track kind values carried by target tracks,
- * such as `"visual" | "audio"`.
  *
  * @see {@link useTimelineTrackDropTargets}
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  */
-export interface UseTimelineClipDragOptions<
-  TrackKind = string,
-> extends TimelineInteractionGeometry {
+export interface UseTimelineClipDragOptions extends TimelineInteractionGeometry {
   /** Portion of another track the pointer must enter before snapping vertically. Defaults to 0.3. */
   verticalSnapThreshold?: number;
   /** Minimum vertical pixels required before snapping vertically. Defaults to 8. */
@@ -64,7 +56,7 @@ export interface UseTimelineClipDragOptions<
   /** Optional viewport width used for track row geometry. */
   viewportWidth?: number;
   /** Optional app policy for accepting, rejecting, or expanding drop targets. */
-  canDropClipOnTrack?: TimelineTrackDropGuard<TrackKind>;
+  canDropClipOnTrack?: TimelineTrackDropGuard;
 }
 
 /** Result returned by `useTimelineClipDrag`. */
@@ -79,11 +71,11 @@ export interface UseTimelineClipDragResult {
   moveClipDrag: (input: TimelineClipDragMoveInput) => TimelineCommandResult<TimelineClipMoveResult>;
   /** Ends the active clip body drag and settles history. */
   endClipDrag: () => TimelineCommandResult;
-  /** Cancels pointer handling for the active drag and settles current preview state. */
+  /** Cancels the active drag and discards its preview. */
   cancelClipDrag: () => TimelineCommandResult;
 }
 
-interface ActiveClipDrag<TrackKind = string> {
+interface ActiveClipDrag {
   clipId: string;
   startClientX: number;
   startLeft: number;
@@ -95,24 +87,21 @@ interface ActiveClipDrag<TrackKind = string> {
   activeTargetTrackId: string;
   activeTargetTrackIndex: number;
   allowCrossKindTrackMove: boolean;
-  trackTargets: TimelineTrackHitTestResult<TrackKind>[];
+  trackTargets: TimelineTrackHitTestResult[];
 }
 
 function clampRatio(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function findTrackTargetAtY<TrackKind>(
-  trackTargets: TimelineTrackHitTestResult<TrackKind>[],
-  viewportY: number
-) {
+function findTrackTargetAtY(trackTargets: TimelineTrackHitTestResult[], viewportY: number) {
   return (
     trackTargets.find(({ rect }) => viewportY >= rect.y && viewportY < rect.y + rect.height) ?? null
   );
 }
 
-function getTrackPenetration<TrackKind>(
-  target: TimelineTrackHitTestResult<TrackKind>,
+function getTrackPenetration(
+  target: TimelineTrackHitTestResult,
   activeTargetTrackIndex: number,
   viewportY: number
 ) {
@@ -146,7 +135,6 @@ function getTrackPenetration<TrackKind>(
  * instead.
  *
  * @param options - Drag geometry, vertical snap sensitivity, and optional drop policy.
- * @template TrackKind - App-defined track kind values carried by target tracks.
  * @returns Clip drag state and commands for pointer-driven body moves.
  *
  * @example
@@ -178,13 +166,13 @@ function getTrackPenetration<TrackKind>(
  * @see {@link useTimelineTrackDropTargets}
  * @see {@link https://canvastimeline.com/demos/basic-editor-surface | Basic editor surface demo}
  */
-export function useTimelineClipDrag<TrackKind = string>(
-  options: UseTimelineClipDragOptions<TrackKind> = {}
+export function useTimelineClipDrag(
+  options: UseTimelineClipDragOptions = {}
 ): UseTimelineClipDragResult {
-  const { engine } = useTimeline();
-  const activeDragRef = useRef<ActiveClipDrag<TrackKind> | null>(null);
+  const engine = useTimelineEngine();
+  const activeDragRef = useRef<ActiveClipDrag | null>(null);
   const [dragging, setDragging] = useState(false);
-  const dropTargets = useTimelineTrackDropTargets<TrackKind>({
+  const dropTargets = useTimelineTrackDropTargets({
     canDropClipOnTrack: options.canDropClipOnTrack,
     collapsedTrackHeight: options.collapsedTrackHeight,
     edgeThreshold: options.edgeThreshold,
@@ -202,14 +190,14 @@ export function useTimelineClipDrag<TrackKind = string>(
 
       activeDragRef.current = null;
       setDragging(false);
-      engine.endDrag();
-      engine.settle();
+      engine.cancelEdit();
+      engine.clearClipDropFeedback();
     };
   }, [engine]);
 
   const publishFeedback = useCallback(
     (
-      activeDrag: ActiveClipDrag<TrackKind>,
+      activeDrag: ActiveClipDrag,
       hoveredTrackId: string | null,
       dropResult: TimelineTrackDropResult | null,
       penetrationRatio: number
@@ -229,10 +217,10 @@ export function useTimelineClipDrag<TrackKind = string>(
 
   const startClipDrag = useCallback(
     (input: TimelineClipDragStartInput): TimelineCommandResult => {
-      const found = engine.getClip(input.clipId);
+      const found = engine.geometry.getClip(input.clipId);
       const rect =
         input.clipRect ??
-        engine.getClipRect(input.clipId, {
+        engine.geometry.getClipRect(input.clipId, {
           collapsedTrackHeight: options.collapsedTrackHeight,
           edgeThreshold: options.edgeThreshold,
           rulerHeight: options.rulerHeight,
@@ -249,7 +237,7 @@ export function useTimelineClipDrag<TrackKind = string>(
 
       const trackTargets = dropTargets.trackTargets;
       engine.prepareSnapping({ ignoreClipId: input.clipId, operation: 'move' });
-      engine.startDrag();
+      engine.cancelEdit();
 
       activeDragRef.current = {
         clipId: input.clipId,
@@ -329,40 +317,18 @@ export function useTimelineClipDrag<TrackKind = string>(
       publishFeedback(activeDrag, hoveredTarget?.track.id ?? null, dropResult, penetrationRatio);
 
       const deltaX = input.clientX - activeDrag.startClientX;
-      const moved = engine.moveClip({
+      const preview = engine.previewEdit({
+        type: 'move',
+        overwrite: true,
         clipId: activeDrag.clipId,
         startTime: engine.pixelToTime(activeDrag.startLeft + deltaX),
         targetTrackId: activeDrag.activeTargetTrackId,
         allowCrossKindTrackMove: activeDrag.allowCrossKindTrackMove,
       });
 
-      if (!moved) {
-        return timelineCommandFail<TimelineClipMoveResult>('unsupported');
-      }
-
-      const found = engine.getClip(activeDrag.clipId);
-      if (!found) {
-        return timelineCommandFail<TimelineClipMoveResult>('not-found');
-      }
-
-      return timelineCommandOk<TimelineClipMoveResult>({
-        clipId: activeDrag.clipId,
-        clip: found.clip,
-        sourceTrackId: activeDrag.sourceTrackId,
-        destinationTrackId: found.track.id,
-        sourceTrackIndex: activeDrag.sourceTrackIndex,
-        destinationTrackIndex: found.trackIndex,
-        sourceClipIndex: activeDrag.sourceClipIndex,
-        destinationClipIndex: found.clipIndex,
-        previousStartTime: activeDrag.previousStartTime,
-        previousEndTime: activeDrag.previousEndTime,
-        startTime: { ...found.clip.timelineStart },
-        endTime: { ...found.clip.timelineEnd },
-        changedClips: engine.getClipGroupForClip(activeDrag.clipId)?.clipIds.flatMap((clipId) => {
-          const grouped = engine.getClip(clipId);
-          return grouped === undefined ? [] : [grouped.clip];
-        }) ?? [found.clip],
-      });
+      return preview.valid && preview.moveResult
+        ? timelineCommandOk(preview.moveResult)
+        : timelineCommandFail(preview.reason ?? 'unsupported');
     },
     [
       dropTargets,
@@ -380,9 +346,13 @@ export function useTimelineClipDrag<TrackKind = string>(
 
     activeDragRef.current = null;
     setDragging(false);
-    engine.endDrag();
-    engine.settle();
-    return timelineCommandOk();
+    const command = engine.getEditPreview()?.command;
+    const result = command ? engine.commitEdit(command) : undefined;
+    engine.cancelEdit();
+    engine.clearClipDropFeedback();
+    return result && !result.committed
+      ? timelineCommandFail(result.preview.reason ?? 'unsupported')
+      : timelineCommandOk();
   }, [engine]);
 
   const cancelClipDrag = useCallback((): TimelineCommandResult => {
@@ -393,8 +363,8 @@ export function useTimelineClipDrag<TrackKind = string>(
 
     activeDragRef.current = null;
     setDragging(false);
-    engine.endDrag();
-    engine.settle();
+    engine.cancelEdit();
+    engine.clearClipDropFeedback();
     return timelineCommandOk();
   }, [engine]);
 

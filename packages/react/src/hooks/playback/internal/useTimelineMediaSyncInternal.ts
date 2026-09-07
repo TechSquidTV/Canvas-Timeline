@@ -1,29 +1,26 @@
-import type {
-  ActiveLayerSelector,
-  ActiveLayerResult,
-  PlaybackOptions,
-  TimelineMediaSyncAdapter,
-} from '@techsquidtv/canvas-timeline-core';
-import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
-import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import {
   MediaClockOwnership,
   startMediaClockPlayback,
 } from '#react/hooks/playback/internal/mediaClockOwnership';
-import {
-  createMediaPlayFailure,
-  type TimelineMediaPlayResult,
-} from '#react/hooks/playback/internal/mediaPlayResult';
+import { createMediaPlayFailure } from '#react/hooks/playback/internal/mediaPlayResult';
+import type { TimelineMediaPlayResult } from '#react/hooks/playback/internal/mediaPlayResult';
 import { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
 import { usePausedMediaPreviewSynchronization } from '#react/hooks/playback/internal/pausedMediaPreviewScheduler';
-import type { UseTimelineMediaPlaybackOptions } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { useTimelineMediaPlaybackInternal } from '#react/hooks/playback/internal/useTimelineMediaPlaybackInternal';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-
+import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
+import type { UseTimelineMediaPlaybackOptions } from '#react/hooks/playback/useTimelineMediaPlayback';
+import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
+import type {
+  ActiveLayerResult,
+  ActiveLayerSelector,
+  PlaybackOptions,
+  TimelineMediaSyncAdapter,
+} from '@techsquidtv/canvas-timeline-core';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /**
  * Options for high-level timeline media synchronization.
  *
@@ -183,7 +180,7 @@ export function useTimelineMediaSync<LayerName extends string = string>(
     playbackOptions,
     ready = true,
   } = options;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const activeLayers = useActiveLayers<LayerName>({ layers });
   const adapterRef = useRef(adapter);
   const adapterIdentityRef = useRef(adapterIdentity);

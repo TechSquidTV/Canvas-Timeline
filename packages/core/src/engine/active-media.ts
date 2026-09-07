@@ -1,25 +1,39 @@
-import type {
-  ActiveClip,
-  ActiveClipQuery,
-  ActiveLayerSelector,
-  ActiveLayerOptions,
-  ActiveLayerResult,
-  Clip,
-  ClipSourceRange,
-  FirstContentTimeOptions,
-  Track,
-} from '#core/types';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { compareRational } from '@techsquidtv/canvas-timeline-utils';
+import { ClipTimeIndex } from '#core/engine/clip-time-index';
 import {
   createClipSourceRange,
   createClipSyncKey,
   mapSourceTimeToTimelineTime,
   mapTimelineTimeToSourceTime,
 } from '#core/engine/media-sync';
-import { TimelineEngineKeyframes } from '#core/engine/keyframes';
+import type { TimelineClipLookup } from '#core/engine/types';
+import type {
+  ActiveClip,
+  ActiveClipQuery,
+  ActiveLayerOptions,
+  ActiveLayerResult,
+  ActiveLayerSelector,
+  Clip,
+  ClipSourceRange,
+  FirstContentTimeOptions,
+  TimelineState,
+  Track,
+} from '#core/types';
+import { compareRational } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+interface MediaContext {
+  getState: () => TimelineState;
+  getClip: (id: string) => TimelineClipLookup | undefined;
+}
 
-export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
+/** Indexed active-media queries and source-time mapping. */
+export class TimelineMediaQueries {
+  constructor(private context: MediaContext) {}
+
+  private timeIndexes = new WeakMap<Track, { revision: number; index: ClipTimeIndex }>();
+  private activeMediaCache:
+    | { revision: number; time: RationalTime; clips: ActiveClip[] }
+    | undefined;
+
   /**
    * Returns enabled clips under a timeline time, ordered by track and clip order.
    *
@@ -31,14 +45,26 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
    * @param time - Timeline time to inspect. Defaults to the current playhead.
    * @returns Active clips with computed source-media timestamps.
    */
-  getActiveClips(time: RationalTime = this.state.playheadTime): ActiveClip[] {
+  getActiveClips(time: RationalTime = this.context.getState().playheadTime): ActiveClip[] {
+    const revision = this.context.getState().contentRevision;
+    if (
+      this.activeMediaCache?.revision === revision &&
+      compareRational(this.activeMediaCache.time, time) === 0
+    ) {
+      return this.activeMediaCache.clips;
+    }
     const activeClips: ActiveClip[] = [];
 
-    for (const track of this.state.tracks) {
+    for (const track of this.context.getState().tracks) {
       if (!track.visible || track.muted) {
         continue;
       }
-      for (const clip of track.clips) {
+      let cached = this.timeIndexes.get(track);
+      if (!cached || cached.revision !== revision) {
+        cached = { revision, index: new ClipTimeIndex(track.clips) };
+        this.timeIndexes.set(track, cached);
+      }
+      for (const clip of cached.index.at(time)) {
         if (clip.disabled) {
           continue;
         }
@@ -49,6 +75,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
       }
     }
 
+    this.activeMediaCache = { revision, time, clips: activeClips };
     return activeClips;
   }
 
@@ -59,7 +86,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
    * @returns First matching active clip in track and clip order.
    */
   getActiveClip(query: ActiveClipQuery = {}): ActiveClip | undefined {
-    const { time = this.state.playheadTime, trackKind, sourceId, predicate } = query;
+    const { time = this.context.getState().playheadTime, trackKind, sourceId, predicate } = query;
     return this.getActiveClips(time).find((activeClip) => {
       return this.matchesActiveLayerSelector(activeClip, { trackKind, sourceId, predicate });
     });
@@ -80,7 +107,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
   getActiveLayers<LayerName extends string = string>(
     options: ActiveLayerOptions<LayerName>
   ): ActiveLayerResult<LayerName> {
-    const time = options.time ?? this.state.playheadTime;
+    const time = options.time ?? this.context.getState().playheadTime;
     const activeClips = this.getActiveClips(time);
     const layers = {} as Record<LayerName, ActiveClip[]>;
     const primary: Partial<Record<LayerName, ActiveClip>> = {};
@@ -112,7 +139,6 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
       layers,
       primary,
       hasActiveClips: all.length > 0,
-      firstContentTime: this.getFirstContentTime({ layers: options.layers }),
     };
   }
 
@@ -126,8 +152,9 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
     options: FirstContentTimeOptions<LayerName>
   ): RationalTime | undefined {
     let firstContentTime: RationalTime | undefined;
+    const selectors = Object.values<ActiveLayerSelector>(options.layers);
 
-    for (const track of this.state.tracks) {
+    for (const track of this.context.getState().tracks) {
       if (!track.visible || track.muted) {
         continue;
       }
@@ -145,9 +172,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
         const activeClip = this.createActiveClip(track, clip, clip.timelineStart);
         if (
           activeClip === undefined ||
-          !Object.values<ActiveLayerSelector>(options.layers).some((selector) =>
-            this.matchesActiveLayerSelector(activeClip, selector)
-          )
+          !selectors.some((selector) => this.matchesActiveLayerSelector(activeClip, selector))
         ) {
           continue;
         }
@@ -157,6 +182,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
           compareRational(clip.timelineStart, firstContentTime) < 0
         ) {
           firstContentTime = clip.timelineStart;
+          break;
         }
       }
     }
@@ -170,7 +196,9 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
    * @param time - Timeline time to inspect. Defaults to the current playhead.
    * @returns Map of track id to active clips on that track.
    */
-  getActiveClipsByTrack(time: RationalTime = this.state.playheadTime): Map<string, ActiveClip[]> {
+  getActiveClipsByTrack(
+    time: RationalTime = this.context.getState().playheadTime
+  ): Map<string, ActiveClip[]> {
     return this.groupActiveClipsByTrack(this.getActiveClips(time));
   }
 
@@ -206,6 +234,9 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
     timelineTime: RationalTime
   ): ActiveClip | undefined {
     const sourceTime = this.timelineTimeToSourceTime(clip, timelineTime);
+    if (sourceTime === undefined) {
+      return undefined;
+    }
     const sourceRange = this.getClipSourceRange(clip);
     const syncKey = this.getClipSyncKey(clip);
     if (sourceTime === undefined || sourceRange === undefined || syncKey === undefined) {
@@ -261,7 +292,7 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
    */
   timelineTimeToSourceTime(
     clipIdOrClip: string | Clip,
-    timelineTime: RationalTime = this.state.playheadTime
+    timelineTime: RationalTime = this.context.getState().playheadTime
   ): RationalTime | undefined {
     const clip = this.resolveClip(clipIdOrClip);
     if (clip === undefined) {
@@ -288,5 +319,8 @@ export abstract class TimelineEngineMedia extends TimelineEngineKeyframes {
     }
 
     return mapSourceTimeToTimelineTime(clip, sourceTime);
+  }
+  private resolveClip(clip: string | Clip): Clip | undefined {
+    return typeof clip === 'string' ? this.context.getClip(clip)?.clip : clip;
   }
 }

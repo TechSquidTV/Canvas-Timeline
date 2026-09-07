@@ -1,14 +1,15 @@
+import { renderTimeline } from '#renderer/renderTimeline';
+import { defaultTimelineRendererTheme } from '#renderer/theme';
 import {
   createTimelineScalarKeyframeProperty,
   TimelineEngine,
-  type TimelineKeyframeRenderGeometry,
-  type TimelineState,
+} from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineKeyframeRenderGeometry,
+  TimelineState,
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { describe, expect, it } from 'vite-plus/test';
-import { renderTimeline } from '#renderer/renderTimeline';
-import { defaultTimelineRendererTheme } from '#renderer/theme';
-
 const levelKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'level',
   label: 'Level',
@@ -223,50 +224,54 @@ class FakeCanvasContext {
 }
 
 function createState() {
-  return new TimelineEngine({
-    duration: fromSeconds(15),
-    playheadTime: fromSeconds(2),
-    tracks: [],
-    zoomScale: 50,
-  }).getState();
+  return structuredClone(
+    new TimelineEngine({
+      duration: fromSeconds(15),
+      playheadTime: fromSeconds(2),
+      tracks: [],
+      zoomScale: 50,
+    }).getState()
+  ) as TimelineState;
 }
 
 function createStateWithContent() {
-  const state = new TimelineEngine({
-    duration: fromSeconds(15),
-    playheadTime: fromSeconds(2),
-    tracks: [
-      {
-        id: 'video-1',
-        kind: 'visual',
-        selected: false,
-        locked: false,
-        muted: false,
-        visible: true,
-        clips: [
-          {
-            id: 'clip-1',
-            sourceId: 'source-1',
-            timelineStart: fromSeconds(1),
-            timelineEnd: fromSeconds(3),
-            sourceStart: fromSeconds(0),
-            selected: false,
-            label: 'Clip 1',
-          },
-          {
-            id: 'clip-2',
-            sourceId: 'source-2',
-            timelineStart: fromSeconds(4),
-            timelineEnd: fromSeconds(6),
-            sourceStart: fromSeconds(0),
-            selected: true,
-            label: 'Clip 2',
-          },
-        ],
-      },
-    ],
-    zoomScale: 50,
-  }).getState();
+  const state = structuredClone(
+    new TimelineEngine({
+      duration: fromSeconds(15),
+      playheadTime: fromSeconds(2),
+      tracks: [
+        {
+          id: 'video-1',
+          kind: 'visual',
+          selected: false,
+          locked: false,
+          muted: false,
+          visible: true,
+          clips: [
+            {
+              id: 'clip-1',
+              sourceId: 'source-1',
+              timelineStart: fromSeconds(1),
+              timelineEnd: fromSeconds(3),
+              sourceStart: fromSeconds(0),
+              selected: false,
+              label: 'Clip 1',
+            },
+            {
+              id: 'clip-2',
+              sourceId: 'source-2',
+              timelineStart: fromSeconds(4),
+              timelineEnd: fromSeconds(6),
+              sourceStart: fromSeconds(0),
+              selected: true,
+              label: 'Clip 2',
+            },
+          ],
+        },
+      ],
+      zoomScale: 50,
+    }).getState()
+  ) as TimelineState;
   state.inPoint = fromSeconds(1);
   state.outPoint = fromSeconds(8);
   state.snapFeedback = { lines: [3], target: null };
@@ -275,32 +280,34 @@ function createStateWithContent() {
 }
 
 function createStateWithLockedTrack() {
-  return new TimelineEngine({
-    duration: fromSeconds(15),
-    tracks: [
-      {
-        id: 'locked-track',
-        kind: 'visual',
-        selected: false,
-        locked: true,
-        muted: false,
-        visible: true,
-        clips: [
-          {
-            id: 'locked-clip',
-            sourceId: 'locked-source',
-            timelineStart: fromSeconds(1),
-            timelineEnd: fromSeconds(3),
-            sourceStart: fromSeconds(0),
-            selected: false,
-            color: '#abcdef',
-            label: 'Locked clip',
-          },
-        ],
-      },
-    ],
-    zoomScale: 50,
-  }).getState();
+  return structuredClone(
+    new TimelineEngine({
+      duration: fromSeconds(15),
+      tracks: [
+        {
+          id: 'locked-track',
+          kind: 'visual',
+          selected: false,
+          locked: true,
+          muted: false,
+          visible: true,
+          clips: [
+            {
+              id: 'locked-clip',
+              sourceId: 'locked-source',
+              timelineStart: fromSeconds(1),
+              timelineEnd: fromSeconds(3),
+              sourceStart: fromSeconds(0),
+              selected: false,
+              color: '#abcdef',
+              label: 'Locked clip',
+            },
+          ],
+        },
+      ],
+      zoomScale: 50,
+    }).getState()
+  ) as TimelineState;
 }
 
 function createStateWithHoldKeyframes(): TimelineRenderScene {
@@ -353,8 +360,8 @@ function createStateWithHoldKeyframes(): TimelineRenderScene {
   });
 
   return {
-    state: engine.getState(),
-    keyframeGeometry: engine.getKeyframeRenderGeometry({
+    state: structuredClone(engine.getState()) as TimelineState,
+    keyframeGeometry: engine.keyframes.getKeyframeRenderGeometry({
       property: 'level',
       viewportHeight: 160,
       viewportWidth: 400,
@@ -406,8 +413,8 @@ function createStateWithBezierKeyframes(): TimelineRenderScene {
   });
 
   return {
-    state: engine.getState(),
-    keyframeGeometry: engine.getKeyframeRenderGeometry({
+    state: structuredClone(engine.getState()) as TimelineState,
+    keyframeGeometry: engine.keyframes.getKeyframeRenderGeometry({
       property: 'level',
       viewportHeight: 160,
       viewportWidth: 400,
@@ -457,8 +464,8 @@ function createStateWithNonlinearKeyframes(): TimelineRenderScene {
   });
 
   return {
-    state: engine.getState(),
-    keyframeGeometry: engine.getKeyframeRenderGeometry({
+    state: structuredClone(engine.getState()) as TimelineState,
+    keyframeGeometry: engine.keyframes.getKeyframeRenderGeometry({
       property: 'curve',
       viewportHeight: 160,
       viewportWidth: 400,
@@ -467,76 +474,78 @@ function createStateWithNonlinearKeyframes(): TimelineRenderScene {
 }
 
 function createStateWithClippedTracks() {
-  return new TimelineEngine({
-    duration: fromSeconds(40),
-    playheadTime: fromSeconds(2),
-    tracks: [
-      {
-        id: 'visible-track',
-        kind: 'visual',
-        selected: false,
-        locked: false,
-        muted: false,
-        visible: true,
-        height: 40,
-        clips: [
-          {
-            id: 'visible-clip',
-            sourceId: 'visible-source',
-            timelineStart: fromSeconds(0),
-            timelineEnd: fromSeconds(2),
-            sourceStart: fromSeconds(0),
-            selected: false,
-            color: '#111111',
-            label: 'Visible',
-          },
-        ],
-      },
-      {
-        id: 'partial-track',
-        kind: 'visual',
-        selected: false,
-        locked: false,
-        muted: false,
-        visible: true,
-        height: 40,
-        clips: [
-          {
-            id: 'partial-clip',
-            sourceId: 'partial-source',
-            timelineStart: fromSeconds(0),
-            timelineEnd: fromSeconds(2),
-            sourceStart: fromSeconds(0),
-            selected: false,
-            color: '#222222',
-            label: 'Partial',
-          },
-        ],
-      },
-      {
-        id: 'offscreen-track',
-        kind: 'visual',
-        selected: false,
-        locked: false,
-        muted: false,
-        visible: true,
-        height: 40,
-        clips: [
-          {
-            id: 'offscreen-clip',
-            sourceId: 'offscreen-source',
-            timelineStart: fromSeconds(0),
-            timelineEnd: fromSeconds(2),
-            sourceStart: fromSeconds(0),
-            selected: false,
-            color: '#333333',
-            label: 'Offscreen',
-          },
-        ],
-      },
-    ],
-    zoomScale: 10,
-  }).getState();
+  return structuredClone(
+    new TimelineEngine({
+      duration: fromSeconds(40),
+      playheadTime: fromSeconds(2),
+      tracks: [
+        {
+          id: 'visible-track',
+          kind: 'visual',
+          selected: false,
+          locked: false,
+          muted: false,
+          visible: true,
+          height: 40,
+          clips: [
+            {
+              id: 'visible-clip',
+              sourceId: 'visible-source',
+              timelineStart: fromSeconds(0),
+              timelineEnd: fromSeconds(2),
+              sourceStart: fromSeconds(0),
+              selected: false,
+              color: '#111111',
+              label: 'Visible',
+            },
+          ],
+        },
+        {
+          id: 'partial-track',
+          kind: 'visual',
+          selected: false,
+          locked: false,
+          muted: false,
+          visible: true,
+          height: 40,
+          clips: [
+            {
+              id: 'partial-clip',
+              sourceId: 'partial-source',
+              timelineStart: fromSeconds(0),
+              timelineEnd: fromSeconds(2),
+              sourceStart: fromSeconds(0),
+              selected: false,
+              color: '#222222',
+              label: 'Partial',
+            },
+          ],
+        },
+        {
+          id: 'offscreen-track',
+          kind: 'visual',
+          selected: false,
+          locked: false,
+          muted: false,
+          visible: true,
+          height: 40,
+          clips: [
+            {
+              id: 'offscreen-clip',
+              sourceId: 'offscreen-source',
+              timelineStart: fromSeconds(0),
+              timelineEnd: fromSeconds(2),
+              sourceStart: fromSeconds(0),
+              selected: false,
+              color: '#333333',
+              label: 'Offscreen',
+            },
+          ],
+        },
+      ],
+      zoomScale: 10,
+    }).getState()
+  ) as TimelineState;
 }
 
 describe('renderTimeline', () => {
@@ -1085,30 +1094,32 @@ describe('renderTimeline', () => {
 
   it('dims hidden track rows without removing editor geometry', () => {
     const ctx = new FakeCanvasContext();
-    const state = new TimelineEngine({
-      duration: fromSeconds(15),
-      tracks: [
-        {
-          id: 'hidden-track',
-          kind: 'visual',
-          selected: false,
-          locked: false,
-          muted: false,
-          visible: false,
-          clips: [
-            {
-              id: 'hidden-clip',
-              sourceId: 'hidden-source',
-              timelineStart: fromSeconds(1),
-              timelineEnd: fromSeconds(3),
-              sourceStart: fromSeconds(0),
-              selected: false,
-            },
-          ],
-        },
-      ],
-      zoomScale: 50,
-    }).getState();
+    const state = structuredClone(
+      new TimelineEngine({
+        duration: fromSeconds(15),
+        tracks: [
+          {
+            id: 'hidden-track',
+            kind: 'visual',
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: false,
+            clips: [
+              {
+                id: 'hidden-clip',
+                sourceId: 'hidden-source',
+                timelineStart: fromSeconds(1),
+                timelineEnd: fromSeconds(3),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+          },
+        ],
+        zoomScale: 50,
+      }).getState()
+    ) as TimelineState;
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,
@@ -1150,11 +1161,13 @@ describe('renderTimeline', () => {
 
   it('spaces timecode labels using the resolved ruler font width', () => {
     const ctx = new FakeCanvasContext();
-    const state = new TimelineEngine({
-      duration: fromSeconds(36),
-      tracks: [],
-      zoomScale: 38,
-    }).getState();
+    const state = structuredClone(
+      new TimelineEngine({
+        duration: fromSeconds(36),
+        tracks: [],
+        zoomScale: 38,
+      }).getState()
+    ) as TimelineState;
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,
@@ -1179,11 +1192,13 @@ describe('renderTimeline', () => {
   });
 
   it('does not let configured spacing undercut the resolved ruler font width', () => {
-    const state = new TimelineEngine({
-      duration: fromSeconds(36),
-      tracks: [],
-      zoomScale: 38,
-    }).getState();
+    const state = structuredClone(
+      new TimelineEngine({
+        duration: fromSeconds(36),
+        tracks: [],
+        zoomScale: 38,
+      }).getState()
+    ) as TimelineState;
     const renderMajorTickXs = (minimumMajorTickSpacing?: number) => {
       const ctx = new FakeCanvasContext();
 
@@ -1215,11 +1230,13 @@ describe('renderTimeline', () => {
 
   it('keeps ruler labels inside the viewport and suppresses edge collisions', () => {
     const ctx = new FakeCanvasContext();
-    const state = new TimelineEngine({
-      duration: fromSeconds(20),
-      tracks: [],
-      zoomScale: 50,
-    }).getState();
+    const state = structuredClone(
+      new TimelineEngine({
+        duration: fromSeconds(20),
+        tracks: [],
+        zoomScale: 50,
+      }).getState()
+    ) as TimelineState;
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,
@@ -1246,7 +1263,7 @@ describe('renderTimeline', () => {
     });
     engine.setViewportWidth(384);
     engine.setZoomScale(24 * 16);
-    const state = engine.getState();
+    const state = structuredClone(engine.getState()) as TimelineState;
 
     renderTimeline(
       ctx as unknown as OffscreenCanvasRenderingContext2D,

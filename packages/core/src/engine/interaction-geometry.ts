@@ -1,3 +1,10 @@
+import {
+  defaultTimelineViewportWidth,
+  normalizeViewportCoordinate,
+  resolveTimelineInteractionGeometry,
+} from '#core/engine/geometry';
+import type { ResolvedTimelineInteractionGeometry } from '#core/engine/geometry';
+import { createClipSourceRange } from '#core/engine/media-sync';
 import type {
   Clip,
   ClipHitRegion,
@@ -7,6 +14,7 @@ import type {
   TimelineClipGeometryOptions,
   TimelineClipRect,
   TimelineInteractionGeometry,
+  TimelineState,
   TimelineTrackGeometryOptions,
   TimelineTrackHitTestResult,
   TimelineTrackRect,
@@ -15,7 +23,6 @@ import type {
   VisibleTimelineClip,
   VisibleTimelineClipOptions,
 } from '#core/types';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import {
   addRational,
   compareRational,
@@ -23,18 +30,17 @@ import {
   minRational,
   subRational,
 } from '@techsquidtv/canvas-timeline-utils';
-import { createClipSourceRange } from '#core/engine/media-sync';
-import {
-  defaultTimelineViewportWidth,
-  normalizeViewportCoordinate,
-  resolveTimelineInteractionGeometry,
-  type ResolvedTimelineInteractionGeometry,
-} from '#core/engine/geometry';
-import { TimelineEngineMedia } from '#core/engine/active-media';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+interface GeometryContext {
+  getState: () => TimelineState;
+  getRenderState: () => TimelineState;
+  timeToPixel: (time: RationalTime) => number;
+  pixelToTime: (pixel: number, rate?: number) => RationalTime;
+}
 
-export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
-  abstract get contentRevision(): number;
-  abstract pixelToTime(pixel: number, rate?: number): RationalTime;
+/** Clip lookup and viewport geometry for a timeline engine. */
+export class TimelineGeometry {
+  constructor(private context: GeometryContext) {}
 
   /**
    * Locates a clip and returns its containing track and indexes.
@@ -45,8 +51,8 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
   getClip(
     clipId: string
   ): { track: Track; clip: Clip; trackIndex: number; clipIndex: number } | undefined {
-    for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.state.tracks[trackIndex];
+    for (let trackIndex = 0; trackIndex < this.context.getState().tracks.length; trackIndex++) {
+      const track = this.context.getState().tracks[trackIndex];
       for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
         const clip = track.clips[clipIndex];
         if (clip.id === clipId) {
@@ -67,14 +73,18 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     const resolvedGeometry = resolveTimelineInteractionGeometry(options);
     const viewportWidth = Math.max(
       0,
-      options.viewportWidth ?? this.state.viewportWidth ?? defaultTimelineViewportWidth
+      options.viewportWidth ?? this.context.getState().viewportWidth ?? defaultTimelineViewportWidth
     );
-    const scrollTop = this.state.scrollTop;
+    const scrollTop = this.context.getState().scrollTop;
     const trackRects: TimelineTrackRect[] = [];
     let y = resolvedGeometry.rulerHeight - scrollTop;
 
-    for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.state.tracks[trackIndex];
+    for (
+      let trackIndex = 0;
+      trackIndex < this.context.getRenderState().tracks.length;
+      trackIndex++
+    ) {
+      const track = this.context.getRenderState().tracks[trackIndex];
       const height = this.getTrackViewportHeight(track, resolvedGeometry);
       trackRects.push(this.createTrackViewportRect(track, trackIndex, y, height, viewportWidth));
       y += height;
@@ -89,16 +99,14 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
    * @param input - Viewport point and optional geometry overrides.
    * @returns The matching track row, or null for blank/ruler space.
    */
-  getTrackAtPoint<TrackKind = string>(
-    input: TrackHitTestInput
-  ): TimelineTrackHitTestResult<TrackKind> | null {
+  getTrackAtPoint(input: TrackHitTestInput): TimelineTrackHitTestResult | null {
     const resolvedGeometry = resolveTimelineInteractionGeometry(input);
     if (input.y < resolvedGeometry.rulerHeight) {
       return null;
     }
 
     for (const rect of this.getTrackRects(input)) {
-      const track = this.getTracks<TrackKind>()[rect.trackIndex];
+      const track = this.context.getRenderState().tracks[rect.trackIndex];
       if (track === undefined) {
         continue;
       }
@@ -122,10 +130,14 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
    */
   getClipRect(clipId: string, geometry: TimelineInteractionGeometry = {}): ClipViewportRect | null {
     const resolvedGeometry = resolveTimelineInteractionGeometry(geometry);
-    let y = resolvedGeometry.rulerHeight - this.state.scrollTop;
+    let y = resolvedGeometry.rulerHeight - this.context.getState().scrollTop;
 
-    for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.state.tracks[trackIndex];
+    for (
+      let trackIndex = 0;
+      trackIndex < this.context.getRenderState().tracks.length;
+      trackIndex++
+    ) {
+      const track = this.context.getRenderState().tracks[trackIndex];
       const trackHeight = this.getTrackViewportHeight(track, resolvedGeometry);
 
       for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
@@ -152,17 +164,12 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
    * @param options - Optional ruler and track metrics used to align with the renderer.
    * @returns Clip entries with viewport rectangles and edit/display state.
    */
-  getClipRects<TrackKind = string>(
-    options: TimelineClipGeometryOptions = {}
-  ): TimelineClipRect<TrackKind>[] {
-    const clipRects: TimelineClipRect<TrackKind>[] = [];
+  getClipRects(options: TimelineClipGeometryOptions = {}): TimelineClipRect[] {
+    const clipRects: TimelineClipRect[] = [];
 
-    this.forEachTimelineClipGeometry<TrackKind>(
-      options,
-      (track, clip, trackIndex, clipIndex, rect) => {
-        clipRects.push(this.createTimelineClipRect(track, clip, trackIndex, clipIndex, rect));
-      }
-    );
+    this.forEachTimelineClipGeometry(options, (track, clip, trackIndex, clipIndex, rect) => {
+      clipRects.push(this.createTimelineClipRect(track, clip, trackIndex, clipIndex, rect));
+    });
 
     return clipRects;
   }
@@ -177,13 +184,11 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
    * @param options - Viewport, overscan, and optional geometry settings.
    * @returns Viewport-intersecting clip entries in track order.
    */
-  getVisibleTimelineClips<TrackKind = string>(
-    options: VisibleTimelineClipOptions = {}
-  ): VisibleTimelineClip<TrackKind>[] {
+  getVisibleTimelineClips(options: VisibleTimelineClipOptions = {}): VisibleTimelineClip[] {
     const resolvedGeometry = resolveTimelineInteractionGeometry(options);
     const viewportWidth = Math.max(
       0,
-      options.viewportWidth ?? this.state.viewportWidth ?? defaultTimelineViewportWidth
+      options.viewportWidth ?? this.context.getState().viewportWidth ?? defaultTimelineViewportWidth
     );
     const viewportHeight =
       options.viewportHeight === undefined ? undefined : Math.max(0, options.viewportHeight);
@@ -192,69 +197,66 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     const maxX = viewportWidth + overscanPixels;
     const minY = resolvedGeometry.rulerHeight - overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
-    const visibleClips: VisibleTimelineClip<TrackKind>[] = [];
+    const visibleClips: VisibleTimelineClip[] = [];
 
-    this.forEachTimelineClipGeometry<TrackKind>(
-      options,
-      (track, clip, trackIndex, clipIndex, rect) => {
-        const rectRight = rect.x + rect.width;
-        const rectBottom = rect.y + rect.height;
+    this.forEachTimelineClipGeometry(options, (track, clip, trackIndex, clipIndex, rect) => {
+      const rectRight = rect.x + rect.width;
+      const rectBottom = rect.y + rect.height;
 
-        if (rectRight < minX || rect.x > maxX) {
-          return;
-        }
-        if (maxY !== undefined && (rectBottom < minY || rect.y > maxY)) {
-          return;
-        }
-
-        const visibleLeft = Math.max(rect.x, minX);
-        const visibleRight = Math.min(rectRight, maxX);
-        const visibleTop = maxY === undefined ? rect.y : Math.max(rect.y, minY);
-        const visibleBottom = maxY === undefined ? rectBottom : Math.min(rectBottom, maxY);
-        const visibleWidth = Math.max(0, visibleRight - visibleLeft);
-        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-        const visibleTimelineStartTime = maxRational(
-          clip.timelineStart,
-          this.pixelToTime(visibleLeft, clip.timelineStart.r)
-        );
-        const visibleTimelineEndTime = minRational(
-          clip.timelineEnd,
-          this.pixelToTime(visibleRight, clip.timelineEnd.r)
-        );
-
-        if (compareRational(visibleTimelineEndTime, visibleTimelineStartTime) <= 0) {
-          return;
-        }
-
-        const visibleSourceStartTime = addRational(
-          clip.sourceStart,
-          subRational(visibleTimelineStartTime, clip.timelineStart)
-        );
-        const visibleSourceEndTime = addRational(
-          clip.sourceStart,
-          subRational(visibleTimelineEndTime, clip.timelineStart)
-        );
-        const clipRect = this.createTimelineClipRect(track, clip, trackIndex, clipIndex, rect);
-
-        visibleClips.push({
-          ...clipRect,
-          visibleRect: {
-            clipId: clip.id,
-            trackId: track.id,
-            trackIndex,
-            clipIndex,
-            x: normalizeViewportCoordinate(visibleLeft),
-            y: normalizeViewportCoordinate(visibleTop),
-            width: normalizeViewportCoordinate(visibleWidth),
-            height: normalizeViewportCoordinate(visibleHeight),
-          },
-          visibleTimelineStartTime,
-          visibleTimelineEndTime,
-          visibleSourceStartTime,
-          visibleSourceEndTime,
-        });
+      if (rectRight < minX || rect.x > maxX) {
+        return;
       }
-    );
+      if (maxY !== undefined && (rectBottom < minY || rect.y > maxY)) {
+        return;
+      }
+
+      const visibleLeft = Math.max(rect.x, minX);
+      const visibleRight = Math.min(rectRight, maxX);
+      const visibleTop = maxY === undefined ? rect.y : Math.max(rect.y, minY);
+      const visibleBottom = maxY === undefined ? rectBottom : Math.min(rectBottom, maxY);
+      const visibleWidth = Math.max(0, visibleRight - visibleLeft);
+      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+      const visibleTimelineStartTime = maxRational(
+        clip.timelineStart,
+        this.context.pixelToTime(visibleLeft, clip.timelineStart.r)
+      );
+      const visibleTimelineEndTime = minRational(
+        clip.timelineEnd,
+        this.context.pixelToTime(visibleRight, clip.timelineEnd.r)
+      );
+
+      if (compareRational(visibleTimelineEndTime, visibleTimelineStartTime) <= 0) {
+        return;
+      }
+
+      const visibleSourceStartTime = addRational(
+        clip.sourceStart,
+        subRational(visibleTimelineStartTime, clip.timelineStart)
+      );
+      const visibleSourceEndTime = addRational(
+        clip.sourceStart,
+        subRational(visibleTimelineEndTime, clip.timelineStart)
+      );
+      const clipRect = this.createTimelineClipRect(track, clip, trackIndex, clipIndex, rect);
+
+      visibleClips.push({
+        ...clipRect,
+        visibleRect: {
+          clipId: clip.id,
+          trackId: track.id,
+          trackIndex,
+          clipIndex,
+          x: normalizeViewportCoordinate(visibleLeft),
+          y: normalizeViewportCoordinate(visibleTop),
+          width: normalizeViewportCoordinate(visibleWidth),
+          height: normalizeViewportCoordinate(visibleHeight),
+        },
+        visibleTimelineStartTime,
+        visibleTimelineEndTime,
+        visibleSourceStartTime,
+        visibleSourceEndTime,
+      });
+    });
 
     return visibleClips;
   }
@@ -274,10 +276,14 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
       return null;
     }
 
-    let trackY = resolvedGeometry.rulerHeight - this.state.scrollTop;
+    let trackY = resolvedGeometry.rulerHeight - this.context.getState().scrollTop;
 
-    for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.state.tracks[trackIndex];
+    for (
+      let trackIndex = 0;
+      trackIndex < this.context.getRenderState().tracks.length;
+      trackIndex++
+    ) {
+      const track = this.context.getRenderState().tracks[trackIndex];
       const trackHeight = this.getTrackViewportHeight(track, resolvedGeometry);
       const trackBottom = trackY + trackHeight;
 
@@ -299,19 +305,18 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     return null;
   }
 
-  protected getTrackViewportHeight<TrackKind>(
-    track: Track<TrackKind>,
-    geometry: ResolvedTimelineInteractionGeometry
-  ): number {
+  /** @internal Shared row geometry for engine services. */
+  getTrackViewportHeight(track: Track, geometry: ResolvedTimelineInteractionGeometry): number {
     return Math.floor(
       track.collapsed ? geometry.collapsedTrackHeight : (track.height ?? geometry.trackHeight)
     );
   }
 
-  protected override forEachTimelineClipGeometry<TrackKind>(
+  /** @internal Visits drawing geometry for composed services. */
+  forEachTimelineClipGeometry(
     options: TimelineClipGeometryOptions,
     visit: (
-      track: Track<TrackKind>,
+      track: Track,
       clip: Clip,
       trackIndex: number,
       clipIndex: number,
@@ -319,10 +324,14 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     ) => void
   ): void {
     const resolvedGeometry = resolveTimelineInteractionGeometry(options);
-    let y = resolvedGeometry.rulerHeight - this.state.scrollTop;
+    let y = resolvedGeometry.rulerHeight - this.context.getState().scrollTop;
 
-    for (let trackIndex = 0; trackIndex < this.state.tracks.length; trackIndex++) {
-      const track = this.getTracks<TrackKind>()[trackIndex];
+    for (
+      let trackIndex = 0;
+      trackIndex < this.context.getRenderState().tracks.length;
+      trackIndex++
+    ) {
+      const track = this.context.getRenderState().tracks[trackIndex];
       const trackHeight = this.getTrackViewportHeight(track, resolvedGeometry);
 
       for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
@@ -405,16 +414,16 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     return null;
   }
 
-  private createClipViewportRect<TrackKind>(
-    track: Track<TrackKind>,
+  private createClipViewportRect(
+    track: Track,
     clip: Clip,
     trackIndex: number,
     clipIndex: number,
     y: number,
     height: number
   ): ClipViewportRect {
-    const x = this.timeToPixel(clip.timelineStart);
-    const endX = this.timeToPixel(clip.timelineEnd);
+    const x = this.context.timeToPixel(clip.timelineStart);
+    const endX = this.context.timeToPixel(clip.timelineEnd);
 
     return {
       clipId: clip.id,
@@ -428,8 +437,8 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     };
   }
 
-  private createTrackViewportRect<TrackKind>(
-    track: Track<TrackKind>,
+  private createTrackViewportRect(
+    track: Track,
     trackIndex: number,
     y: number,
     height: number,
@@ -445,13 +454,13 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
     };
   }
 
-  private createTimelineClipRect<TrackKind>(
-    track: Track<TrackKind>,
+  private createTimelineClipRect(
+    track: Track,
     clip: Clip,
     trackIndex: number,
     clipIndex: number,
     rect: ClipViewportRect
-  ): TimelineClipRect<TrackKind> {
+  ): TimelineClipRect {
     return {
       clip,
       track,
@@ -466,17 +475,5 @@ export abstract class TimelineEngineGeometry extends TimelineEngineMedia {
       locked: track.locked,
       disabled: clip.disabled === true,
     };
-  }
-
-  /**
-   * Marks timeline content as changed and notifies subscribers.
-   *
-   * Use this after external metadata that affects rendering changes without a
-   * structural timeline edit, such as waveform availability, thumbnails, or
-   * cached analysis keyed by clip id.
-   */
-  invalidateContent() {
-    this.state.contentRevision = this.contentRevision + 1;
-    this.emit('content:change', this.state.contentRevision);
   }
 }

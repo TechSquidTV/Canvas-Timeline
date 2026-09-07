@@ -1,28 +1,25 @@
 import {
-  TimelineEngine,
-  type Clip,
-  type TimelineClipGroupPlacement,
-} from '@techsquidtv/canvas-timeline-core';
+  demoMarkers,
+  demoTracks,
+  externalClipAssets,
+} from '#www/demos/external-clip-drop/timeline-demo-data';
+import type { ExternalClipAsset } from '#www/demos/external-clip-drop/timeline-demo-data';
+import '#www/demos/external-clip-drop/timeline-editor.css';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import type { Clip, TimelineClipGroupPlacement } from '@techsquidtv/canvas-timeline-core';
 import {
   Timeline,
   TimelineProvider,
   useTimelineClipGroups,
   useTimelineExternalClipDrop,
 } from '@techsquidtv/canvas-timeline-react';
-import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
-import { fromSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { Clapperboard, Film, Rows3, Unlink2 } from 'lucide-react';
-import { useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
-import {
-  demoMarkers,
-  demoTracks,
-  externalClipAssets,
-  type ExternalClipAsset,
-  type ExternalClipDropTrackKind,
-} from '#www/demos/external-clip-drop/timeline-demo-data';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-import '#www/demos/external-clip-drop/timeline-editor.css';
-
+import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { Clapperboard, Film, Rows3, Unlink2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 const externalAssetMimeType = 'application/x-canvas-timeline-external-asset';
 const demoAudioTrackId = 'audio-main';
 
@@ -99,7 +96,7 @@ function ExternalDropWorkspace() {
   const clipCounterRef = useRef(1);
   const canUngroup = selectedGroupId !== null;
 
-  const drop = useTimelineExternalClipDrop<ExternalClipAsset, ExternalClipDropTrackKind>({
+  const drop = useTimelineExternalClipDrop<ExternalClipAsset>({
     editMode,
     resolveDragData: (event) => resolveExternalAsset(event, activeAssetIdRef.current),
     createPlacements: (context) => {

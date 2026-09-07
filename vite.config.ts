@@ -1,8 +1,7 @@
-import react from '@vitejs/plugin-react';
 import { createWorkspaceAliases } from '@techsquidtv/canvas-timeline-scripts/workspace-aliases';
+import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, lazyPlugins } from 'vite-plus';
-
 const workspaceRoot = fileURLToPath(new URL('.', import.meta.url));
 const packageWorkspaceFilter = '--filter "./packages/*" --fail-if-no-match';
 const publishablePackageNames = [
@@ -661,10 +660,11 @@ export default defineConfig({
     globals: true,
     include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['./test-utils/setup/browser-storage.ts'],
+    globalSetup: ['./test-utils/setup/api-reference.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['apps/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
+      include: ['apps/*/src/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
       exclude: [
         'apps/**/.generated/**',
         'apps/**/vite-env.d.ts',

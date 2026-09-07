@@ -1,15 +1,13 @@
-import { createEvent } from '@testing-library/react';
-import React from 'react';
-import { vi } from 'vite-plus/test';
-import { TimelineContext } from '#react/context';
+import { TimelineProvider } from '#react/Provider';
 import {
   createTimelineScalarKeyframeProperty,
   TimelineEngine,
-  type Clip,
-  type Track,
 } from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-
+import { createEvent } from '@testing-library/react';
+import React from 'react';
+import { vi } from 'vite-plus/test';
 export const mediaSyncLayers = {
   visuals: { trackKind: 'visual', sourceId: 'source-1' },
   audio: { trackKind: 'audio', sourceId: 'source-1' },
@@ -40,9 +38,9 @@ export const wrapper = ({
   engine: TimelineEngine;
 }) => {
   return React.createElement(
-    TimelineContext.Provider,
+    TimelineProvider,
     {
-      value: { engine, state: engine.getState() },
+      engine,
     },
     children
   );

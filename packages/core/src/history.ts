@@ -1,82 +1,139 @@
 import type { TimelineEngine } from '#core/engine';
 import {
   createClipGroupSnapshots,
+  createClipSnapshot,
   createMarkerSnapshots,
   createTrackSnapshots,
-  stringifyTrackSnapshots,
 } from '#core/snapshot';
+import type { Marker, TimelineClipGroup, TimelineState, Track } from '#core/types';
+/** Limits retained document history. The current document is always retained. */
+export interface TimelineHistoryOptions {
+  /** Maximum snapshots, including the current document. Defaults to 100. */
+  maxEntries?: number;
+  /** Conservative serialized-byte budget. Defaults to 16 MiB. */
+  maxBytes?: number;
+}
+
+interface HistoryEntry {
+  tracks: Track[];
+  markers: Marker[];
+  clipGroups: TimelineClipGroup[];
+  bytes: number;
+}
 
 export class HistoryManager {
-  private engine: TimelineEngine;
-  private history: { tracks: string; markers: string; clipGroups: string }[] = [];
-  private historyIndex: number = -1;
+  private history: HistoryEntry[] = [];
+  private historyIndex = -1;
+  private revision = '';
+  private readonly maxEntries: number;
+  private readonly maxBytes: number;
 
-  constructor(engine: TimelineEngine) {
-    this.engine = engine;
+  constructor(
+    private engine: TimelineEngine,
+    private state: TimelineState,
+    options: TimelineHistoryOptions = {}
+  ) {
+    this.maxEntries = options.maxEntries ?? 100;
+    this.maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
+    if (
+      !Number.isSafeInteger(this.maxEntries) ||
+      this.maxEntries < 1 ||
+      !Number.isSafeInteger(this.maxBytes) ||
+      this.maxBytes < 1
+    ) {
+      throw new RangeError('History limits must be positive safe integers.');
+    }
   }
 
-  snapshot() {
-    const state = this.engine.getState();
-    const tracksStr = stringifyTrackSnapshots(state.tracks);
-    const markersStr = JSON.stringify(state.markers ?? []);
-    const clipGroupsStr = JSON.stringify(createClipGroupSnapshots(state.clipGroups));
-
+  snapshot(selectionRevision: number) {
+    const state = this.state;
+    const revision = `${state.contentRevision}:${selectionRevision}`;
+    if (this.revision === revision) {
+      return;
+    }
+    this.revision = revision;
     const last = this.history[this.historyIndex];
+    const previousClips = new Map(
+      last?.tracks.flatMap((track) => track.clips.map((clip) => [clip.id, clip] as const))
+    );
+    const tracks = state.tracks.map((track) => {
+      const clips = track.clips.map((clip) => {
+        const previous = previousClips.get(clip.id);
+        return previous && JSON.stringify(previous) === JSON.stringify(clip)
+          ? previous
+          : createClipSnapshot(clip);
+      });
+      const previousTrack = last?.tracks.find((entry) => entry.id === track.id);
+      if (
+        previousTrack &&
+        clips.length === previousTrack.clips.length &&
+        clips.every((clip, index) => clip === previousTrack.clips[index]) &&
+        JSON.stringify({ ...track, clips: [] }) === JSON.stringify({ ...previousTrack, clips: [] })
+      ) {
+        return previousTrack;
+      }
+      return { ...track, clips };
+    });
+    const markers = createMarkerSnapshots(state.markers);
+    const clipGroups = createClipGroupSnapshots(state.clipGroups);
     if (
-      last !== undefined &&
-      last.tracks === tracksStr &&
-      last.markers === markersStr &&
-      last.clipGroups === clipGroupsStr
+      last &&
+      tracks.length === last.tracks.length &&
+      tracks.every((track, index) => track === last.tracks[index]) &&
+      JSON.stringify(markers) === JSON.stringify(last.markers) &&
+      JSON.stringify(clipGroups) === JSON.stringify(last.clipGroups)
     ) {
       return;
     }
-
-    // Truncate future history if we're not at the end
-    if (this.historyIndex < this.history.length - 1) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
+    const entry = { tracks, markers, clipGroups, bytes: 0 };
+    // UTF-16 is a conservative charge for JSON content; shared nodes are charged per entry.
+    entry.bytes = JSON.stringify(entry).length * 2;
+    this.history.splice(this.historyIndex + 1);
+    this.history.push(entry);
+    let bytes = this.history.reduce((sum, item) => sum + item.bytes, 0);
+    while (
+      this.history.length > 1 &&
+      (this.history.length > this.maxEntries || bytes > this.maxBytes)
+    ) {
+      bytes -= this.history.shift()?.bytes ?? 0;
     }
-
-    // Save stringified clone to avoid deep cloning complex objects manually
-    this.history.push({
-      tracks: tracksStr,
-      markers: markersStr,
-      clipGroups: clipGroupsStr,
-    });
-
     this.historyIndex = this.history.length - 1;
-    this.engine.emit('history:change', { index: this.historyIndex, length: this.history.length });
+    this.notify();
   }
 
   undo() {
-    if (this.historyIndex > 0) {
-      this.historyIndex--;
-      this.restoreSnapshot(this.history[this.historyIndex]);
-      this.engine.emit('history:change', { index: this.historyIndex, length: this.history.length });
+    if (!this.canUndo) {
+      return;
     }
+    this.restoreSnapshot(this.history[--this.historyIndex]);
+    this.notify();
   }
 
   redo() {
-    if (this.historyIndex < this.history.length - 1) {
-      this.historyIndex++;
-      this.restoreSnapshot(this.history[this.historyIndex]);
-      this.engine.emit('history:change', { index: this.historyIndex, length: this.history.length });
+    if (!this.canRedo) {
+      return;
     }
+    this.restoreSnapshot(this.history[++this.historyIndex]);
+    this.notify();
   }
 
   get canUndo() {
     return this.historyIndex > 0;
   }
-
   get canRedo() {
     return this.historyIndex < this.history.length - 1;
   }
 
-  private restoreSnapshot(snapshot: { tracks: string; markers: string; clipGroups: string }) {
-    const state = this.engine.getState();
-    state.tracks = createTrackSnapshots(JSON.parse(snapshot.tracks));
-    state.markers = createMarkerSnapshots(JSON.parse(snapshot.markers));
-    state.clipGroups = createClipGroupSnapshots(JSON.parse(snapshot.clipGroups));
+  private notify() {
+    this.engine.emit('history:change', { index: this.historyIndex, length: this.history.length });
+  }
+  private restoreSnapshot(snapshot: HistoryEntry) {
+    const state = this.state;
+    state.tracks = createTrackSnapshots(snapshot.tracks);
+    state.markers = createMarkerSnapshots(snapshot.markers);
+    state.clipGroups = createClipGroupSnapshots(snapshot.clipGroups);
     this.engine.invalidateContent();
+    this.revision = '';
     this.engine.emit('state:settled');
     this.engine.emit('render');
   }

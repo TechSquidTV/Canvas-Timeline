@@ -1,12 +1,7 @@
-import {
-  Timeline,
-  useTimelineTracks,
-  useTimelineTrackLockControl,
-} from '@techsquidtv/canvas-timeline-react';
-import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { useEditorTracks } from '#full-editor/features/timeline/useEditorTracks';
 import { Button } from '#full-editor/shared/ui/button';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-
+import { Timeline, useTimelineTrackLockControl } from '@techsquidtv/canvas-timeline-react';
+import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX } from 'lucide-react';
 function TrackLockButton({ trackId }: { trackId: string }) {
   const lockControl = useTimelineTrackLockControl(trackId);
 
@@ -23,7 +18,7 @@ function TrackLockButton({ trackId }: { trackId: string }) {
 }
 
 export function TrackHeaderColumn() {
-  const { tracks } = useTimelineTracks<EditorTrackKind>();
+  const { tracks } = useEditorTracks();
 
   return (
     <Timeline.TrackHeaderList className="timeline-editor-track-headers">

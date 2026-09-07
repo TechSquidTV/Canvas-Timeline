@@ -4,3 +4,5 @@ export * from '#react/hooks/core/usePlaybackEffect';
 export * from '#react/hooks/core/useTimeline';
 export * from '#react/hooks/core/useTimelineEvent';
 export * from '#react/hooks/core/useTimelineState';
+
+export { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';

@@ -1,16 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vite-plus/test';
+import type { TimelineState, Clip, Marker, Track } from '#core/types';
 import { TimelineEngine } from '#core/engine';
-import { createTimelineScalarKeyframeProperty } from '#core/keyframes';
-import type { Clip, Marker, Track } from '#core/types';
 import type {
   ClipCreatedEvent,
   ClipMoveEvent,
   ClipRemovedEvent,
   ClipSplitEvent,
 } from '#core/events';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { createTimelineScalarKeyframeProperty } from '#core/keyframes';
 import { expectDefined } from '#test-utils/assertions';
-
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',
   label: 'Opacity',
@@ -20,19 +19,6 @@ const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   formatValue: (value) => `${Math.round(value * 100)}%`,
   getBaseValue: (clip) => clip.opacity ?? 1,
 });
-type TimelineEngineInternals = {
-  historyManager: {
-    history: { tracks: string; markers: string; clipGroups: string }[];
-  };
-  dragSnapshot: string | null;
-  clipboardManager: {
-    clipboard: unknown[];
-  };
-};
-
-type RuntimeClip = Clip & { data?: unknown; bulky?: string };
-type RuntimeTrack = Track & { data?: unknown; bulky?: string };
-
 describe('TimelineEngine', () => {
   let engine: TimelineEngine;
   let mockTrack: Track;
@@ -159,28 +145,13 @@ describe('TimelineEngine', () => {
       expect(JSON.stringify(metadataEngine.getState().tracks)).not.toContain(bulky);
     });
 
-    it('keeps snapshots, drag previews, and clipboard payloads lightweight after runtime injection', () => {
-      const bulky = 'runtime-sentinel'.repeat(300);
-      const track = engine.getState().tracks[0] as RuntimeTrack;
-      const clip = track.clips[0] as RuntimeClip;
-      track.data = { bulky };
-      track.bulky = bulky;
-      clip.data = { bulky };
-      clip.bulky = bulky;
-
-      engine.snapshot();
-      engine.startDrag();
+    it('returns frozen snapshots that cannot inject runtime data into the engine', () => {
+      const snapshot = engine.getState();
+      expect(() => Object.assign(snapshot.tracks[0], { data: 'bulky' })).toThrow(TypeError);
+      expect(Object.isFrozen(snapshot.tracks[0].clips[0].timelineStart)).toBe(true);
       engine.selectClip('clip1');
       engine.copySelection();
-
-      const internals = engine as unknown as TimelineEngineInternals;
-      const latestSnapshot =
-        internals.historyManager.history[internals.historyManager.history.length - 1];
-
-      expect(latestSnapshot.tracks).not.toContain(bulky);
-      expect(latestSnapshot.tracks.length).toBeLessThan(2000);
-      expect(internals.dragSnapshot).not.toContain(bulky);
-      expect(JSON.stringify(internals.clipboardManager.clipboard)).not.toContain(bulky);
+      expect(engine.clipboardCount).toBe(1);
     });
   });
 
@@ -302,7 +273,7 @@ describe('TimelineEngine', () => {
         50
       );
 
-      expect(hitEngine.getClipRect('clip-1')).toEqual({
+      expect(hitEngine.geometry.getClipRect('clip-1')).toEqual({
         clipId: 'clip-1',
         trackId: 'track-1',
         trackIndex: 0,
@@ -312,7 +283,7 @@ describe('TimelineEngine', () => {
         width: 200,
         height: 48,
       });
-      expect(hitEngine.getClipRect('missing')).toBeNull();
+      expect(hitEngine.geometry.getClipRect('missing')).toBeNull();
     });
 
     it('returns null for ruler space, blank tracks, and points outside clips', () => {
@@ -320,10 +291,10 @@ describe('TimelineEngine', () => {
         createHitTestTrack('track-1', [createHitTestClip('clip-1', 1, 5)]),
       ]);
 
-      expect(hitEngine.getClipAtPoint({ x: 100, y: 20 })).toBeNull();
-      expect(hitEngine.getClipAtPoint({ x: 50, y: 40 })).toBeNull();
-      expect(hitEngine.getClipAtPoint({ x: 600, y: 40 })).toBeNull();
-      expect(hitEngine.getClipAtPoint({ x: 100, y: 1000 })).toBeNull();
+      expect(hitEngine.geometry.getClipAtPoint({ x: 100, y: 20 })).toBeNull();
+      expect(hitEngine.geometry.getClipAtPoint({ x: 50, y: 40 })).toBeNull();
+      expect(hitEngine.geometry.getClipAtPoint({ x: 600, y: 40 })).toBeNull();
+      expect(hitEngine.geometry.getClipAtPoint({ x: 100, y: 1000 })).toBeNull();
     });
 
     it('detects body and trim-edge regions with pointer-specific thresholds', () => {
@@ -331,15 +302,15 @@ describe('TimelineEngine', () => {
         createHitTestTrack('track-1', [createHitTestClip('clip-1', 1, 5)]),
       ]);
 
-      expect(hitEngine.getClipAtPoint({ x: 105, y: 40 })?.region).toBe('start-edge');
-      expect(hitEngine.getClipAtPoint({ x: 495, y: 40 })?.region).toBe('end-edge');
-      expect(hitEngine.getClipAtPoint({ x: 130, y: 40 })?.region).toBe('body');
-      expect(hitEngine.getClipAtPoint({ x: 120, y: 40, pointerType: 'mouse' })?.region).toBe(
-        'body'
-      );
-      expect(hitEngine.getClipAtPoint({ x: 120, y: 40, pointerType: 'touch' })?.region).toBe(
-        'start-edge'
-      );
+      expect(hitEngine.geometry.getClipAtPoint({ x: 105, y: 40 })?.region).toBe('start-edge');
+      expect(hitEngine.geometry.getClipAtPoint({ x: 495, y: 40 })?.region).toBe('end-edge');
+      expect(hitEngine.geometry.getClipAtPoint({ x: 130, y: 40 })?.region).toBe('body');
+      expect(
+        hitEngine.geometry.getClipAtPoint({ x: 120, y: 40, pointerType: 'mouse' })?.region
+      ).toBe('body');
+      expect(
+        hitEngine.geometry.getClipAtPoint({ x: 120, y: 40, pointerType: 'touch' })?.region
+      ).toBe('start-edge');
     });
 
     it('uses custom and collapsed track heights', () => {
@@ -348,7 +319,7 @@ describe('TimelineEngine', () => {
         createHitTestTrack('track-2', [createHitTestClip('clip-2', 2, 3)], { collapsed: true }),
       ]);
 
-      const hit = hitEngine.getClipAtPoint({ x: 220, y: 100 });
+      const hit = hitEngine.geometry.getClipAtPoint({ x: 220, y: 100 });
 
       expect(hit?.clip.id).toBe('clip-2');
       expect(hit?.rect).toMatchObject({
@@ -377,7 +348,7 @@ describe('TimelineEngine', () => {
         ]),
       ]);
 
-      const clipRects = hitEngine.getClipRects();
+      const clipRects = hitEngine.geometry.getClipRects();
 
       expect(clipRects.map((entry) => `${entry.track.id}:${entry.clip.id}`)).toEqual([
         'track-1:clip-1',
@@ -432,7 +403,7 @@ describe('TimelineEngine', () => {
         100
       );
 
-      const visibleClips = hitEngine.getVisibleTimelineClips({ viewportWidth: 200 });
+      const visibleClips = hitEngine.geometry.getVisibleTimelineClips({ viewportWidth: 200 });
 
       expect(visibleClips.map((entry) => entry.clip.id)).toEqual(['visible']);
       expect(visibleClips[0].visibleRect).toMatchObject({
@@ -456,16 +427,16 @@ describe('TimelineEngine', () => {
         100
       );
 
-      expect(hitEngine.getVisibleTimelineClips({ viewportWidth: 100 })).toHaveLength(0);
+      expect(hitEngine.geometry.getVisibleTimelineClips({ viewportWidth: 100 })).toHaveLength(0);
       expect(
-        hitEngine.getVisibleTimelineClips({
+        hitEngine.geometry.getVisibleTimelineClips({
           overscanPixels: 25,
           viewportHeight: 50,
           viewportWidth: 100,
         })
       ).toHaveLength(1);
       expect(
-        hitEngine.getVisibleTimelineClips({
+        hitEngine.geometry.getVisibleTimelineClips({
           overscanPixels: 25,
           viewportHeight: 200,
           viewportWidth: 100,
@@ -481,7 +452,7 @@ describe('TimelineEngine', () => {
       hitEngine.setViewportHeight(80);
       hitEngine.setScrollTop(20);
 
-      const visibleClips = hitEngine.getVisibleTimelineClips({
+      const visibleClips = hitEngine.geometry.getVisibleTimelineClips({
         viewportHeight: 80,
         viewportWidth: 200,
       });
@@ -503,8 +474,8 @@ describe('TimelineEngine', () => {
         ]),
       ]);
 
-      const lockedHit = lockedEngine.getClipAtPoint({ x: 105, y: 40 });
-      const nonEditableHit = nonEditableEngine.getClipAtPoint({ x: 105, y: 40 });
+      const lockedHit = lockedEngine.geometry.getClipAtPoint({ x: 105, y: 40 });
+      const nonEditableHit = nonEditableEngine.geometry.getClipAtPoint({ x: 105, y: 40 });
 
       expect(lockedHit?.region).toBe('body');
       expect(lockedHit?.canMove).toBe(false);
@@ -528,8 +499,10 @@ describe('TimelineEngine', () => {
         ]),
       ]);
 
-      expect(selectedEngine.getClipAtPoint({ x: 250, y: 40 })?.clip.id).toBe('clip-selected');
-      expect(laterEngine.getClipAtPoint({ x: 250, y: 40 })?.clip.id).toBe('clip-later');
+      expect(selectedEngine.geometry.getClipAtPoint({ x: 250, y: 40 })?.clip.id).toBe(
+        'clip-selected'
+      );
+      expect(laterEngine.geometry.getClipAtPoint({ x: 250, y: 40 })?.clip.id).toBe('clip-later');
     });
   });
 
@@ -1000,7 +973,7 @@ describe('TimelineEngine', () => {
     });
 
     it('maps timeline time to source time with non-zero offsets', () => {
-      const sourceTime = engine.timelineTimeToSourceTime('offset-clip', fromSeconds(2.5));
+      const sourceTime = engine.media.timelineTimeToSourceTime('offset-clip', fromSeconds(2.5));
       const resolvedSourceTime = expectDefined(sourceTime, 'source time');
 
       expect(sourceTime).toBeDefined();
@@ -1008,7 +981,7 @@ describe('TimelineEngine', () => {
     });
 
     it('maps source time back to timeline time with non-zero offsets', () => {
-      const timelineTime = engine.sourceTimeToTimelineTime('offset-clip', fromSeconds(11.5));
+      const timelineTime = engine.media.sourceTimeToTimelineTime('offset-clip', fromSeconds(11.5));
       const resolvedTimelineTime = expectDefined(timelineTime, 'timeline time');
 
       expect(timelineTime).toBeDefined();
@@ -1016,24 +989,28 @@ describe('TimelineEngine', () => {
     });
 
     it('returns undefined for missing clips and out-of-range mapping requests', () => {
-      expect(engine.timelineTimeToSourceTime('missing', fromSeconds(2))).toBeUndefined();
-      expect(engine.timelineTimeToSourceTime('offset-clip', fromSeconds(0.5))).toBeUndefined();
-      expect(engine.timelineTimeToSourceTime('offset-clip', fromSeconds(5))).toBeUndefined();
-      expect(engine.sourceTimeToTimelineTime('offset-clip', fromSeconds(14))).toBeUndefined();
-      expect(engine.sourceTimeToTimelineTime('offset-clip', fromSeconds(15.5))).toBeUndefined();
+      expect(engine.media.timelineTimeToSourceTime('missing', fromSeconds(2))).toBeUndefined();
+      expect(
+        engine.media.timelineTimeToSourceTime('offset-clip', fromSeconds(0.5))
+      ).toBeUndefined();
+      expect(engine.media.timelineTimeToSourceTime('offset-clip', fromSeconds(5))).toBeUndefined();
+      expect(engine.media.sourceTimeToTimelineTime('offset-clip', fromSeconds(14))).toBeUndefined();
+      expect(
+        engine.media.sourceTimeToTimelineTime('offset-clip', fromSeconds(15.5))
+      ).toBeUndefined();
     });
 
     it('treats active clip ranges as half-open intervals', () => {
-      expect(engine.getActiveClip({ time: fromSeconds(1), sourceId: 'source-main' })?.clip.id).toBe(
-        'offset-clip'
-      );
       expect(
-        engine.getActiveClip({ time: fromSeconds(5), sourceId: 'source-main' })
+        engine.media.getActiveClip({ time: fromSeconds(1), sourceId: 'source-main' })?.clip.id
+      ).toBe('offset-clip');
+      expect(
+        engine.media.getActiveClip({ time: fromSeconds(5), sourceId: 'source-main' })
       ).toBeUndefined();
     });
 
     it('returns active clips with computed source times in track order', () => {
-      const activeClips = engine.getActiveClips(fromSeconds(2));
+      const activeClips = engine.media.getActiveClips(fromSeconds(2));
 
       expect(activeClips.map(({ clip }) => clip.id)).toEqual(['offset-clip', 'overlap-clip']);
       expect(activeClips.map(({ sourceTime }) => toSeconds(sourceTime))).toEqual([11, 3.5]);
@@ -1042,7 +1019,7 @@ describe('TimelineEngine', () => {
     });
 
     it('returns clip source ranges and undefined for missing clips', () => {
-      const sourceRange = engine.getClipSourceRange('offset-clip');
+      const sourceRange = engine.media.getClipSourceRange('offset-clip');
       const resolvedSourceRange = expectDefined(sourceRange, 'source range');
 
       expect(sourceRange).toBeDefined();
@@ -1050,27 +1027,40 @@ describe('TimelineEngine', () => {
       expect(toSeconds(resolvedSourceRange.start)).toBeCloseTo(10);
       expect(toSeconds(resolvedSourceRange.end)).toBeCloseTo(14);
       expect(toSeconds(resolvedSourceRange.duration)).toBeCloseTo(4);
-      expect(engine.getClipSourceRange('missing')).toBeUndefined();
+      expect(engine.media.getClipSourceRange('missing')).toBeUndefined();
     });
 
     it('changes clip sync keys when media timing fields change', () => {
-      const originalKey = engine.getClipSyncKey('offset-clip');
+      const originalKey = engine.media.getClipSyncKey('offset-clip');
 
-      engine.moveClip({ clipId: 'offset-clip', startTime: fromSeconds(1.25) });
-      expect(engine.getClipSyncKey('offset-clip')).not.toBe(originalKey);
+      engine.commitEdit({
+        type: 'move',
+        clipId: 'offset-clip',
+        startTime: fromSeconds(1.25),
+      });
+      expect(engine.media.getClipSyncKey('offset-clip')).not.toBe(originalKey);
 
-      const movedKey = engine.getClipSyncKey('offset-clip');
-      engine.slipClip('offset-clip', fromSeconds(0.25));
-      expect(engine.getClipSyncKey('offset-clip')).not.toBe(movedKey);
+      const movedKey = engine.media.getClipSyncKey('offset-clip');
+      engine.commitEdit({ type: 'slip', clipId: 'offset-clip', deltaTime: fromSeconds(0.25) });
+      expect(engine.media.getClipSyncKey('offset-clip')).not.toBe(movedKey);
     });
 
     it('publishes content changes for edits that affect active layer lookup', () => {
       const mediaChange = vi.fn();
       engine.on('content:change', mediaChange);
 
-      engine.moveClip({ clipId: 'offset-clip', startTime: fromSeconds(1.25) });
-      engine.trimClip('offset-clip', 'end', fromSeconds(4.5));
-      engine.slipClip('offset-clip', fromSeconds(0.25));
+      engine.commitEdit({
+        type: 'move',
+        clipId: 'offset-clip',
+        startTime: fromSeconds(1.25),
+      });
+      engine.commitEdit({
+        type: 'trim',
+        clipId: 'offset-clip',
+        edge: 'end',
+        newTime: fromSeconds(4.5),
+      });
+      engine.commitEdit({ type: 'slip', clipId: 'offset-clip', deltaTime: fromSeconds(0.25) });
       engine.toggleMuteTrack('video-1', true);
       engine.toggleTrackVisibility('overlay', false);
       engine.addTrack({
@@ -1095,10 +1085,10 @@ describe('TimelineEngine', () => {
       engine.on('track:visibility', visibilityChange);
 
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
       ).toBe('overlap-clip');
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-hidden' })
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-hidden' })
       ).toBeUndefined();
 
       engine.toggleTrackVisibility('overlay', false);
@@ -1106,21 +1096,21 @@ describe('TimelineEngine', () => {
       expect(visibilityChange).toHaveBeenCalledWith({ trackId: 'overlay', visible: false });
       expect(engine.getState().tracks.find((track) => track.id === 'overlay')?.visible).toBe(false);
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })
       ).toBeUndefined();
 
       engine.undo();
 
       expect(engine.getState().tracks.find((track) => track.id === 'overlay')?.visible).toBe(true);
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
       ).toBe('overlap-clip');
 
       engine.redo();
 
       expect(engine.getState().tracks.find((track) => track.id === 'overlay')?.visible).toBe(false);
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })
       ).toBeUndefined();
     });
 
@@ -1128,48 +1118,48 @@ describe('TimelineEngine', () => {
       const muteChange = vi.fn();
       engine.on('track:mute', muteChange);
 
-      expect(engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })?.clip.id).toBe(
-        'offset-clip'
-      );
+      expect(
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })?.clip.id
+      ).toBe('offset-clip');
 
       engine.toggleMuteTrack('video-1', true);
 
       expect(muteChange).toHaveBeenCalledWith({ trackId: 'video-1', muted: true });
       expect(engine.getState().tracks.find((track) => track.id === 'video-1')?.muted).toBe(true);
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })
       ).toBeUndefined();
 
       engine.undo();
 
       expect(engine.getState().tracks.find((track) => track.id === 'video-1')?.muted).toBe(false);
-      expect(engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })?.clip.id).toBe(
-        'offset-clip'
-      );
+      expect(
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })?.clip.id
+      ).toBe('offset-clip');
 
       engine.redo();
 
       expect(engine.getState().tracks.find((track) => track.id === 'video-1')?.muted).toBe(true);
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-main' })
       ).toBeUndefined();
     });
 
     it('selects the first active clip matching track, source, and predicate filters', () => {
-      expect(engine.getActiveClip({ time: fromSeconds(2), trackKind: 'visual' })?.clip.id).toBe(
-        'offset-clip'
-      );
       expect(
-        engine.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
+        engine.media.getActiveClip({ time: fromSeconds(2), trackKind: 'visual' })?.clip.id
+      ).toBe('offset-clip');
+      expect(
+        engine.media.getActiveClip({ time: fromSeconds(2), sourceId: 'source-overlay' })?.clip.id
       ).toBe('overlap-clip');
       expect(
-        engine.getActiveClip({
+        engine.media.getActiveClip({
           time: fromSeconds(2),
           predicate: ({ clip }) => clip.id === 'disabled-clip',
         })
       ).toBeUndefined();
       expect(
-        engine.getActiveClip({
+        engine.media.getActiveClip({
           time: fromSeconds(2),
           predicate: ({ clip }) => clip.id === 'overlap-clip',
         })?.clip.id
@@ -1177,7 +1167,7 @@ describe('TimelineEngine', () => {
     });
 
     it('groups active clips by track id in stable track order', () => {
-      const clipsByTrack = engine.getActiveClipsByTrack(fromSeconds(2));
+      const clipsByTrack = engine.media.getActiveClipsByTrack(fromSeconds(2));
 
       expect([...clipsByTrack.keys()]).toEqual(['video-1', 'overlay']);
       expect(clipsByTrack.get('video-1')?.map(({ clip }) => clip.id)).toEqual(['offset-clip']);
@@ -1185,7 +1175,7 @@ describe('TimelineEngine', () => {
     });
 
     it('groups active layers clips without dropping layered matches', () => {
-      const media = engine.getActiveLayers({
+      const media = engine.media.getActiveLayers({
         time: fromSeconds(2),
         layers: {
           visuals: { trackKind: 'visual' },
@@ -1206,11 +1196,20 @@ describe('TimelineEngine', () => {
       expect(media.primary.visuals?.clip.id).toBe('offset-clip');
       expect(media.primary.mainSource?.clip.id).toBe('offset-clip');
       expect(media.hasActiveClips).toBe(true);
-      expect(toSeconds(expectDefined(media.firstContentTime, 'first content time'))).toBeCloseTo(1);
+      expect(
+        toSeconds(
+          expectDefined(
+            engine.media.getFirstContentTime({
+              layers: { visuals: { trackKind: 'visual' }, audio: { trackKind: 'audio' } },
+            }),
+            'first content time'
+          )
+        )
+      ).toBeCloseTo(1);
     });
 
     it('keeps requested active layers groups empty when clips are muted or disabled', () => {
-      const media = engine.getActiveLayers({
+      const media = engine.media.getActiveLayers({
         time: fromSeconds(2),
         layers: {
           disabled: { sourceId: 'source-disabled' },
@@ -1227,14 +1226,22 @@ describe('TimelineEngine', () => {
       expect(media.primary.hidden).toBeUndefined();
       expect(media.all).toEqual([]);
       expect(media.hasActiveClips).toBe(false);
-      expect(media.firstContentTime).toBeUndefined();
+      expect(
+        engine.media.getFirstContentTime({
+          layers: {
+            disabled: { sourceId: 'source-disabled' },
+            muted: { sourceId: 'source-muted' },
+            hidden: { sourceId: 'source-hidden' },
+          },
+        })
+      ).toBeUndefined();
     });
 
     it('finds the earliest content time across matching layers', () => {
       expect(
         toSeconds(
           expectDefined(
-            engine.getFirstContentTime({
+            engine.media.getFirstContentTime({
               layers: {
                 visuals: { trackKind: 'visual' },
               },
@@ -1245,7 +1252,7 @@ describe('TimelineEngine', () => {
       ).toBeCloseTo(1);
 
       expect(
-        engine.getFirstContentTime({
+        engine.media.getFirstContentTime({
           layers: {
             muted: { sourceId: 'source-muted' },
             disabled: { sourceId: 'source-disabled' },
@@ -1256,7 +1263,7 @@ describe('TimelineEngine', () => {
       expect(
         toSeconds(
           expectDefined(
-            engine.getFirstContentTime({
+            engine.media.getFirstContentTime({
               layers: {
                 visuals: { trackKind: 'visual' },
               },
@@ -1269,7 +1276,7 @@ describe('TimelineEngine', () => {
       ).toBeCloseTo(1.5);
 
       expect(
-        engine.getFirstContentTime({
+        engine.media.getFirstContentTime({
           layers: {
             visuals: { trackKind: 'visual' },
           },
@@ -1388,14 +1395,14 @@ describe('TimelineEngine', () => {
 
   describe('Slip and Slide', () => {
     it('should slip a clip (change sourceStart)', () => {
-      engine.slipClip('clip1', fromSeconds(0.5));
+      engine.commitEdit({ type: 'slip', clipId: 'clip1', deltaTime: fromSeconds(0.5) });
       const clip = engine.getState().tracks[0].clips[0];
       expect(toSeconds(clip.sourceStart)).toBeCloseTo(0.5);
       expect(toSeconds(clip.timelineStart)).toBeCloseTo(1.0); // unaffected
     });
 
     it('should slide a clip (change timelineStart)', () => {
-      engine.slideClip('clip1', fromSeconds(1)); // move right by 1s
+      engine.commitEdit({ type: 'slide', clipId: 'clip1', deltaTime: fromSeconds(1) }); // move right by 1s
       const clip = engine.getState().tracks[0].clips[0];
       expect(toSeconds(clip.timelineStart)).toBeCloseTo(2.0);
       expect(toSeconds(clip.timelineEnd)).toBeCloseTo(6.0);
@@ -1460,11 +1467,12 @@ describe('TimelineEngine', () => {
       const moveEngine = createMoveEngine();
 
       expect(
-        moveEngine.moveClip({
+        moveEngine.commitEdit({
+          type: 'move',
           clipId: 'clip-a',
           startTime: fromSeconds(4),
           targetTrackId: 'visual-b',
-        })
+        }).committed
       ).toBe(true);
 
       expect(moveEngine.getState().tracks[0].clips).toHaveLength(0);
@@ -1472,7 +1480,7 @@ describe('TimelineEngine', () => {
         'clip-a',
         'clip-b',
       ]);
-      const movedClip = expectDefined(moveEngine.getClip('clip-a'), 'clip-a').clip;
+      const movedClip = expectDefined(moveEngine.geometry.getClip('clip-a'), 'clip-a').clip;
       expect(toSeconds(movedClip.timelineStart)).toBeCloseTo(4);
       expect(toSeconds(movedClip.timelineEnd)).toBeCloseTo(6);
     });
@@ -1481,23 +1489,29 @@ describe('TimelineEngine', () => {
       const moveEngine = createMoveEngine();
 
       expect(
-        moveEngine.moveClip({
+        moveEngine.commitEdit({
+          type: 'move',
           clipId: 'clip-a',
           startTime: fromSeconds(4),
           targetTrackId: 'audio-a',
-        })
+        }).committed
       ).toBe(false);
-      expect(expectDefined(moveEngine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-a');
+      expect(expectDefined(moveEngine.geometry.getClip('clip-a'), 'clip-a').track.id).toBe(
+        'visual-a'
+      );
 
       expect(
-        moveEngine.moveClip({
+        moveEngine.commitEdit({
+          type: 'move',
           clipId: 'clip-a',
           startTime: fromSeconds(4),
           targetTrackId: 'audio-a',
           allowCrossKindTrackMove: true,
-        })
+        }).committed
       ).toBe(true);
-      expect(expectDefined(moveEngine.getClip('clip-a'), 'clip-a').track.id).toBe('audio-a');
+      expect(expectDefined(moveEngine.geometry.getClip('clip-a'), 'clip-a').track.id).toBe(
+        'audio-a'
+      );
     });
 
     it('emits preview and commit move events with track metadata during drag settle', () => {
@@ -1505,8 +1519,9 @@ describe('TimelineEngine', () => {
       const moveEvents: ClipMoveEvent[] = [];
       moveEngine.on('clip:move', (event) => moveEvents.push(event));
 
-      moveEngine.startDrag();
-      moveEngine.moveClip({
+      moveEngine.previewEdit({
+        type: 'move',
+        overwrite: true,
         clipId: 'clip-a',
         startTime: fromSeconds(4),
         targetTrackId: 'visual-b',
@@ -1522,7 +1537,7 @@ describe('TimelineEngine', () => {
         phase: 'preview',
       });
 
-      moveEngine.endDrag();
+      moveEngine.commitEdit(expectDefined(moveEngine.getEditPreview(), 'preview').command);
       moveEngine.settle();
 
       expect(moveEvents).toHaveLength(2);
@@ -1560,7 +1575,7 @@ describe('TimelineEngine', () => {
         ],
       });
 
-      const rects = geometryEngine.getTrackRects({
+      const rects = geometryEngine.geometry.getTrackRects({
         rulerHeight: 20,
         trackHeight: 48,
         collapsedTrackHeight: 18,
@@ -1572,14 +1587,14 @@ describe('TimelineEngine', () => {
         { trackId: 'collapsed', y: 80, height: 18 },
       ]);
       expect(
-        geometryEngine.getTrackAtPoint({
+        geometryEngine.geometry.getTrackAtPoint({
           y: 89,
           rulerHeight: 20,
           trackHeight: 48,
           collapsedTrackHeight: 18,
         })?.track.id
       ).toBe('collapsed');
-      expect(geometryEngine.getTrackAtPoint({ y: 10, rulerHeight: 20 })).toBeNull();
+      expect(geometryEngine.geometry.getTrackAtPoint({ y: 10, rulerHeight: 20 })).toBeNull();
     });
   });
 
@@ -1588,7 +1603,7 @@ describe('TimelineEngine', () => {
       const removed = vi.fn();
       engine.on('clip:removed', removed);
 
-      expect(engine.deleteClip('clip1')).toBe(true);
+      expect(engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] }).committed).toBe(true);
 
       expect(removed).toHaveBeenCalledTimes(1);
       const payload = removed.mock.calls[0][0] as ClipRemovedEvent;
@@ -1599,9 +1614,16 @@ describe('TimelineEngine', () => {
 
   describe('Editing constraints and preview', () => {
     it('should clamp start trims to minStart', () => {
-      engine.getState().tracks[0].clips[0].minStart = fromSeconds(2);
+      const initial = structuredClone(engine.getState()) as TimelineState;
+      initial.tracks[0].clips[0].minStart = fromSeconds(2);
+      engine = new TimelineEngine(initial);
 
-      engine.trimClip('clip1', 'start', fromSeconds(0.5));
+      engine.commitEdit({
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'start',
+        newTime: fromSeconds(0.5),
+      });
 
       const clip = engine.getState().tracks[0].clips[0];
       expect(toSeconds(clip.timelineStart)).toBeCloseTo(2);
@@ -1649,21 +1671,25 @@ describe('TimelineEngine', () => {
       previewEngine.on('clip:created', created);
       previewEngine.on('clip:removed', removed);
 
-      previewEngine.startDrag();
-      previewEngine.moveClip({ clipId: 'clip2', startTime: fromSeconds(3) });
+      previewEngine.previewEdit({
+        type: 'move',
+        overwrite: true,
+        clipId: 'clip2',
+        startTime: fromSeconds(3),
+      });
 
-      const clips = previewEngine.getState().tracks[0].clips;
+      const clips = previewEngine.getRenderState().tracks[0].clips;
       expect(previewEvents).toBe(1);
       expect(clips).toHaveLength(2);
       expect(toSeconds(clips[0].timelineEnd)).toBeCloseTo(3);
-      expect(clips[0].editPreview).toEqual({ operation: 'overwrite', cutEnd: true });
+      expect(clips[0].editPreview).toMatchObject({ operation: 'overwrite', cutEnd: true });
       expect(created).not.toHaveBeenCalled();
       expect(removed).not.toHaveBeenCalled();
 
-      previewEngine.endDrag();
+      previewEngine.cancelEdit();
 
       expect(previewEvents).toBe(2);
-      expect(previewEngine.getState().tracks[0].clips[0].editPreview).toBeUndefined();
+      expect(previewEngine.getRenderState().tracks[0].clips[0].editPreview).toBeUndefined();
     });
 
     it('publishes live edit impacts for overwrite trims, splits, and removals', () => {
@@ -1700,12 +1726,16 @@ describe('TimelineEngine', () => {
       const trimImpacts = vi.fn();
       trimEngine.on('edit:impacts', trimImpacts);
 
-      trimEngine.startDrag();
-      trimEngine.moveClip({ clipId: 'winner', startTime: fromSeconds(3) });
+      trimEngine.previewEdit({
+        type: 'move',
+        overwrite: true,
+        clipId: 'winner',
+        startTime: fromSeconds(3),
+      });
 
       expect(trimImpacts).toHaveBeenCalledTimes(1);
       expect(trimEngine.getEditImpacts()).toMatchObject({
-        operation: 'overwrite',
+        operation: 'move',
         sourceClipId: 'winner',
         sourceTrackId: 'track1',
         impacts: [
@@ -1722,7 +1752,7 @@ describe('TimelineEngine', () => {
       expect(toSeconds(trimImpact.affectedEndTime)).toBeCloseTo(5.5);
       expect(toSeconds(trimImpact.resultClips[0].timelineEnd)).toBeCloseTo(3);
 
-      trimEngine.endDrag();
+      trimEngine.cancelEdit();
       expect(trimEngine.getEditImpacts()).toBeNull();
       expect(trimImpacts).toHaveBeenLastCalledWith(null);
 
@@ -1757,8 +1787,12 @@ describe('TimelineEngine', () => {
         ],
       });
 
-      splitEngine.startDrag();
-      splitEngine.moveClip({ clipId: 'winner', startTime: fromSeconds(3) });
+      splitEngine.previewEdit({
+        type: 'move',
+        overwrite: true,
+        clipId: 'winner',
+        startTime: fromSeconds(3),
+      });
 
       const splitImpact = expectDefined(splitEngine.getEditImpacts(), 'split edit impacts')
         .impacts[0];
@@ -1798,8 +1832,12 @@ describe('TimelineEngine', () => {
         ],
       });
 
-      removeEngine.startDrag();
-      removeEngine.moveClip({ clipId: 'winner', startTime: fromSeconds(2) });
+      removeEngine.previewEdit({
+        type: 'move',
+        overwrite: true,
+        clipId: 'winner',
+        startTime: fromSeconds(2),
+      });
 
       const removeImpact = expectDefined(removeEngine.getEditImpacts(), 'remove edit impacts')
         .impacts[0];
@@ -1815,7 +1853,9 @@ describe('TimelineEngine', () => {
       engine.on('clip:split', split);
       engine.on('clip:created', created);
 
-      expect(engine.splitClip('clip1', fromSeconds(2))).toBe(true);
+      expect(
+        engine.commitEdit({ type: 'split', clipIds: ['clip1'], time: fromSeconds(2) }).committed
+      ).toBe(true);
 
       expect(split).toHaveBeenCalledTimes(1);
       expect(created).not.toHaveBeenCalled();
@@ -1863,7 +1903,13 @@ describe('TimelineEngine', () => {
       overwriteEngine.on('clip:created', created);
       overwriteEngine.on('clip:removed', removed);
 
-      overwriteEngine.applyOverwrites('winner');
+      overwriteEngine.commitEdit({
+        type: 'move',
+        clipId: 'winner',
+        startTime: fromSeconds(3),
+        snap: false,
+        overwrite: true,
+      });
 
       expect(created).toHaveBeenCalledTimes(1);
       expect(removed).not.toHaveBeenCalled();
@@ -1908,7 +1954,13 @@ describe('TimelineEngine', () => {
       coverEngine.on('clip:created', coverCreated);
       coverEngine.on('clip:removed', coverRemoved);
 
-      coverEngine.applyOverwrites('winner');
+      coverEngine.commitEdit({
+        type: 'move',
+        clipId: 'winner',
+        startTime: fromSeconds(0),
+        snap: false,
+        overwrite: true,
+      });
 
       expect(coverCreated).not.toHaveBeenCalled();
       expect(coverRemoved).toHaveBeenCalledTimes(1);
@@ -2017,8 +2069,9 @@ describe('TimelineEngine', () => {
 
   describe('Clip Custom Metadata & Undo/Redo', () => {
     it('preserves custom metadata when cloning/modifying properties', () => {
-      const clip = engine.getState().tracks[0].clips[0];
-      clip.metadata = { note: 'test metadata', flag: true };
+      const initial = structuredClone(engine.getState()) as TimelineState;
+      initial.tracks[0].clips[0].metadata = { note: 'test metadata', flag: true };
+      engine = new TimelineEngine(initial);
 
       engine.updateClipProperties('clip1', { color: '#ff0000' });
       const updatedClip = engine.getState().tracks[0].clips[0];
@@ -2027,10 +2080,13 @@ describe('TimelineEngine', () => {
     });
 
     it('clones metadata correctly when splitting a clip', () => {
-      const clip = engine.getState().tracks[0].clips[0];
-      clip.metadata = { caption: 'hello split' };
+      const initial = structuredClone(engine.getState()) as TimelineState;
+      initial.tracks[0].clips[0].metadata = { caption: 'hello split' };
+      engine = new TimelineEngine(initial);
 
-      expect(engine.splitClip('clip1', fromSeconds(2))).toBe(true);
+      expect(
+        engine.commitEdit({ type: 'split', clipIds: ['clip1'], time: fromSeconds(2) }).committed
+      ).toBe(true);
 
       const track = engine.getState().tracks[0];
       expect(track.clips).toHaveLength(2);
@@ -2039,11 +2095,12 @@ describe('TimelineEngine', () => {
     });
 
     it('restores clip metadata after undoing a delete action', () => {
-      const clip = engine.getState().tracks[0].clips[0];
-      clip.metadata = { tag: 'important' };
+      const initial = structuredClone(engine.getState()) as TimelineState;
+      initial.tracks[0].clips[0].metadata = { tag: 'important' };
+      engine = new TimelineEngine(initial);
       engine.snapshot(); // snapshot current state with metadata
 
-      engine.deleteClip('clip1');
+      engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] });
       expect(engine.getState().tracks[0].clips).toHaveLength(0);
 
       engine.undo();

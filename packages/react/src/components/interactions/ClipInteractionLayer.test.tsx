@@ -1,13 +1,12 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
-import React from 'react';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { useTimeline } from '#react/hooks';
 import { ClipInteractionLayer } from '#react/components/interactions/ClipInteractionLayer';
 import { resetTimelineTapState } from '#react/components/interactions/tapState';
-
+import { useTimeline } from '#react/hooks/core/useTimeline';
+import { TimelineProvider } from '#react/Provider';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { fireEvent, render, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 function getElementPrototypeMethod<
   K extends 'getBoundingClientRect' | 'setPointerCapture' | 'releasePointerCapture',
 >(name: K): Element[K] | undefined {
@@ -155,10 +154,10 @@ describe('ClipInteractionLayer', () => {
 
     fireEvent.keyDown(layer, { key: 'ArrowRight' });
     expect(layer.getAttribute('aria-label')).toContain('main');
-    expect(engine.getClip('main')?.clip.selected).toBe(false);
+    expect(engine.geometry.getClip('main')?.clip.selected).toBe(false);
 
     fireEvent.keyDown(layer, { key: 'Enter' });
-    expect(engine.getClip('main')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('main')?.clip.selected).toBe(true);
   });
 
   it('can disable built-in keyboard navigation for custom editor focus models', () => {
@@ -204,7 +203,7 @@ describe('ClipInteractionLayer', () => {
 
   it('moves a clip body through delegated pointer interaction', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
-    const moveClip = vi.spyOn(engine, 'moveClip');
+    const moveClip = vi.spyOn(engine, 'previewEdit');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
@@ -265,8 +264,8 @@ describe('ClipInteractionLayer', () => {
       pointerId: 1,
     });
 
-    expect(engine.getClip('video-clip')?.clip.selected).toBe(true);
-    expect(engine.getClip('audio-clip')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('video-clip')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('audio-clip')?.clip.selected).toBe(true);
   });
 
   it('toggles ungrouped clips into multi-selection with shift-click', () => {
@@ -293,8 +292,8 @@ describe('ClipInteractionLayer', () => {
       shiftKey: true,
     });
 
-    expect(engine.getClip('clip-a')?.clip.selected).toBe(true);
-    expect(engine.getClip('clip-b')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('clip-a')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('clip-b')?.clip.selected).toBe(true);
 
     fireEvent.pointerDown(layer, {
       clientX: 430,
@@ -305,8 +304,8 @@ describe('ClipInteractionLayer', () => {
       shiftKey: true,
     });
 
-    expect(engine.getClip('clip-a')?.clip.selected).toBe(true);
-    expect(engine.getClip('clip-b')?.clip.selected).toBe(false);
+    expect(engine.geometry.getClip('clip-a')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('clip-b')?.clip.selected).toBe(false);
   });
 
   it('toggles grouped clips into multi-selection with shift-click', () => {
@@ -333,8 +332,8 @@ describe('ClipInteractionLayer', () => {
       shiftKey: true,
     });
 
-    expect(engine.getClip('video-clip')?.clip.selected).toBe(true);
-    expect(engine.getClip('audio-clip')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('video-clip')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('audio-clip')?.clip.selected).toBe(true);
 
     fireEvent.pointerDown(layer, {
       clientX: 130,
@@ -345,8 +344,8 @@ describe('ClipInteractionLayer', () => {
       shiftKey: true,
     });
 
-    expect(engine.getClip('video-clip')?.clip.selected).toBe(false);
-    expect(engine.getClip('audio-clip')?.clip.selected).toBe(false);
+    expect(engine.geometry.getClip('video-clip')?.clip.selected).toBe(false);
+    expect(engine.geometry.getClip('audio-clip')?.clip.selected).toBe(false);
   });
 
   it('starts body drags after shift-click selection', () => {
@@ -356,7 +355,7 @@ describe('ClipInteractionLayer', () => {
         createClip('clip-b', 4, 6),
       ]),
     ]);
-    const moveClip = vi.spyOn(engine, 'moveClip');
+    const moveClip = vi.spyOn(engine, 'previewEdit');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
@@ -396,7 +395,7 @@ describe('ClipInteractionLayer', () => {
 
   it('reports clip double-click hits without starting a drag', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
-    const moveClip = vi.spyOn(engine, 'moveClip');
+    const moveClip = vi.spyOn(engine, 'previewEdit');
     const onClipDoubleClick = vi.fn();
 
     const { container } = render(
@@ -478,12 +477,12 @@ describe('ClipInteractionLayer', () => {
       pointerId: 1,
     });
 
-    expect(engine.getClip('clip-1')?.track.id).toBe('track-2');
+    expect(engine.geometry.getClip('clip-1')?.track.id).toBe('track-2');
   });
 
   it('refreshes the active overlay once per drag frame', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
-    const getClipRect = vi.spyOn(engine, 'getClipRect');
+    const getClipRect = vi.spyOn(engine.geometry, 'getClipRect');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
@@ -521,7 +520,7 @@ describe('ClipInteractionLayer', () => {
 
   it('trims a clip edge through delegated pointer interaction', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
-    const trimClip = vi.spyOn(engine, 'trimClip');
+    const trimClip = vi.spyOn(engine, 'previewEdit');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
@@ -551,17 +550,19 @@ describe('ClipInteractionLayer', () => {
     });
 
     expect(trimClip).toHaveBeenCalledWith(
-      'clip-1',
-      'start',
-      expect.objectContaining({ r: 24000, v: 28800 })
+      expect.objectContaining({
+        type: 'trim',
+        clipId: 'clip-1',
+        edge: 'start',
+        newTime: expect.objectContaining({ r: 24000, v: 28800 }),
+      })
     );
     expect(trimClip).toHaveBeenCalledTimes(1);
   });
 
   it('ends an active edit when pointer capture is lost', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
-    const endDrag = vi.spyOn(engine, 'endDrag');
-    const settle = vi.spyOn(engine, 'settle');
+    const endDrag = vi.spyOn(engine, 'cancelEdit');
 
     const { container } = render(
       <TimelineProvider engine={engine}>
@@ -579,8 +580,7 @@ describe('ClipInteractionLayer', () => {
     });
     fireLostPointerCapture(layer, 1);
 
-    expect(endDrag).toHaveBeenCalledTimes(1);
-    expect(settle).toHaveBeenCalledTimes(1);
+    expect(endDrag).toHaveBeenCalled();
   });
 
   it('clears selection when pressing blank track space', () => {
@@ -603,7 +603,7 @@ describe('ClipInteractionLayer', () => {
       pointerId: 1,
     });
 
-    expect(engine.getClip('clip-1')?.clip.selected).toBe(false);
+    expect(engine.geometry.getClip('clip-1')?.clip.selected).toBe(false);
   });
 
   it('does not rerender provider subscribers during drag-frame move events', () => {

@@ -1,6 +1,5 @@
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import React from 'react';
-import { useTimeline } from '#react/hooks';
-
 /**
  * Props for a timeline track row bound to a track id.
  */
@@ -11,7 +10,7 @@ export interface TrackItemProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const TrackItem = React.forwardRef<HTMLDivElement, TrackItemProps>(
   ({ trackId, children, className = '', ...props }, ref) => {
-    const { state } = useTimeline();
+    const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
     const track = state.tracks.find((t) => t.id === trackId);
     const isCollapsed = track?.collapsed ?? false;
     const height = isCollapsed ? 24 : (track?.height ?? 48);

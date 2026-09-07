@@ -1,11 +1,10 @@
-import { useMemo } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
 import type {
   TimelineClipGeometryOptions,
   TimelineClipRect,
 } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-
+import { useMemo } from 'react';
 /**
  * Options accepted by `useTimelineClipRects`.
  *
@@ -32,8 +31,6 @@ export type UseTimelineClipRectsOptions = TimelineClipGeometryOptions;
  *
  * @param options - Optional ruler and track metrics aligned with the renderer.
  * @returns Clip entries with viewport rectangles and edit/display state.
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries.
  *
  * @example
  * ```tsx
@@ -58,17 +55,17 @@ export type UseTimelineClipRectsOptions = TimelineClipGeometryOptions;
  * @see {@link useTimelineVisibleClips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export function useTimelineClipRects<TrackKind = string>(
+export function useTimelineClipRects(
   options: UseTimelineClipRectsOptions = {}
-): TimelineClipRect<TrackKind>[] {
-  const { engine } = useTimeline();
+): TimelineClipRect<string>[] {
+  const engine = useTimelineEngine();
   const revision = useTimelineGeometryRevision();
   const { collapsedTrackHeight, edgeThreshold, rulerHeight, touchEdgeThreshold, trackHeight } =
     options;
 
   return useMemo(() => {
     void revision;
-    return engine.getClipRects<TrackKind>({
+    return engine.geometry.getClipRects({
       collapsedTrackHeight,
       edgeThreshold,
       rulerHeight,

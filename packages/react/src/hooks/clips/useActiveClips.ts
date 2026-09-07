@@ -1,7 +1,6 @@
-import type { Clip } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
-
+import type { Clip } from '@techsquidtv/canvas-timeline-core';
 /**
  * Returns clips that intersect the current playhead time.
  *
@@ -20,8 +19,8 @@ import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayhe
  * ```
  */
 export function useActiveClips() {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const playheadTime = useTimelinePlayheadTime();
 
-  return engine.getActiveClips(playheadTime).map(({ clip }) => clip) satisfies Clip[];
+  return engine.media.getActiveClips(playheadTime).map(({ clip }) => clip) satisfies Clip[];
 }

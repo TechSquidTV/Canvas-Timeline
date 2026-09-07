@@ -1,16 +1,14 @@
-import { useMemo, useRef } from 'react';
-import { useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-import { countTimelineSourceUsage } from '#full-editor/features/timeline/source-usage';
 import { SourceBinDropZone } from '#full-editor/features/source-bin/SourceBinDropZone';
 import { SourceBinList } from '#full-editor/features/source-bin/SourceBinList';
 import { useSourceBin } from '#full-editor/features/source-bin/source-bin-context';
-
+import { countTimelineSourceUsage } from '#full-editor/features/timeline/source-usage';
+import { useEditorTracks } from '#full-editor/features/timeline/useEditorTracks';
+import { useMemo, useRef } from 'react';
 const acceptedSourceTypes = 'video/*,audio/*,image/*,video/x-matroska,video/mp2t,.ts,audio/aac';
 
 export function SourceBinPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { tracks } = useTimelineTracks<EditorTrackKind>();
+  const { tracks } = useEditorTracks();
   const {
     clearSourceActionMessage,
     endSourceDrag,

@@ -1,13 +1,11 @@
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { Marker } from '@techsquidtv/canvas-timeline-core';
-import { compareRational, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { compareRational } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
 /** Editable marker fields accepted by `useTimelineMarkers().updateMarker`. */
 export type TimelineMarkerUpdate = Partial<
   Pick<Marker, 'time' | 'label' | 'color' | 'description'>
@@ -52,7 +50,8 @@ export interface UseTimelineMarkersResult {
  * @returns Sorted marker state and commands for adding, removing, updating, and seeking markers.
  */
 export function useTimelineMarkers(): UseTimelineMarkersResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ markers: state.markers }));
   const markers = useMemo(
     () => [...(state.markers || [])].sort((left, right) => compareRational(left.time, right.time)),
     [state.markers]

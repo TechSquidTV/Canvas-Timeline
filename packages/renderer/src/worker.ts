@@ -1,8 +1,11 @@
-import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { renderTimeline } from '#renderer/renderTimeline';
 import type { CanvasRendererRenderReason, CanvasRendererStats } from '#renderer/CanvasRenderer';
 import type { TimelineRenderOptions } from '#renderer/render/types';
-
+import { renderTimeline } from '#renderer/renderTimeline';
+import type {
+  CanvasRendererWorkerMessage,
+  CanvasRendererWorkerResponse,
+} from '#renderer/worker-protocol';
+import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
 let canvas: OffscreenCanvas | null = null;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let state: TimelineState | null = null;
@@ -13,66 +16,13 @@ let dpr = 1;
 let options: TimelineRenderOptions = {};
 let keyframesRequested = false;
 
-type CanvasRendererWorkerMessage =
-  | {
-      type: 'INIT';
-      canvas: OffscreenCanvas;
-      state: TimelineState;
-      dpr?: number;
-      options?: TimelineRenderOptions;
-      keyframesRequested?: boolean;
-      diagnosticsEnabled?: boolean;
-    }
-  | {
-      type: 'UPDATE_STATE';
-      state: TimelineState;
-      keyframeGeometry?: TimelineRenderOptions['keyframeGeometry'];
-      keyframesRequested?: boolean;
-    }
-  | {
-      type: 'UPDATE_OPTIONS';
-      options?: TimelineRenderOptions;
-      keyframesRequested?: boolean;
-    }
-  | {
-      type: 'UPDATE_PLAYHEAD';
-      time: TimelineState['playheadTime'];
-    }
-  | {
-      type: 'RESIZE';
-      width: number;
-      height: number;
-      dpr?: number;
-      keyframeGeometry?: TimelineRenderOptions['keyframeGeometry'];
-      keyframesRequested?: boolean;
-    }
-  | {
-      type: 'SET_DIAGNOSTICS';
-      enabled: boolean;
-    };
-
-interface CanvasRendererWorkerRenderError {
-  message: string;
-  name?: string;
-  stack?: string;
-}
-
-type CanvasRendererWorkerResponse =
-  | {
-      type: 'RENDER_STATS';
-      stats: CanvasRendererStats;
-    }
-  | {
-      type: 'RENDER_ERROR';
-      error: CanvasRendererWorkerRenderError;
-    };
-
 self.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
   const message = event.data;
   if (message.type === 'INIT') {
     canvas = message.canvas;
     ctx = canvas.getContext('2d', { alpha: false });
-    state = message.state;
+    // Structured cloning at the worker boundary transfers an owned mutable copy.
+    state = message.state as TimelineState;
     dpr = message.dpr || 1;
     keyframesRequested = message.keyframesRequested ?? Boolean(message.options?.showKeyframes);
     options = {
@@ -82,7 +32,10 @@ self.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
     diagnosticsEnabled = Boolean(message.diagnosticsEnabled);
     requestRender('init');
   } else if (message.type === 'UPDATE_STATE') {
-    state = message.state;
+    if (!state) {
+      return;
+    }
+    Object.assign(state, message.state);
     if (message.keyframesRequested !== undefined) {
       keyframesRequested = message.keyframesRequested;
     }
@@ -165,7 +118,9 @@ function draw() {
   }
 }
 
-function serializeRenderError(error: unknown): CanvasRendererWorkerRenderError {
+function serializeRenderError(
+  error: unknown
+): Extract<CanvasRendererWorkerResponse, { type: 'RENDER_ERROR' }>['error'] {
   if (error instanceof Error) {
     return {
       message: error.message,

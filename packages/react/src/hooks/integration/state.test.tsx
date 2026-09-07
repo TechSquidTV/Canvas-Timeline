@@ -1,23 +1,16 @@
-import { renderHook, act, fireEvent, render } from '@testing-library/react';
-import React from 'react';
-import { expect, test, vi } from 'vite-plus/test';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { expectDefined } from '#test-utils/assertions';
 import {
   useActiveClips,
   useActiveLayers,
   useActiveMarkers,
-  useTimelineEditImpacts,
-  useTimelineEditCommands,
   useTimelineClipGroups,
   useTimelineClipboard,
+  useTimelineEditCommands,
+  useTimelineEditImpacts,
   useTimelineEvent,
   useTimelineMarkers,
   useTimelineRulerTicks,
-  useTimelineTimePosition,
   useTimelineSelection,
+  useTimelineTimePosition,
   useTimelineTrack,
   useTimelineTrackHeader,
   useTimelineTrackLockControl,
@@ -25,14 +18,19 @@ import {
   useTimelineViewport,
   useTimelineVisibleClips,
 } from '#react/hooks';
-
 import {
   createClip,
   createMediaSyncEngine,
   createTrack,
   wrapper,
 } from '#react/hooks/integration/testHelpers';
-
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, fireEvent, render, renderHook } from '@testing-library/react';
+import React from 'react';
+import { expect, test, vi } from 'vite-plus/test';
 test('useTimelineVisibleClips filters the viewport and returns clipped source ranges', () => {
   const engine = new TimelineEngine({
     scrollLeft: 150,
@@ -487,7 +485,7 @@ test('useTimelineTracks exposes visible and hidden tracks with visibility comman
     ],
   });
 
-  const { result } = renderHook(() => useTimelineTracks<'visual' | 'audio'>(), {
+  const { result } = renderHook(() => useTimelineTracks(), {
     wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
   });
 
@@ -523,7 +521,7 @@ test('useTimelineTrack exposes one track with geometry and commands', () => {
     ],
   });
 
-  const { result } = renderHook(() => useTimelineTrack<'visual'>('video-1'), {
+  const { result } = renderHook(() => useTimelineTrack('video-1'), {
     wrapper: ({ children }) => React.createElement(TimelineProvider, { engine }, children),
   });
 
@@ -975,7 +973,11 @@ test('useActiveLayers updates when clips move under the current playhead', () =>
   expect(result.current.primary.audio?.clip.id).toBe('audio-clip');
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
   });
 
   expect(result.current.primary.visuals).toBeUndefined();
@@ -1051,11 +1053,15 @@ test('useTimelineEditImpacts subscribes to live edit impact changes', () => {
   expect(result.current.getImpactForClip('clip-1')).toBeNull();
 
   act(() => {
-    engine.startDrag();
-    engine.moveClip({ clipId: 'clip-2', startTime: fromSeconds(3) });
+    engine.previewEdit({
+      type: 'move',
+      overwrite: true,
+      clipId: 'clip-2',
+      startTime: fromSeconds(3),
+    });
   });
 
-  expect(result.current.operation).toBe('overwrite');
+  expect(result.current.operation).toBe('move');
   expect(result.current.sourceClipId).toBe('clip-2');
   expect(result.current.sourceTrackId).toBe('video-1');
   expect(result.current.hasImpacts).toBe(true);
@@ -1068,7 +1074,7 @@ test('useTimelineEditImpacts subscribes to live edit impact changes', () => {
   });
 
   act(() => {
-    engine.endDrag();
+    engine.cancelEdit();
   });
 
   expect(result.current.activeEdit).toBeNull();

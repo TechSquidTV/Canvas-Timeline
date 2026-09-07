@@ -1,7 +1,6 @@
-import React from 'react';
 import type { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-
+import React from 'react';
 /** Engine events that should refresh an imperatively positioned timeline element. */
 export type TimelineTimePositionEvent =
   | 'render'
@@ -75,7 +74,7 @@ function parsePositionEventsKey(positionEventsKey: string): TimelineTimePosition
  * import { useTimeline, useTimelineTimePosition } from '#react/hooks';
  *
  * export function MarkerHead({ markerTime }: { markerTime: RationalTime }) {
- *   const { engine } = useTimeline();
+ *   const engine = useTimelineEngine();
  *   const position = useTimelineTimePosition<HTMLDivElement>({
  *     engine,
  *     time: markerTime,

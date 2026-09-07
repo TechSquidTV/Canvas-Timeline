@@ -1,10 +1,9 @@
-import { useCallback, useMemo } from 'react';
-import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
 import type { TimelineControlCommitDetails } from '#react/hooks/core/timelineControlEvents';
 import { createTimelineScalarControlProps } from '#react/hooks/core/timelineScalarControlProps';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineScrollLeft } from '#react/hooks/viewport/useTimelineScrollLeft';
-
+import { clamp, round } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback, useMemo } from 'react';
 /**
  * Options for adapting horizontal timeline scroll to a scalar control.
  */
@@ -61,7 +60,7 @@ function formatPanValue(value: number) {
  */
 export function useTimelinePanControl(options: TimelinePanControlOptions = {}) {
   const { label: optionLabel, max: optionMax, min: optionMin, onValueCommitted, step } = options;
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const scrollLeft = useTimelineScrollLeft();
   const control = useMemo(
     () => ({

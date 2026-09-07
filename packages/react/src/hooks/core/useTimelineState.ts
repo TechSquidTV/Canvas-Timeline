@@ -1,6 +1,5 @@
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-
 /**
  * Reads the current synchronized {@link TimelineState} snapshot.
  *
@@ -45,5 +44,5 @@ import { useTimeline } from '#react/hooks/core/useTimeline';
  * @see {@link useTimelineViewport}
  */
 export function useTimelineState(): TimelineState {
-  return useTimeline().state;
+  return useTimelineSelector((state) => state);
 }

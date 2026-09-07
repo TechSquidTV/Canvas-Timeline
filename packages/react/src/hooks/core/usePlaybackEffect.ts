@@ -1,7 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-
+import { useEffect, useRef } from 'react';
 /**
  * Subscribes to real-time playback events (enter, update, leave) for a specific clip
  * as the global playhead crosses the clip's boundary timestamps.
@@ -49,7 +48,7 @@ export function usePlaybackEffect(
     onLeave?: (time: RationalTime) => void;
   }
 ) {
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
   const callbacksRef = useRef(callbacks);
 
   useEffect(() => {

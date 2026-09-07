@@ -1,13 +1,6 @@
-import { useCallback, useMemo, type DragEvent } from 'react';
-import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
-import {
-  type TimelineExternalClipDropContext,
-  useTimelineExternalClipDrop,
-  useTimelineTracks,
-} from '@techsquidtv/canvas-timeline-react';
+import { isEditorTrack } from '#full-editor/features/project/demo-project';
 import { useSourceBin } from '#full-editor/features/source-bin/source-bin-context';
 import type { SourceBinSource } from '#full-editor/features/source-bin/types';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
 import { useTimelineDropMode } from '#full-editor/features/timeline/drop-mode-context';
 import {
   createSourceBinDragPayload,
@@ -18,7 +11,12 @@ import {
   createSourceDropPlacements,
   resolveSourceDropPatch,
 } from '#full-editor/features/timeline/source-drop-placement';
-
+import { useEditorTracks } from '#full-editor/features/timeline/useEditorTracks';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineExternalClipDrop } from '@techsquidtv/canvas-timeline-react';
+import type { TimelineExternalClipDropContext } from '@techsquidtv/canvas-timeline-react';
+import { useCallback, useMemo } from 'react';
+import type { DragEvent } from 'react';
 interface SourceTimelineDragData {
   source: SourceBinSource;
 }
@@ -26,7 +24,7 @@ interface SourceTimelineDragData {
 export function useTimelineSourceDrop() {
   const { activeDragSourceId, sources } = useSourceBin();
   const { dropMode } = useTimelineDropMode();
-  const { tracks } = useTimelineTracks<EditorTrackKind>();
+  const { tracks } = useEditorTracks();
   const sourceById = useMemo(
     () => new Map(sources.map((source) => [source.id, source])),
     [sources]
@@ -46,35 +44,39 @@ export function useTimelineSourceDrop() {
     [activeDragSourceId, sourceById]
   );
   const canDropOnTrack = useCallback(
-    (context: TimelineExternalClipDropContext<SourceTimelineDragData, EditorTrackKind>) => ({
-      canDrop: canCreateSourceDropPlacements({
-        source: context.data.source,
-        startTime: context.dropTime,
-        targetTrack: context.targetTrack,
-        tracks,
-      }),
+    (context: TimelineExternalClipDropContext<SourceTimelineDragData>) => ({
+      canDrop:
+        isEditorTrack(context.targetTrack) &&
+        canCreateSourceDropPlacements({
+          source: context.data.source,
+          startTime: context.dropTime,
+          targetTrack: context.targetTrack,
+          tracks,
+        }),
       reason: 'unsupported' as const,
     }),
     [tracks]
   );
   const createPlacements = useCallback(
-    (context: TimelineExternalClipDropContext<SourceTimelineDragData, EditorTrackKind>) =>
-      createSourceDropPlacements({
-        source: context.data.source,
-        startTime: context.dropTime,
-        targetTrack: context.targetTrack,
-        tracks,
-      }),
+    (context: TimelineExternalClipDropContext<SourceTimelineDragData>) =>
+      !isEditorTrack(context.targetTrack)
+        ? []
+        : createSourceDropPlacements({
+            source: context.data.source,
+            startTime: context.dropTime,
+            targetTrack: context.targetTrack,
+            tracks,
+          }),
     [tracks]
   );
   const createDropGroup = useCallback(
-    (context: TimelineExternalClipDropContext<SourceTimelineDragData, EditorTrackKind>) => ({
+    (context: TimelineExternalClipDropContext<SourceTimelineDragData>) => ({
       label: context.data.source.name,
     }),
     []
   );
 
-  const drop = useTimelineExternalClipDrop<SourceTimelineDragData, EditorTrackKind>({
+  const drop = useTimelineExternalClipDrop<SourceTimelineDragData>({
     ...defaultTimelineInteractionGeometry,
     editMode: dropMode,
     resolveDragData,

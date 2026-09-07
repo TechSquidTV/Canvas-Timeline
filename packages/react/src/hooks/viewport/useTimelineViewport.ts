@@ -1,19 +1,13 @@
-import { useCallback } from 'react';
-import {
-  clamp,
-  fromSeconds,
-  toSeconds,
-  type RationalTime,
-} from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
+import { timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineScrollLeft } from '#react/hooks/viewport/useTimelineScrollLeft';
 import { useTimelineScrollTop } from '#react/hooks/viewport/useTimelineScrollTop';
 import { useTimelineZoomScale } from '#react/hooks/viewport/useTimelineZoomScale';
-import {
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { clamp, fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import { useCallback } from 'react';
 /** Result returned by `useTimelineViewport`. */
 export interface UseTimelineViewportResult {
   /** Current horizontal timeline scroll offset in pixels. */
@@ -70,7 +64,12 @@ export interface UseTimelineViewportResult {
  * @returns Viewport metrics, visible time range, and viewport setters.
  */
 export function useTimelineViewport(): UseTimelineViewportResult {
-  const { engine, state } = useTimeline();
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({
+    duration: state.duration,
+    viewportHeight: state.viewportHeight,
+    viewportWidth: state.viewportWidth,
+  }));
   const scrollLeft = useTimelineScrollLeft();
   const scrollTop = useTimelineScrollTop();
   const zoomScale = useTimelineZoomScale();

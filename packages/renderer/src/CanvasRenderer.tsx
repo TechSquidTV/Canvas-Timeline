@@ -1,17 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { useTimeline } from '@techsquidtv/canvas-timeline-react';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import type { TimelineRenderOptions, TimelineRulerOptions } from '#renderer/render/types';
+import { resolveTimelineRendererThemeFromElement } from '#renderer/theme';
+import type { TimelineRendererTheme, TimelineRendererThemeInput } from '#renderer/theme';
+import type {
+  CanvasRendererWorkerMessage,
+  CanvasRendererWorkerResponse,
+} from '#renderer/worker-protocol';
 import type {
   TimelineKeyframePropertyId,
   TimelineKeyframeRenderGeometry,
 } from '@techsquidtv/canvas-timeline-core';
-import type { TimelineRenderOptions, TimelineRulerOptions } from '#renderer/render/types';
-import {
-  resolveTimelineRendererThemeFromElement,
-  type TimelineRendererTheme,
-  type TimelineRendererThemeInput,
-} from '#renderer/theme';
-
+import { useTimelineEngine } from '@techsquidtv/canvas-timeline-react';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import React, { useEffect, useRef } from 'react';
 /**
  * Reason the worker rendered a new canvas timeline frame.
  */
@@ -41,24 +41,6 @@ export interface CanvasRendererError {
   cause?: Error;
 }
 
-interface CanvasRendererWorkerRenderErrorMessage {
-  type: 'RENDER_ERROR';
-  error: {
-    message: string;
-    name?: string;
-    stack?: string;
-  };
-}
-
-interface CanvasRendererWorkerStatsMessage {
-  type: 'RENDER_STATS';
-  stats: CanvasRendererStats;
-}
-
-type CanvasRendererWorkerMessage =
-  | CanvasRendererWorkerRenderErrorMessage
-  | CanvasRendererWorkerStatsMessage;
-
 function getCanvasBitmapSize(cssSize: number, dpr: number) {
   return Math.ceil(cssSize * dpr);
 }
@@ -68,7 +50,7 @@ function toCanvasRendererError(cause: unknown): Error {
 }
 
 function createWorkerRenderErrorCause(
-  error: CanvasRendererWorkerRenderErrorMessage['error']
+  error: Extract<CanvasRendererWorkerResponse, { type: 'RENDER_ERROR' }>['error']
 ): Error {
   const cause = new Error(error.message);
   cause.name = error.name ?? 'CanvasRendererWorkerError';
@@ -177,7 +159,7 @@ export function CanvasRenderer({
     theme,
     themeKey,
   });
-  const { engine } = useTimeline();
+  const engine = useTimelineEngine();
 
   const reportRenderError = React.useCallback((error: CanvasRendererError) => {
     onRenderErrorRef.current?.(error);
@@ -211,7 +193,7 @@ export function CanvasRenderer({
     }
 
     try {
-      return engine.getKeyframeRenderGeometry({
+      return engine.keyframes.getKeyframeRenderGeometry({
         property: latest.keyframeProperty,
         rulerHeight: resolvedTheme.metrics.rulerHeight,
         trackHeight: resolvedTheme.metrics.trackHeight,
@@ -359,7 +341,7 @@ export function CanvasRenderer({
         ...(event.error instanceof Error ? { cause: event.error } : {}),
       });
     };
-    workerRef.current.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
+    workerRef.current.onmessage = (event: MessageEvent<CanvasRendererWorkerResponse>) => {
       if (event.data.type === 'RENDER_STATS') {
         onRenderStatsRef.current?.(event.data.stats);
         return;
@@ -393,7 +375,7 @@ export function CanvasRenderer({
       {
         type: 'INIT',
         canvas: offscreen,
-        state: engine.getState(),
+        state: engine.getRenderState(),
         dpr,
         options: createRenderOptions(container),
         keyframesRequested: renderOptionsRef.current.showKeyframes,
@@ -402,12 +384,38 @@ export function CanvasRenderer({
       [offscreen]
     );
 
+    let pendingFrame: number | null = null;
+    let contentDirty = false;
+    const markContentDirty = () => {
+      contentDirty = true;
+    };
+    const contentEvents = [
+      'content:change',
+      'history:change',
+      'clip:select',
+      'keyframe:select',
+      'keyframe:add',
+      'keyframe:update',
+      'keyframe:remove',
+      'edit:preview',
+      'track:select',
+    ] as const;
+    const unsubscribeContent = contentEvents.map((event) => engine.on(event, markContentDirty));
     const handleRender = () => {
-      workerRef.current?.postMessage({
-        type: 'UPDATE_STATE',
-        state: engine.getState(),
-        keyframeGeometry: createKeyframeGeometry(),
-        keyframesRequested: renderOptionsRef.current.showKeyframes,
+      if (pendingFrame !== null) {
+        return;
+      }
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = null;
+        const { tracks, markers, clipGroups, ...viewport } = engine.getRenderState();
+        const message: CanvasRendererWorkerMessage = {
+          type: 'UPDATE_STATE',
+          state: contentDirty ? { ...viewport, tracks, markers, clipGroups } : viewport,
+          keyframeGeometry: createKeyframeGeometry(),
+          keyframesRequested: renderOptionsRef.current.showKeyframes,
+        };
+        contentDirty = false;
+        workerRef.current?.postMessage(message);
       });
     };
     const handlePlayhead = (time: RationalTime) => {
@@ -438,6 +446,10 @@ export function CanvasRenderer({
     resizeObserver.observe(container);
 
     return () => {
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+      }
+      unsubscribeContent.forEach((unsubscribe) => unsubscribe());
       unsubRender();
       unsubPlayhead();
       workerRef.current?.terminate();

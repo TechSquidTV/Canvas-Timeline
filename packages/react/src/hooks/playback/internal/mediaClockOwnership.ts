@@ -1,3 +1,12 @@
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import {
+  createCancelledMediaPlayResult,
+  createMediaPlayFailure,
+} from '#react/hooks/playback/internal/mediaPlayResult';
+import type { TimelineMediaPlayResult } from '#react/hooks/playback/internal/mediaPlayResult';
+import type { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
+import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
+import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
 import type {
   ActiveLayerSelector,
   PlaybackOptions,
@@ -5,22 +14,8 @@ import type {
   TimelineMediaError,
   TimelineMediaSyncAdapter,
 } from '@techsquidtv/canvas-timeline-core';
-import {
-  compareRational,
-  rationalEquals,
-  type RationalTime,
-  type TimecodeFrameRate,
-} from '@techsquidtv/canvas-timeline-utils';
-import { quantizeTimelineTimeToFrame } from '#react/hooks/playback/playbackFrameTime';
-import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import type { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
-import {
-  createCancelledMediaPlayResult,
-  createMediaPlayFailure,
-  type TimelineMediaPlayResult,
-} from '#react/hooks/playback/internal/mediaPlayResult';
-
+import { compareRational, rationalEquals } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime, TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 export interface PendingMediaPlaybackStart<LayerName extends string, PlayResult> {
   generation: number;
   adapter: TimelineMediaSyncAdapter<LayerName>;
@@ -182,7 +177,7 @@ export async function startMediaClockPlayback<LayerName extends string>({
   if (!rationalEquals(currentTime, timelineTime)) {
     engine.setTime(timelineTime);
   }
-  let timelineLayers = engine.getActiveLayers({ time: timelineTime, layers });
+  let timelineLayers = engine.media.getActiveLayers({ time: timelineTime, layers });
 
   if (!timelineLayers.hasActiveClips) {
     const state = engine.getState();
@@ -195,22 +190,22 @@ export async function startMediaClockPlayback<LayerName extends string>({
     const playbackStartsInContent =
       playbackStartTime !== undefined &&
       (playbackEndTime === undefined || compareRational(playbackStartTime, playbackEndTime) < 0) &&
-      engine.getActiveLayers({ time: playbackStartTime, layers }).hasActiveClips;
+      engine.media.getActiveLayers({ time: playbackStartTime, layers }).hasActiveClips;
     const firstContentTime = playbackStartsInContent
       ? playbackStartTime
-      : engine.getFirstContentTime({
+      : engine.media.getFirstContentTime({
           layers,
           atOrAfter: playbackStartTime,
           before: playbackEndTime,
         });
     if (firstContentTime === undefined) {
-      if (engine.getFirstContentTime({ layers }) === undefined) {
+      if (engine.media.getFirstContentTime({ layers }) === undefined) {
         return createMediaPlayFailure('no-content', 'No timeline content is available.', onError);
       }
     } else {
       timelineTime = quantizeTimelineTimeToFrame(firstContentTime, frameRate, 'ceil');
       engine.setTime(timelineTime);
-      timelineLayers = engine.getActiveLayers({ time: timelineTime, layers });
+      timelineLayers = engine.media.getActiveLayers({ time: timelineTime, layers });
     }
   }
 

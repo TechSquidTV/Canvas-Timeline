@@ -1,12 +1,11 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
-import React from 'react';
-import { expect, test, vi } from 'vite-plus/test';
-import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { TimelineProvider } from '#react/Provider';
-import * as playbackHookExports from '#react/hooks/playback';
 import { useTimelineMediaPlayback } from '#react/hooks';
 import { createMediaSyncEngine, mediaSyncLayers } from '#react/hooks/integration/testHelpers';
-
+import * as playbackHookExports from '#react/hooks/playback';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { expect, test, vi } from 'vite-plus/test';
 test('playback hook exports exclude delegated synchronization internals', () => {
   expect(playbackHookExports).not.toHaveProperty('delegateTimelineMediaPlaybackSynchronization');
   expect(playbackHookExports).not.toHaveProperty('useTimelineMediaPlaybackInternal');
@@ -330,8 +329,16 @@ test('useTimelineMediaPlayback uses current content after loop realignment', asy
   });
 
   act(() => {
-    engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
-    engine.moveClip({ clipId: 'audio-clip', startTime: fromSeconds(6) });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'video-clip',
+      startTime: fromSeconds(6),
+    });
+    engine.commitEdit({
+      type: 'move',
+      clipId: 'audio-clip',
+      startTime: fromSeconds(6),
+    });
   });
   await act(async () => {
     resolveLoop();
@@ -857,7 +864,11 @@ test('useTimelineMediaPlayback pauses on content gaps and runs cleanup callbacks
 
 test('useTimelineMediaPlayback keeps playing while only the audio layer remains active', async () => {
   const engine = createMediaSyncEngine();
-  engine.moveClip({ clipId: 'video-clip', startTime: fromSeconds(6) });
+  engine.commitEdit({
+    type: 'move',
+    clipId: 'video-clip',
+    startTime: fromSeconds(6),
+  });
   let clockTime = 1;
   let tick: FrameRequestCallback | undefined;
   const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -937,7 +948,7 @@ test('useTimelineMediaPlayback reports updated layers when a clip sync key chang
   expect(syncLayers).toHaveBeenCalledTimes(1);
 
   act(() => {
-    engine.slipClip('audio-clip', fromSeconds(0.5));
+    engine.commitEdit({ type: 'slip', clipId: 'audio-clip', deltaTime: fromSeconds(0.5) });
   });
 
   clockTime = 1.5;

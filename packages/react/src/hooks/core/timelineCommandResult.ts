@@ -25,28 +25,29 @@ export type TimelineCommandFailureReason =
  *
  * @template Value - Optional successful command payload.
  */
-export interface TimelineCommandResult<Value = void> {
-  /** Whether the command was applied. */
-  ok: boolean;
-  /** Reason the command was not applied. */
-  reason?: TimelineCommandFailureReason;
-  /** Optional human-readable failure detail for product UI and diagnostics. */
-  message?: string;
-  /** Original error that caused the failure, when available. */
-  cause?: Error;
-  /** Optional successful command payload. */
-  value?: Value;
-}
+export type TimelineCommandResult<Value = void> =
+  | ({ ok: true; reason?: never; message?: never; cause?: never } & ([Value] extends [void]
+      ? { value?: never }
+      : { value: Value }))
+  | {
+      ok: false;
+      reason: TimelineCommandFailureReason;
+      message?: string;
+      cause?: Error;
+      value?: never;
+    };
 
+/** Creates a successful command result without a payload. */
+export function timelineCommandOk(): TimelineCommandResult;
 /**
- * Creates a successful timeline command result.
- *
- * @param value - Optional command payload.
+ * Creates a successful timeline command result with a payload.
+ * @param value - Successful command payload.
  * @template Value - Successful command payload type.
  * @returns Successful command result.
  */
-export function timelineCommandOk<Value = void>(value?: Value): TimelineCommandResult<Value> {
-  return value === undefined ? { ok: true } : { ok: true, value };
+export function timelineCommandOk<Value>(value: Value): TimelineCommandResult<Value>;
+export function timelineCommandOk<Value>(...args: [] | [Value]): { ok: true; value?: Value } {
+  return args.length === 0 ? { ok: true } : { ok: true, value: args[0] };
 }
 
 /**

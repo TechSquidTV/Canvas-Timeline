@@ -15,6 +15,7 @@ const outputDir = resolve(repoRoot, 'apps/www/.generated/react-registry-snippets
 const internalHookAllowlist = new Set([
   'useTimelineExternalStore',
   'useTimelineGeometryRevision',
+  'useTimelineSelector',
   'useTimelineMediaPlaybackInternal',
   'useTimelineMediaSyncInternal',
 ]);

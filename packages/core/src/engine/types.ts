@@ -1,3 +1,4 @@
+import type { ClipCreatedReason, ClipRemovedReason } from '#core/events';
 import type {
   Clip,
   TimelineClipGroup,
@@ -7,8 +8,6 @@ import type {
   TimelineSnapResult,
   Track,
 } from '#core/types';
-import type { ClipCreatedReason, ClipRemovedReason } from '#core/events';
-
 export interface TimelineClipLookup {
   track: Track;
   clip: Clip;
@@ -20,7 +19,6 @@ export interface TimelineResolvedEdit {
   preview: TimelineEditPreview;
   tracks: Track[];
   clipGroups?: TimelineClipGroup[];
-  commandFingerprint: string;
   moveResult?: TimelineClipMoveResult;
   createdClipEvents: TimelineCreatedClipEvent[];
   removedClipEvents: TimelineRemovedClipEvent[];

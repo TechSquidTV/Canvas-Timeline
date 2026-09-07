@@ -1,9 +1,8 @@
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
 import type { Marker } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { useTimelinePlayheadTime } from '#react/hooks/playback/useTimelinePlayheadTime';
-
 /** Result returned by `useActiveMarkers`. */
 export interface UseActiveMarkersResult {
   /** Marker exactly at the playhead, or null when none is active. */
@@ -26,7 +25,7 @@ export interface UseActiveMarkersResult {
  * @returns Active, nearest, previous, and next markers for the live playhead time.
  */
 export function useActiveMarkers(): UseActiveMarkersResult {
-  const { state } = useTimeline();
+  const state = useTimelineSelector((state) => ({ markers: state.markers }));
   const playheadTime = useTimelinePlayheadTime();
   const markers = useMemo(
     () => [...(state.markers || [])].sort((left, right) => compareRational(left.time, right.time)),

@@ -1,4 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
+import { useTimelineKeyframeSegments, useTimelineKeyframeTangentDrag } from '#react/hooks';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineEngine,
   TimelineInteractionGeometry,
@@ -7,15 +10,8 @@ import type {
   TimelineKeyframeTangentHandle,
   TimelineKeyframeTangentHandleHitTestResult,
 } from '@techsquidtv/canvas-timeline-core';
-import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import {
-  useTimeline,
-  useTimelineKeyframeSegments,
-  useTimelineKeyframeTangentDrag,
-} from '#react/hooks';
-import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 interface HoveredTangentHandle {
   clipId: string;
   segmentId: string;
@@ -134,7 +130,7 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
     },
     forwardedRef
   ) => {
-    const { engine } = useTimeline();
+    const engine = useTimelineEngine();
     const internalRef = useRef<HTMLDivElement>(null);
     const activeHandleRef = useRef<ActiveTangentHandle | null>(null);
     const fallbackListenersRef = useRef<(() => void) | null>(null);
@@ -280,7 +276,7 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
 
         event.preventDefault();
         event.stopPropagation();
-        engine.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
+        engine.keyframes.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
 
         const target = event.currentTarget;
         activeHandleRef.current = {
@@ -427,7 +423,7 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
                 height: `${handle.rect.height + pad * 2}px`,
               }}
               onFocus={() => {
-                engine.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
+                engine.keyframes.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
               }}
               onPointerDown={(event) => {
                 handlePointerDown(event, handle);

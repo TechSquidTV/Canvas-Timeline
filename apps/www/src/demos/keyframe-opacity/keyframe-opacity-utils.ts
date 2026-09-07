@@ -1,13 +1,14 @@
+import { createTimelineScalarKeyframeProperty } from '@techsquidtv/canvas-timeline-core';
 import type {
+  TimelineReadonly,
   Clip,
   ClipHitTestResult,
   TimelineEngine,
   TimelineKeyframe,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
-import { createTimelineScalarKeyframeProperty } from '@techsquidtv/canvas-timeline-core';
-import { toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
-
+import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',
   label: 'Opacity',
@@ -21,7 +22,10 @@ export const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
 export const opacityKeyframeValuePadding = 10;
 const opacityKeyframeToggleRadiusPixels = 10;
 
-export function findClipContainingTime(track: Track, time: RationalTime): Clip | null {
+export function findClipContainingTime(
+  track: TimelineReadonly<Track>,
+  time: RationalTime
+): TimelineReadonly<Clip> | null {
   const seconds = toSeconds(time);
   return (
     track.clips.find(
@@ -31,7 +35,7 @@ export function findClipContainingTime(track: Track, time: RationalTime): Clip |
 }
 
 export function findOpacityKeyframeNearTime(
-  clip: Clip,
+  clip: TimelineReadonly<Clip>,
   time: RationalTime,
   zoomScale: number
 ): TimelineKeyframe | null {
@@ -64,19 +68,19 @@ export function toggleOpacityKeyframeAtTime(
   time: RationalTime,
   value: number
 ): boolean {
-  const found = engine.getClip(clipId);
+  const found = engine.geometry.getClip(clipId);
   if (!found || found.track.locked) {
     return false;
   }
 
   const existing = findOpacityKeyframeNearTime(found.clip, time, engine.zoomScale);
   if (existing) {
-    return engine.removeClipKeyframe(clipId, existing.id);
+    return engine.keyframes.removeClipKeyframe(clipId, existing.id);
   }
 
   // New keyframes use linear side defaults until the app assigns side interpolation.
   return Boolean(
-    engine.setClipKeyframe({
+    engine.keyframes.setClipKeyframe({
       clipId,
       property: 'opacity',
       time,

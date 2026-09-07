@@ -1,8 +1,7 @@
-import { Timeline, useTimelineTracks } from '@techsquidtv/canvas-timeline-react';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-
+import { useEditorTracks } from '#full-editor/features/timeline/useEditorTracks';
+import { Timeline } from '@techsquidtv/canvas-timeline-react';
 export function TimelineLayers() {
-  const { tracks } = useTimelineTracks<EditorTrackKind>();
+  const { tracks } = useEditorTracks();
 
   return (
     <>

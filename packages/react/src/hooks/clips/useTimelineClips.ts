@@ -1,22 +1,19 @@
-import { useCallback, useMemo } from 'react';
+import { flattenTimelineClips } from '#react/hooks/clips/timelineClipModel';
+import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type {
   Clip,
   ClipHitTestInput,
-  TimelineEngine,
   TimelineClipGroup,
+  TimelineEngine,
   TimelineInteractionGeometry,
 } from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
-import { flattenTimelineClips, type TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
+import { useCallback, useMemo } from 'react';
 export type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 
 /**
@@ -43,15 +40,13 @@ export type TimelineClipUpdate = Partial<Pick<Clip, 'label' | 'opacity' | 'color
  * drag affordances, combine it with {@link useTimelineClipDrag} and
  * {@link useTimelineClipDropFeedback}.
  *
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries, such as `"visual" | "audio"`.
  *
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export interface UseTimelineClipsResult<TrackKind = string> {
+export interface UseTimelineClipsResult {
   /** Flattened timeline clips in track order. */
-  clips: TimelineClipEntry<TrackKind>[];
+  clips: TimelineClipEntry[];
   /** Currently selected clip, or null when no clip is selected. */
   selectedClip: Clip | null;
   /** ID of the currently selected clip, or null when no clip is selected. */
@@ -67,19 +62,19 @@ export interface UseTimelineClipsResult<TrackKind = string> {
   /** Selected group id when the primary selected clip belongs to one. */
   selectedGroupId: string | null;
   /** Returns a clip lookup from the engine, including containing track and indexes. */
-  getClip: TimelineEngine['getClip'];
+  getClip: TimelineEngine['geometry']['getClip'];
   /** Returns the current viewport rectangle for a clip. */
-  getClipRect: TimelineEngine['getClipRect'];
+  getClipRect: TimelineEngine['geometry']['getClipRect'];
   /** Hit-tests timeline clips in viewport coordinates. */
-  getClipAtPoint: TimelineEngine['getClipAtPoint'];
+  getClipAtPoint: TimelineEngine['geometry']['getClipAtPoint'];
   /** Computes the source-media range covered by a clip. */
-  getClipSourceRange: TimelineEngine['getClipSourceRange'];
+  getClipSourceRange: TimelineEngine['media']['getClipSourceRange'];
   /** Returns a stable sync key for timing-affecting clip fields. */
-  getClipSyncKey: TimelineEngine['getClipSyncKey'];
+  getClipSyncKey: TimelineEngine['media']['getClipSyncKey'];
   /** Maps a timeline timestamp within a clip to matching source-media time. */
-  timelineTimeToSourceTime: TimelineEngine['timelineTimeToSourceTime'];
+  timelineTimeToSourceTime: TimelineEngine['media']['timelineTimeToSourceTime'];
   /** Maps a source-media timestamp within a clip back to timeline time. */
-  sourceTimeToTimelineTime: TimelineEngine['sourceTimeToTimelineTime'];
+  sourceTimeToTimelineTime: TimelineEngine['media']['sourceTimeToTimelineTime'];
   /** Whether a clip can be moved by headless edit controls. */
   canMoveClip: (clipId: string) => boolean;
   /** Whether a clip can be trimmed by headless edit controls. */
@@ -110,8 +105,6 @@ export interface UseTimelineClipsResult<TrackKind = string> {
  * move, trim, split, insert, overwrite, and delete.
  *
  * @returns Flattened clips, selected clip metadata, clip lookups, and presentation commands.
- * @template TrackKind - App-defined track kind values carried by returned track
- * entries, such as `"visual" | "audio"`.
  *
  * @example
  * ```tsx
@@ -163,8 +156,9 @@ export interface UseTimelineClipsResult<TrackKind = string> {
  * @see {@link useTimelineEditCommands}
  * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
-export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<TrackKind> {
-  const { engine, state } = useTimeline();
+export function useTimelineClips(): UseTimelineClipsResult {
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
   const {
     selectedClip,
     selectedClipId,
@@ -174,44 +168,41 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
     selectedGroup,
     selectedGroupId,
     selectClip,
-  } = useTimelineSelection<TrackKind>();
+  } = useTimelineSelection();
 
-  const clips = useMemo(
-    () => flattenTimelineClips(getTimelineTracks<TrackKind>(state.tracks)),
-    [state.tracks]
-  );
+  const clips = useMemo(() => flattenTimelineClips(state.tracks), [state.tracks]);
 
-  const getClip = useCallback((clipId: string) => engine.getClip(clipId), [engine]);
+  const getClip = useCallback((clipId: string) => engine.geometry.getClip(clipId), [engine]);
   const getClipRect = useCallback(
     (clipId: string, geometry?: TimelineInteractionGeometry) =>
-      engine.getClipRect(clipId, geometry),
+      engine.geometry.getClipRect(clipId, geometry),
     [engine]
   );
   const getClipAtPoint = useCallback(
-    (input: ClipHitTestInput) => engine.getClipAtPoint(input),
+    (input: ClipHitTestInput) => engine.geometry.getClipAtPoint(input),
     [engine]
   );
   const getClipSourceRange = useCallback(
-    (clipIdOrClip: string | Clip) => engine.getClipSourceRange(clipIdOrClip),
+    (clipIdOrClip: string | Clip) => engine.media.getClipSourceRange(clipIdOrClip),
     [engine]
   );
   const getClipSyncKey = useCallback(
-    (clipIdOrClip: string | Clip) => engine.getClipSyncKey(clipIdOrClip),
+    (clipIdOrClip: string | Clip) => engine.media.getClipSyncKey(clipIdOrClip),
     [engine]
   );
   const timelineTimeToSourceTime = useCallback(
     (clipIdOrClip: string | Clip, timelineTime?: RationalTime) =>
-      engine.timelineTimeToSourceTime(clipIdOrClip, timelineTime),
+      engine.media.timelineTimeToSourceTime(clipIdOrClip, timelineTime),
     [engine]
   );
   const sourceTimeToTimelineTime = useCallback(
     (clipIdOrClip: string | Clip, sourceTime: RationalTime) =>
-      engine.sourceTimeToTimelineTime(clipIdOrClip, sourceTime),
+      engine.media.sourceTimeToTimelineTime(clipIdOrClip, sourceTime),
     [engine]
   );
   const canMoveClip = useCallback(
     (clipId: string) => {
-      const found = engine.getClip(clipId);
+      const found = engine.geometry.getClip(clipId);
       return Boolean(found && !found.track.locked && found.clip.movable !== false);
     },
     [engine]
@@ -219,7 +210,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
 
   const canTrimClip = useCallback(
     (clipId: string) => {
-      const found = engine.getClip(clipId);
+      const found = engine.geometry.getClip(clipId);
       return Boolean(found && !found.track.locked && found.clip.resizable !== false);
     },
     [engine]
@@ -227,7 +218,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
 
   const canSlipClip = useCallback(
     (clipId: string) => {
-      const found = engine.getClip(clipId);
+      const found = engine.geometry.getClip(clipId);
       return Boolean(found && !found.track.locked && found.clip.resizable !== false);
     },
     [engine]
@@ -235,7 +226,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
 
   const canSlideClip = useCallback(
     (clipId: string) => {
-      const found = engine.getClip(clipId);
+      const found = engine.geometry.getClip(clipId);
       return Boolean(found && !found.track.locked && found.clip.movable !== false);
     },
     [engine]
@@ -243,7 +234,7 @@ export function useTimelineClips<TrackKind = string>(): UseTimelineClipsResult<T
 
   const selectTimelineClip = useCallback(
     (clipId: string | null) => {
-      if (clipId !== null && !engine.getClip(clipId)) {
+      if (clipId !== null && !engine.geometry.getClip(clipId)) {
         return timelineCommandFail('not-found');
       }
       selectClip(clipId);

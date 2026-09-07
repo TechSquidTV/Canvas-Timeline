@@ -1,10 +1,4 @@
-import { act, fireEvent, render, renderHook } from '@testing-library/react';
-import React from 'react';
-import { describe, expect, it, vi } from 'vite-plus/test';
-import { TimelineEngine, type Clip, type Track } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { expectDefined } from '#test-utils/assertions';
+import { Root, Timeline } from '#react/components';
 import {
   createTimelineKeyboardBindings,
   getTimelineKeyboardCommand,
@@ -20,8 +14,13 @@ import {
   useTimelineViewportScrollbar,
   useTimelineZoomControl,
 } from '#react/hooks';
-import { Root, Timeline } from '#react/components';
-
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, fireEvent, render, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vite-plus/test';
 function createClip(id: string, start: number, end: number, overrides: Partial<Clip> = {}): Clip {
   return {
     id,
@@ -86,7 +85,11 @@ describe('timeline accessibility control hooks', () => {
     expect(result.current.max).toBe(2);
 
     act(() => {
-      engine.moveClip({ clipId: 'clip-a', startTime: fromSeconds(6) });
+      engine.commitEdit({
+        type: 'move',
+        clipId: 'clip-a',
+        startTime: fromSeconds(6),
+      });
       engine.settle();
     });
 
@@ -283,7 +286,7 @@ describe('timeline accessibility control hooks', () => {
       result.current.moveActiveClipBy(2);
     });
 
-    let activeClip = expectDefined(engine.getClip('clip-a'), 'clip-a').clip;
+    let activeClip = expectDefined(engine.geometry.getClip('clip-a'), 'clip-a').clip;
     expect(toSeconds(activeClip.timelineStart)).toBe(2);
     expect(toSeconds(activeClip.timelineEnd)).toBe(5);
 
@@ -292,7 +295,7 @@ describe('timeline accessibility control hooks', () => {
       result.current.trimActiveClipBy('start', 1);
     });
 
-    activeClip = expectDefined(engine.getClip('clip-a'), 'clip-a').clip;
+    activeClip = expectDefined(engine.geometry.getClip('clip-a'), 'clip-a').clip;
     expect(toSeconds(activeClip.timelineStart)).toBe(3);
     expect(toSeconds(activeClip.timelineEnd)).toBe(6);
     expect(toSeconds(activeClip.sourceStart)).toBe(1);
@@ -329,8 +332,14 @@ describe('timeline accessibility control hooks', () => {
       fixed.result.current.trimActiveClipBy('end', 2);
     });
 
-    const lockedClip = expectDefined(lockedEngine.getClip('locked-clip'), 'locked-clip').clip;
-    const fixedClip = expectDefined(clipGuardEngine.getClip('fixed-clip'), 'fixed-clip').clip;
+    const lockedClip = expectDefined(
+      lockedEngine.geometry.getClip('locked-clip'),
+      'locked-clip'
+    ).clip;
+    const fixedClip = expectDefined(
+      clipGuardEngine.geometry.getClip('fixed-clip'),
+      'fixed-clip'
+    ).clip;
     expect(toSeconds(lockedClip.timelineStart)).toBe(0);
     expect(toSeconds(lockedClip.timelineEnd)).toBe(3);
     expect(toSeconds(fixedClip.timelineStart)).toBe(0);
@@ -393,7 +402,7 @@ describe('timeline accessibility control hooks', () => {
     expect(focusTarget.getAttribute('data-active-clip')).toBe('main');
 
     fireEvent.keyDown(focusTarget, { key: 'Enter' });
-    expect(engine.getClip('main')?.clip.selected).toBe(true);
+    expect(engine.geometry.getClip('main')?.clip.selected).toBe(true);
 
     fireEvent.blur(focusTarget);
     expect(focusTarget.getAttribute('data-focused')).toBe('false');

@@ -1,28 +1,20 @@
-import { renderHook, act, fireEvent, render } from '@testing-library/react';
-import React from 'react';
-import { expect, test, vi } from 'vite-plus/test';
-import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { TimelineProvider } from '#react/Provider';
-import { expectDefined } from '#test-utils/assertions';
 import {
   usePlaybackEffect,
+  useTimelineClipDrag,
+  useTimelineClipDropFeedback,
+  useTimelineClipRects,
+  useTimelineClips,
   useTimelineEditCommands,
   useTimelineEditMode,
   useTimelineEditPreview,
+  useTimelineExternalClipDrop,
+  useTimelineHistory,
   useTimelinePlayback,
   useTimelineRangeSelection,
   useTimelineSnapping,
-  useTimelineClips,
-  useTimelineClipDrag,
-  useTimelineClipDropFeedback,
-  useTimelineExternalClipDrop,
-  useTimelineClipRects,
-  useTimelineHistory,
   useTimelineTrackDropTargets,
-  type TimelineTrackDropResult,
 } from '#react/hooks';
-
+import type { TimelineTrackDropResult } from '#react/hooks';
 import {
   createClip,
   createDragDataTransfer,
@@ -30,7 +22,13 @@ import {
   createTrack,
   wrapper,
 } from '#react/hooks/integration/testHelpers';
-
+import { TimelineProvider } from '#react/Provider';
+import { expectDefined } from '#test-utils/assertions';
+import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
+import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { act, fireEvent, render, renderHook } from '@testing-library/react';
+import React from 'react';
+import { expect, test, vi } from 'vite-plus/test';
 test('useTimelinePlayback', () => {
   const engine = new TimelineEngine({ tracks: [] });
   const playSpy = vi.spyOn(engine, 'play');
@@ -241,7 +239,7 @@ test('useTimelineClips exposes flattened clips, lookups, and presentation update
     result.current.updateClip('intro', { label: 'Cold open', opacity: 0.5 });
   });
 
-  const updated = expectDefined(engine.getClip('intro'), 'intro clip').clip;
+  const updated = expectDefined(engine.geometry.getClip('intro'), 'intro clip').clip;
   expect(updated.label).toBe('Cold open');
   expect(updated.opacity).toBe(0.5);
   expect(result.current.getClip('intro')?.track.id).toBe('video-1');
@@ -254,7 +252,7 @@ test('useTimelineClips exposes flattened clips, lookups, and presentation update
     expect(result.current.selectClip('overlay')).toEqual({ ok: true });
   });
 
-  expect(engine.getClip('overlay')?.clip.selected).toBe(true);
+  expect(engine.geometry.getClip('overlay')?.clip.selected).toBe(true);
 });
 
 test('useTimelineEditCommands commits typed commands and reports validation failures', () => {
@@ -278,7 +276,7 @@ test('useTimelineEditCommands commits typed commands and reports validation fail
     expect(result.current.moveClip({ clipId: 'intro', startTime: fromSeconds(2) }).ok).toBe(true);
   });
 
-  expect(toSeconds(engine.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(2);
+  expect(toSeconds(engine.geometry.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(2);
 
   act(() => {
     expect(
@@ -298,8 +296,12 @@ test('useTimelineEditCommands commits typed commands and reports validation fail
     );
   });
 
-  expect(toSeconds(engine.getClip('intro')?.clip.sourceStart ?? fromSeconds(0))).toBe(0.25);
-  expect(toSeconds(engine.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(2.5);
+  expect(toSeconds(engine.geometry.getClip('intro')?.clip.sourceStart ?? fromSeconds(0))).toBe(
+    0.25
+  );
+  expect(toSeconds(engine.geometry.getClip('intro')?.clip.timelineStart ?? fromSeconds(0))).toBe(
+    2.5
+  );
 
   act(() => {
     expect(result.current.splitClip('intro', fromSeconds(2.75)).ok).toBe(true);
@@ -327,7 +329,7 @@ test('useTimelineEditCommands commits typed commands and reports validation fail
     ).toBe(true);
   });
 
-  expect(engine.getClip('inserted')).toBeDefined();
+  expect(engine.geometry.getClip('inserted')).toBeDefined();
 });
 
 test('useTimelineEditPreview subscribes to command preview changes', () => {
@@ -406,8 +408,8 @@ test('useTimelineRangeSelection adapts In/Out points to range commands', () => {
     expect(result.current.deleteRange({ trackIds: ['video-1'] }).ok).toBe(true);
   });
 
-  expect(engine.getClip('middle')).toBeUndefined();
-  expect(toSeconds(engine.getClip('after')?.clip.timelineStart ?? fromSeconds(0))).toBe(3);
+  expect(engine.geometry.getClip('middle')).toBeUndefined();
+  expect(toSeconds(engine.geometry.getClip('after')?.clip.timelineStart ?? fromSeconds(0))).toBe(3);
 });
 
 test('useTimelineTrackDropTargets applies same-kind drop rules by default', () => {
@@ -723,7 +725,7 @@ test('useTimelineExternalClipDrop commits single and grouped drops', () => {
     })
   );
 
-  expect(engine.getClip('single-drop')).toBeDefined();
+  expect(engine.geometry.getClip('single-drop')).toBeDefined();
   expect(surface.getAttribute('data-last-ok')).toBe('true');
   expect(surface.getAttribute('data-dragging')).toBe('false');
 
@@ -736,8 +738,8 @@ test('useTimelineExternalClipDrop commits single and grouped drops', () => {
     })
   );
 
-  expect(engine.getClip('video-drop')).toBeDefined();
-  expect(engine.getClip('audio-drop')).toBeDefined();
+  expect(engine.geometry.getClip('video-drop')).toBeDefined();
+  expect(engine.geometry.getClip('audio-drop')).toBeDefined();
   expect(engine.getClipGroup('external-av')).toMatchObject({
     label: 'External AV',
     clipIds: ['video-drop', 'audio-drop'],
@@ -798,7 +800,7 @@ test('useTimelineExternalClipDrop prepares snapping before committing a drop', (
 
   expect(surface.getAttribute('data-last-ok')).toBe('true');
   expect(
-    toSeconds(engine.getClip('snapped-drop')?.clip.timelineStart ?? fromSeconds(0))
+    toSeconds(engine.geometry.getClip('snapped-drop')?.clip.timelineStart ?? fromSeconds(0))
   ).toBeCloseTo(2);
 });
 
@@ -833,7 +835,10 @@ test('useTimelineClipDrag activates cross-track targets after penetration thresh
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-a');
+  expect(
+    engine.getRenderState().tracks.find((track) => track.clips.some((clip) => clip.id === 'clip-a'))
+      ?.id
+  ).toBe('visual-a');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-a');
 
   act(() => {
@@ -843,7 +848,10 @@ test('useTimelineClipDrag activates cross-track targets after penetration thresh
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-b');
+  expect(
+    engine.getRenderState().tracks.find((track) => track.clips.some((clip) => clip.id === 'clip-a'))
+      ?.id
+  ).toBe('visual-b');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-b');
 
   act(() => {
@@ -883,7 +891,10 @@ test('useTimelineClipDrag measures reverse penetration from the active target tr
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-c');
+  expect(
+    engine.getRenderState().tracks.find((track) => track.clips.some((clip) => clip.id === 'clip-a'))
+      ?.id
+  ).toBe('visual-c');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-c');
 
   act(() => {
@@ -893,7 +904,10 @@ test('useTimelineClipDrag measures reverse penetration from the active target tr
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-c');
+  expect(
+    engine.getRenderState().tracks.find((track) => track.clips.some((clip) => clip.id === 'clip-a'))
+      ?.id
+  ).toBe('visual-c');
   expect(result.current.feedback.hoveredTrackId).toBe('visual-b');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-c');
 
@@ -904,7 +918,10 @@ test('useTimelineClipDrag measures reverse penetration from the active target tr
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-b');
+  expect(
+    engine.getRenderState().tracks.find((track) => track.clips.some((clip) => clip.id === 'clip-a'))
+      ?.id
+  ).toBe('visual-b');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-b');
 
   act(() => {
@@ -943,7 +960,7 @@ test('useTimelineClipDrag shows invalid hover feedback while preserving the last
     });
   });
 
-  expect(expectDefined(engine.getClip('clip-a'), 'clip-a').track.id).toBe('visual-a');
+  expect(expectDefined(engine.geometry.getClip('clip-a'), 'clip-a').track.id).toBe('visual-a');
   expect(result.current.feedback.hoveredTrackId).toBe('audio-a');
   expect(result.current.feedback.activeTargetTrackId).toBe('visual-a');
   expect(result.current.feedback.valid).toBe(false);

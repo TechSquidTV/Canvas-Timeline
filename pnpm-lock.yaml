@@ -373,7 +373,11 @@ importers:
 
   packages/utils: {}
 
-  scripts: {}
+  scripts:
+    dependencies:
+      istanbul-lib-coverage:
+        specifier: ^3.2.2
+        version: 3.2.2
 
 packages:
 

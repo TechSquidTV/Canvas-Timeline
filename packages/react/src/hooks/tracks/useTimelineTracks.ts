@@ -1,13 +1,9 @@
+import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
+import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { Track } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
-import { useTimeline } from '#react/hooks/core/useTimeline';
-import { getTimelineTracks } from '#react/hooks/core/timelineTrackState';
-import {
-  timelineCommandFail,
-  timelineCommandOk,
-  type TimelineCommandResult,
-} from '#react/hooks/core/timelineCommandResult';
-
 /**
  * Result returned by `useTimelineTracks`.
  *
@@ -18,29 +14,28 @@ import {
  * one row's DOM-ready state, use {@link useTimelineTrack} or
  * {@link useTimelineTrackHeader} instead.
  *
- * @template TrackKind - App-defined track kind values carried by returned
  * tracks, such as `"visual" | "audio"`.
  *
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
-export interface UseTimelineTracksResult<TrackKind = string> {
+export interface UseTimelineTracksResult {
   /** Current ordered track list. */
-  tracks: Track<TrackKind>[];
+  tracks: Track[];
   /** Currently selected track, or null when no track is selected. */
-  selectedTrack: Track<TrackKind> | null;
+  selectedTrack: Track | null;
   /** Tracks currently participating in active layer and media lookup. */
-  visibleTracks: Track<TrackKind>[];
+  visibleTracks: Track[];
   /** Tracks currently hidden from active layer and media lookup. */
-  hiddenTracks: Track<TrackKind>[];
+  hiddenTracks: Track[];
   /** Tracks currently targeted for edit operations. */
-  targetedTracks: Track<TrackKind>[];
+  targetedTracks: Track[];
   /** Tracks grouped by group id, with ungrouped tracks under "ungrouped". */
-  tracksByGroupId: Record<string, Track<TrackKind>[]>;
+  tracksByGroupId: Record<string, Track[]>;
   /** Selects a track by id, or clears track selection. */
   selectTrack: (trackId: string | null) => TimelineCommandResult;
   /** Adds a track to the timeline. */
-  addTrack: (track: Track<TrackKind>) => TimelineCommandResult;
+  addTrack: (track: Track) => TimelineCommandResult;
   /** Removes a track from the timeline. */
   removeTrack: (trackId: string) => TimelineCommandResult;
   /** Sets or toggles whether a track is muted. */
@@ -69,7 +64,6 @@ export interface UseTimelineTracksResult<TrackKind = string> {
  * missing.
  *
  * @returns Track collection state and commands for selecting and updating tracks.
- * @template TrackKind - App-defined track kind values carried by returned
  * tracks, such as `"visual" | "audio"`.
  *
  * @example
@@ -113,15 +107,16 @@ export interface UseTimelineTracksResult<TrackKind = string> {
  * @see {@link useTimelineTrackHeader}
  * @see {@link https://canvastimeline.com/demos/timeline-editor-controls | Timeline editor controls demo}
  */
-export function useTimelineTracks<TrackKind = string>(): UseTimelineTracksResult<TrackKind> {
-  const { engine, state } = useTimeline();
-  const tracks = useMemo(() => getTimelineTracks<TrackKind>(state.tracks), [state.tracks]);
+export function useTimelineTracks(): UseTimelineTracksResult {
+  const engine = useTimelineEngine();
+  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
+  const tracks = useMemo(() => state.tracks, [state.tracks]);
   const selectedTrack = useMemo(() => tracks.find((track) => track.selected) || null, [tracks]);
   const visibleTracks = useMemo(() => tracks.filter((track) => track.visible), [tracks]);
   const hiddenTracks = useMemo(() => tracks.filter((track) => !track.visible), [tracks]);
   const targetedTracks = useMemo(() => tracks.filter((track) => track.targeted), [tracks]);
   const tracksByGroupId = useMemo(() => {
-    const groupedTracks: Record<string, Track<TrackKind>[]> = {};
+    const groupedTracks: Record<string, Track[]> = {};
     for (const track of tracks) {
       const groupId = track.groupId || 'ungrouped';
       groupedTracks[groupId] ??= [];
@@ -142,7 +137,7 @@ export function useTimelineTracks<TrackKind = string>(): UseTimelineTracksResult
   );
 
   const addTrack = useCallback(
-    (track: Track<TrackKind>) => {
+    (track: Track) => {
       engine.addTrack(track as Track);
       return timelineCommandOk();
     },

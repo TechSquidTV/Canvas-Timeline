@@ -1,20 +1,16 @@
+import { useTimelineDropMode } from '#full-editor/features/timeline/drop-mode-context';
+import type { TimelineSourceDropMode } from '#full-editor/features/timeline/drop-mode-context';
+import { Button } from '#full-editor/shared/ui/button';
+import { Separator } from '#full-editor/shared/ui/separator';
 import {
+  useTimeline,
   useTimelineClipboard,
   useTimelineClipGroups,
   useTimelineClips,
   useTimelineEditCommands,
   useTimelineHistory,
-  useTimeline,
 } from '@techsquidtv/canvas-timeline-react';
 import { ClipboardPaste, Copy, Redo2, Trash2, Undo2, Unlink2 } from 'lucide-react';
-import { Button } from '#full-editor/shared/ui/button';
-import { Separator } from '#full-editor/shared/ui/separator';
-import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
-import {
-  useTimelineDropMode,
-  type TimelineSourceDropMode,
-} from '#full-editor/features/timeline/drop-mode-context';
-
 function HistoryCommandGroup() {
   const history = useTimelineHistory();
 
@@ -89,7 +85,7 @@ function ClipboardCommandGroup() {
 }
 
 function DeleteSelectedClipButton() {
-  const { selectedClip } = useTimelineClips<EditorTrackKind>();
+  const { selectedClip } = useTimelineClips();
   const { deleteClip } = useTimelineEditCommands();
   const canDeleteSelectedClip = selectedClip !== null;
 

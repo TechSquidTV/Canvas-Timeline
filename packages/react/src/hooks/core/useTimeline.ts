@@ -1,7 +1,6 @@
-import { useContext } from 'react';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineState } from '#react/hooks/core/useTimelineState';
 import type { TimelineEngine, TimelineState } from '@techsquidtv/canvas-timeline-core';
-import { TimelineContext } from '#react/context';
-
 /**
  * Engine and synchronized state returned by {@link useTimeline}.
  */
@@ -38,9 +37,5 @@ export interface UseTimelineResult {
  * ```
  */
 export function useTimeline(): UseTimelineResult {
-  const ctx = useContext(TimelineContext);
-  if (!ctx) {
-    throw new Error('useTimeline must be used within TimelineProvider');
-  }
-  return ctx;
+  return { engine: useTimelineEngine(), state: useTimelineState() };
 }

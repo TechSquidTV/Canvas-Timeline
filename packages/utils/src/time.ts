@@ -3,9 +3,9 @@
  */
 export interface RationalTime {
   /** Integer tick value at the timebase stored in `r`. */
-  v: number;
+  readonly v: number;
   /** Tick rate or denominator, expressed as ticks per second. */
-  r: number;
+  readonly r: number;
 }
 
 /**

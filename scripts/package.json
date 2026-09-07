@@ -21,5 +21,8 @@
       "import": "./lib/repository.ts"
     },
     "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "istanbul-lib-coverage": "^3.2.2"
   }
 }
