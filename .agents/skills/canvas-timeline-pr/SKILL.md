@@ -11,9 +11,8 @@ Create PRs that are easy to merge and easy to audit against the public release
 bar. Keep the release-impact analysis in the PR body concise, concrete, and tied
 to the files that changed.
 
-Use [git-workflow](file:///Users/techsquidtv/.codex/skills/git-workflow/SKILL.md)
-for generic Git mechanics: status inspection, staging, commit naming, pushing,
-and avoiding duplicate PRs.
+Use the available `git-workflow` skill for generic Git mechanics: status
+inspection, staging, commit naming, pushing, and avoiding duplicate PRs.
 
 ## PR Preparation Workflow
 
