@@ -85,21 +85,16 @@ function ClipboardCommandGroup() {
 }
 
 function DeleteSelectedClipButton() {
-  const { selectedClip } = useTimelineSelection();
-  const { deleteClip } = useTimelineEditCommands();
-  const canDeleteSelectedClip = selectedClip !== null;
+  const { hasSelection } = useTimelineSelection();
+  const { deleteSelectedClips } = useTimelineEditCommands();
 
   return (
     <Button
-      aria-label="Delete selected clip"
-      disabled={!canDeleteSelectedClip}
+      aria-label="Delete selected clips"
+      disabled={!hasSelection}
       iconOnly
-      onClick={() => {
-        if (selectedClip !== null) {
-          deleteClip(selectedClip.id);
-        }
-      }}
-      title="Delete selected clip"
+      onClick={deleteSelectedClips}
+      title="Delete selected clips"
       variant="ghost"
     >
       <Trash2 aria-hidden="true" />

@@ -10,6 +10,14 @@ export interface UseTimelineTrackCommandsResult {
   addTrack: (track: Track) => TimelineCommandResult;
   /** Removes a track. */
   removeTrack: (trackId: string) => TimelineCommandResult;
+  /** Renames a track, or clears its app-defined name. */
+  renameTrack: (trackId: string, name: string | undefined) => TimelineCommandResult;
+  /** Moves a track to its final zero-based row index. */
+  moveTrack: (trackId: string, toIndex: number) => TimelineCommandResult;
+  /** Sets row collapse while preserving expanded height and media visibility. */
+  setCollapsed: (trackId: string, collapsed: boolean) => TimelineCommandResult;
+  /** Toggles row collapse using the current track state. */
+  toggleCollapse: (trackId: string) => TimelineCommandResult;
   /** Toggles track mute. */
   toggleMute: (trackId: string) => TimelineCommandResult;
   /** Sets track mute explicitly. */
@@ -32,7 +40,17 @@ export interface UseTimelineTrackCommandsResult {
   setTrackGroup: (trackId: string, groupId: string | undefined) => TimelineCommandResult;
 }
 
-/** Stable delegates; all validation reads the current engine state. */
+/**
+ * Provides stable track commands without subscribing to track or geometry updates.
+ * Compose with `useTimelineTracks` for collection state or `useTimelineTrack`
+ * for row state. All commands validate current engine state at invocation.
+ * @returns Track selection, organization, and state commands.
+ * @example
+ * ```tsx
+ * const { moveTrack } = useTimelineTrackCommands();
+ * return <button onClick={() => moveTrack('audio', 0)}>Move audio to first row</button>;
+ * ```
+ */
 export function useTimelineTrackCommands(): UseTimelineTrackCommandsResult {
   const engine = useTimelineEngine();
   return useMemo(
@@ -40,6 +58,14 @@ export function useTimelineTrackCommands(): UseTimelineTrackCommandsResult {
       selectTrack: engine.selectTrack.bind(engine),
       addTrack: engine.addTrack.bind(engine),
       removeTrack: engine.removeTrack.bind(engine),
+      renameTrack: engine.renameTrack.bind(engine),
+      moveTrack: engine.moveTrack.bind(engine),
+      setCollapsed: engine.setTrackCollapsed.bind(engine),
+      toggleCollapse: (trackId) =>
+        engine.setTrackCollapsed(
+          trackId,
+          engine.tracks.find((track) => track.id === trackId)?.collapsed !== true
+        ),
       toggleMute: (trackId) => engine.toggleMuteTrack(trackId),
       setMuted: (trackId, muted) => engine.toggleMuteTrack(trackId, muted),
       toggleVisibility: (trackId) => engine.toggleTrackVisibility(trackId),

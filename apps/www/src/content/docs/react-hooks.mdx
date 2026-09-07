@@ -281,3 +281,21 @@ platform-specific preset bindings.
   source registries, and external-clock transport.
 - [Canvas renderer customization](/docs/renderer-customization) for custom
   drawing layers, renderer theme options, and canvas overlays.
+
+### Track organization and bulk deletion
+
+Use `useTimelineTrackCommands()` for menus that only issue commands. It does not subscribe to document or viewport changes. `useTimelineTracks()` adds collection state; `useTimelineTrack(id)` adds one row's state and geometry.
+
+```tsx
+const tracks = useTimelineTrackCommands();
+tracks.renameTrack('audio', 'Dialogue');
+tracks.moveTrack('audio', 0); // Final zero-based row index.
+tracks.setCollapsed('audio', true); // Preserves expanded height and media visibility.
+tracks.toggleCollapse('audio');
+
+const edits = useTimelineEditCommands();
+edits.deleteClips(['clip-a', 'clip-b']);
+edits.deleteSelectedClips(); // Reads selection when invoked.
+```
+
+Rename, reorder, and collapse each create one undo step. Unchanged values create none. Bulk deletion includes linked clip groups and validates all affected tracks before mutation; a locked track rejects the entire operation. Subscribe to `useTimelineSelection()` separately for button availability.

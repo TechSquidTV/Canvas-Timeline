@@ -208,6 +208,13 @@ export const timelineHookMetadata = [
     description: 'Reads track state and exposes track management commands.',
   },
   {
+    name: 'useTimelineTrackCommands',
+    group: 'editing-hooks',
+    category: 'track-editing',
+    reactivity: 'imperative',
+    description: 'Exposes track organization and state commands without subscriptions.',
+  },
+  {
     name: 'useTimelineTrack',
     group: 'editing-hooks',
     category: 'track-editing',

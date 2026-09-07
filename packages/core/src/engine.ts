@@ -306,6 +306,84 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
+   * Renames a track, or clears its app-defined name.
+   * @param trackId - Track to rename.
+   * @param name - New name, or undefined to use the default label.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  renameTrack(trackId: string, name: string | undefined): TimelineCommandResult {
+    const track = this.state.tracks.find((entry) => entry.id === trackId);
+    if (!track) {
+      return timelineCommandFail('not-found');
+    }
+    if (name !== undefined && typeof name !== 'string') {
+      return timelineCommandFail('invalid-input', 'name must be a string or undefined.');
+    }
+    if (track.name === name) {
+      return timelineCommandOk();
+    }
+    track.name = name;
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  /**
+   * Moves a track to a final zero-based row index as one undoable change.
+   * @param trackId - Track to move.
+   * @param toIndex - Final index within the existing track list.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  moveTrack(trackId: string, toIndex: number): TimelineCommandResult {
+    const fromIndex = this.state.tracks.findIndex((entry) => entry.id === trackId);
+    if (fromIndex < 0) {
+      return timelineCommandFail('not-found');
+    }
+    if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= this.state.tracks.length) {
+      return timelineCommandFail('invalid-input', 'toIndex must address an existing row.');
+    }
+    if (fromIndex === toIndex) {
+      return timelineCommandOk();
+    }
+    const [track] = this.state.tracks.splice(fromIndex, 1);
+    this.state.tracks.splice(toIndex, 0, track);
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  /**
+   * Sets row collapse without changing its expanded height or media visibility.
+   * @param trackId - Track to collapse or expand.
+   * @param collapsed - Desired collapsed state.
+   * @returns Success, not-found, or invalid-input without mutating on failure.
+   */
+  setTrackCollapsed(trackId: string, collapsed: boolean): TimelineCommandResult {
+    const track = this.state.tracks.find((entry) => entry.id === trackId);
+    if (!track) {
+      return timelineCommandFail('not-found');
+    }
+    if (typeof collapsed !== 'boolean') {
+      return timelineCommandFail('invalid-input', 'collapsed must be a boolean.');
+    }
+    if ((track.collapsed === true) === collapsed) {
+      return timelineCommandOk();
+    }
+    track.collapsed = collapsed;
+    this.commitTrackChange();
+    return timelineCommandOk();
+  }
+
+  private commitTrackChange() {
+    const scrollChanged = this.clampScrollTop();
+    this.invalidateContent();
+    this.snapshot();
+    if (scrollChanged) {
+      this.emitScrollChange();
+    }
+    this.emit('state:settled');
+    this.emit('render');
+  }
+
+  /**
    * Enables, disables, or toggles a track's muted state.
    *
    * @param trackId - Track id to update.

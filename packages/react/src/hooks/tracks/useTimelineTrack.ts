@@ -55,6 +55,14 @@ export interface UseTimelineTrackResult {
   collapsed: boolean;
   /** Selects this track. */
   selectTrack: () => TimelineCommandResult;
+  /** Renames this track, or clears its app-defined name. */
+  renameTrack: (name: string | undefined) => TimelineCommandResult;
+  /** Moves this track to a final zero-based row index. */
+  moveTrack: (toIndex: number) => TimelineCommandResult;
+  /** Sets this row's collapsed state. */
+  setCollapsed: (collapsed: boolean) => TimelineCommandResult;
+  /** Toggles this row's collapsed state. */
+  toggleCollapse: () => TimelineCommandResult;
   /** Toggles this track's output visibility. */
   toggleVisibility: () => TimelineCommandResult;
   /** Sets this track's output visibility. */
@@ -129,6 +137,23 @@ export function useTimelineTrack(
 
   const selectTrack = useCallback(() => tracksState.selectTrack(trackId), [trackId, tracksState]);
 
+  const renameTrack = useCallback(
+    (name: string | undefined) => tracksState.renameTrack(trackId, name),
+    [trackId, tracksState]
+  );
+  const moveTrack = useCallback(
+    (toIndex: number) => tracksState.moveTrack(trackId, toIndex),
+    [trackId, tracksState]
+  );
+  const setCollapsed = useCallback(
+    (collapsed: boolean) => tracksState.setCollapsed(trackId, collapsed),
+    [trackId, tracksState]
+  );
+  const toggleCollapse = useCallback(
+    () => tracksState.toggleCollapse(trackId),
+    [trackId, tracksState]
+  );
+
   const toggleVisibility = useCallback(
     () => tracksState.toggleVisibility(trackId),
     [trackId, tracksState]
@@ -176,53 +201,26 @@ export function useTimelineTrack(
   return useMemo(() => {
     const { rect, track, trackIndex } = trackSnapshot;
 
-    if (track === null) {
-      return {
-        trackId,
-        track: null,
-        trackIndex: -1,
-        rect: null,
-        exists: false,
-        kind: null,
-        name: undefined,
-        groupId: undefined,
-        height: 0,
-        selected: false,
-        visible: false,
-        muted: false,
-        locked: false,
-        targeted: false,
-        collapsed: false,
-        selectTrack,
-        toggleVisibility,
-        setVisible,
-        toggleMute,
-        setMuted,
-        toggleLock,
-        setLocked,
-        setTrackHeight,
-        toggleTrackTarget,
-        setTrackTarget,
-        setTrackGroup,
-      };
-    }
-
     return {
       trackId,
       track,
       trackIndex,
       rect,
-      exists: true,
-      kind: track.kind,
-      name: track.name,
-      groupId: track.groupId,
+      exists: track !== null,
+      kind: track?.kind ?? null,
+      name: track?.name,
+      groupId: track?.groupId,
       height: rect?.height ?? 0,
-      selected: track.selected,
-      visible: track.visible,
-      muted: track.muted,
-      locked: track.locked,
-      targeted: track.targeted === true,
-      collapsed: track.collapsed === true,
+      selected: track?.selected ?? false,
+      visible: track?.visible ?? false,
+      muted: track?.muted ?? false,
+      locked: track?.locked ?? false,
+      targeted: track?.targeted === true,
+      collapsed: track?.collapsed === true,
+      renameTrack,
+      moveTrack,
+      setCollapsed,
+      toggleCollapse,
       selectTrack,
       toggleVisibility,
       setVisible,
@@ -236,6 +234,10 @@ export function useTimelineTrack(
       setTrackGroup,
     };
   }, [
+    renameTrack,
+    moveTrack,
+    setCollapsed,
+    toggleCollapse,
     selectTrack,
     setLocked,
     setMuted,
