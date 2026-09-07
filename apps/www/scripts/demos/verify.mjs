@@ -1,5 +1,5 @@
 import { preProcessFile } from 'typescript';
-import { toCopyableDemoSource } from '../../src/data/demo-snippets.ts';
+import { toCopyableDemoSource } from '#www/data/demo-snippets.ts';
 import { access, readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
