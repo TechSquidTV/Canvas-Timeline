@@ -1,3 +1,4 @@
+import type { KeyframeChange } from '#core/engine/keyframe-edits';
 import type { ClipCreatedReason, ClipRemovedReason } from '#core/events';
 import type {
   Clip,
@@ -15,6 +16,7 @@ export interface TimelineClipLookup extends TimelineClipEntry {
 }
 
 export interface TimelineResolvedEdit {
+  keyframeChanges?: KeyframeChange[];
   preview: TimelineEditPreview;
   tracks: Track[];
   clipGroups?: TimelineClipGroup[];

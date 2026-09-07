@@ -371,7 +371,7 @@ export type TimelineKeyframeInterpolation = 'linear' | 'hold' | 'bezier';
 export interface TimelineKeyframeBezierHandle {
   /** Normalized segment time coordinate, clamped to 0..1. */
   x: number;
-  /** Normalized segment value coordinate, clamped to 0..1. */
+  /** Absolute normalized property value, clamped to 0..1, independent of endpoint values. */
   y: number;
 }
 
@@ -407,6 +407,8 @@ export interface TimelineKeyframe {
   incoming?: TimelineKeyframeSideInterpolation;
   /** Interpolation leaving this keyframe toward the next keyframe. */
   outgoing?: TimelineKeyframeSideInterpolation;
+  /** Whether tangent edits preserve a continuous slope through this keyframe. Defaults to broken. */
+  tangentMode?: 'linked' | 'broken';
   /** Whether this keyframe is currently selected in editor UI. */
   selected?: boolean;
 }
@@ -463,6 +465,8 @@ export interface TimelineKeyframeTangentHandleViewportRect {
 
 /** Options for keyframe geometry and hit-testing. */
 export interface TimelineKeyframeGeometryOptions extends TimelineInteractionGeometry {
+  /** Restrict work to one clip before generating keyframe geometry. */
+  clipId?: string;
   /** Only include keyframes for this property. Defaults to all supported properties. */
   property?: TimelineKeyframePropertyId;
   /** Only include keyframes belonging to selected clips. */
@@ -609,6 +613,8 @@ export interface TimelineKeyframeRenderPoint {
 
 /** Serializable keyframe segment used by canvas drawing. */
 export interface TimelineKeyframeRenderSegment {
+  /** Selected tangent guides prepared in viewport space. */
+  tangentHandles?: { point: TimelineKeyframePoint; anchorPoint: TimelineKeyframePoint }[];
   /** Track owning the clip. */
   trackId: string;
   /** Clip owning the segment. */
@@ -690,6 +696,12 @@ export type TimelineKeyframeTangentHandleHitTestResult<TrackKind = string> =
 
 /** Input for creating or upserting a clip keyframe. */
 export interface TimelineSetClipKeyframeOptions {
+  /** Select this key as part of the edit. */
+  selected?: boolean;
+  /** Tangent coupling mode for an imported key. */
+  tangentMode?: 'linked' | 'broken';
+  /** Optional stable id for imported or pasted keys. */
+  id?: string;
   /** Clip that owns the keyframe. */
   clipId: string;
   /** Property animated by the keyframe. */
@@ -718,6 +730,8 @@ export interface TimelineUpdateClipKeyframeOptions {
   incoming?: TimelineKeyframeSideInterpolation;
   /** New interpolation leaving this keyframe toward the next keyframe. */
   outgoing?: TimelineKeyframeSideInterpolation;
+  /** Tangent coupling mode. */
+  tangentMode?: 'linked' | 'broken';
 }
 
 /** Input for updating one side of an existing clip keyframe. */
@@ -746,8 +760,37 @@ export interface TimelineUpdateClipKeyframeSidesOptions {
 
 /** Options for committing or previewing keyframe mutations. */
 export interface TimelineKeyframeMutationOptions {
-  /** Whether to snapshot history and emit settled state immediately. Defaults to true. */
+  /** Commit immediately, or publish a non-mutating preview. Finish previews with engine.commitEdit(preview.command). */
   commit?: boolean;
+}
+
+/** Stable reference to a keyframe, scoped to its owning clip. */
+export interface TimelineKeyframeReference {
+  /** Owning clip. */
+  clipId: string;
+  /** Keyframe id. */
+  keyframeId: string;
+}
+
+/** One operation in an atomic keyframe edit. */
+export type TimelineKeyframeEdit =
+  | ({ type: 'set' } & TimelineSetClipKeyframeOptions)
+  | ({ type: 'update' } & TimelineUpdateClipKeyframeOptions)
+  | ({ type: 'sides' } & TimelineUpdateClipKeyframeSidesOptions)
+  | ({ type: 'remove' } & TimelineKeyframeReference);
+
+/** Atomically edits keyframes; collisions reject the entire command. */
+export interface TimelineKeyframeEditCommand {
+  /** Keyframe command discriminator. */
+  type: 'keyframes';
+  /** Operations resolved together against the committed state. */
+  edits: readonly TimelineKeyframeEdit[];
+}
+
+/** Portable keyframe clipboard, with times relative to the earliest copied key. */
+export interface TimelineKeyframeClipboard {
+  /** Entries retain their original clip ids for multi-clip paste. */
+  entries: readonly { clipId: string; keyframe: TimelineKeyframe }[];
 }
 
 /** Built-in and application-defined magnetic snap target categories. */
@@ -1281,6 +1324,7 @@ export interface TimelineLiftRangeEditCommand {
 
 /** First-class edit command accepted by TimelineEngine edit APIs. */
 export type TimelineEditCommand =
+  | TimelineKeyframeEditCommand
   | TimelineMoveEditCommand
   | TimelineTrimEditCommand
   | TimelineRippleTrimEditCommand

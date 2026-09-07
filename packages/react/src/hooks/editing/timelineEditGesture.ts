@@ -1,4 +1,6 @@
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
+  TimelineCommandResult,
   TimelineEditCommand,
   TimelineEditPreview,
   TimelineEngine,
@@ -31,6 +33,25 @@ export class TimelineEditGesture {
     } finally {
       this.publishing = false;
     }
+  }
+
+  /** Commits only this gesture's preview, then clears its feedback. */
+  commit(): TimelineCommandResult {
+    const current = this.isCurrent();
+    const preview = this.preview;
+    this.release();
+    if (!current) {
+      return timelineCommandFail('unsupported', 'The gesture preview was replaced.');
+    }
+    if (!preview) {
+      this.engine.cancelEdit();
+      return timelineCommandOk();
+    }
+    const result = this.engine.commitEdit(preview.command);
+    this.engine.cancelEdit();
+    return result.committed
+      ? timelineCommandOk()
+      : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
   }
 
   cancel() {

@@ -157,23 +157,8 @@ export function useTimelineClipTrim(): UseTimelineClipTrimResult {
     }
     activeRef.current = null;
     setTrimming(false);
-    const current = active.gesture.isCurrent();
-    const preview = active.gesture.preview;
-    active.gesture.release();
-    if (!current) {
-      return timelineCommandFail('unsupported', 'The trim preview was replaced.');
-    }
-    if (!preview) {
-      engine.cancelEdit();
-      return timelineCommandOk();
-    }
-    const result = engine.commitEdit(preview.command);
-    // Failed commits publish a fresh preview; it still belongs to this gesture.
-    engine.cancelEdit();
-    return result.committed
-      ? timelineCommandOk()
-      : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
-  }, [engine]);
+    return active.gesture.commit();
+  }, []);
 
   const cancelClipTrim = useCallback((): TimelineCommandResult => {
     const active = activeRef.current;

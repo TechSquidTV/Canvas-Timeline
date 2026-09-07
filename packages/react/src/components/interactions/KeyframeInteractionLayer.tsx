@@ -1,7 +1,7 @@
 import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
-import { useTimelineKeyframeDrag, useTimelineKeyframes } from '#react/hooks';
+import { useKeyframePointer } from '#react/components/interactions/useKeyframePointer';
+import { useTimelineKeyframeDrag, useTimelineKeyframeGeometry } from '#react/hooks';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineEngine,
@@ -9,18 +9,18 @@ import type {
   TimelineKeyframeHitTestResult,
   TimelineKeyframePropertyId,
   TimelineKeyframeRect,
+  TimelineKeyframeReference,
+  TimelineKeyframeClipboard,
+  TimelineKeyframeEditCommand,
 } from '@techsquidtv/canvas-timeline-core';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-interface HoveredKeyframe {
-  clipId: string;
-  keyframeId: string;
-}
-
-interface ActiveKeyframe extends HoveredKeyframe {
-  target: HTMLElement;
-}
-
+import {
+  addRational,
+  fromSeconds,
+  toSeconds,
+  resolveTimecodeFrameRate,
+} from '@techsquidtv/canvas-timeline-utils';
+import type { TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 /**
  * Details passed to a keyframe double-click or double-tap callback.
  */
@@ -28,7 +28,7 @@ export interface KeyframeDoubleClickDetails {
   /** Timeline engine owning the keyframe. */
   engine: TimelineEngine;
   /** Original pointer event. */
-  event: React.PointerEvent<HTMLDivElement>;
+  event: PointerEvent;
 }
 
 /**
@@ -65,8 +65,12 @@ export interface KeyframeInteractionLayerProps
   hitPadding?: number;
   /** Vertical padding used when mapping keyframe values into a clip row. */
   keyframeValuePadding?: number;
-  /** Keyboard nudge amount in seconds for left/right arrow keys. Defaults to one 30fps frame. */
+  /** Keyboard nudge amount in seconds for left/right arrow keys. Defaults to one frame at the configured frame rate. */
   keyboardStepSeconds?: number;
+  /** Frame rate for snapping and keyboard nudges; defaults to the engine configuration. */
+  frameRate?: TimecodeFrameRate;
+  /** Normalized value change for up/down arrow nudges. Defaults to one percent. */
+  keyboardValueStep?: number;
   /** Optional handler for double-click or double-tap gestures on keyframe handles. */
   onKeyframeDoubleClick?: (
     keyframe: TimelineKeyframeRect,
@@ -78,105 +82,389 @@ export interface KeyframeInteractionLayerProps
   getKeyframeAriaLabel?: (keyframe: TimelineKeyframeHitTestResult) => string;
 }
 
-function keyframeIdentity(entry: Pick<TimelineKeyframeHitTestResult, 'clip' | 'keyframe'>) {
-  return `${entry.clip.id}:${entry.keyframe.id}`;
+type PointerTarget = { type: 'key'; entry: TimelineKeyframeRect } | { type: 'marquee' };
+interface Marquee {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
-function defaultKeyframeAriaLabel(entry: TimelineKeyframeHitTestResult) {
-  return `${entry.keyframe.property} keyframe at ${toSeconds(entry.keyframe.time).toFixed(2)} seconds`;
-}
-
-/**
- * Delegated keyframe interaction surface for canvas-rendered timeline clips.
- */
+/** Delegated keyframe editing with one focus target and one active affordance. */
 export const KeyframeInteractionLayer = React.forwardRef<
   HTMLDivElement,
   KeyframeInteractionLayerProps
 >(
   (
     {
-      className = '',
-      style,
-      rulerHeight = defaultTimelineInteractionGeometry.rulerHeight,
-      trackHeight = defaultTimelineInteractionGeometry.trackHeight,
-      collapsedTrackHeight = defaultTimelineInteractionGeometry.collapsedTrackHeight,
-      edgeThreshold = defaultTimelineInteractionGeometry.edgeThreshold,
-      touchEdgeThreshold = defaultTimelineInteractionGeometry.touchEdgeThreshold,
       property,
       selectedClipOnly = false,
+      rulerHeight = defaultTimelineInteractionGeometry.rulerHeight,
+      trackHeight,
+      collapsedTrackHeight,
+      edgeThreshold,
+      touchEdgeThreshold,
       overscanPixels,
       keyframeSize,
-      hitPadding = 8,
       keyframeValuePadding,
-      keyboardStepSeconds = 1 / 30,
+      hitPadding = 8,
+      keyboardStepSeconds,
+      keyboardValueStep = 0.01,
+      frameRate,
       onKeyframeDoubleClick,
       onKeyframeDelete,
       getKeyframeAriaLabel,
-      onPointerDown,
-      onPointerMove,
-      onPointerLeave,
-      onPointerUp,
-      onPointerCancel,
-      onLostPointerCapture,
       onKeyDown,
+      className = '',
+      style,
       ...props
     },
     forwardedRef
   ) => {
     const engine = useTimelineEngine();
-    const state = useTimelineSelector((state) => ({
-      viewportHeight: state.viewportHeight,
-      viewportWidth: state.viewportWidth,
-    }));
-    const internalRef = useRef<HTMLDivElement>(null);
-    const activeKeyframeRef = useRef<ActiveKeyframe | null>(null);
-    const fallbackListenersRef = useRef<(() => void) | null>(null);
-    const [hoveredKeyframe, setHoveredKeyframe] = useState<HoveredKeyframe | null>(null);
+    const root = useRef<HTMLDivElement>(null);
+    const [focused, setFocused] = useState<TimelineKeyframeReference | null>(null);
+    const [marquee, setMarquee] = useState<Marquee | null>(null);
+    const marqueeRef = useRef<{
+      x: number;
+      y: number;
+      selection: TimelineKeyframeReference[];
+      additive: boolean;
+    } | null>(null);
+    const keyPointerRef = useRef<{
+      reference: TimelineKeyframeReference;
+      toggleOnClick: boolean;
+      moved: boolean;
+    } | null>(null);
+    const axisRef = useRef<'time' | 'value' | undefined>(undefined);
+    const originRef = useRef({ x: 0, y: 0 });
+    const clipboard = useRef<TimelineKeyframeClipboard | null>(null);
     const geometry = useMemo(
       () => ({
+        property,
+        selectedClipOnly,
         rulerHeight,
         trackHeight,
         collapsedTrackHeight,
         edgeThreshold,
         touchEdgeThreshold,
-        property,
-        selectedClipOnly,
         overscanPixels,
         keyframeSize,
         keyframeValuePadding,
-        viewportWidth: state.viewportWidth,
-        viewportHeight: state.viewportHeight,
       }),
       [
+        property,
+        selectedClipOnly,
+        rulerHeight,
+        trackHeight,
         collapsedTrackHeight,
         edgeThreshold,
+        touchEdgeThreshold,
+        overscanPixels,
         keyframeSize,
         keyframeValuePadding,
-        overscanPixels,
-        property,
-        rulerHeight,
-        selectedClipOnly,
-        state.viewportHeight,
-        state.viewportWidth,
-        touchEdgeThreshold,
-        trackHeight,
       ]
     );
-    const keyframes = useTimelineKeyframes(geometry);
-    const { cancelKeyframeDrag, endKeyframeDrag, moveKeyframeDrag, startKeyframeDrag } =
-      useTimelineKeyframeDrag({
-        collapsedTrackHeight,
-        edgeThreshold,
-        keyframeSize,
-        keyframeValuePadding,
-        rulerHeight,
-        touchEdgeThreshold,
-        trackHeight,
-      });
-
+    const live = useTimelineKeyframeGeometry(geometry);
+    const drag = useTimelineKeyframeDrag({ ...geometry, frameRate });
+    const current =
+      live.keyframeRects.find(
+        (entry) => entry.clip.id === focused?.clipId && entry.keyframe.id === focused.keyframeId
+      ) ??
+      live.keyframeRects.find((entry) => entry.keyframe.selected) ??
+      live.visibleKeyframes[0];
+    const setFocus = (entry: TimelineKeyframeRect) =>
+      setFocused({ clipId: entry.clip.id, keyframeId: entry.keyframe.id });
+    const cancelPointer = useKeyframePointer<PointerTarget>({
+      root,
+      rulerHeight,
+      hitTest: (point, event) => {
+        const hits = live.visibleKeyframes.filter(
+          ({ rect }) =>
+            point.x >= rect.x - hitPadding &&
+            point.x <= rect.x + rect.width + hitPadding &&
+            point.y >= rect.y - hitPadding &&
+            point.y <= rect.y + rect.height + hitPadding
+        );
+        hits.sort(
+          (a, b) =>
+            Math.hypot(
+              point.x - a.rect.x - a.rect.width / 2,
+              point.y - a.rect.y - a.rect.height / 2
+            ) -
+            Math.hypot(
+              point.x - b.rect.x - b.rect.width / 2,
+              point.y - b.rect.y - b.rect.height / 2
+            )
+        );
+        return hits[0]
+          ? { type: 'key', entry: hits[0] }
+          : event.shiftKey && point.y >= rulerHeight
+            ? { type: 'marquee' }
+            : null;
+      },
+      hover: (target) => {
+        if (target?.type === 'key' && !drag.dragging) {
+          setFocus(target.entry);
+        }
+      },
+      start: (target, point, event) => {
+        originRef.current = point;
+        axisRef.current = undefined;
+        if (target.type === 'marquee') {
+          marqueeRef.current = {
+            ...point,
+            selection: engine.keyframes.getSelectedKeyframes(),
+            additive: event.metaKey || event.ctrlKey,
+          };
+          setMarquee({ ...point, width: 0, height: 0 });
+          return true;
+        }
+        const entry = target.entry;
+        setFocus(entry);
+        if (!entry.canEdit) {
+          return false;
+        }
+        const ref = { clipId: entry.clip.id, keyframeId: entry.keyframe.id };
+        const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+        keyPointerRef.current = {
+          reference: ref,
+          toggleOnClick: additive && Boolean(entry.keyframe.selected),
+          moved: false,
+        };
+        if (!entry.keyframe.selected) {
+          engine.keyframes.selectKeyframes([ref], additive ? 'add' : 'replace');
+        }
+        if (onKeyframeDoubleClick && consumeTimelineDoubleTap(event)) {
+          keyPointerRef.current = null;
+          onKeyframeDoubleClick(entry, { engine, event });
+          return false;
+        }
+        const started = drag.startKeyframeDrag({
+          ...ref,
+          clientX: event.clientX,
+          viewportY: point.y,
+          keyframeRect: entry,
+        }).ok;
+        if (!started) {
+          keyPointerRef.current = null;
+        }
+        return started;
+      },
+      move: (point, event) => {
+        const start = marqueeRef.current;
+        if (start) {
+          const box = {
+            x: Math.min(start.x, point.x),
+            y: Math.min(start.y, point.y),
+            width: Math.abs(point.x - start.x),
+            height: Math.abs(point.y - start.y),
+          };
+          setMarquee(box);
+          const selected = live.keyframeRects
+            .filter(
+              (entry) =>
+                entry.canEdit &&
+                entry.rect.x + entry.rect.width >= box.x &&
+                entry.rect.x <= box.x + box.width &&
+                entry.rect.y + entry.rect.height >= box.y &&
+                entry.rect.y <= box.y + box.height
+            )
+            .map((entry) => ({ clipId: entry.clip.id, keyframeId: entry.keyframe.id }));
+          engine.keyframes.selectKeyframes(
+            start.additive ? [...start.selection, ...selected] : selected
+          );
+          return;
+        }
+        const keyPointer = keyPointerRef.current;
+        if (!keyPointer) {
+          return;
+        }
+        if (!keyPointer.moved) {
+          if (Math.hypot(point.x - originRef.current.x, point.y - originRef.current.y) < 3) {
+            return;
+          }
+          keyPointer.moved = true;
+        }
+        if (event.shiftKey && !axisRef.current) {
+          axisRef.current =
+            Math.abs(point.x - originRef.current.x) >= Math.abs(point.y - originRef.current.y)
+              ? 'time'
+              : 'value';
+        }
+        drag.moveKeyframeDrag({
+          clientX: event.clientX,
+          viewportY: point.y,
+          axis: event.shiftKey ? axisRef.current : undefined,
+          fine: event.altKey,
+          snap: !(event.ctrlKey || event.metaKey),
+        });
+      },
+      end: (cancelled) => {
+        if (marqueeRef.current) {
+          if (cancelled) {
+            engine.keyframes.selectKeyframes(marqueeRef.current.selection);
+          }
+          marqueeRef.current = null;
+          setMarquee(null);
+        } else {
+          const keyPointer = keyPointerRef.current;
+          keyPointerRef.current = null;
+          if (cancelled) {
+            drag.cancelKeyframeDrag();
+          } else {
+            const result = drag.endKeyframeDrag();
+            if (result.ok && keyPointer?.toggleOnClick && !keyPointer.moved) {
+              engine.keyframes.selectKeyframes([keyPointer.reference], 'toggle');
+            }
+          }
+        }
+      },
+    });
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+      onKeyDown?.(event);
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelPointer();
+        return;
+      }
+      if (!current) {
+        return;
+      }
+      const modifier = event.metaKey || event.ctrlKey;
+      const selected = engine.keyframes.getSelectedKeyframes();
+      const references = selected.length
+        ? selected
+        : [{ clipId: current.clip.id, keyframeId: current.keyframe.id }];
+      if (modifier && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        engine.keyframes.selectKeyframes(
+          live.keyframeRects
+            .filter((entry) => entry.canEdit)
+            .map((entry) => ({ clipId: entry.clip.id, keyframeId: entry.keyframe.id }))
+        );
+        return;
+      }
+      if (modifier && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        clipboard.current = engine.keyframes.copyKeyframes(references);
+        return;
+      }
+      if (modifier && (event.key.toLowerCase() === 'v' || event.key.toLowerCase() === 'd')) {
+        event.preventDefault();
+        const copied =
+          event.key.toLowerCase() === 'd'
+            ? engine.keyframes.copyKeyframes(references)
+            : clipboard.current;
+        if (copied) {
+          engine.commitEdit(
+            engine.keyframes.createPasteCommand(
+              copied,
+              event.key.toLowerCase() === 'd'
+                ? addRational(
+                    current.keyframe.time,
+                    fromSeconds(
+                      keyboardStepSeconds ??
+                        1 / resolveTimecodeFrameRate(frameRate ?? engine.frameRate ?? 30)
+                    )
+                  )
+                : engine.getState().playheadTime
+            )
+          );
+        }
+        return;
+      }
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        if (onKeyframeDelete) {
+          onKeyframeDelete(current, { engine, event });
+        } else {
+          engine.commitEdit({
+            type: 'keyframes',
+            edits: references.map((ref) => ({ type: 'remove', ...ref })),
+          });
+        }
+        return;
+      }
+      if (event.key === '[' || event.key === ']' || event.key === 'Home' || event.key === 'End') {
+        event.preventDefault();
+        const entries = live.keyframeRects;
+        const index = entries.indexOf(current);
+        const next =
+          entries[
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? entries.length - 1
+                : Math.max(0, Math.min(entries.length - 1, index + (event.key === ']' ? 1 : -1)))
+          ];
+        if (next) {
+          setFocus(next);
+          engine.keyframes.selectKeyframes(
+            [{ clipId: next.clip.id, keyframeId: next.keyframe.id }],
+            event.shiftKey ? 'add' : 'replace'
+          );
+          engine.updatePlayhead(next.keyframe.time);
+        }
+        return;
+      }
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1 : -1;
+      const multiplier = event.shiftKey ? 10 : event.altKey ? 0.1 : 1;
+      const horizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+      const step =
+        keyboardStepSeconds ?? 1 / resolveTimecodeFrameRate(frameRate ?? engine.frameRate ?? 30);
+      let valueDelta = keyboardValueStep * direction * multiplier;
+      for (const ref of references) {
+        const key = engine.keyframes
+          .getClipKeyframes(ref.clipId)
+          .find((candidate) => candidate.id === ref.keyframeId);
+        const definition = key ? engine.getKeyframePropertyDefinition(key.property) : null;
+        if (key && definition) {
+          const normalized = definition.normalizeValue(key.value);
+          valueDelta = Math.max(-normalized, Math.min(1 - normalized, valueDelta));
+        }
+      }
+      const command: TimelineKeyframeEditCommand = {
+        type: 'keyframes',
+        edits: references.flatMap((ref) => {
+          const key = engine.keyframes
+            .getClipKeyframes(ref.clipId)
+            .find((candidate) => candidate.id === ref.keyframeId);
+          const definition = key ? engine.getKeyframePropertyDefinition(key.property) : null;
+          if (!key || !definition) {
+            return [];
+          }
+          return [
+            {
+              type: 'update',
+              ...ref,
+              ...(horizontal
+                ? { time: addRational(key.time, fromSeconds(step * direction * multiplier)) }
+                : {
+                    value: definition.denormalizeValue(
+                      Math.max(0, Math.min(1, definition.normalizeValue(key.value) + valueDelta))
+                    ),
+                  }),
+            },
+          ];
+        }),
+      };
+      engine.commitEdit(command);
+    };
+    const label = current
+      ? (getKeyframeAriaLabel?.(current) ??
+        `${property} keyframe at ${toSeconds(current.keyframe.time).toFixed(3)} seconds, ${engine.getKeyframePropertyDefinition(property)?.formatValue?.(current.keyframe.value) ?? current.keyframe.value}`)
+      : `${property} keyframes`;
     const ref = useCallback(
       (node: HTMLDivElement | null) => {
-        internalRef.current = node;
+        root.current = node;
         if (typeof forwardedRef === 'function') {
           forwardedRef(node);
         } else if (forwardedRef) {
@@ -185,328 +473,54 @@ export const KeyframeInteractionLayer = React.forwardRef<
       },
       [forwardedRef]
     );
-
-    const getViewportPoint = useCallback(
-      (event: Pick<PointerEvent | React.PointerEvent, 'clientX' | 'clientY'>) => {
-        const rect = internalRef.current?.getBoundingClientRect();
-        if (!rect) {
-          return null;
-        }
-
-        return {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top + rulerHeight,
-        };
-      },
-      [rulerHeight]
-    );
-
-    const removeFallbackListeners = useCallback(() => {
-      fallbackListenersRef.current?.();
-      fallbackListenersRef.current = null;
-    }, []);
-
-    useEffect(() => {
-      return () => {
-        removeFallbackListeners();
-        if (activeKeyframeRef.current) {
-          activeKeyframeRef.current = null;
-          cancelKeyframeDrag();
-        }
-      };
-    }, [cancelKeyframeDrag, removeFallbackListeners]);
-
-    const stopActiveDrag = useCallback(
-      (event: PointerEvent, target: HTMLElement) => {
-        const active = activeKeyframeRef.current;
-        activeKeyframeRef.current = null;
-        removeFallbackListeners();
-
-        try {
-          target.releasePointerCapture(event.pointerId);
-        } catch {
-          // Pointer capture may already be released by the browser.
-        }
-
-        if (active) {
-          endKeyframeDrag();
-        }
-      },
-      [endKeyframeDrag, removeFallbackListeners]
-    );
-
-    const moveActiveDrag = useCallback(
-      (event: Pick<PointerEvent | React.PointerEvent, 'clientX' | 'clientY'>) => {
-        const point = getViewportPoint(event);
-        if (!point) {
-          return;
-        }
-
-        moveKeyframeDrag({
-          clientX: event.clientX,
-          viewportY: point.y,
-        });
-      },
-      [getViewportPoint, moveKeyframeDrag]
-    );
-
-    const handlePointerMove = (
-      event: React.PointerEvent<HTMLDivElement>,
-      entry: TimelineKeyframeHitTestResult
-    ) => {
-      onPointerMove?.(event);
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      const active = activeKeyframeRef.current;
-      if (active) {
-        moveActiveDrag(event);
-        return;
-      }
-
-      setHoveredKeyframe({
-        clipId: entry.clip.id,
-        keyframeId: entry.keyframe.id,
-      });
-    };
-
-    const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
-      onPointerLeave?.(event);
-      if (event.defaultPrevented || activeKeyframeRef.current) {
-        return;
-      }
-
-      setHoveredKeyframe(null);
-    };
-
-    const handlePointerDown = (
-      event: React.PointerEvent<HTMLDivElement>,
-      hit: TimelineKeyframeHitTestResult
-    ) => {
-      onPointerDown?.(event);
-      if (event.defaultPrevented || (event.pointerType !== 'touch' && event.button !== 0)) {
-        return;
-      }
-
-      const point = getViewportPoint(event);
-      if (!point) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      engine.selectClip(hit.clip.id);
-      engine.keyframes.selectClipKeyframe(hit.clip.id, hit.keyframe.id);
-
-      if (onKeyframeDoubleClick && consumeTimelineDoubleTap(event)) {
-        onKeyframeDoubleClick(hit, {
-          engine,
-          event,
-        });
-        return;
-      }
-
-      if (!hit.canEdit) {
-        return;
-      }
-
-      const target = event.currentTarget;
-      const active = {
-        clipId: hit.clip.id,
-        keyframeId: hit.keyframe.id,
-        target,
-      };
-      activeKeyframeRef.current = active;
-      setHoveredKeyframe(active);
-      try {
-        target.setPointerCapture(event.pointerId);
-      } catch {
-        // Document listeners below keep dragging functional if capture is unavailable.
-      }
-
-      removeFallbackListeners();
-      const ownerDocument = target.ownerDocument;
-      const handleDocumentPointerMove = (nativeEvent: PointerEvent) => {
-        if (!activeKeyframeRef.current) {
-          return;
-        }
-        moveActiveDrag(nativeEvent);
-      };
-      const handleDocumentPointerEnd = (nativeEvent: PointerEvent) => {
-        if (!activeKeyframeRef.current) {
-          return;
-        }
-        stopActiveDrag(nativeEvent, target);
-      };
-      ownerDocument.addEventListener('pointermove', handleDocumentPointerMove);
-      ownerDocument.addEventListener('pointerup', handleDocumentPointerEnd);
-      ownerDocument.addEventListener('pointercancel', handleDocumentPointerEnd);
-      fallbackListenersRef.current = () => {
-        ownerDocument.removeEventListener('pointermove', handleDocumentPointerMove);
-        ownerDocument.removeEventListener('pointerup', handleDocumentPointerEnd);
-        ownerDocument.removeEventListener('pointercancel', handleDocumentPointerEnd);
-      };
-
-      startKeyframeDrag({
-        clipId: hit.clip.id,
-        keyframeId: hit.keyframe.id,
-        clientX: event.clientX,
-        viewportY: point.y,
-        keyframeRect: hit,
-      });
-    };
-
-    const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-      onPointerUp?.(event);
-      if (event.defaultPrevented || !activeKeyframeRef.current) {
-        return;
-      }
-
-      stopActiveDrag(event.nativeEvent, event.currentTarget);
-    };
-
-    const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
-      onPointerCancel?.(event);
-      if (event.defaultPrevented || !activeKeyframeRef.current) {
-        return;
-      }
-
-      stopActiveDrag(event.nativeEvent, event.currentTarget);
-    };
-
-    const handleLostPointerCapture = (event: React.PointerEvent<HTMLDivElement>) => {
-      onLostPointerCapture?.(event);
-      if (event.defaultPrevented || !activeKeyframeRef.current) {
-        return;
-      }
-
-      stopActiveDrag(event.nativeEvent, event.currentTarget);
-    };
-
-    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-      onKeyDown?.(event);
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-
-      const clipId = target.dataset.clipId;
-      const keyframeId = target.dataset.keyframeId;
-      if (!clipId || !keyframeId) {
-        return;
-      }
-
-      const found = keyframes.visibleKeyframes.find(
-        (entry) => entry.clip.id === clipId && entry.keyframe.id === keyframeId
-      );
-      if (!found?.canEdit) {
-        return;
-      }
-
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (onKeyframeDelete) {
-          event.preventDefault();
-          onKeyframeDelete(found, { engine, event });
-        }
-        return;
-      }
-
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
-        return;
-      }
-
-      event.preventDefault();
-      const direction = event.key === 'ArrowRight' ? 1 : -1;
-      keyframes.updateKeyframe({
-        clipId,
-        keyframeId,
-        time: fromSeconds(toSeconds(found.keyframe.time) + keyboardStepSeconds * direction),
-      });
-    };
-
-    const cursor = activeKeyframeRef.current ? 'grabbing' : hoveredKeyframe ? 'grab' : undefined;
-
     return (
       <div
-        ref={ref}
-        className={`timeline-keyframe-interaction-layer ${className}`.trim()}
-        data-has-target={hoveredKeyframe ? 'true' : undefined}
-        onKeyDown={handleKeyDown}
-        style={{
-          top: `${rulerHeight}px`,
-          cursor,
-          ...style,
-        }}
         {...props}
+        ref={ref}
+        className={`timeline-keyframe-interaction-layer ${className}`}
+        role="group"
+        tabIndex={0}
+        aria-label={label}
+        onKeyDown={handleKeyDown}
+        style={{ top: rulerHeight, ...style }}
       >
-        {keyframes.visibleKeyframes.map((entry) => {
-          const active =
-            activeKeyframeRef.current?.clipId === entry.clip.id &&
-            activeKeyframeRef.current.keyframeId === entry.keyframe.id;
-          const hovered =
-            hoveredKeyframe?.clipId === entry.clip.id &&
-            hoveredKeyframe.keyframeId === entry.keyframe.id;
-          const pad = Math.max(0, hitPadding);
-
-          return (
+        <span className="timeline-sr-only" aria-live="polite">
+          {drag.dragging ? '' : label}
+        </span>
+        {current && (
+          <div
+            className="timeline-keyframe-handle"
+            aria-hidden="true"
+            data-clip-id={current.clip.id}
+            data-keyframe-id={current.keyframe.id}
+            data-selected={current.keyframe.selected ? 'true' : undefined}
+            data-active={drag.dragging ? 'true' : undefined}
+            data-editable={current.canEdit ? 'true' : undefined}
+            style={{
+              transform: `translate(${current.rect.x - hitPadding}px, ${current.rect.y - rulerHeight - hitPadding}px)`,
+              width: current.rect.width + hitPadding * 2,
+              height: current.rect.height + hitPadding * 2,
+            }}
+          >
             <div
-              key={keyframeIdentity(entry)}
-              role="button"
-              aria-label={(getKeyframeAriaLabel ?? defaultKeyframeAriaLabel)(entry)}
-              tabIndex={entry.canEdit ? 0 : -1}
-              className="timeline-keyframe-handle"
-              data-clip-id={entry.clip.id}
-              data-keyframe-id={entry.keyframe.id}
-              data-property={entry.keyframe.property}
-              data-selected={entry.keyframe.selected ? 'true' : undefined}
-              data-active={active ? 'true' : undefined}
-              data-hovered={hovered ? 'true' : undefined}
-              data-editable={entry.canEdit ? 'true' : undefined}
-              style={{
-                transform: `translate(${entry.rect.x - pad}px, ${entry.rect.y - rulerHeight - pad}px)`,
-                width: `${entry.rect.width + pad * 2}px`,
-                height: `${entry.rect.height + pad * 2}px`,
-              }}
-              onFocus={() => {
-                keyframes.selectKeyframe(entry.clip.id, entry.keyframe.id);
-              }}
-              onPointerDown={(event) => {
-                handlePointerDown(event, entry);
-              }}
-              onPointerEnter={() => {
-                setHoveredKeyframe({
-                  clipId: entry.clip.id,
-                  keyframeId: entry.keyframe.id,
-                });
-              }}
-              onPointerMove={(event) => {
-                handlePointerMove(event, entry);
-              }}
-              onPointerLeave={handlePointerLeave}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
-              onLostPointerCapture={handleLostPointerCapture}
-            >
-              <div
-                className="timeline-keyframe-handle-shape"
-                aria-hidden="true"
-                style={{
-                  width: `${entry.rect.width}px`,
-                  height: `${entry.rect.height}px`,
-                }}
-              />
-            </div>
-          );
-        })}
+              className="timeline-keyframe-handle-shape"
+              style={{ width: current.rect.width, height: current.rect.height }}
+            />
+          </div>
+        )}
+        {marquee && (
+          <div
+            className="timeline-keyframe-marquee"
+            style={{
+              left: marquee.x,
+              top: marquee.y - rulerHeight,
+              width: marquee.width,
+              height: marquee.height,
+            }}
+          />
+        )}
       </div>
     );
   }
 );
-
 KeyframeInteractionLayer.displayName = 'Timeline.KeyframeInteractionLayer';

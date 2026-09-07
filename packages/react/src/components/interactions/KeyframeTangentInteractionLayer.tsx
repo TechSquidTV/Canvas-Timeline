@@ -1,4 +1,5 @@
 import { consumeTimelineDoubleTap } from '#react/components/interactions/tapState';
+import { useKeyframePointer } from '#react/components/interactions/useKeyframePointer';
 import { useTimelineKeyframeSegments, useTimelineKeyframeTangentDrag } from '#react/hooks';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { defaultTimelineInteractionGeometry } from '@techsquidtv/canvas-timeline-core';
@@ -6,23 +7,10 @@ import type {
   TimelineEngine,
   TimelineInteractionGeometry,
   TimelineKeyframePropertyId,
-  TimelineKeyframeSide,
   TimelineKeyframeTangentHandle,
   TimelineKeyframeTangentHandleHitTestResult,
 } from '@techsquidtv/canvas-timeline-core';
-import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-interface HoveredTangentHandle {
-  clipId: string;
-  segmentId: string;
-  keyframeId: string;
-  side: TimelineKeyframeSide;
-}
-
-interface ActiveTangentHandle extends HoveredTangentHandle {
-  target: HTMLElement;
-}
-
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 /**
  * Details passed to a Bezier tangent handle double-click or double-tap callback.
  */
@@ -30,7 +18,7 @@ export interface KeyframeTangentHandleDoubleClickDetails {
   /** Timeline engine owning the keyframe. */
   engine: TimelineEngine;
   /** Original pointer event. */
-  event: React.PointerEvent<HTMLDivElement>;
+  event: PointerEvent;
 }
 
 /**
@@ -70,49 +58,21 @@ export interface KeyframeTangentInteractionLayerProps
   getTangentHandleAriaLabel?: (handle: TimelineKeyframeTangentHandleHitTestResult) => string;
 }
 
-function tangentHandleIdentity(handle: TimelineKeyframeTangentHandle) {
-  return `${handle.clip.id}:${handle.segmentId}:${handle.side}`;
-}
-
-function isSameTangentHandle(
-  left: HoveredTangentHandle | null,
-  right: TimelineKeyframeTangentHandle
-) {
-  return (
-    left?.clipId === right.clip.id &&
-    left.segmentId === right.segmentId &&
-    left.keyframeId === right.keyframe.id &&
-    left.side === right.side
-  );
-}
-
-function defaultTangentHandleAriaLabel(handle: TimelineKeyframeTangentHandleHitTestResult) {
-  const endpoint =
-    handle.side === 'outgoing'
-      ? `outgoing from ${toSeconds(handle.anchorKeyframe.time).toFixed(2)} seconds`
-      : `incoming to ${toSeconds(handle.anchorKeyframe.time).toFixed(2)} seconds`;
-  return `${handle.keyframe.property} Bezier ${endpoint}`;
-}
-
-/**
- * Delegated Bezier tangent handle interaction surface for canvas-rendered timeline clips.
- */
+/** Delegated tangent editor with one pointer/focus target and keyboard control. */
 export const KeyframeTangentInteractionLayer = React.forwardRef<
   HTMLDivElement,
   KeyframeTangentInteractionLayerProps
 >(
   (
     {
-      className = '',
-      style,
-      rulerHeight = defaultTimelineInteractionGeometry.rulerHeight,
-      trackHeight = defaultTimelineInteractionGeometry.trackHeight,
-      collapsedTrackHeight = defaultTimelineInteractionGeometry.collapsedTrackHeight,
-      edgeThreshold = defaultTimelineInteractionGeometry.edgeThreshold,
-      touchEdgeThreshold = defaultTimelineInteractionGeometry.touchEdgeThreshold,
       property,
       selectedClipOnly = true,
       selectedKeyframeOnly = true,
+      rulerHeight = defaultTimelineInteractionGeometry.rulerHeight,
+      trackHeight,
+      collapsedTrackHeight,
+      edgeThreshold,
+      touchEdgeThreshold,
       overscanPixels,
       keyframeSize,
       tangentHandleSize,
@@ -120,62 +80,177 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
       keyframeValuePadding,
       onTangentHandleDoubleClick,
       getTangentHandleAriaLabel,
-      onPointerDown,
-      onPointerMove,
-      onPointerLeave,
-      onPointerUp,
-      onPointerCancel,
-      onLostPointerCapture,
+      onKeyDown,
+      className = '',
+      style,
       ...props
     },
     forwardedRef
   ) => {
     const engine = useTimelineEngine();
-    const internalRef = useRef<HTMLDivElement>(null);
-    const activeHandleRef = useRef<ActiveTangentHandle | null>(null);
-    const fallbackListenersRef = useRef<(() => void) | null>(null);
-    const [hoveredHandle, setHoveredHandle] = useState<HoveredTangentHandle | null>(null);
+    const root = useRef<HTMLDivElement>(null);
+    const [identity, setIdentity] = useState<string | null>(null);
     const geometry = useMemo(
       () => ({
-        collapsedTrackHeight,
-        tangentHandleSize,
-        edgeThreshold,
-        keyframeSize,
-        keyframeValuePadding,
-        overscanPixels,
         property,
-        rulerHeight,
         selectedClipOnly,
         selectedKeyframeOnly,
-        touchEdgeThreshold,
+        rulerHeight,
         trackHeight,
+        collapsedTrackHeight,
+        edgeThreshold,
+        touchEdgeThreshold,
+        overscanPixels,
+        keyframeSize,
+        tangentHandleSize,
+        keyframeValuePadding,
       }),
       [
-        collapsedTrackHeight,
-        tangentHandleSize,
-        edgeThreshold,
-        keyframeSize,
-        keyframeValuePadding,
-        overscanPixels,
         property,
-        rulerHeight,
         selectedClipOnly,
         selectedKeyframeOnly,
-        touchEdgeThreshold,
+        rulerHeight,
         trackHeight,
+        collapsedTrackHeight,
+        edgeThreshold,
+        touchEdgeThreshold,
+        overscanPixels,
+        keyframeSize,
+        tangentHandleSize,
+        keyframeValuePadding,
       ]
     );
     const segments = useTimelineKeyframeSegments(geometry);
-    const {
-      cancelKeyframeTangentDrag,
-      endKeyframeTangentDrag,
-      moveKeyframeTangentDrag,
-      startKeyframeTangentDrag,
-    } = useTimelineKeyframeTangentDrag(geometry);
-
+    const drag = useTimelineKeyframeTangentDrag(geometry);
+    const identify = (handle: TimelineKeyframeTangentHandle) =>
+      JSON.stringify([handle.clip.id, handle.segmentId, handle.side]);
+    const current =
+      segments.visibleTangentHandles.find((handle) => identify(handle) === identity) ??
+      segments.visibleTangentHandles[0];
+    const cancelPointer = useKeyframePointer({
+      root,
+      rulerHeight,
+      priority: 1,
+      hitTest: (point) => {
+        const candidates = segments.visibleTangentHandles.filter(
+          ({ rect }) =>
+            point.x >= rect.x - hitPadding &&
+            point.x <= rect.x + rect.width + hitPadding &&
+            point.y >= rect.y - hitPadding &&
+            point.y <= rect.y + rect.height + hitPadding
+        );
+        candidates.sort(
+          (a, b) =>
+            Math.hypot(point.x - a.point.x, point.y - a.point.y) -
+            Math.hypot(point.x - b.point.x, point.y - b.point.y)
+        );
+        return candidates[0] ?? null;
+      },
+      hover: (handle) => {
+        if (handle && !drag.dragging) {
+          setIdentity(identify(handle));
+        }
+      },
+      start: (handle, point, event) => {
+        setIdentity(identify(handle));
+        if (!handle.canEdit) {
+          return false;
+        }
+        engine.keyframes.selectKeyframes(
+          [{ clipId: handle.clip.id, keyframeId: handle.anchorKeyframe.id }],
+          'add'
+        );
+        if (onTangentHandleDoubleClick && consumeTimelineDoubleTap(event)) {
+          onTangentHandleDoubleClick(handle, { engine, event });
+          return false;
+        }
+        return drag.startKeyframeTangentDrag({
+          tangentHandle: handle,
+          viewportX: point.x,
+          viewportY: point.y,
+        }).ok;
+      },
+      move: (point) => {
+        drag.moveKeyframeTangentDrag({ viewportX: point.x, viewportY: point.y });
+      },
+      end: (cancelled) => {
+        if (cancelled) {
+          drag.cancelKeyframeTangentDrag();
+        } else {
+          drag.endKeyframeTangentDrag();
+        }
+      },
+    });
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+      onKeyDown?.(event);
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelPointer();
+        return;
+      }
+      if (!current) {
+        return;
+      }
+      if (event.key === '[' || event.key === ']') {
+        event.preventDefault();
+        const index = segments.visibleTangentHandles.indexOf(current);
+        const next =
+          segments.visibleTangentHandles[
+            (index + (event.key === ']' ? 1 : segments.visibleTangentHandles.length - 1)) %
+              segments.visibleTangentHandles.length
+          ];
+        if (next) {
+          setIdentity(identify(next));
+        }
+        return;
+      }
+      if (!current.canEdit) {
+        return;
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        engine.keyframes.updateClipKeyframeSide({
+          clipId: current.clip.id,
+          keyframeId: current.keyframe.id,
+          side: current.side,
+          patch: { handle: null },
+        });
+        return;
+      }
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const step = event.shiftKey ? 0.1 : event.altKey ? 0.001 : 0.01;
+      const x = Math.max(
+        0,
+        Math.min(
+          1,
+          current.tangent.x +
+            (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0)
+        )
+      );
+      const y = Math.max(
+        0,
+        Math.min(
+          1,
+          current.tangent.y +
+            (event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0)
+        )
+      );
+      engine.keyframes.updateClipKeyframeSide({
+        clipId: current.clip.id,
+        keyframeId: current.keyframe.id,
+        side: current.side,
+        patch: { interpolation: 'bezier', handle: { x, y } },
+      });
+    };
     const ref = useCallback(
       (node: HTMLDivElement | null) => {
-        internalRef.current = node;
+        root.current = node;
         if (typeof forwardedRef === 'function') {
           forwardedRef(node);
         } else if (forwardedRef) {
@@ -184,281 +259,57 @@ export const KeyframeTangentInteractionLayer = React.forwardRef<
       },
       [forwardedRef]
     );
-
-    const getViewportPoint = useCallback(
-      (event: Pick<PointerEvent | React.PointerEvent, 'clientX' | 'clientY'>) => {
-        const rect = internalRef.current?.getBoundingClientRect();
-        if (!rect) {
-          return null;
-        }
-
-        return {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top + rulerHeight,
-        };
-      },
-      [rulerHeight]
-    );
-
-    const removeFallbackListeners = useCallback(() => {
-      fallbackListenersRef.current?.();
-      fallbackListenersRef.current = null;
-    }, []);
-
-    useEffect(() => {
-      return () => {
-        removeFallbackListeners();
-        if (activeHandleRef.current) {
-          activeHandleRef.current = null;
-          cancelKeyframeTangentDrag();
-        }
-      };
-    }, [cancelKeyframeTangentDrag, removeFallbackListeners]);
-
-    const stopActiveDrag = useCallback(
-      (event: PointerEvent | React.PointerEvent, target: HTMLElement) => {
-        const active = activeHandleRef.current;
-        activeHandleRef.current = null;
-        removeFallbackListeners();
-
-        try {
-          target.releasePointerCapture(event.pointerId);
-        } catch {
-          // Pointer capture may already be released by the browser.
-        }
-
-        if (active) {
-          endKeyframeTangentDrag();
-        }
-      },
-      [endKeyframeTangentDrag, removeFallbackListeners]
-    );
-
-    const moveActiveDrag = useCallback(
-      (event: Pick<PointerEvent | React.PointerEvent, 'clientX' | 'clientY'>) => {
-        const point = getViewportPoint(event);
-        if (!point) {
-          return;
-        }
-
-        moveKeyframeTangentDrag({
-          viewportX: point.x,
-          viewportY: point.y,
-        });
-      },
-      [getViewportPoint, moveKeyframeTangentDrag]
-    );
-
-    const handlePointerDown = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>, handle: TimelineKeyframeTangentHandle) => {
-        onPointerDown?.(event);
-        if (
-          event.defaultPrevented ||
-          !handle.canEdit ||
-          (event.pointerType !== 'touch' && event.button !== 0)
-        ) {
-          return;
-        }
-
-        if (consumeTimelineDoubleTap(event)) {
-          event.preventDefault();
-          event.stopPropagation();
-          onTangentHandleDoubleClick?.(handle, { engine, event });
-          return;
-        }
-
-        const result = startKeyframeTangentDrag({
-          tangentHandle: handle,
-        });
-        if (!result.ok) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        engine.keyframes.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
-
-        const target = event.currentTarget;
-        activeHandleRef.current = {
-          clipId: handle.clip.id,
-          segmentId: handle.segmentId,
-          keyframeId: handle.keyframe.id,
-          side: handle.side,
-          target,
-        };
-        try {
-          target.setPointerCapture(event.pointerId);
-        } catch {
-          // Document listeners below keep dragging functional if capture is unavailable.
-        }
-
-        removeFallbackListeners();
-        const ownerDocument = target.ownerDocument;
-        const handleDocumentPointerMove = (nativeEvent: PointerEvent) => {
-          if (!activeHandleRef.current) {
-            return;
-          }
-          moveActiveDrag(nativeEvent);
-        };
-        const handleDocumentPointerEnd = (nativeEvent: PointerEvent) => {
-          if (!activeHandleRef.current) {
-            return;
-          }
-          stopActiveDrag(nativeEvent, target);
-        };
-        ownerDocument.addEventListener('pointermove', handleDocumentPointerMove);
-        ownerDocument.addEventListener('pointerup', handleDocumentPointerEnd);
-        ownerDocument.addEventListener('pointercancel', handleDocumentPointerEnd);
-        fallbackListenersRef.current = () => {
-          ownerDocument.removeEventListener('pointermove', handleDocumentPointerMove);
-          ownerDocument.removeEventListener('pointerup', handleDocumentPointerEnd);
-          ownerDocument.removeEventListener('pointercancel', handleDocumentPointerEnd);
-        };
-      },
-      [
-        engine,
-        moveActiveDrag,
-        onTangentHandleDoubleClick,
-        onPointerDown,
-        removeFallbackListeners,
-        startKeyframeTangentDrag,
-        stopActiveDrag,
-      ]
-    );
-
-    const handlePointerMove = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        onPointerMove?.(event);
-        if (!activeHandleRef.current || event.defaultPrevented) {
-          return;
-        }
-
-        moveActiveDrag(event);
-      },
-      [moveActiveDrag, onPointerMove]
-    );
-
-    const handlePointerUp = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        onPointerUp?.(event);
-        if (activeHandleRef.current) {
-          stopActiveDrag(event, event.currentTarget);
-        }
-      },
-      [onPointerUp, stopActiveDrag]
-    );
-
-    const handlePointerCancel = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        onPointerCancel?.(event);
-        if (activeHandleRef.current) {
-          activeHandleRef.current = null;
-          removeFallbackListeners();
-          cancelKeyframeTangentDrag();
-        }
-      },
-      [cancelKeyframeTangentDrag, onPointerCancel, removeFallbackListeners]
-    );
-
-    const handleLostPointerCapture = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        onLostPointerCapture?.(event);
-        if (activeHandleRef.current) {
-          stopActiveDrag(event, event.currentTarget);
-        }
-      },
-      [onLostPointerCapture, stopActiveDrag]
-    );
-
-    const cursor = activeHandleRef.current ? 'grabbing' : hoveredHandle ? 'grab' : undefined;
-    const visibleHandles = segments.visibleTangentHandles;
-
+    const label = current
+      ? (getTangentHandleAriaLabel?.(current) ??
+        `${property} ${current.side} tangent, time ${Math.round(current.tangent.x * 100)} percent, value ${Math.round(current.tangent.y * 100)} percent`)
+      : `${property} tangents`;
     return (
       <div
-        ref={ref}
-        className={`timeline-keyframe-tangent-interaction-layer ${className}`.trim()}
-        data-has-target={hoveredHandle ? 'true' : undefined}
-        style={{
-          top: `${rulerHeight}px`,
-          cursor,
-          ...style,
-        }}
         {...props}
+        ref={ref}
+        className={`timeline-keyframe-tangent-interaction-layer ${className}`}
+        role="group"
+        tabIndex={current ? 0 : -1}
+        aria-label={label}
+        onKeyDown={handleKeyDown}
+        style={{ top: rulerHeight, ...style }}
       >
-        <svg className="timeline-keyframe-tangent-lines" aria-hidden="true">
-          {visibleHandles.map((handle) => (
-            <line
-              key={`${tangentHandleIdentity(handle)}:line`}
-              className="timeline-keyframe-tangent-line"
-              x1={handle.anchorPoint.x}
-              y1={handle.anchorPoint.y - rulerHeight}
-              x2={handle.point.x}
-              y2={handle.point.y - rulerHeight}
-            />
-          ))}
-        </svg>
-        {visibleHandles.map((handle) => {
-          const active = isSameTangentHandle(activeHandleRef.current, handle);
-          const hovered = isSameTangentHandle(hoveredHandle, handle);
-          const pad = Math.max(0, hitPadding);
-
-          return (
+        <span className="timeline-sr-only" aria-live="polite">
+          {drag.dragging ? '' : label}
+        </span>
+        {current && (
+          <>
+            <svg className="timeline-keyframe-tangent-lines" aria-hidden="true">
+              <line
+                className="timeline-keyframe-tangent-line"
+                x1={current.anchorPoint.x}
+                y1={current.anchorPoint.y - rulerHeight}
+                x2={current.point.x}
+                y2={current.point.y - rulerHeight}
+              />
+            </svg>
             <div
-              key={tangentHandleIdentity(handle)}
-              role="button"
-              aria-label={(getTangentHandleAriaLabel ?? defaultTangentHandleAriaLabel)(handle)}
-              tabIndex={handle.canEdit ? 0 : -1}
               className="timeline-keyframe-tangent-handle"
-              data-clip-id={handle.clip.id}
-              data-segment-id={handle.segmentId}
-              data-keyframe-id={handle.keyframe.id}
-              data-anchor-keyframe-id={handle.anchorKeyframe.id}
-              data-side={handle.side}
-              data-active={active ? 'true' : undefined}
-              data-hovered={hovered ? 'true' : undefined}
-              data-editable={handle.canEdit ? 'true' : undefined}
+              aria-hidden="true"
+              data-keyframe-id={current.keyframe.id}
+              data-side={current.side}
+              data-active={drag.dragging ? 'true' : undefined}
+              data-editable={current.canEdit ? 'true' : undefined}
               style={{
-                transform: `translate(${handle.rect.x - pad}px, ${handle.rect.y - rulerHeight - pad}px)`,
-                width: `${handle.rect.width + pad * 2}px`,
-                height: `${handle.rect.height + pad * 2}px`,
+                transform: `translate(${current.rect.x - hitPadding}px, ${current.rect.y - rulerHeight - hitPadding}px)`,
+                width: current.rect.width + hitPadding * 2,
+                height: current.rect.height + hitPadding * 2,
               }}
-              onFocus={() => {
-                engine.keyframes.selectClipKeyframe(handle.clip.id, handle.anchorKeyframe.id);
-              }}
-              onPointerDown={(event) => {
-                handlePointerDown(event, handle);
-              }}
-              onPointerEnter={() => {
-                setHoveredHandle({
-                  clipId: handle.clip.id,
-                  segmentId: handle.segmentId,
-                  keyframeId: handle.keyframe.id,
-                  side: handle.side,
-                });
-              }}
-              onPointerMove={handlePointerMove}
-              onPointerLeave={(event) => {
-                setHoveredHandle(null);
-                onPointerLeave?.(event);
-              }}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
-              onLostPointerCapture={handleLostPointerCapture}
             >
               <div
                 className="timeline-keyframe-tangent-handle-shape"
-                aria-hidden="true"
-                style={{
-                  width: `${handle.rect.width}px`,
-                  height: `${handle.rect.height}px`,
-                }}
+                style={{ width: current.rect.width, height: current.rect.height }}
               />
             </div>
-          );
-        })}
+          </>
+        )}
       </div>
     );
   }
 );
-
 KeyframeTangentInteractionLayer.displayName = 'Timeline.KeyframeTangentInteractionLayer';

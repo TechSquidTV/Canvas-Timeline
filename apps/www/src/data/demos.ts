@@ -180,7 +180,7 @@ export const demoDocs: DemoDoc[] = [
     slug: 'keyframe-opacity',
     title: 'Opacity Keyframes',
     description:
-      'A video opacity automation demo with engine-level clip keyframes, draggable DOM handles, canvas keyframe rendering, and live HTML media preview evaluation.',
+      'Edit opacity with group selection, precise timecode and value fields, an expandable curve lane, easing presets, and linked Bezier tangents. Preview edits live and undo each gesture in one step.',
     status: 'Keyframes',
     difficulty: 'Intermediate',
     packageFocus: [

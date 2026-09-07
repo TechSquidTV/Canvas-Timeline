@@ -11,6 +11,7 @@ import type {
   Track,
   Marker,
   TimelineKeyframe,
+  TimelineKeyframeReference,
 } from '#core/types';
 
 /** Reason a committed engine command created a new clip. */
@@ -109,12 +110,8 @@ export interface ClipKeyframeRemoveEvent {
 
 /** Keyframe selection change event payload. */
 export interface ClipKeyframeSelectEvent {
-  /** Clip containing the selected keyframe, or null after clearing selection. */
-  clipId: string | null;
-  /** Selected keyframe id, or null after clearing selection. */
-  keyframeId: string | null;
-  /** Selected keyframe snapshot, or null after clearing selection. */
-  keyframe: TimelineKeyframe | null;
+  /** Complete selection after the change. */
+  keyframes: TimelineKeyframeReference[];
 }
 
 /**

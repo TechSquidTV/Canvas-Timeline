@@ -6,16 +6,16 @@ import {
 import type {
   TimelineCommandResult,
   TimelineKeyframe,
-  TimelineKeyframeGeometryOptions,
+  TimelineKeyframeReference,
+  TimelineKeyframeClipboard,
+  TimelineKeyframeEditCommand,
   TimelineKeyframeMutationOptions,
   TimelineKeyframePropertyId,
-  TimelineKeyframeRect,
   TimelineSetClipKeyframeOptions,
   TimelineUpdateClipKeyframeOptions,
-  VisibleTimelineKeyframe,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 /**
@@ -24,14 +24,16 @@ import { useCallback, useMemo } from 'react';
  * @remarks
  *
  * Use these options to scope keyframe reads to one clip, one property, selected
- * clips, or visible viewport geometry. Geometry options should match the
- * renderer and interaction layer so DOM overlays line up with canvas keyframe
- * diamonds.
+ * clips. Use useTimelineKeyframeGeometry for live viewport-space reads.
  *
  * @see {@link useTimelineKeyframeDrag}
  * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
  */
-export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOptions {
+export interface UseTimelineKeyframesOptions {
+  /** Optional property filter. */
+  property?: TimelineKeyframePropertyId;
+  /** Restrict state to selected clips. */
+  selectedClipOnly?: boolean;
   /** Optional clip id used to scope keyframe lists and commands. */
   clipId?: string;
 }
@@ -41,8 +43,8 @@ export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOpt
  *
  * @remarks
  *
- * The result combines keyframe lists, viewport geometry, visible geometry, and
- * mutation commands. Use it for keyframe inspectors, custom DOM overlays,
+ * The result combines settled keyframe lists, selection, and mutation commands.
+ * Use it for keyframe inspectors,
  * property editors, and toolbar actions. For pointer-driven dragging, combine
  * it with {@link useTimelineKeyframeDrag}; for Bezier easing handles, combine
  * it with {@link useTimelineKeyframeTangentDrag}.
@@ -52,12 +54,8 @@ export interface UseTimelineKeyframesOptions extends TimelineKeyframeGeometryOpt
  * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
  */
 export interface UseTimelineKeyframesResult {
-  /** Clip-scoped keyframes for `clipId`, or all keyframes from visible rects when no clip is scoped. */
+  /** Settled keyframes matching the clip, property, and selection filters. */
   keyframes: TimelineKeyframe[];
-  /** Viewport-space keyframe geometry in track order. */
-  keyframeRects: TimelineKeyframeRect<string>[];
-  /** Viewport-intersecting keyframe geometry in track order. */
-  visibleKeyframes: VisibleTimelineKeyframe<string>[];
   /** Evaluates a keyframed property at a timeline time. */
   getPropertyValueAtTime: (
     clipId: string,
@@ -80,24 +78,35 @@ export interface UseTimelineKeyframesResult {
     keyframeId: string,
     options?: TimelineKeyframeMutationOptions
   ) => TimelineCommandResult<TimelineKeyframe>;
-  /** Selects one keyframe, or clears keyframe selection when ids are null. */
-  selectKeyframe: (clipId: string | null, keyframeId: string | null) => TimelineCommandResult;
+  /** Selects keys without subscribing to live geometry. */
+  selectKeyframes: (
+    references: readonly TimelineKeyframeReference[],
+    mode?: 'replace' | 'add' | 'toggle'
+  ) => TimelineCommandResult;
+  /** Selected keys across all clips. */
+  selectedKeyframes: TimelineKeyframeReference[];
+  /** Copies the current selection independently of clip copy/paste. */
+  copyKeyframes: () => TimelineKeyframeClipboard;
+  /** Creates a paste command with preserved relative timing. */
+  createPasteCommand: (
+    clipboard: TimelineKeyframeClipboard,
+    time: RationalTime,
+    clipId?: string
+  ) => TimelineKeyframeEditCommand;
   /** Clears keyframe selection. */
   clearKeyframeSelection: () => TimelineCommandResult;
 }
 
 /**
- * Reads timeline keyframe geometry and exposes canonical keyframe commands.
+ * Reads settled keyframe state and exposes canonical keyframe commands.
  *
  * @remarks
  *
- * `useTimelineKeyframes` is the main keyframe-domain hook. It reads geometry
- * from the engine so custom overlays share the same clip, track, scroll, and
- * zoom math as the canvas renderer. Mutation commands return
+ * `useTimelineKeyframes` is the main keyframe-domain hook. It reads settled keyframe state. Use useTimelineKeyframeGeometry for live overlays. Mutation commands return
  * {@link TimelineCommandResult} values and respect locked tracks.
  *
- * @param options - Optional clip/property filters and renderer-aligned geometry settings.
- * @returns Keyframe lists, viewport geometry, visible geometry, property evaluation, and mutation commands.
+ * @param options - Optional clip, property, and selected-clip filters.
+ * @returns Settled keyframe lists, selection, property evaluation, and mutation commands.
  *
  * @example
  * ```tsx
@@ -125,22 +134,6 @@ export interface UseTimelineKeyframesResult {
  * }
  * ```
  *
- * @example
- * ```tsx
- * import { useTimelineKeyframes } from '@techsquidtv/canvas-timeline-react';
- *
- * export function SelectedKeyframeOverlay() {
- *   const { keyframeRects } = useTimelineKeyframes({ selectedClipOnly: true });
- *
- *   return keyframeRects.map((entry) => (
- *     <span
- *       key={entry.keyframe.id}
- *       style={{ left: entry.x, top: entry.y, width: entry.width, height: entry.height }}
- *     />
- *   ));
- * }
- * ```
- *
  * @see {@link useTimelineKeyframeDrag}
  * @see {@link useTimelineKeyframeTangentDrag}
  * @see {@link https://canvastimeline.com/demos/keyframe-opacity | Keyframe opacity demo}
@@ -149,75 +142,41 @@ export function useTimelineKeyframes(
   options: UseTimelineKeyframesOptions = {}
 ): UseTimelineKeyframesResult {
   const engine = useTimelineEngine();
-  const revision = useTimelineGeometryRevision({ redrawOnPreview: true });
-  const {
-    clipId,
-    collapsedTrackHeight,
-    edgeThreshold,
-    keyframeSize,
-    keyframeValuePadding,
-    overscanPixels,
-    property,
-    rulerHeight,
-    selectedClipOnly,
-    touchEdgeThreshold,
-    trackHeight,
-    viewportHeight,
-    viewportWidth,
-  } = options;
-
-  const geometry = useMemo(
-    () => ({
-      collapsedTrackHeight,
-      edgeThreshold,
-      keyframeSize,
-      keyframeValuePadding,
-      overscanPixels,
-      property,
-      rulerHeight,
-      selectedClipOnly,
-      touchEdgeThreshold,
-      trackHeight,
-      viewportHeight,
-      viewportWidth,
-    }),
-    [
-      collapsedTrackHeight,
-      edgeThreshold,
-      keyframeSize,
-      keyframeValuePadding,
-      overscanPixels,
-      property,
-      rulerHeight,
-      selectedClipOnly,
-      touchEdgeThreshold,
-      trackHeight,
-      viewportHeight,
-      viewportWidth,
-    ]
+  const tracks = useTimelineSelector((state) => state.tracks);
+  const keyframes = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        track.clips
+          .filter(
+            (clip) =>
+              (options.clipId === undefined || clip.id === options.clipId) &&
+              (!options.selectedClipOnly || clip.selected)
+          )
+          .flatMap((clip) =>
+            (clip.keyframes ?? []).filter(
+              (key) => options.property === undefined || key.property === options.property
+            )
+          )
+      ),
+    [tracks, options.clipId, options.property, options.selectedClipOnly]
   );
-
-  const keyframeRects = useMemo(() => {
-    void revision;
-    return engine.keyframes
-      .getKeyframeRects(geometry)
-      .filter((entry) => clipId === undefined || entry.clip.id === clipId);
-  }, [clipId, engine, geometry, revision]);
-
-  const visibleKeyframes = useMemo(() => {
-    void revision;
-    return engine.keyframes
-      .getVisibleKeyframes(geometry)
-      .filter((entry) => clipId === undefined || entry.clip.id === clipId);
-  }, [clipId, engine, geometry, revision]);
-
-  const keyframes = useMemo(() => {
-    if (clipId !== undefined) {
-      return engine.keyframes.getClipKeyframes(clipId, property);
-    }
-
-    return keyframeRects.map((entry) => entry.keyframe);
-  }, [clipId, engine, keyframeRects, property]);
+  const selectedKeyframes = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        track.clips.flatMap((clip) =>
+          (clip.keyframes ?? [])
+            .filter((key) => key.selected)
+            .map((key) => ({ clipId: clip.id, keyframeId: key.id }))
+        )
+      ),
+    [tracks]
+  );
+  const copyKeyframes = useCallback(() => engine.keyframes.copyKeyframes(), [engine]);
+  const createPasteCommand = useCallback(
+    (clipboard: TimelineKeyframeClipboard, time: RationalTime, clipId?: string) =>
+      engine.keyframes.createPasteCommand(clipboard, time, clipId),
+    [engine]
+  );
 
   const getPropertyValueAtTime = useCallback(
     (targetClipId: string, targetProperty: TimelineKeyframePropertyId, time?: RationalTime) =>
@@ -313,18 +272,9 @@ export function useTimelineKeyframes(
     [engine]
   );
 
-  const selectKeyframe = useCallback(
-    (targetClipId: string | null, keyframeId: string | null): TimelineCommandResult => {
-      if (targetClipId !== null && keyframeId !== null) {
-        const found = engine.geometry.getClip(targetClipId);
-        if (!found?.clip.keyframes?.some((keyframe) => keyframe.id === keyframeId)) {
-          return timelineCommandFail('not-found');
-        }
-      }
-
-      engine.keyframes.selectClipKeyframe(targetClipId, keyframeId);
-      return timelineCommandOk();
-    },
+  const selectKeyframes = useCallback(
+    (references: readonly TimelineKeyframeReference[], mode?: 'replace' | 'add' | 'toggle') =>
+      engine.keyframes.selectKeyframes(references, mode),
     [engine]
   );
 
@@ -336,25 +286,27 @@ export function useTimelineKeyframes(
   return useMemo(
     () => ({
       keyframes,
-      keyframeRects,
-      visibleKeyframes,
       getPropertyValueAtTime,
       setKeyframe,
       updateKeyframe,
       removeKeyframe,
-      selectKeyframe,
+      selectKeyframes,
+      selectedKeyframes,
+      copyKeyframes,
+      createPasteCommand,
       clearKeyframeSelection,
     }),
     [
       clearKeyframeSelection,
       getPropertyValueAtTime,
-      keyframeRects,
       keyframes,
       removeKeyframe,
-      selectKeyframe,
+      selectKeyframes,
+      selectedKeyframes,
+      copyKeyframes,
+      createPasteCommand,
       setKeyframe,
       updateKeyframe,
-      visibleKeyframes,
     ]
   );
 }

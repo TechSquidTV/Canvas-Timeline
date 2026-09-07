@@ -1,11 +1,24 @@
+import { TimelineEditGesture } from '#react/hooks/editing/timelineEditGesture';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineCommandResult,
   TimelineInteractionGeometry,
   TimelineKeyframeRect,
+  TimelineKeyframeEditCommand,
+  TimelineReadonly,
+  TimelineKeyframe,
+  Clip,
+  TimelineRegisteredKeyframePropertyDefinition,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
+import {
+  addRational,
+  fromSeconds,
+  subRational,
+  toSeconds,
+  resolveTimecodeFrameRate,
+} from '@techsquidtv/canvas-timeline-utils';
+import type { RationalTime, TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a keyframe drag. */
 export interface TimelineKeyframeDragStartInput {
@@ -23,6 +36,12 @@ export interface TimelineKeyframeDragStartInput {
 
 /** Pointer data needed to update a keyframe drag. */
 export interface TimelineKeyframeDragMoveInput {
+  /** Constrain movement to one axis. */
+  axis?: 'time' | 'value';
+  /** Reduce movement to one tenth for precision edits. */
+  fine?: boolean;
+  /** Temporarily bypass snapping. */
+  snap?: boolean;
   /** Current pointer client X. */
   clientX: number;
   /** Current pointer Y in timeline viewport coordinates, including the ruler area. */
@@ -43,6 +62,8 @@ export interface TimelineKeyframeDragMoveInput {
  * @see {@link https://canvastimeline.com/docs/keyframes | Keyframes}
  */
 export interface UseTimelineKeyframeDragOptions extends TimelineInteractionGeometry {
+  /** Frame grid; defaults to the engine frame rate, or 30 fps when unset. */
+  frameRate?: TimecodeFrameRate;
   /** Keyframe affordance size in CSS pixels. Defaults to engine geometry. */
   keyframeSize?: number;
   /** Vertical padding used when mapping property values into a clip row. Defaults to engine geometry. */
@@ -61,7 +82,7 @@ export interface UseTimelineKeyframeDragResult {
   ) => TimelineCommandResult<TimelineKeyframeDragUpdate>;
   /** Ends the active keyframe drag and settles history. */
   endKeyframeDrag: () => TimelineCommandResult;
-  /** Cancels pointer handling for the active drag and settles current preview state. */
+  /** Cancels the drag and restores the committed state without an undo entry. */
   cancelKeyframeDrag: () => TimelineCommandResult;
 }
 
@@ -78,15 +99,22 @@ export interface TimelineKeyframeDragUpdate {
 }
 
 interface ActiveKeyframeDrag {
+  gesture: TimelineEditGesture;
+  zoomScale: number;
   clipId: string;
   keyframeId: string;
-  property: TimelineKeyframeRect['keyframe']['property'];
   startClientX: number;
-  startCenterX: number;
-}
-
-function clampRatio(value: number) {
-  return Math.max(0, Math.min(1, value));
+  startY: number;
+  time: RationalTime;
+  valueHeight: number;
+  entries: {
+    clipId: string;
+    keyframeId: string;
+    key: TimelineReadonly<TimelineKeyframe>;
+    clip: TimelineReadonly<Clip>;
+    normalized: number;
+    definition: TimelineRegisteredKeyframePropertyDefinition;
+  }[];
 }
 
 /**
@@ -97,7 +125,7 @@ function clampRatio(value: number) {
  * Use this hook when building custom DOM or canvas hit targets for keyframe
  * points. The hook owns drag lifecycle, preview updates, value mapping, and
  * settle behavior. It intentionally does not render handles; pair it with
- * {@link useTimelineKeyframes} for keyframe geometry.
+ * {@link useTimelineKeyframeGeometry} for keyframe geometry.
  *
  * @param options - Drag geometry aligned with the renderer and hit-test layer.
  * @returns Keyframe drag state and pointer command helpers.
@@ -137,163 +165,182 @@ export function useTimelineKeyframeDrag(
   const engine = useTimelineEngine();
   const activeDragRef = useRef<ActiveKeyframeDrag | null>(null);
   const [dragging, setDragging] = useState(false);
-
-  useEffect(() => {
-    return () => {
-      if (!activeDragRef.current) {
-        return;
+  useEffect(
+    () => () => {
+      if (activeDragRef.current) {
+        activeDragRef.current.gesture.cancel();
+        activeDragRef.current = null;
       }
-
-      activeDragRef.current = null;
-      setDragging(false);
-      engine.endDrag();
-      engine.settle();
-    };
-  }, [engine]);
-
-  const clipGeometry = useMemo(
-    () => ({
-      collapsedTrackHeight: options.collapsedTrackHeight,
-      edgeThreshold: options.edgeThreshold,
-      rulerHeight: options.rulerHeight,
-      touchEdgeThreshold: options.touchEdgeThreshold,
-      trackHeight: options.trackHeight,
-    }),
-    [
-      options.collapsedTrackHeight,
-      options.edgeThreshold,
-      options.rulerHeight,
-      options.touchEdgeThreshold,
-      options.trackHeight,
-    ]
-  );
-
-  const getValueAtViewportY = useCallback(
-    (clipId: string, property: TimelineKeyframeRect['keyframe']['property'], viewportY: number) => {
-      const clipRect = engine.geometry.getClipRect(clipId, clipGeometry);
-      const definition = engine.getKeyframePropertyDefinition(property);
-      if (!clipRect) {
-        return null;
-      }
-      if (!definition) {
-        return null;
-      }
-
-      const valuePadding = Math.max(0, options.keyframeValuePadding ?? 7);
-      const usableHeight = Math.max(1, clipRect.height - valuePadding * 2);
-      const ratio = clampRatio((viewportY - clipRect.y - valuePadding) / usableHeight);
-      return definition.denormalizeValue(1 - ratio);
     },
-    [clipGeometry, engine, options.keyframeValuePadding]
+    [engine]
   );
 
   const startKeyframeDrag = useCallback(
     (input: TimelineKeyframeDragStartInput): TimelineCommandResult => {
+      if (activeDragRef.current) {
+        return timelineCommandFail('unsupported', 'A keyframe drag is already active.');
+      }
       const found = engine.geometry.getClip(input.clipId);
-      const rect =
-        input.keyframeRect ??
-        engine.keyframes
-          .getKeyframeRects({
-            ...clipGeometry,
-            keyframeSize: options.keyframeSize,
-            keyframeValuePadding: options.keyframeValuePadding,
-          })
-          .find(
-            (entry) => entry.clip.id === input.clipId && entry.keyframe.id === input.keyframeId
-          );
-
-      if (!found || !rect) {
+      const key = found?.clip.keyframes?.find((candidate) => candidate.id === input.keyframeId);
+      const rect = engine.geometry.getClipRect(input.clipId, options);
+      if (!found || !key || !rect) {
         return timelineCommandFail('not-found');
       }
       if (found.track.locked) {
         return timelineCommandFail('locked');
       }
-
-      engine.startDrag();
+      if (![input.clientX, input.viewportY].every(Number.isFinite)) {
+        return timelineCommandFail('invalid-input');
+      }
+      const references = key.selected
+        ? engine.keyframes.getSelectedKeyframes()
+        : [{ clipId: input.clipId, keyframeId: input.keyframeId }];
+      const entries = references.flatMap((ref) => {
+        const owner = engine.geometry.getClip(ref.clipId);
+        const candidate = owner?.clip.keyframes?.find((item) => item.id === ref.keyframeId);
+        const definition = candidate
+          ? engine.getKeyframePropertyDefinition(candidate.property)
+          : null;
+        return owner && candidate && definition
+          ? [
+              {
+                ...ref,
+                key: candidate,
+                clip: owner.clip,
+                definition,
+                normalized: definition.normalizeValue(candidate.value),
+              },
+            ]
+          : [];
+      });
+      engine.cancelEdit();
       activeDragRef.current = {
+        gesture: new TimelineEditGesture(engine),
+        zoomScale: engine.zoomScale,
         clipId: input.clipId,
         keyframeId: input.keyframeId,
-        property: rect.keyframe.property,
         startClientX: input.clientX,
-        startCenterX: engine.timeToPixel(rect.keyframe.time),
+        startY: input.viewportY,
+        time: key.time,
+        entries,
+        valueHeight: Math.max(1, rect.height - 2 * (options.keyframeValuePadding ?? 7)),
       };
       setDragging(true);
-
       return timelineCommandOk();
     },
-    [clipGeometry, engine, options.keyframeSize, options.keyframeValuePadding]
+    [engine, options]
   );
 
   const moveKeyframeDrag = useCallback(
     (input: TimelineKeyframeDragMoveInput): TimelineCommandResult<TimelineKeyframeDragUpdate> => {
-      const activeDrag = activeDragRef.current;
-      if (!activeDrag) {
-        return timelineCommandFail<TimelineKeyframeDragUpdate>('unsupported');
+      const active = activeDragRef.current;
+      if (!active) {
+        return timelineCommandFail('unsupported');
       }
-
-      const value = getValueAtViewportY(activeDrag.clipId, activeDrag.property, input.viewportY);
-      if (value === null) {
-        return timelineCommandFail<TimelineKeyframeDragUpdate>('not-found');
+      if (![input.clientX, input.viewportY].every(Number.isFinite)) {
+        return timelineCommandFail('invalid-input');
       }
-
-      const deltaX = input.clientX - activeDrag.startClientX;
-      const time = engine.pixelToTime(activeDrag.startCenterX + deltaX);
-      const keyframe = engine.keyframes.updateClipKeyframe(
-        {
-          clipId: activeDrag.clipId,
-          keyframeId: activeDrag.keyframeId,
-          time,
-          value,
-        },
-        { commit: false }
-      );
-
-      if (!keyframe) {
-        return timelineCommandFail<TimelineKeyframeDragUpdate>('unsupported');
+      if (!active.gesture.isCurrent()) {
+        return timelineCommandFail('unsupported', 'The keyframe preview was replaced.');
       }
-
+      const sensitivity = input.fine ? 0.1 : 1;
+      let seconds =
+        input.axis === 'value'
+          ? 0
+          : ((input.clientX - active.startClientX) / active.zoomScale) * sensitivity;
+      let valueDelta =
+        input.axis === 'time'
+          ? 0
+          : ((active.startY - input.viewportY) / active.valueHeight) * sensitivity;
+      if (input.axis !== 'value' && input.snap !== false && engine.getState().snapEnabled) {
+        const target = toSeconds(active.time) + seconds;
+        const frameRate = options.frameRate ?? engine.frameRate ?? 30;
+        const fps = resolveTimecodeFrameRate(frameRate);
+        let snapped = Math.round(target * fps) / fps;
+        let distance = Math.abs(snapped - target) * engine.zoomScale;
+        const selected = new Set(
+          active.entries.map((entry) => JSON.stringify([entry.clipId, entry.keyframeId]))
+        );
+        const candidates = [
+          engine.getState().playheadTime,
+          ...(engine.getState().markers ?? []).map((marker) => marker.time),
+        ];
+        for (const track of engine.getState().tracks) {
+          for (const clip of track.clips) {
+            candidates.push(clip.timelineStart, clip.timelineEnd);
+            for (const key of clip.keyframes ?? []) {
+              if (!selected.has(JSON.stringify([clip.id, key.id]))) {
+                candidates.push(key.time);
+              }
+            }
+          }
+        }
+        for (const time of candidates) {
+          const pixels = Math.abs(toSeconds(time) - target) * engine.zoomScale;
+          if (pixels <= engine.getState().snapThresholdPixels && pixels <= distance) {
+            snapped = toSeconds(time);
+            distance = pixels;
+          }
+        }
+        seconds = snapped - toSeconds(active.time);
+      }
+      for (const entry of active.entries) {
+        seconds = Math.max(
+          toSeconds(subRational(entry.clip.timelineStart, entry.key.time)),
+          Math.min(toSeconds(subRational(entry.clip.timelineEnd, entry.key.time)), seconds)
+        );
+        valueDelta = Math.max(-entry.normalized, Math.min(1 - entry.normalized, valueDelta));
+      }
+      const command: TimelineKeyframeEditCommand = {
+        type: 'keyframes',
+        edits: active.entries.map((entry) => ({
+          type: 'update',
+          clipId: entry.clipId,
+          keyframeId: entry.keyframeId,
+          time: addRational(entry.key.time, fromSeconds(seconds)),
+          value: entry.definition.denormalizeValue(entry.normalized + valueDelta),
+        })),
+      };
+      const preview = active.gesture.publish(command);
+      if (!preview.valid) {
+        return timelineCommandFail(
+          preview.reason === 'locked' ? 'locked' : 'invalid-input',
+          preview.message
+        );
+      }
+      const key = preview.changedClips
+        .find((clip) => clip.id === active.clipId)
+        ?.keyframes?.find((candidate) => candidate.id === active.keyframeId);
+      if (!key) {
+        return timelineCommandFail('not-found');
+      }
       return timelineCommandOk({
-        clipId: activeDrag.clipId,
-        keyframeId: activeDrag.keyframeId,
-        time: keyframe.time,
-        value: keyframe.value,
+        clipId: active.clipId,
+        keyframeId: active.keyframeId,
+        time: key.time,
+        value: key.value,
       });
     },
-    [engine, getValueAtViewportY]
+    [engine, options.frameRate]
   );
 
-  const endKeyframeDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
+  const finish = useCallback((commit: boolean): TimelineCommandResult => {
+    const active = activeDragRef.current;
+    if (!active) {
       return timelineCommandFail('unsupported');
     }
-
     activeDragRef.current = null;
     setDragging(false);
-    engine.endDrag();
-    engine.settle();
-    return timelineCommandOk();
-  }, [engine]);
-
-  const cancelKeyframeDrag = useCallback((): TimelineCommandResult => {
-    if (!activeDragRef.current) {
-      return timelineCommandFail('unsupported');
+    if (commit) {
+      return active.gesture.commit();
     }
-
-    activeDragRef.current = null;
-    setDragging(false);
-    engine.endDrag();
-    engine.settle();
+    active.gesture.cancel();
     return timelineCommandOk();
-  }, [engine]);
-
+  }, []);
+  const endKeyframeDrag = useCallback(() => finish(true), [finish]);
+  const cancelKeyframeDrag = useCallback(() => finish(false), [finish]);
   return useMemo(
-    () => ({
-      dragging,
-      startKeyframeDrag,
-      moveKeyframeDrag,
-      endKeyframeDrag,
-      cancelKeyframeDrag,
-    }),
-    [cancelKeyframeDrag, dragging, endKeyframeDrag, moveKeyframeDrag, startKeyframeDrag]
+    () => ({ dragging, startKeyframeDrag, moveKeyframeDrag, endKeyframeDrag, cancelKeyframeDrag }),
+    [dragging, startKeyframeDrag, moveKeyframeDrag, endKeyframeDrag, cancelKeyframeDrag]
   );
 }

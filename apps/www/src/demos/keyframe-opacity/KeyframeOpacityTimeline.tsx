@@ -1,8 +1,8 @@
+import { KeyframeInspector } from '#www/demos/keyframe-opacity/KeyframeInspector';
 import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import {
   findClipContainingTime,
-  findOpacityKeyframeNearTime,
-  getOpacityValueFromClipViewportY,
+  findOpacityKeyframeAtTime,
   opacityKeyframeProperty,
   opacityKeyframeValuePadding,
   toggleOpacityKeyframeAtTime,
@@ -17,27 +17,20 @@ import {
 } from '#www/demos/keyframe-opacity/timeline-demo-data';
 import '#www/demos/keyframe-opacity/timeline-editor.css';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
-import type {
-  TimelineReadonly,
-  TimelineKeyframeBezierHandle,
-  TimelineKeyframeInterpolation,
-  TimelineKeyframeSidePatch,
-  Track,
-} from '@techsquidtv/canvas-timeline-core';
+import type { TimelineReadonly, Track } from '@techsquidtv/canvas-timeline-core';
 import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import {
   Timeline,
   TimelineProvider,
   useTimeline,
-  useTimelineKeyframes,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
 import '@techsquidtv/canvas-timeline-react/styles.css';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
-import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { Diamond, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
-import type { ChangeEvent, ComponentProps } from 'react';
+import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { Diamond } from 'lucide-react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import type { ComponentProps } from 'react';
 import {
   Separator as ResizableHandle,
   Panel as ResizablePanel,
@@ -51,44 +44,6 @@ const previewLayerSelectors = {
 } as const;
 const sources = [{ sourceId: sampleSourceId, input: sampleMediaUrl }] as const;
 
-interface InterpolationPreset {
-  id: string;
-  label: string;
-  interpolation: TimelineKeyframeInterpolation;
-  outgoingHandle?: TimelineKeyframeBezierHandle;
-  incomingHandle?: TimelineKeyframeBezierHandle;
-}
-
-const interpolationPresets: InterpolationPreset[] = [
-  { id: 'linear', label: 'Linear', interpolation: 'linear' },
-  { id: 'hold', label: 'Hold', interpolation: 'hold' },
-  {
-    id: 'ease',
-    label: 'Ease',
-    interpolation: 'bezier',
-    outgoingHandle: { x: 0.42, y: 0 },
-    incomingHandle: { x: 0.58, y: 1 },
-  },
-  {
-    id: 'ease-out',
-    label: 'Out',
-    interpolation: 'bezier',
-    outgoingHandle: { x: 0.16, y: 1 },
-    incomingHandle: { x: 0.3, y: 1 },
-  },
-];
-
-function getInterpolationPresetId(interpolation: TimelineKeyframeInterpolation | undefined) {
-  if (interpolation === 'hold') {
-    return 'hold';
-  }
-  if (interpolation !== 'bezier') {
-    return 'linear';
-  }
-
-  return 'ease';
-}
-
 function TrackKeyframeButton({
   track,
   label,
@@ -101,9 +56,7 @@ function TrackKeyframeButton({
   const { engine } = useTimeline();
   const playheadTime = useTimelinePlayheadTime();
   const clip = track ? findClipContainingTime(track, playheadTime) : null;
-  const existingKeyframe = clip
-    ? findOpacityKeyframeNearTime(clip, playheadTime, engine.zoomScale)
-    : null;
+  const existingKeyframe = clip ? findOpacityKeyframeAtTime(clip, playheadTime) : null;
   const evaluatedOpacity = clip
     ? (engine.keyframes.getClipPropertyValueAtTime(clip.id, 'opacity', playheadTime) ??
       clip.opacity ??
@@ -214,32 +167,10 @@ function TimelineLayers({
   );
 }
 
-function formatSeconds(seconds: number) {
-  return `${seconds.toFixed(2)}s`;
-}
-
 function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const { engine } = useTimeline();
-  const playheadTime = useTimelinePlayheadTime();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const keyframes = useTimelineKeyframes({
-    clipId: opacityClipId,
-    property: 'opacity',
-    selectedClipOnly: true,
-    trackHeight,
-    keyframeSize,
-    keyframeValuePadding,
-  });
-  const selectedKeyframe = keyframes.keyframes.find((keyframe) => keyframe.selected);
-  const evaluatedOpacity =
-    keyframes.getPropertyValueAtTime(opacityClipId, 'opacity', playheadTime) ?? 1;
-  const sliderValue = selectedKeyframe?.value ?? evaluatedOpacity;
-  const activeTime = selectedKeyframe?.time ?? playheadTime;
-  const interpolationPresetId = selectedKeyframe
-    ? getInterpolationPresetId(
-        selectedKeyframe.outgoing?.interpolation ?? selectedKeyframe.incoming?.interpolation
-      )
-    : null;
   const { mediaRef, playing, play, pause, ready } = useHTMLTimelineMedia({
     sources,
     layers: previewLayerSelectors,
@@ -253,6 +184,13 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
     },
   });
 
+  const setVideoRef = useCallback(
+    (element: HTMLVideoElement | null) => {
+      videoRef.current = element;
+      mediaRef(element);
+    },
+    [mediaRef]
+  );
   const handlePlayPause = useCallback(async () => {
     if (playing) {
       pause();
@@ -264,127 +202,57 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
     setPlaybackError(result.ok ? null : result.message);
   }, [pause, play, playing]);
 
-  const handleSetKeyframe = useCallback(() => {
-    keyframes.setKeyframe({
-      clipId: opacityClipId,
-      property: 'opacity',
-      time: playheadTime,
-      value: evaluatedOpacity,
-    });
-  }, [evaluatedOpacity, keyframes, playheadTime]);
-
-  const handleDeleteKeyframe = useCallback(() => {
-    if (!selectedKeyframe) {
-      return;
-    }
-
-    keyframes.removeKeyframe(opacityClipId, selectedKeyframe.id);
-  }, [keyframes, selectedKeyframe]);
-
-  const handleSetInterpolationPreset = useCallback(
-    (preset: InterpolationPreset) => {
-      if (!selectedKeyframe) {
-        return;
+  useEffect(() => {
+    const update = () => {
+      if (videoRef.current) {
+        videoRef.current.style.opacity = String(
+          engine.keyframes.getClipPropertyValueAtTime(opacityClipId, 'opacity') ?? 1
+        );
       }
-
-      const propertyKeyframes = engine.keyframes
-        .getClipKeyframes(opacityClipId, opacityKeyframeProperty.id)
-        .sort((left, right) => toSeconds(left.time) - toSeconds(right.time));
-      const selectedIndex = propertyKeyframes.findIndex(
-        (keyframe) => keyframe.id === selectedKeyframe.id
-      );
-      const hasIncomingSegment = selectedIndex > 0;
-      const hasOutgoingSegment = selectedIndex >= 0 && selectedIndex < propertyKeyframes.length - 1;
-      const incomingPatch: TimelineKeyframeSidePatch | undefined = hasIncomingSegment
-        ? {
-            interpolation: preset.interpolation,
-            ...(preset.incomingHandle === undefined ? {} : { handle: preset.incomingHandle }),
-          }
-        : undefined;
-      const outgoingPatch: TimelineKeyframeSidePatch | undefined = hasOutgoingSegment
-        ? {
-            interpolation: preset.interpolation,
-            ...(preset.outgoingHandle === undefined ? {} : { handle: preset.outgoingHandle }),
-          }
-        : undefined;
-
-      if (incomingPatch === undefined && outgoingPatch === undefined) {
-        return;
-      }
-
-      engine.keyframes.updateClipKeyframeSides({
-        clipId: opacityClipId,
-        keyframeId: selectedKeyframe.id,
-        incoming: incomingPatch,
-        outgoing: outgoingPatch,
-      });
-    },
-    [engine, selectedKeyframe]
-  );
-
+    };
+    update();
+    const unsubscribeTime = engine.on('playhead:scrub', update);
+    const unsubscribeRender = engine.on('render', update);
+    return () => {
+      unsubscribeTime();
+      unsubscribeRender();
+    };
+  }, [engine, mediaRef]);
   const handleClipDoubleClick = useCallback<
     NonNullable<ComponentProps<typeof Timeline.ClipInteractionLayer>['onClipDoubleClick']>
   >((hit, details) => {
-    const value = getOpacityValueFromClipViewportY(hit, details.viewportY);
+    const value =
+      details.engine.keyframes.getClipPropertyValueAtTime(hit.clip.id, 'opacity', details.time) ??
+      1;
     toggleOpacityKeyframeAtTime(details.engine, hit.clip.id, details.time, value);
   }, []);
-
   const handleKeyframeDoubleClick = useCallback<
     NonNullable<ComponentProps<typeof Timeline.KeyframeInteractionLayer>['onKeyframeDoubleClick']>
   >(
     (entry) => {
-      keyframes.removeKeyframe(entry.clip.id, entry.keyframe.id);
+      engine.keyframes.selectKeyframes([{ clipId: entry.clip.id, keyframeId: entry.keyframe.id }]);
+      engine.updatePlayhead(entry.keyframe.time);
     },
-    [keyframes]
+    [engine]
   );
-
-  const handleKeyframeDelete = useCallback<
-    NonNullable<ComponentProps<typeof Timeline.KeyframeInteractionLayer>['onKeyframeDelete']>
-  >(
-    (entry) => {
-      keyframes.removeKeyframe(entry.clip.id, entry.keyframe.id);
-    },
-    [keyframes]
-  );
-
-  const handleOpacityChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const value = Number(event.currentTarget.value);
-      if (!Number.isFinite(value)) {
-        return;
-      }
-
-      if (selectedKeyframe) {
-        keyframes.updateKeyframe({
-          clipId: opacityClipId,
-          keyframeId: selectedKeyframe.id,
-          value,
-        });
-        return;
-      }
-
-      keyframes.setKeyframe({
-        clipId: opacityClipId,
-        property: 'opacity',
-        time: playheadTime,
-        value,
-      });
-    },
-    [keyframes, playheadTime, selectedKeyframe]
-  );
+  const handleKeyframeDelete = useCallback(() => {
+    engine.commitEdit({
+      type: 'keyframes',
+      edits: engine.keyframes.getSelectedKeyframes().map((ref) => ({ type: 'remove', ...ref })),
+    });
+  }, [engine]);
 
   return (
     <div className="media-sync-demo keyframe-opacity-demo">
       <div className="media-sync-preview keyframe-opacity-preview">
         <div className="media-sync-monitor keyframe-opacity-monitor">
           <video
-            ref={mediaRef}
+            ref={setVideoRef}
             className="media-sync-video keyframe-opacity-video"
             preload="metadata"
             playsInline
             muted
             aria-label="Opacity keyframe preview"
-            style={{ opacity: evaluatedOpacity }}
           />
           <button
             type="button"
@@ -395,76 +263,8 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
             {playing ? 'Pause' : 'Play'}
           </button>
         </div>
-        <section
-          className="media-sync-panel keyframe-opacity-panel"
-          aria-label="Opacity keyframe controls"
-        >
-          <h3>Opacity Keyframes</h3>
-          <p className="media-sync-status keyframe-opacity-status">
-            {playbackError ?? (ready ? 'Ready' : 'Loading media')}
-          </p>
-          <dl className="media-sync-readout keyframe-opacity-readout">
-            <dt>Timeline position</dt>
-            <dd>{formatSeconds(toSeconds(playheadTime))}</dd>
-            <dt>Opacity</dt>
-            <dd>{Math.round(sliderValue * 100)}%</dd>
-            <dt>{selectedKeyframe ? 'Selected keyframe' : 'Active time'}</dt>
-            <dd>{formatSeconds(toSeconds(activeTime))}</dd>
-            <dt>Curve</dt>
-            <dd>
-              {selectedKeyframe
-                ? interpolationPresets.find((preset) => preset.id === interpolationPresetId)?.label
-                : 'None'}
-            </dd>
-          </dl>
-          <input
-            className="keyframe-opacity-slider"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={sliderValue}
-            aria-label="Opacity"
-            onChange={handleOpacityChange}
-          />
-          <div className="keyframe-opacity-curve-controls" aria-label="Interpolation">
-            {interpolationPresets.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className="media-sync-button keyframe-opacity-curve-button"
-                onClick={() => {
-                  handleSetInterpolationPreset(preset);
-                }}
-                disabled={!selectedKeyframe}
-                aria-pressed={interpolationPresetId === preset.id}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <div className="media-sync-controls keyframe-opacity-actions">
-            <button
-              type="button"
-              className="media-sync-button keyframe-opacity-button"
-              onClick={handleSetKeyframe}
-              title="Set opacity keyframe"
-            >
-              <Plus aria-hidden="true" />
-              Set
-            </button>
-            <button
-              type="button"
-              className="media-sync-button keyframe-opacity-button"
-              onClick={handleDeleteKeyframe}
-              disabled={!selectedKeyframe}
-              title="Delete selected keyframe"
-            >
-              <Trash2 aria-hidden="true" />
-              Delete
-            </button>
-          </div>
-        </section>
+        <KeyframeInspector />
+        {playbackError && <p role="alert">{playbackError}</p>}
       </div>
 
       <div className="timeline-shell timeline-editor-controls-shell keyframe-opacity-timeline-shell">
@@ -539,6 +339,7 @@ export function KeyframeOpacityTimeline({ metrics }: { metrics?: DemoMetrics }) 
         duration: fromSeconds(sampleDurationSeconds),
         playheadTime: fromSeconds(0),
         zoomScale: 32,
+        zoomConstraints: { frameRate: 30 },
         tracks: demoTracks,
         markers: demoMarkers,
         keyframeProperties: [opacityKeyframeProperty],

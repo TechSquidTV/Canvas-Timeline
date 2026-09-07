@@ -369,17 +369,11 @@ export function useTimelineClipDrag(
     activeDragRef.current = null;
     setDragging(false);
     const current = active.gesture.isCurrent();
-    active.gesture.release();
-    if (!current) {
-      return timelineCommandFail('unsupported', 'The drag preview was replaced.');
+    const result = active.gesture.commit();
+    if (current) {
+      engine.clearClipDropFeedback();
     }
-    const command = active.gesture.preview?.command;
-    const result = command ? engine.commitEdit(command) : undefined;
-    engine.cancelEdit();
-    engine.clearClipDropFeedback();
-    return result && !result.committed
-      ? timelineCommandFail(result.preview.reason ?? 'unsupported')
-      : timelineCommandOk();
+    return result;
   }, [engine]);
 
   const cancelClipDrag = useCallback((): TimelineCommandResult => {

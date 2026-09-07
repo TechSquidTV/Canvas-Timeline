@@ -396,6 +396,17 @@
     opacity 150ms ease;
 }
 
+.timeline-keyframe-marquee {
+  border: 1px solid var(--timeline-keyframe-stroke-selected);
+  background: color-mix(in oklch, var(--timeline-keyframe-fill-selected) 15%, transparent);
+}
+
+.timeline-keyframe-interaction-layer:focus-visible .timeline-keyframe-handle-shape,
+.timeline-keyframe-tangent-interaction-layer:focus-visible .timeline-keyframe-tangent-handle-shape {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
 .timeline-keyframe-handle[data-hovered='true'] .timeline-keyframe-handle-shape,
 .timeline-keyframe-handle:focus-visible .timeline-keyframe-handle-shape {
   border-color: var(--timeline-keyframe-stroke-selected);

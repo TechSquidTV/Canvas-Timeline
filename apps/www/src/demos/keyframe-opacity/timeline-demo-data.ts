@@ -47,14 +47,14 @@ export const demoTracks: Track<'visual'>[] = [
             property: 'opacity',
             time: fromSeconds(10),
             value: 0.82,
-            outgoing: { interpolation: 'bezier', handle: { x: 0.16, y: 1 } },
+            outgoing: { interpolation: 'bezier', handle: { x: 0.16, y: 0.42 } },
           },
           {
             id: 'opacity-kf-3',
             property: 'opacity',
             time: fromSeconds(15),
             value: 0.42,
-            incoming: { interpolation: 'bezier', handle: { x: 0.3, y: 1 } },
+            incoming: { interpolation: 'bezier', handle: { x: 0.3, y: 0.42 } },
           },
           {
             id: 'opacity-kf-4',

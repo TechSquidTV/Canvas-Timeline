@@ -113,7 +113,14 @@ export const timelineHookMetadata = [
     category: 'keyframe-editing',
     reactivity: 'live',
     description:
-      'Reads clip keyframes, viewport geometry, evaluation helpers, and keyframe commands.',
+      'Reads settled clip keyframes, selection, evaluation helpers, and keyframe commands.',
+  },
+  {
+    name: 'useTimelineKeyframeGeometry',
+    group: 'timeline-state',
+    category: 'keyframe-editing',
+    reactivity: 'live',
+    description: 'Reads live keyframe rectangles scoped by clip and property for custom overlays.',
   },
   {
     name: 'useTimelineKeyframeSegments',

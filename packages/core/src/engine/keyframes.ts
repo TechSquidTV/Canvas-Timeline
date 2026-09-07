@@ -1,25 +1,20 @@
+import { evaluateKeyframeCurve, resolveKeyframeCurve } from '#core/engine/keyframe-curves';
+import { timelineCommandFail, timelineCommandOk } from '#core/command-result';
+import type { TimelineCommandResult } from '#core/command-result';
 import { findClipInTracks } from '#core/engine/clip-lookup';
 import type { TypedEventEmitter } from '#core/emitter';
 import { clampViewportCoordinate, defaultTimelineViewportWidth } from '#core/engine/geometry';
 import type { TimelineGeometry } from '#core/engine/interaction-geometry';
 import type { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
-import type {
-  ClipKeyframeChangeEvent,
-  ClipKeyframeRemoveEvent,
-  ClipKeyframeSelectEvent,
-  EngineEventMap,
-} from '#core/events';
+import type { EngineEventMap } from '#core/events';
 import {
   defaultTimelineIncomingBezierHandle,
   defaultTimelineOutgoingBezierHandle,
   getTimelineKeyframeBezierControlPoints,
-  getTimelineKeyframeInterpolationProgress,
   getTimelineKeyframeValuePoint,
   normalizeTimelineKeyframeBezierHandle,
-  normalizeTimelineKeyframeInterpolation,
-  normalizeTimelineKeyframeSideInterpolation,
 } from '#core/keyframes';
-import { cloneRationalTime, cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/snapshot';
+import { cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/snapshot';
 import type {
   Clip,
   ClipViewportRect,
@@ -39,13 +34,19 @@ import type {
   TimelineKeyframeSegment,
   TimelineKeyframeSegmentGeometryOptions,
   TimelineKeyframeSide,
-  TimelineKeyframeSidePatch,
   TimelineKeyframeTangentHandle,
   TimelineKeyframeTangentHandleHitTestResult,
   TimelineKeyframeTangentHitTestInput,
   TimelineRegisteredKeyframePropertyDefinition,
   TimelineSetClipKeyframeOptions,
   TimelineState,
+  TimelineStateSnapshot,
+  TimelineKeyframeEdit,
+  TimelineKeyframeEditCommand,
+  TimelineEditCommitResult,
+  TimelineEditPreview,
+  TimelineKeyframeReference,
+  TimelineKeyframeClipboard,
   TimelineReadonly,
   TimelineUpdateClipKeyframeOptions,
   TimelineUpdateClipKeyframeSideOptions,
@@ -55,7 +56,7 @@ import type {
   VisibleTimelineKeyframeSegment,
 } from '#core/types';
 import {
-  assertValidRationalTime,
+  addRational,
   compareRational,
   maxRational,
   minRational,
@@ -73,19 +74,48 @@ interface KeyframeContext {
   keyframeProperties: KeyframePropertyRegistry;
   emit: TypedEventEmitter<EngineEventMap>['emit'];
   timeToPixel: (time: RationalTime) => number;
-  invalidateContent: () => void;
-  snapshot: () => void;
+  getRenderState: () => TimelineStateSnapshot;
+  commitEdit: (command: TimelineKeyframeEditCommand) => TimelineEditCommitResult;
+  previewEdit: (command: TimelineKeyframeEditCommand) => TimelineEditPreview;
 }
 
 /** Registered keyframe queries, editing, and drawing geometry. */
 export class TimelineKeyframes {
   constructor(private context: KeyframeContext) {}
+  private propertyKeyCache = new WeakMap<
+    TimelineReadonly<Clip>,
+    Map<string, TimelineReadonly<TimelineKeyframe>[]>
+  >();
+
+  private getPropertyKeys(
+    clip: TimelineReadonly<Clip>,
+    property: string
+  ): TimelineReadonly<TimelineKeyframe>[] {
+    const cached = this.propertyKeyCache.get(clip)?.get(property);
+    if (cached) {
+      return cached;
+    }
+    const keys = (clip.keyframes ?? []).filter(
+      (key) =>
+        key.property === property &&
+        compareRational(key.time, clip.timelineStart) >= 0 &&
+        compareRational(key.time, clip.timelineEnd) <= 0
+    );
+    sortTimelineKeyframes(keys);
+    if (Object.isFrozen(clip)) {
+      const properties =
+        this.propertyKeyCache.get(clip) ?? new Map<string, TimelineReadonly<TimelineKeyframe>[]>();
+      properties.set(property, keys);
+      this.propertyKeyCache.set(clip, properties);
+    }
+    return keys;
+  }
 
   private resolveClip(
     clipIdOrClip: string | TimelineReadonly<Clip>
   ): TimelineReadonly<Clip> | undefined {
     return typeof clipIdOrClip === 'string'
-      ? this.context.geometry.getClip(clipIdOrClip)?.clip
+      ? findClipInTracks(this.context.getRenderState().tracks, clipIdOrClip)?.clip
       : clipIdOrClip;
   }
 
@@ -96,7 +126,7 @@ export class TimelineKeyframes {
     clipId: string,
     property?: TimelineKeyframePropertyId
   ): TimelineReadonly<TimelineKeyframe>[] {
-    const clip = this.context.geometry.getClip(clipId)?.clip;
+    const clip = this.resolveClip(clipId);
     if (clip?.keyframes === undefined) {
       return [];
     }
@@ -132,14 +162,7 @@ export class TimelineKeyframes {
           `keyframe property "${property}" base value`
         )
       : definition.defaultValue;
-    const keyframes = (clip.keyframes ?? [])
-      .filter((keyframe) => keyframe.property === property)
-      .filter(
-        (keyframe) =>
-          compareRational(keyframe.time, clip.timelineStart) >= 0 &&
-          compareRational(keyframe.time, clip.timelineEnd) <= 0
-      );
-    sortTimelineKeyframes(keyframes);
+    const keyframes = this.getPropertyKeys(clip, property);
 
     if (keyframes.length === 0) {
       return fallback;
@@ -162,348 +185,223 @@ export class TimelineKeyframes {
       );
     }
 
-    const exact = keyframes.find((keyframe) => isSameRationalTime(keyframe.time, timelineTime));
-    if (exact !== undefined) {
-      return this.context.keyframeProperties.clampDefinitionValue(
-        definition,
-        exact.value,
-        'keyframe value'
-      );
-    }
-
-    for (let index = 0; index < keyframes.length - 1; index++) {
-      const left = keyframes[index];
-      const right = keyframes[index + 1];
-      if (
-        compareRational(timelineTime, left.time) >= 0 &&
-        compareRational(timelineTime, right.time) <= 0
-      ) {
-        const outgoing = normalizeTimelineKeyframeSideInterpolation(
-          left.outgoing,
-          defaultTimelineOutgoingBezierHandle
-        );
-        const incoming = normalizeTimelineKeyframeSideInterpolation(
-          right.incoming,
-          defaultTimelineIncomingBezierHandle
-        );
-        const interpolation =
-          outgoing.interpolation === 'hold'
-            ? 'hold'
-            : outgoing.interpolation === 'bezier' || incoming.interpolation === 'bezier'
-              ? 'bezier'
-              : 'linear';
-        if (interpolation === 'hold') {
-          return this.context.keyframeProperties.clampDefinitionValue(
-            definition,
-            left.value,
-            'keyframe value'
-          );
-        }
-        const spanSeconds = toSeconds(subRational(right.time, left.time));
-        if (spanSeconds <= 0) {
-          return this.context.keyframeProperties.clampDefinitionValue(
-            definition,
-            right.value,
-            'keyframe value'
-          );
-        }
-        const progress = toSeconds(subRational(timelineTime, left.time)) / spanSeconds;
-        const easedProgress = getTimelineKeyframeInterpolationProgress(
-          interpolation,
-          progress,
-          outgoing.handle,
-          incoming.handle
-        );
-        const leftNormalized = this.context.keyframeProperties.normalizeDefinitionValue(
-          definition,
-          left.value,
-          'left keyframe value'
-        );
-        const rightNormalized = this.context.keyframeProperties.normalizeDefinitionValue(
-          definition,
-          right.value,
-          'right keyframe value'
-        );
-        const normalizedValue = leftNormalized + (rightNormalized - leftNormalized) * easedProgress;
-        return this.context.keyframeProperties.denormalizeDefinitionValue(
-          definition,
-          normalizedValue,
-          'interpolated keyframe value'
-        );
+    let low = 0;
+    let high = keyframes.length - 1;
+    while (high - low > 1) {
+      const mid = Math.floor((low + high) / 2);
+      if (compareRational(keyframes[mid].time, timelineTime) <= 0) {
+        low = mid;
+      } else {
+        high = mid;
       }
     }
-
-    return fallback;
+    const left = keyframes[low];
+    const right = keyframes[high];
+    const curve = resolveKeyframeCurve(left, right, this.context.keyframeProperties);
+    const span = toSeconds(subRational(right.time, left.time));
+    const progress = span <= 0 ? 1 : toSeconds(subRational(timelineTime, left.time)) / span;
+    return this.context.keyframeProperties.denormalizeDefinitionValue(
+      definition,
+      evaluateKeyframeCurve(curve, progress),
+      'interpolated keyframe value'
+    );
   }
 
   /**
    * Adds or updates one keyframe by clip, property, and exact timeline time.
    *
-   * New keyframes created without explicit side interpolation use normalized
-   * linear defaults during evaluation.
+   * Inserting between keys subdivides the surrounding curve before applying explicit values or sides.
    */
   setClipKeyframe(
     input: TimelineSetClipKeyframeOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    assertValidRationalTime(input.time, 'input.time');
-    const found = findClipInTracks(this.context.state.tracks, input.clipId);
-    if (!found || found.track.locked) {
+    const preview = this.applyEdit({ type: 'set', ...input }, options);
+    if (!preview) {
       return null;
     }
-    const value = this.clampKeyframeValue(input.property, input.value);
-    if (value === null) {
-      return null;
-    }
-
-    const time = this.clampKeyframeTimeToClip(found.clip, input.time);
-    const existing = found.clip.keyframes?.find(
-      (keyframe) => keyframe.property === input.property && isSameRationalTime(keyframe.time, time)
+    const clip = preview.changedClips.find((candidate) => candidate.id === input.clipId);
+    const time = clip ? this.clampKeyframeTimeToClip(clip, input.time) : input.time;
+    const key = clip?.keyframes?.find(
+      (candidate) =>
+        candidate.property === input.property && isSameRationalTime(candidate.time, time)
     );
-    const eventName = existing === undefined ? 'keyframe:add' : 'keyframe:update';
-
-    const keyframe =
-      (existing && cloneTimelineKeyframe(existing)) ??
-      ({
-        id: crypto.randomUUID(),
-        property: input.property,
-        time,
-        value,
-      } satisfies TimelineKeyframe);
-
-    keyframe.time = cloneRationalTime(time);
-    keyframe.value = value;
-    if (input.incoming !== undefined) {
-      keyframe.incoming = normalizeTimelineKeyframeSideInterpolation(
-        input.incoming,
-        defaultTimelineIncomingBezierHandle
-      );
-    }
-    if (input.outgoing !== undefined) {
-      keyframe.outgoing = normalizeTimelineKeyframeSideInterpolation(
-        input.outgoing,
-        defaultTimelineOutgoingBezierHandle
-      );
-    }
-
-    this.replaceClipKeyframe(found.clip, keyframe);
-    this.context.emit(eventName, {
-      clipId: input.clipId,
-      keyframe: cloneTimelineKeyframe(keyframe),
-    } satisfies ClipKeyframeChangeEvent);
-    this.commitKeyframeMutation(options);
-    return cloneTimelineKeyframe(keyframe);
+    return key ? cloneTimelineKeyframe(key) : null;
   }
 
-  /**
-   * Updates an existing keyframe.
-   *
-   * Committed updates merge keyframes that land on the same property and
-   * time. Preview updates (`{ commit: false }`) never delete a colliding
-   * neighbor; the keyframe keeps its current time instead, so drag previews
-   * stay non-destructive.
-   */
+  /** Updates an existing key; a collision rejects the complete edit. */
   updateClipKeyframe(
     input: TimelineUpdateClipKeyframeOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = findClipInTracks(this.context.state.tracks, input.clipId);
-    if (!found || found.track.locked || found.clip.keyframes === undefined) {
-      return null;
-    }
-
-    const existing = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
-    if (existing === undefined) {
-      return null;
-    }
-    const keyframe = cloneTimelineKeyframe(existing);
-
-    if (input.time !== undefined) {
-      assertValidRationalTime(input.time, 'input.time');
-    }
-    let nextTime =
-      input.time === undefined
-        ? keyframe.time
-        : this.clampKeyframeTimeToClip(found.clip, input.time);
-
-    const collision = found.clip.keyframes.find(
-      (candidate) =>
-        candidate.id !== keyframe.id &&
-        candidate.property === keyframe.property &&
-        isSameRationalTime(candidate.time, nextTime)
-    );
-    if (collision !== undefined) {
-      if (options.commit === false) {
-        // Preview updates (drags) must not destroy neighboring keyframes.
-        nextTime = keyframe.time;
-      }
-    }
-
-    keyframe.time = cloneRationalTime(nextTime);
-    if (input.value !== undefined) {
-      const value = this.clampKeyframeValue(keyframe.property, input.value);
-      if (value === null) {
-        return null;
-      }
-      keyframe.value = value;
-    }
-    if (input.incoming !== undefined) {
-      keyframe.incoming = normalizeTimelineKeyframeSideInterpolation(
-        input.incoming,
-        defaultTimelineIncomingBezierHandle
-      );
-    }
-    if (input.outgoing !== undefined) {
-      keyframe.outgoing = normalizeTimelineKeyframeSideInterpolation(
-        input.outgoing,
-        defaultTimelineOutgoingBezierHandle
-      );
-    }
-
-    this.replaceClipKeyframe(
-      found.clip,
-      keyframe,
-      options.commit === false ? undefined : collision?.id
-    );
-    this.context.emit('keyframe:update', {
-      clipId: input.clipId,
-      keyframe: cloneTimelineKeyframe(keyframe),
-    } satisfies ClipKeyframeChangeEvent);
-    this.commitKeyframeMutation(options);
-    return cloneTimelineKeyframe(keyframe);
+    return this.updatedKeyframe(input, this.applyEdit({ type: 'update', ...input }, options));
   }
 
-  /**
-   * Updates one side of an existing keyframe.
-   */
+  /** Updates one side, respecting the key's tangent coupling mode. */
   updateClipKeyframeSide(
     input: TimelineUpdateClipKeyframeSideOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
     return this.updateClipKeyframeSides(
-      {
-        clipId: input.clipId,
-        keyframeId: input.keyframeId,
-        [input.side]: input.patch,
-      },
+      { clipId: input.clipId, keyframeId: input.keyframeId, [input.side]: input.patch },
       options
     );
   }
 
-  /**
-   * Updates one or both sides of an existing keyframe.
-   */
+  /** Updates both sides atomically. */
   updateClipKeyframeSides(
     input: TimelineUpdateClipKeyframeSidesOptions,
     options: TimelineKeyframeMutationOptions = {}
   ): TimelineKeyframe | null {
-    const found = findClipInTracks(this.context.state.tracks, input.clipId);
-    if (!found || found.track.locked || found.clip.keyframes === undefined) {
-      return null;
-    }
-
-    const existing = found.clip.keyframes.find((candidate) => candidate.id === input.keyframeId);
-    if (existing === undefined || !this.context.keyframeProperties.has(existing.property)) {
-      return null;
-    }
-    const keyframe = cloneTimelineKeyframe(existing);
-
-    const patches: Array<[TimelineKeyframeSide, TimelineKeyframeSidePatch | undefined]> = [
-      ['incoming', input.incoming],
-      ['outgoing', input.outgoing],
-    ];
-    if (patches.every(([, patch]) => patch === undefined)) {
-      return null;
-    }
-
-    for (const [side, patch] of patches) {
-      if (patch === undefined) {
-        continue;
-      }
-      const fallback =
-        side === 'incoming'
-          ? defaultTimelineIncomingBezierHandle
-          : defaultTimelineOutgoingBezierHandle;
-      const current = normalizeTimelineKeyframeSideInterpolation(keyframe[side], fallback);
-      const nextInterpolation = normalizeTimelineKeyframeInterpolation(
-        patch.interpolation ?? current.interpolation
-      );
-      const nextHandle = patch.handle === null ? undefined : (patch.handle ?? current.handle);
-      keyframe[side] = normalizeTimelineKeyframeSideInterpolation(
-        {
-          interpolation: nextInterpolation,
-          handle: nextHandle,
-        },
-        fallback
-      );
-    }
-
-    this.replaceClipKeyframe(found.clip, keyframe);
-    this.context.emit('keyframe:update', {
-      clipId: input.clipId,
-      keyframe: cloneTimelineKeyframe(keyframe),
-    } satisfies ClipKeyframeChangeEvent);
-    this.commitKeyframeMutation(options);
-    return cloneTimelineKeyframe(keyframe);
+    return this.updatedKeyframe(input, this.applyEdit({ type: 'sides', ...input }, options));
   }
 
-  /**
-   * Removes a keyframe from one clip.
-   */
+  /** Removes one keyframe. */
   removeClipKeyframe(
     clipId: string,
     keyframeId: string,
     options: TimelineKeyframeMutationOptions = {}
   ): boolean {
-    const found = findClipInTracks(this.context.state.tracks, clipId);
-    if (!found || found.track.locked || found.clip.keyframes === undefined) {
-      return false;
-    }
-
-    const keyframeIndex = found.clip.keyframes.findIndex((keyframe) => keyframe.id === keyframeId);
-    if (keyframeIndex === -1) {
-      return false;
-    }
-
-    const [removed] = found.clip.keyframes.splice(keyframeIndex, 1);
-    this.context.emit('keyframe:remove', {
-      clipId,
-      keyframe: cloneTimelineKeyframe(removed),
-    } satisfies ClipKeyframeRemoveEvent);
-    this.commitKeyframeMutation(options);
-    return true;
+    return this.applyEdit({ type: 'remove', clipId, keyframeId }, options) !== null;
   }
 
-  /**
-   * Selects one keyframe and clears all other keyframe selections.
-   */
-  selectClipKeyframe(clipId: string | null, keyframeId: string | null) {
-    let selectedKeyframe: TimelineKeyframe | null = null;
+  private updatedKeyframe(input: TimelineKeyframeReference, preview: TimelineEditPreview | null) {
+    const key = preview?.changedClips
+      .find((clip) => clip.id === input.clipId)
+      ?.keyframes?.find((candidate) => candidate.id === input.keyframeId);
+    return key ? cloneTimelineKeyframe(key) : null;
+  }
+
+  private applyEdit(
+    edit: TimelineKeyframeEdit,
+    options: TimelineKeyframeMutationOptions
+  ): TimelineEditPreview | null {
+    const command: TimelineKeyframeEditCommand = { type: 'keyframes', edits: [edit] };
+    const result =
+      options.commit === false
+        ? this.context.previewEdit(command)
+        : this.context.commitEdit(command).preview;
+    if (!result.valid) {
+      if (
+        result.reason === 'invalid-range' &&
+        result.message !== 'A keyframe already exists at that time.'
+      ) {
+        throw new RangeError(result.message);
+      }
+      return null;
+    }
+    return result;
+  }
+
+  /** Selects keys using replacement, additive or toggle semantics. */
+  selectKeyframes(
+    references: readonly TimelineKeyframeReference[],
+    mode: 'replace' | 'add' | 'toggle' = 'replace'
+  ): TimelineCommandResult {
+    if (
+      references.some(
+        (ref) =>
+          !findClipInTracks(this.context.state.tracks, ref.clipId)?.clip.keyframes?.some(
+            (key) => key.id === ref.keyframeId
+          )
+      )
+    ) {
+      return timelineCommandFail('not-found');
+    }
+    const identities = new Set(
+      references.map((ref) => JSON.stringify([ref.clipId, ref.keyframeId]))
+    );
     for (const track of this.context.state.tracks) {
       for (const clip of track.clips) {
-        for (const keyframe of clip.keyframes ?? []) {
-          const selected = clip.id === clipId && keyframe.id === keyframeId;
-          keyframe.selected = selected;
-          if (selected) {
-            selectedKeyframe = keyframe;
-          }
+        for (const key of clip.keyframes ?? []) {
+          const match = identities.has(JSON.stringify([clip.id, key.id]));
+          key.selected =
+            mode === 'replace'
+              ? match
+              : mode === 'toggle' && match
+                ? !key.selected
+                : key.selected || match;
         }
       }
     }
-
-    this.context.emit('keyframe:select', {
-      clipId,
-      keyframeId,
-      keyframe: selectedKeyframe ? cloneTimelineKeyframe(selectedKeyframe) : null,
-    } satisfies ClipKeyframeSelectEvent);
+    this.context.emit('keyframe:select', { keyframes: this.getSelectedKeyframes() });
     this.context.emit('render');
+    return timelineCommandOk();
   }
 
-  /**
-   * Clears keyframe selection.
-   */
+  /** Current keyframe selection in clip/property/time order. */
+  getSelectedKeyframes(): TimelineKeyframeReference[] {
+    return this.context.state.tracks.flatMap((track) =>
+      track.clips.flatMap((clip) =>
+        (clip.keyframes ?? [])
+          .filter((key) => key.selected)
+          .map((key) => ({ clipId: clip.id, keyframeId: key.id }))
+      )
+    );
+  }
+
+  /** Clears the current keyframe selection. */
   clearKeyframeSelection() {
-    this.selectClipKeyframe(null, null);
+    return this.selectKeyframes([]);
+  }
+
+  /** Copies keys independently of the clip clipboard, preserving their relative timing. */
+  copyKeyframes(
+    references: readonly TimelineKeyframeReference[] = this.getSelectedKeyframes()
+  ): TimelineKeyframeClipboard {
+    const entries = references.flatMap((ref) => {
+      const key = this.getClipKeyframes(ref.clipId).find(
+        (candidate) => candidate.id === ref.keyframeId
+      );
+      return key ? [{ clipId: ref.clipId, keyframe: cloneTimelineKeyframe(key) }] : [];
+    });
+    const start = entries.reduce<RationalTime | undefined>(
+      (minimum, entry) =>
+        minimum === undefined ? entry.keyframe.time : minRational(minimum, entry.keyframe.time),
+      undefined
+    );
+    if (start) {
+      for (const entry of entries) {
+        entry.keyframe.time = subRational(entry.keyframe.time, start);
+      }
+    }
+    return { entries };
+  }
+
+  /** Builds an atomic paste command at a new time, optionally into one clip. */
+  createPasteCommand(
+    clipboard: TimelineKeyframeClipboard,
+    time: RationalTime,
+    clipId?: string
+  ): TimelineKeyframeEditCommand {
+    const entries = clipboard.entries.map((entry) => ({
+      keyframe: cloneTimelineKeyframe(entry.keyframe),
+      id: crypto.randomUUID(),
+      clipId: clipId ?? entry.clipId,
+    }));
+    return {
+      type: 'keyframes',
+      // Insert every anchor before restoring sides: later subdivision must not rewrite copied handles.
+      edits: [
+        ...entries.map((entry): TimelineKeyframeEdit => ({
+          type: 'set',
+          id: entry.id,
+          clipId: entry.clipId,
+          property: entry.keyframe.property,
+          value: entry.keyframe.value,
+          selected: true,
+          time: addRational(time, entry.keyframe.time),
+        })),
+        ...entries.map((entry): TimelineKeyframeEdit => ({
+          type: 'update',
+          keyframeId: entry.id,
+          clipId: entry.clipId,
+          incoming: entry.keyframe.incoming ?? { interpolation: 'linear' },
+          outgoing: entry.keyframe.outgoing ?? { interpolation: 'linear' },
+          tangentMode: entry.keyframe.tangentMode,
+        })),
+      ],
+    };
   }
 
   /**
@@ -515,6 +413,9 @@ export class TimelineKeyframes {
     this.context.geometry.forEachTimelineClipGeometry(
       options,
       (track, clip, trackIndex, clipIndex, clipRect) => {
+        if (options.clipId !== undefined && options.clipId !== clip.id) {
+          return;
+        }
         if (options.selectedClipOnly && !clip.selected) {
           return;
         }
@@ -549,7 +450,8 @@ export class TimelineKeyframes {
    * Returns keyframes intersecting the current viewport, plus optional overscan.
    */
   getVisibleKeyframes(
-    options: TimelineKeyframeGeometryOptions = {}
+    options: TimelineKeyframeGeometryOptions = {},
+    rects: readonly TimelineKeyframeRect<string>[] = this.getKeyframeRects(options)
   ): VisibleTimelineKeyframe<string>[] {
     const viewportWidth = Math.max(
       0,
@@ -563,7 +465,7 @@ export class TimelineKeyframes {
     const minY = -overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
 
-    return this.getKeyframeRects(options).filter(({ rect }) => {
+    return rects.filter(({ rect }) => {
       const rectRight = rect.x + rect.width;
       const rectBottom = rect.y + rect.height;
       if (rectRight < minX || rect.x > maxX) {
@@ -607,6 +509,9 @@ export class TimelineKeyframes {
     this.context.geometry.forEachTimelineClipGeometry(
       options,
       (track, clip, trackIndex, clipIndex, clipRect) => {
+        if (options.clipId !== undefined && options.clipId !== clip.id) {
+          return;
+        }
         if (options.selectedClipOnly && !clip.selected) {
           return;
         }
@@ -658,7 +563,8 @@ export class TimelineKeyframes {
    * Returns keyframe segments intersecting the current viewport.
    */
   getVisibleKeyframeSegments(
-    options: TimelineKeyframeSegmentGeometryOptions = {}
+    options: TimelineKeyframeSegmentGeometryOptions = {},
+    segments: readonly TimelineKeyframeSegment<string>[] = this.getKeyframeSegments(options)
   ): VisibleTimelineKeyframeSegment<string>[] {
     const viewportWidth = Math.max(
       0,
@@ -672,7 +578,7 @@ export class TimelineKeyframes {
     const minY = -overscanPixels;
     const maxY = viewportHeight === undefined ? undefined : viewportHeight + overscanPixels;
 
-    return this.getKeyframeSegments(options).filter((segment) => {
+    return segments.filter((segment) => {
       const bounds = this.getTimelineKeyframeSegmentBounds(segment);
       if (bounds.right < minX || bounds.left > maxX) {
         return false;
@@ -732,6 +638,9 @@ export class TimelineKeyframes {
         segmentId: segment.segmentId,
         property: segment.property,
         interpolation: segment.interpolation,
+        tangentHandles: segment.handles
+          .filter((handle) => handle.anchorKeyframe.selected)
+          .map((handle) => ({ point: handle.point, anchorPoint: handle.anchorPoint })),
         startPoint: segment.startPoint,
         endPoint: segment.endPoint,
       };
@@ -860,20 +769,10 @@ export class TimelineKeyframes {
       keyframeSize,
       valuePadding
     );
-    const outgoing = normalizeTimelineKeyframeSideInterpolation(
-      startKeyframe.outgoing,
-      defaultTimelineOutgoingBezierHandle
-    );
-    const incoming = normalizeTimelineKeyframeSideInterpolation(
-      endKeyframe.incoming,
-      defaultTimelineIncomingBezierHandle
-    );
-    const interpolation =
-      outgoing.interpolation === 'hold'
-        ? 'hold'
-        : outgoing.interpolation === 'bezier' || incoming.interpolation === 'bezier'
-          ? 'bezier'
-          : 'linear';
+    const curve = resolveKeyframeCurve(startKeyframe, endKeyframe, this.context.keyframeProperties);
+    const outgoing = { interpolation: curve.mode, handle: curve.control1 };
+    const incoming = { interpolation: curve.mode, handle: curve.control2 };
+    const interpolation = curve.mode;
     const segmentId = `${clip.id}:${startKeyframe.id}:${endKeyframe.id}:${startKeyframe.property}`;
     const canEdit = !track.locked;
     const base: Omit<
@@ -909,7 +808,8 @@ export class TimelineKeyframes {
       startPoint,
       endPoint,
       outgoing.handle,
-      incoming.handle
+      incoming.handle,
+      { top: clipRect.y + valuePadding, height: Math.max(1, clipRect.height - valuePadding * 2) }
     );
     const outgoingHandle = normalizeTimelineKeyframeBezierHandle(
       outgoing.handle,
@@ -1091,17 +991,5 @@ export class TimelineKeyframes {
         this.normalizeClipKeyframes(clip);
       }
     }
-  }
-
-  private commitKeyframeMutation(options: TimelineKeyframeMutationOptions) {
-    this.context.emit('render');
-    if (options.commit === false) {
-      this.context.emit('state:preview');
-      return;
-    }
-
-    this.context.invalidateContent();
-    this.context.snapshot();
-    this.context.emit('state:settled');
   }
 }

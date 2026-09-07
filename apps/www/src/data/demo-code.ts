@@ -15,6 +15,7 @@ import clipGroupingLocalStylesSource from '#www/demos/clip-grouping-import/timel
 import externalClipDropTimelineSource from '#www/demos/external-clip-drop/ExternalClipDropTimeline?raw';
 import externalClipDropDataSource from '#www/demos/external-clip-drop/timeline-demo-data?raw';
 import externalClipDropLocalStylesSource from '#www/demos/external-clip-drop/timeline-editor.css?raw';
+import keyframeInspectorSource from '#www/demos/keyframe-opacity/KeyframeInspector?raw';
 import keyframeOpacityTimelineSource from '#www/demos/keyframe-opacity/KeyframeOpacityTimeline?raw';
 import keyframeOpacityDataSource from '#www/demos/keyframe-opacity/timeline-demo-data?raw';
 import keyframeOpacityUtilsSource from '#www/demos/keyframe-opacity/keyframe-opacity-utils?raw';
@@ -192,6 +193,12 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
     tsx: toCopyableDemoSource(keyframeOpacityTimelineSource),
     css: keyframeOpacityStylesSource,
     extraTabs: [
+      {
+        id: 'keyframe-inspector',
+        label: 'Inspector',
+        code: toCopyableDemoSource(keyframeInspectorSource),
+        lang: 'tsx',
+      },
       demoClipColorsTab,
       demoInstrumentationTab,
       metricsCommonTab,
@@ -206,6 +213,7 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
     sourceFiles: {
       component: 'apps/www/src/demos/keyframe-opacity/KeyframeOpacityTimeline.tsx',
       utilities: [
+        'apps/www/src/demos/keyframe-opacity/KeyframeInspector.tsx',
         'apps/www/src/demos/keyframe-opacity/keyframe-opacity-utils.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
         'apps/www/src/lib/metrics-common.ts',

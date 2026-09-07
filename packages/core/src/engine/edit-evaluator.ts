@@ -1,5 +1,8 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
-import { filterClipKeyframesToClipRange, shiftClipKeyframes } from '#core/engine/clip-keyframes';
+import { shiftClipKeyframes } from '#core/engine/clip-keyframes';
+import { preserveClipKeyframeRange } from '#core/engine/keyframe-curves';
+import { prepareKeyframeEdit } from '#core/engine/keyframe-edits';
+import type { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
 import { defaultTimelineEditValidationResult } from '#core/engine/feedback';
 import type {
   TimelineCreatedClipEvent,
@@ -63,6 +66,7 @@ const minimumTimelineEditDurationSeconds = 0.01;
 
 export interface EditContext {
   allocateId: (key: string) => string;
+  keyframeProperties: KeyframePropertyRegistry;
   state: TimelineState;
   editPolicy: TimelineEditPolicy | undefined;
   resolveSnap: (time: RationalTime, publishFeedback?: boolean) => TimelineSnapResult | null;
@@ -104,6 +108,35 @@ function resolveTimelineEdit(
   context: EditContext,
   command: TimelineEditCommand
 ): TimelineResolvedEdit {
+  if (command.type === 'keyframes') {
+    const prepared = prepareKeyframeEdit(
+      context.state.tracks,
+      command,
+      context.keyframeProperties,
+      context.allocateId
+    );
+    const policy = prepared.validation.valid
+      ? context.editPolicy?.validateCommand?.(createPolicyContext(context, command))
+      : undefined;
+    const validation = policy && !policy.valid ? policy : prepared.validation;
+    if (!validation.valid) {
+      return createRejectedResolvedEdit(context, command, prepared.tracks, validation);
+    }
+    return {
+      ...createResolvedEdit(context, command, prepared.tracks, {
+        command,
+        valid: true,
+        reason: null,
+        snap: null,
+        changedClips: prepared.changedClips,
+        createdClips: [],
+        removedClips: [],
+        affectedRanges: [],
+        impacts: [],
+      }),
+      keyframeChanges: prepared.changes,
+    };
+  }
   const validation = validateEditCommand(context, command);
   if (!validation.valid) {
     return createRejectedResolvedEdit(
@@ -240,6 +273,13 @@ function validateBuiltInEditCommand(
   }
 
   switch (command.type) {
+    case 'keyframes':
+      return prepareKeyframeEdit(
+        context.state.tracks,
+        command,
+        context.keyframeProperties,
+        context.allocateId
+      ).validation;
     case 'move':
       return validateMoveEditCommand(context, command);
     case 'trim':
@@ -744,6 +784,8 @@ export function getEditCommandSourceClipId(
   command: TimelineEditCommand
 ): string | undefined {
   switch (command.type) {
+    case 'keyframes':
+      return command.edits[0]?.clipId;
     case 'move':
     case 'trim':
     case 'ripple-trim':
@@ -1044,7 +1086,7 @@ function resolveTrimEdit(
     command.edge === 'start'
       ? subRational(found.clip.timelineStart, oldStart)
       : subRational(found.clip.timelineEnd, oldEnd);
-  filterClipKeyframesToClipRange(found.clip);
+  preserveClipKeyframeRange(found.clip, context.keyframeProperties, context.allocateId);
   const changedClips = [createClipSnapshot(found.clip)];
   if (ripple && toSeconds(delta) !== 0) {
     for (const clip of found.track.clips) {
@@ -1275,8 +1317,8 @@ function resolveSplitEdit(
         sourceStart: addRational(clip.sourceStart, subRational(command.time, clip.timelineStart)),
         selected: false,
       });
-      filterClipKeyframesToClipRange(leftClip);
-      filterClipKeyframesToClipRange(rightClip);
+      preserveClipKeyframeRange(leftClip, context.keyframeProperties, context.allocateId);
+      preserveClipKeyframeRange(rightClip, context.keyframeProperties, context.allocateId);
       nextClips.push(leftClip, rightClip);
       splitRightClipIds.set(clip.id, rightClip.id);
       changedClips.push(createClipSnapshot(leftClip), createClipSnapshot(rightClip));
@@ -1787,8 +1829,8 @@ function resolveTrackOverwrite(context: EditContext, track: Track, winner: Clip)
           subRational(winner.timelineEnd, clip.timelineStart)
         ),
       });
-      filterClipKeyframesToClipRange(leftClip);
-      filterClipKeyframesToClipRange(rightClip);
+      preserveClipKeyframeRange(leftClip, context.keyframeProperties, context.allocateId);
+      preserveClipKeyframeRange(rightClip, context.keyframeProperties, context.allocateId);
       resultClips.push(leftClip, rightClip);
       createdClips.push(createClipSnapshot(rightClip));
       createdClipEvents.push({
@@ -1804,11 +1846,11 @@ function resolveTrackOverwrite(context: EditContext, track: Track, winner: Clip)
           subRational(winner.timelineEnd, clip.timelineStart)
         ),
       });
-      filterClipKeyframesToClipRange(changedClip);
+      preserveClipKeyframeRange(changedClip, context.keyframeProperties, context.allocateId);
       resultClips.push(changedClip);
     } else {
       const changedClip = createClipSnapshot(clip, { timelineEnd: winner.timelineStart });
-      filterClipKeyframesToClipRange(changedClip);
+      preserveClipKeyframeRange(changedClip, context.keyframeProperties, context.allocateId);
       resultClips.push(changedClip);
     }
 
@@ -1973,8 +2015,8 @@ function resolveRangeRemovalEdit(
         if (ripple) {
           shiftClipKeyframes(rightClip, subRational(fromSeconds(0, duration.r), duration));
         }
-        filterClipKeyframesToClipRange(leftClip);
-        filterClipKeyframesToClipRange(rightClip);
+        preserveClipKeyframeRange(leftClip, context.keyframeProperties, context.allocateId);
+        preserveClipKeyframeRange(rightClip, context.keyframeProperties, context.allocateId);
         resultClips.push(leftClip, rightClip);
         createdClips.push(createClipSnapshot(rightClip));
         createdClipEvents.push({
@@ -1996,12 +2038,12 @@ function resolveRangeRemovalEdit(
         if (ripple) {
           shiftClipKeyframes(changedClip, subRational(fromSeconds(0, duration.r), duration));
         }
-        filterClipKeyframesToClipRange(changedClip);
+        preserveClipKeyframeRange(changedClip, context.keyframeProperties, context.allocateId);
         resultClips.push(changedClip);
         changedClips.push(createClipSnapshot(changedClip));
       } else {
         const changedClip = createClipSnapshot(clip, { timelineEnd: command.startTime });
-        filterClipKeyframesToClipRange(changedClip);
+        preserveClipKeyframeRange(changedClip, context.keyframeProperties, context.allocateId);
         resultClips.push(changedClip);
         changedClips.push(createClipSnapshot(changedClip));
       }

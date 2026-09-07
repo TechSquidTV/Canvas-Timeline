@@ -77,6 +77,7 @@ export function cloneTimelineKeyframe(
   const next: TimelineKeyframe = {
     id: keyframe.id,
     property: keyframe.property,
+    ...(keyframe.tangentMode === undefined ? {} : { tangentMode: keyframe.tangentMode }),
     time: cloneRationalTime(keyframe.time),
     value: keyframe.value,
   };

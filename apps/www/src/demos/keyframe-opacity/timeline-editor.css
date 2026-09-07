@@ -245,7 +245,7 @@
 }
 
 .keyframe-opacity-timeline-shell {
-  --demo-editor-shell-height: 12rem;
+  --demo-editor-shell-height: 20rem;
   width: 100%;
   max-width: 100%;
   height: var(--demo-editor-shell-height);
@@ -274,4 +274,32 @@
   .media-sync-preview {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.keyframe-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.keyframe-editor-field {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+.keyframe-editor-field input,
+.keyframe-editor-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 0.25rem);
+  color: var(--foreground);
+  background: var(--background);
+  font: inherit;
+}
+.keyframe-editor-field input:focus-visible,
+.keyframe-editor-field select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
