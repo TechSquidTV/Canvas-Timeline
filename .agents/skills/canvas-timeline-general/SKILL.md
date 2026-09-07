@@ -8,6 +8,7 @@ description: Orient before engineering, refactoring, or testing in the Canvas Ti
 ## Quick Start Procedure
 
 - [ ] **Check Scope**: Use [manage-live-demos](../manage-live-demos/SKILL.md) instead if editing `apps/www/src/demos` or demo registries.
+- [ ] **Check Media Scope**: Use [canvas-timeline-media-adapters](../canvas-timeline-media-adapters/SKILL.md) for media contracts, external clocks, adapter packages, media hooks, or media integration docs. Combine it with `manage-live-demos` when media demos change.
 - [ ] **Locate Package**: Ensure changes reside in the lowest appropriate boundary (see map below).
 - [ ] **Docs**: Read [architecture.mdx](../../../apps/www/src/content/docs/architecture.mdx) for architecture and [styling.mdx](../../../apps/www/src/content/docs/styling.mdx) for styling.
 
@@ -77,21 +78,25 @@ To maintain a responsive 60fps editor, rendering and interaction are split stric
 
 Before moving docs demo code into `packages/react`, distinguish reusable timeline
 primitives from app composition. Prefer package hooks/components only when they
-expose timeline behavior or accessibility, not merely layout convenience. Adapter
-packages should own media integration details rather than pushing those concerns
-into `packages/core` or `packages/renderer`.
+expose timeline behavior or accessibility, not merely layout convenience.
+
+For media, applications own original/proxy/review/export representation policy;
+adapters own transport, decoding, rendering, audio, and content-equivalent load
+fallbacks. Framework-neutral synchronization and source contracts belong in
+Core, while preview mechanics must stay out of `packages/core` and
+`packages/renderer`.
 
 ---
 
 ## Source Hotspots
 
-- **Core**: [index.ts](../../../packages/core/src/index.ts) | [types.ts](../../../packages/core/src/types.ts) | [engine.ts](../../../packages/core/src/engine.ts) | [playback.ts](../../../packages/core/src/playback.ts) | [history.ts](../../../packages/core/src/history.ts)
+- **Core**: [index.ts](../../../packages/core/src/index.ts) | [types.ts](../../../packages/core/src/types.ts) | [engine.ts](../../../packages/core/src/engine.ts) | [playback.ts](../../../packages/core/src/playback.ts) | [media.ts](../../../packages/core/src/media.ts) | [history.ts](../../../packages/core/src/history.ts)
 - **React Components**: [components](../../../packages/react/src/components) is split into `controls`, `interactions`, `playhead`, `scrollbars`, `surface`, and `tracks`.
 - **React Hooks**: [hooks](../../../packages/react/src/hooks) is split into `clips`, `core`, `editing`, `keyframes`, `markers`, `playback`, `selection`, `tracks`, and `viewport`; public exports flow through [hooks/index.ts](../../../packages/react/src/hooks/index.ts).
 - **React Exports & Styles**: [index.ts](../../../packages/react/src/index.ts) | [components/index.ts](../../../packages/react/src/components/index.ts) | [base.css](../../../packages/react/src/base.css) | [theme.css](../../../packages/react/src/theme.css)
 - **Renderer**: [index.ts](../../../packages/renderer/src/index.ts) | [CanvasRenderer.tsx](../../../packages/renderer/src/CanvasRenderer.tsx) | [renderTimeline.ts](../../../packages/renderer/src/renderTimeline.ts) | [theme.ts](../../../packages/renderer/src/theme.ts) | [worker.ts](../../../packages/renderer/src/worker.ts)
 - **Drawers**: [clips.ts](../../../packages/renderer/src/render/clips.ts) | [tracks.ts](../../../packages/renderer/src/render/tracks.ts) | [ruler.ts](../../../packages/renderer/src/render/ruler.ts)
-- **Adapters**: [html-media-adapter/src/index.ts](../../../packages/html-media-adapter/src/index.ts) | [mediabunny-adapter/src/index.ts](../../../packages/mediabunny-adapter/src/index.ts) | [mediabunny-adapter/src/react.ts](../../../packages/mediabunny-adapter/src/react.ts)
+- **Media Hooks & Adapters**: [useTimelineMediaSync.ts](../../../packages/react/src/hooks/playback/useTimelineMediaSync.ts) | [useTimelineMediaPlayback.ts](../../../packages/react/src/hooks/playback/useTimelineMediaPlayback.ts) | [html-media-adapter/src/index.ts](../../../packages/html-media-adapter/src/index.ts) | [html-media-adapter/src/react.ts](../../../packages/html-media-adapter/src/react.ts) | [mediabunny-adapter/src/index.ts](../../../packages/mediabunny-adapter/src/index.ts) | [mediabunny-adapter/src/react.ts](../../../packages/mediabunny-adapter/src/react.ts)
 - **Docs Site**: [content/docs](../../../apps/www/src/content/docs) | [demos](../../../apps/www/src/demos) | [data/react-registry.ts](../../../apps/www/src/data/react-registry.ts) | [scripts/generate/api-reference.mjs](../../../apps/www/scripts/generate/api-reference.mjs)
 - **Quality Gates**: [repository-policy.mjs](../../../scripts/checks/repository-policy.mjs) | [react-registry.mjs](../../../scripts/checks/react-registry.mjs) | [oxlint-plugin](../../../tools/oxlint-plugin/index.mjs)
 
@@ -103,6 +108,7 @@ Run unit tests relative to your change, then verify overall status with `vp run 
 
 - **Core Engine**: [engine.test.ts](../../../packages/core/src/engine.test.ts)
 - **Hooks**: [integration tests](../../../packages/react/src/hooks/integration) are split into editing, keyframe, media, and state suites with shared typed fixtures.
+- **Media Adapters**: [HTML adapter tests](../../../packages/html-media-adapter/src/index.test.ts) | [Mediabunny adapter tests](../../../packages/mediabunny-adapter/src/index.test.ts) | [Mediabunny React tests](../../../packages/mediabunny-adapter/src/react.test.tsx)
 - **Interactions**: [ClipInteractionLayer.test.tsx](../../../packages/react/src/components/interactions/ClipInteractionLayer.test.tsx) | [tapBehavior.test.tsx](../../../packages/react/src/components/playhead/tapBehavior.test.tsx)
 - **Scrollbars**: [ViewportScrollbar.test.tsx](../../../packages/react/src/components/scrollbars/ViewportScrollbar.test.tsx) | [RangeScrollbar.test.tsx](../../../packages/react/src/rangeScrollbar/RangeScrollbar.test.tsx)
 - **Renderer & Theme**: [CanvasRenderer.test.tsx](../../../packages/renderer/src/CanvasRenderer.test.tsx) | [renderTimeline.test.ts](../../../packages/renderer/src/renderTimeline.test.ts) | [theme.test.ts](../../../packages/renderer/src/theme.test.ts)

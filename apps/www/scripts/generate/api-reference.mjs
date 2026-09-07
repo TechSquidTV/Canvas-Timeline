@@ -18,6 +18,9 @@ const externalSymbolLinkMappings = {
     ActiveLayerResult: '/packages/core/api/active-layer-result',
     ActiveLayerSelector: '/packages/core/api/active-layer-selector',
     TimelineEngine: '/packages/core/api/timeline-engine',
+    TimelineMediaError: '/packages/core/api/timeline-media-error',
+    TimelineLayerSyncDetails: '/packages/core/api/timeline-layer-sync-details',
+    TimelineMediaSyncAdapter: '/packages/core/api/timeline-media-sync-adapter',
     TimelineState: '/packages/core/api/timeline-state',
   },
   '@techsquidtv/canvas-timeline-react': {
@@ -57,6 +60,10 @@ const packageEntries = [
     slug: 'html-media-adapter',
     name: '@techsquidtv/canvas-timeline-html-media-adapter',
     entryPoint: 'packages/html-media-adapter/src/index.ts',
+    entryPoints: [
+      'packages/html-media-adapter/src/index.ts',
+      'packages/html-media-adapter/src/react.ts',
+    ],
   },
   {
     slug: 'renderer',
@@ -842,6 +849,7 @@ const warnings = packages.flatMap((packageDoc) =>
 const requiredSymbols = [
   ['core', 'TimelineEngine'],
   ['core', 'TimelineState'],
+  ['core', 'TimelineMediaSyncAdapter'],
   ['react', 'TimelineProvider'],
   ['renderer', 'CanvasRenderer'],
   ['utils', 'fromSeconds'],
@@ -890,7 +898,6 @@ function validateCuratedReactDocs(packages) {
   const curatedNames = new Set([
     'TimelineProvider',
     'TimelineProviderProps',
-    'TimelineMediaSyncAdapter',
     'UseTimelineMediaSyncOptions',
     'UseTimelineMediaSyncResult',
     'useTimelineMediaSync',
@@ -904,7 +911,6 @@ function validateCuratedReactDocs(packages) {
   const remarksLinkRequiredNames = new Set([
     'TimelineProvider',
     'TimelineProviderProps',
-    'TimelineMediaSyncAdapter',
     'UseTimelineMediaSyncOptions',
     'useTimelineMediaSync',
     'useTimelineState',

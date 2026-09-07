@@ -32,6 +32,8 @@ inspection, staging, commit naming, pushing, and avoiding duplicate PRs.
      workflow is required for PRs.
    - Breaking public API changes: call them out clearly; do not add
      backwards-compatibility aliases or fallback exports.
+   - While the suite is pre-1.0, describe breaking changes with a minor
+     Changeset and an explicit `**BREAKING:**` migration note.
 4. Run validation proportional to impact. Prefer already-documented Vite+ gates.
 5. For stacked cleanup PRs, base later PRs on the smallest earlier branch that
    provides required CI/config fixes instead of duplicating those commits.
@@ -59,6 +61,24 @@ Use the changed files as a routing map:
   support: inspect package metadata, build targets, and documented support claims.
 
 If none of these apply, state that release impact is not applicable.
+
+## Lockstep Release Policy
+
+Treat all seven public packages as one fixed release group. A publishable change
+to any member releases the entire suite at one version so compatible package
+combinations remain unambiguous. Verify the complete fixed group in
+`.changeset/config.json`; do not reason about package bumps as independent
+versions.
+
+Use `vp run changeset:status` and `vp run changeset:version` rather than invoking
+the corresponding Changesets commands directly. These repository wrappers
+temporarily mask fixed-group workspace peer edges so a coordinated pre-1.0
+release does not receive an unintended major bump, then restore the manifests.
+Snapshot and release workflows must use the same wrapper.
+
+Do not hand-edit package changelogs in feature PRs. Changesets generates version
+and changelog updates in the release PR. Review that release PR to verify every
+public package resolves to the same intended version.
 
 ## Validation Guidance
 
@@ -127,6 +147,8 @@ Mention exact checklist section numbers rather than copying checklist items.
 Pause and resolve before opening or marking ready for review when:
 
 - Public package exports changed but there is no Changeset decision.
+- A Changeset or PR describes fixed-group public packages as independently
+  versioned, or a release path bypasses the lockstep wrapper.
 - A PR adds compatibility aliases, deprecated fallbacks, or duplicate public
   APIs.
 - Docs examples or demos import private workspace paths instead of public package

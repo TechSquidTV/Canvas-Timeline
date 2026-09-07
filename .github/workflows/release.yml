@@ -119,7 +119,7 @@ jobs:
         run: vp run ci:quality
 
       - name: Version snapshot packages
-        run: vp exec changeset version --snapshot ${{ inputs.tag }}
+        run: node scripts/release/run-lockstep-changeset.mjs version --snapshot ${{ inputs.tag }}
 
       - name: Validate publishable packages
         run: vp run package:check

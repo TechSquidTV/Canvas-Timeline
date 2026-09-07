@@ -19,6 +19,9 @@ Before editing hook APIs, inspect:
 - [System architecture docs](../../../apps/www/src/content/docs/architecture.mdx)
 - [React editor hooks docs](../../../apps/www/src/content/docs/react-hooks.mdx)
 
+For `useTimelineMediaSync`, `useTimelineMediaPlayback`, or adapter React hooks,
+also use [canvas-timeline-media-adapters](../canvas-timeline-media-adapters/SKILL.md).
+
 ## Hook Shape
 
 Prefer narrow hooks whose subscription cost matches what the caller asks for:
@@ -85,9 +88,33 @@ same behavior, or fallback APIs.
   `playing`, `snapEnabled`, `selected`.
 - Commands are imperative verbs: `set*`, `clear*`, `toggle*`, `seekTo*`,
   `step*`, `move*`, `trim*`, `split*`, `delete*`.
-- Commands that can fail return `TimelineCommandResult`; include a
+- Ordinary commands that can fail return `TimelineCommandResult`; include a
   machine-readable failure reason instead of requiring consumers to infer state.
+- Media-aware `play()` returns `Promise<TimelineMediaPlayResult>` so adapter
+  failures can include a stable reason, message, and cause. Media commands that
+  await synchronization must not report success before synchronization settles.
 - Base UI-style callbacks use `onValueChange` and `onValueCommitted`.
+
+## Media Hook Guardrails
+
+- Prefer `useTimelineMediaSync()` for complete media-aware transport. Use
+  `useTimelineMediaPlayback()` directly only when implementing a lower-level
+  external-clock integration.
+- Deliver runtime failures to `onError` as `TimelineMediaError`. Treat an
+  intentional pending-play cancellation as a non-error result with
+  `reason: 'cancelled'`.
+- Share concurrent play startup, serialize adapter synchronization, and use
+  generations or equivalent ownership checks so stale promises cannot restart a
+  paused or replaced clock.
+- Pass `adapterIdentity` when the underlying resource changes. Do not require it
+  for inline callback facades that are recreated during render.
+- Create adapters and attach browser listeners in committed effects. Dispose the
+  exact created instance during cleanup, including StrictMode replay and element
+  replacement.
+- Keep source lifecycle snapshots immutable and current on every hook render.
+  Do not hide referentially new adapter state behind stale memo dependencies.
+- Keep browser audio activation non-blocking and separate degraded audio status
+  from visual transport success.
 
 ## Time And Units
 
@@ -134,6 +161,9 @@ Before finishing hook changes, check:
 - Did examples avoid broad hooks when a narrower hook is cheaper?
 - Did tests cover API shape, command results, dynamic bounds, render churn, and
   mouse/touch interaction paths where relevant?
+- For media hooks, did tests cover pending-start cancellation, concurrent play,
+  adapter replacement, loop realignment, structured errors, and StrictMode
+  resource cleanup?
 
 ## Validation
 

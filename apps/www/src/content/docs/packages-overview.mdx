@@ -49,17 +49,23 @@ into media playback.
 
 Choose the HTML media adapter when one native `<video>` or `<audio>` element
 should follow timeline transport. Start with `useHTMLTimelineMedia`, which takes
-the element ref, a `Record<sourceId, string | Blob | File>`, and the timeline
-layers you want to sync.
+an array of app-resolved `{ sourceId, input, fallbacks? }` sources and the
+timeline layers you want to sync, then attach its returned `mediaRef` to the
+element. Import React hooks from the adapter's `./react` entry point; the package
+root contains only the imperative, framework-free API.
 
 Choose the Mediabunny adapter when you need decoded frames on a canvas, local
 files/blobs, custom Mediabunny inputs, or separate visual/audio scheduling.
-Start with `useMediabunnyTimelineMedia`; it lazy-loads the `mediabunny` peer in
-the browser unless you pass your own module or loader.
+Start with `useMediabunnyTimelineMedia`; it lazy-loads the `mediabunny` peer and
+opens only active or explicitly preloaded sources. Per-source readiness and
+metadata live in `sourceStateById`.
 
 The lower-level `useTimelineMediaSync` hook and adapter factories remain useful
 when your app owns a custom media clock, multiple media surfaces, or a
-nonstandard preview pipeline.
+nonstandard preview pipeline. Read [Media adapters](/docs/media-adapters) for
+source ownership, proxy policy, fallbacks, timing, lazy lifecycle, audio, and
+external-clock range behavior. Existing integrations should also review the
+[breaking migration guide](/docs/media-adapter-migration).
 
 ## Docs versus API reference
 

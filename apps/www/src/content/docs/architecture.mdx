@@ -148,6 +148,7 @@ To understand specific areas of the model and integration layers, refer to these
 - [Keyframes](/docs/keyframes) — Animate clip properties with engine-level keyframes and headless interaction hooks.
 - [Events and lifecycle](/docs/events-and-lifecycle) — Retrieve active playhead layers, subscribe to events, and use metadata.
 - [React editor hooks](/docs/react-hooks) — Bind timeline state using domain hooks and accessibility wrappers.
+- [Media adapters](/docs/media-adapters) — Resolve source inputs, proxies, fallbacks, lazy loading, and external-clock transport.
 
 ---
 
@@ -299,12 +300,19 @@ The easiest way to start is importing `@techsquidtv/canvas-timeline`. However, t
 
 Media packages follow the same boundary rule as the rest of the architecture:
 timeline state stays serializable, while heavy media objects stay in the app or
-adapter. Clips connect to media by stable `clip.sourceId` values. The HTML media
-adapter maps those IDs to a record of URLs, blobs, or files for one native media
-element; the Mediabunny adapter maps them to source descriptors for decoded
-frame/audio preview. In React apps, `useHTMLTimelineMedia` and
-`useMediabunnyTimelineMedia` are the recommended first hooks because they create
-the adapter and connect it to timeline playback in one call.
+adapter. Framework-neutral synchronization, source timing, lifecycle, operation,
+and error contracts live in Core. Clips connect to media by stable
+`clip.sourceId` values; the application resolves an original, proxy, cache, or
+review choice and gives the adapter one matching source plus optional
+content-equivalent load fallbacks.
+
+The HTML adapter maps that registry to one native media element; Mediabunny
+loads registered sources on demand for decoded frame/audio preview. Both package
+roots are imperative and framework-free. Their React lifecycle and transport
+hooks are published from explicit `./react` entry points. Start with
+`useHTMLTimelineMedia` or `useMediabunnyTimelineMedia` in React, and read the
+[media adapter guide](/docs/media-adapters) for proxy ownership, readiness,
+preloading, timing, audio, and external-clock range behavior.
 
 ---
 

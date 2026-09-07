@@ -36,6 +36,16 @@ export interface PlaybackOptions {
   respectInOut?: boolean;
 }
 
+/** Result of advancing playback from an externally owned media clock. */
+export interface ExternalPlaybackUpdate {
+  /** Effective timeline time after boundary handling. */
+  time: RationalTime;
+  /** Whether playback continues, loops, or pauses at a boundary. */
+  action: 'continue' | 'loop' | 'pause';
+  /** Boundary responsible for a loop or pause. */
+  reason?: 'in-out' | 'duration' | 'target';
+}
+
 /**
  * Source-media interval covered by a timeline clip.
  */
@@ -137,6 +147,17 @@ export interface ActiveLayerOptions<LayerName extends string = string, TrackKind
   time?: RationalTime;
   /** Named layer selectors, such as `{ visuals, audio, subtitles, effects }`. */
   layers: Record<LayerName, ActiveLayerSelector<TrackKind>>;
+}
+
+/** Options for finding the first matching content within optional timeline bounds. */
+export interface FirstContentTimeOptions<
+  LayerName extends string = string,
+  TrackKind = string,
+> extends Pick<ActiveLayerOptions<LayerName, TrackKind>, 'layers'> {
+  /** Inclusive lower bound for matching clip start times. */
+  atOrAfter?: RationalTime;
+  /** Exclusive upper bound for matching clip start times. */
+  before?: RationalTime;
 }
 
 /**

@@ -12,11 +12,11 @@ import {
   useTimelineKeyframes,
   useTimelinePlayheadTime,
 } from '@techsquidtv/canvas-timeline-react';
-import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter';
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
 import { CanvasRenderer } from '@techsquidtv/canvas-timeline-renderer';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { Diamond, Plus, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ChangeEvent, ComponentProps } from 'react';
 import {
   Group as ResizablePanelGroup,
@@ -49,6 +49,7 @@ const keyframeValuePadding = opacityKeyframeValuePadding;
 const previewLayerSelectors = {
   visuals: { trackKind: 'visual', sourceId: sampleSourceId },
 } as const;
+const sources = [{ sourceId: sampleSourceId, input: sampleMediaUrl }] as const;
 
 interface InterpolationPreset {
   id: string;
@@ -218,14 +219,7 @@ function formatSeconds(seconds: number) {
 function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
   const { engine } = useTimeline();
   const playheadTime = useTimelinePlayheadTime();
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const sources = useMemo(
-    () => ({
-      [sampleSourceId]: sampleMediaUrl,
-    }),
-    []
-  );
   const keyframes = useTimelineKeyframes({
     clipId: opacityClipId,
     property: 'opacity',
@@ -244,17 +238,16 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
         selectedKeyframe.outgoing?.interpolation ?? selectedKeyframe.incoming?.interpolation
       )
     : null;
-  const { playing, play, pause, ready } = useHTMLTimelineMedia({
-    ref: videoRef,
+  const { mediaRef, playing, play, pause, ready } = useHTMLTimelineMedia({
     sources,
     layers: previewLayerSelectors,
-    onError: (message: string) => {
+    onError: (error) => {
       metrics?.onMediaLoadFailed?.({
         demoId: 'keyframe-opacity',
         adapter: 'html-media',
         mediaType: 'video',
       });
-      setPlaybackError(message);
+      setPlaybackError(error.message);
     },
   });
 
@@ -383,7 +376,7 @@ function KeyframeOpacitySurface({ metrics }: { metrics?: DemoMetrics }) {
       <div className="media-sync-preview keyframe-opacity-preview">
         <div className="media-sync-monitor keyframe-opacity-monitor">
           <video
-            ref={videoRef}
+            ref={mediaRef}
             className="media-sync-video keyframe-opacity-video"
             preload="metadata"
             playsInline

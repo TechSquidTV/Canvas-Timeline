@@ -14,8 +14,8 @@ export function createPlayableSources(
         source.status === 'ready' && source.file !== null && source.kind !== 'image'
     )
     .map((source) => ({
-      id: source.id,
-      blob: source.file,
+      sourceId: source.id,
+      input: source.file,
     }));
 }
 

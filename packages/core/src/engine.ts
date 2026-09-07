@@ -3,6 +3,7 @@ import type {
   TimelineClipDropFeedback,
   Marker,
   PlaybackOptions,
+  ExternalPlaybackUpdate,
   TimelineClipMoveOptions,
   TimelineClipMoveResult,
   TimelineSnapFeedback,
@@ -705,7 +706,25 @@ export class TimelineEngine extends TimelineEngineState {
    * Plays the timeline.
    */
   play(options: PlaybackOptions = {}): boolean {
+    if (this.state.playing) {
+      return false;
+    }
+    const startTime = this.playbackManager.prepareStart(options);
+    if (compareRational(startTime, this.state.playheadTime) !== 0) {
+      this.updatePlayhead(startTime);
+    }
     return this.playbackManager.play(options);
+  }
+
+  /** Resolves exhausted Out-point and loop-duration starts to the active range start. */
+  getPlaybackStartTime(options: PlaybackOptions = {}): RationalTime {
+    return this.playbackManager.prepareStart(options);
+  }
+
+  /** Advances externally clocked playback through the shared range policy. */
+  updateExternalPlaybackTime(time: RationalTime): ExternalPlaybackUpdate {
+    assertValidRationalTime(time, 'time');
+    return this.playbackManager.updateExternalTime(time);
   }
 
   /**

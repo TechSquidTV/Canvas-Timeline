@@ -10,6 +10,11 @@ import {
 } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 
+export const mediaSyncLayers = {
+  visuals: { trackKind: 'visual', sourceId: 'source-1' },
+  audio: { trackKind: 'audio', sourceId: 'source-1' },
+} as const;
+
 export const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
   id: 'opacity',
   label: 'Opacity',

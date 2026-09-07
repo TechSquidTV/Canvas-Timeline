@@ -62,11 +62,26 @@ import '@techsquidtv/canvas-timeline/base.css';
 import '@techsquidtv/canvas-timeline/theme.css';
 ```
 
+## Media adapters
+
+The `@techsquidtv/canvas-timeline/html-media` subpath re-exports the
+framework-free imperative HTML adapter. React media hooks intentionally stay in
+the focused adapter package:
+
+```tsx
+import { useHTMLTimelineMedia } from '@techsquidtv/canvas-timeline-html-media-adapter/react';
+import { useMediabunnyTimelineMedia } from '@techsquidtv/canvas-timeline-mediabunny-adapter/react';
+```
+
+Install the Mediabunny adapter and its `mediabunny` peer separately when the
+editor needs decoded canvas frames or Web Audio scheduling.
+
 ## Documentation
 
 - [Package docs](https://canvastimeline.com/packages/timeline/)
 - [API reference](https://canvastimeline.com/packages/timeline/api)
 - [Getting started](https://canvastimeline.com/docs/getting-started)
+- [Media adapter guide](https://canvastimeline.com/docs/media-adapters)
 - [Demos](https://canvastimeline.com/demos/)
 - [React registry](https://canvastimeline.com/packages/react/registry/)
 - [GitHub source](https://github.com/techsquidtv/canvas-timeline/tree/main/packages/timeline)

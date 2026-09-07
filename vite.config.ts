@@ -43,7 +43,13 @@ const packageBuildTaskName = (packageName: (typeof publishablePackageNames)[numb
 export default defineConfig({
   plugins: lazyPlugins(() => [react()]),
   resolve: {
-    alias: createWorkspaceAliases({ workspaceRoot }),
+    alias: [
+      ...createWorkspaceAliases({ workspaceRoot }),
+      {
+        find: '#mediabunny-adapter-test',
+        replacement: fileURLToPath(new URL('./packages/mediabunny-adapter/test', import.meta.url)),
+      },
+    ],
   },
   staged: {
     '*.{js,jsx,ts,tsx,mjs,cjs}': ['vp lint --fix', 'vp fmt'],

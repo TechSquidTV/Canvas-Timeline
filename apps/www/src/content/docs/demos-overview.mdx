@@ -24,9 +24,12 @@ The first starter demos are:
   playback adapters using the same source-backed preview fixture. The package
   pages lead with `useHTMLTimelineMedia` and `useMediabunnyTimelineMedia`; the
   demos use those same hooks in a complete preview surface so you can inspect
-  how `clip.sourceId`, source maps, selected layers, and transport state move
+  how `clip.sourceId`, app-resolved source registries, selected layers, and transport state move
   together. The HTML adapter demo uses one media element; separate audio/video
   track sync remains a multi-element adapter concern.
+
+Read [Media adapters](/docs/media-adapters) alongside those demos for the source
+ownership, fallback, proxy, lazy-loading, timing, audio, and error contracts.
 
 ## Documentation role
 

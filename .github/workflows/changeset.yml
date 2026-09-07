@@ -34,4 +34,4 @@ jobs:
         run: vp install --frozen-lockfile
 
       - name: Require a changeset or an empty changeset
-        run: vp exec changeset status --since=origin/${{ github.base_ref }}
+        run: node scripts/release/run-lockstep-changeset.mjs status --since=origin/${{ github.base_ref }}

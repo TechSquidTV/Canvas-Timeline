@@ -56,14 +56,23 @@
   },
   "dependencies": {
     "@techsquidtv/canvas-timeline-core": "workspace:*",
-    "@techsquidtv/canvas-timeline-react": "workspace:*",
     "@techsquidtv/canvas-timeline-utils": "workspace:*"
   },
   "peerDependencies": {
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
     "mediabunny": "^1.50.3",
     "react": "^19.2.7"
   },
+  "peerDependenciesMeta": {
+    "@techsquidtv/canvas-timeline-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@techsquidtv/canvas-timeline-react": "workspace:*",
     "mediabunny": "^1.50.8",
     "react": "^19.2.7"
   }

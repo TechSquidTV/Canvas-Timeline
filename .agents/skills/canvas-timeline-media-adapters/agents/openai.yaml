@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Canvas Timeline Media Adapters'
+  short_description: 'Design and validate timeline media adapters'
+  default_prompt: 'Use $canvas-timeline-media-adapters to design or review a Canvas Timeline media integration.'

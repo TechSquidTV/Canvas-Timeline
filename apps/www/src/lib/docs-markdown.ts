@@ -92,6 +92,7 @@ export function buildDocsIndexMarkdown(
     '- [Getting Started](/docs/getting-started) - Install the packages, create a timeline engine, and render a basic interactive timeline surface.',
     '- [System Architecture](/docs/architecture) - Understand the state model, rendering layer boundaries, and metadata separation.',
     '- [Package Boundaries](/docs/packages-overview) - Choose the right package entrypoint for your integration.',
+    '- [Media Adapters](/docs/media-adapters) - Connect native or decoded previews with app-owned source policy and lazy lifecycle controls.',
     '- [Live Demos](/docs/demos-overview) - Explore source-backed examples and inspect their code.',
     '',
     '## Architectural pillars',
