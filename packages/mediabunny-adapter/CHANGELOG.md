@@ -1,5 +1,42 @@
 # @techsquidtv/canvas-timeline-mediabunny-adapter
 
+## 0.2.0
+
+### Minor Changes
+
+- [#85](https://github.com/TechSquidTV/Canvas-Timeline/pull/85) [`e26b3f6`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e26b3f6f818a5f3ddbd8fe6b51c5dbff3003ae7b) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Fix playback at low tick rates, fractional-time HTML media recovery, and drop-frame
+  timecode cache collisions. Restore saved playback ranges, own constructor time
+  values, and reject invalid track-height batches before applying any changes.
+
+  **BREAKING:** Geometry, active-media, and keyframe queries now expose readonly
+  document records. Accept `TimelineReadonly<Clip>` and `TimelineReadonly<Track>` in
+  read-only helpers, and use engine commands to edit the document. Metadata uses
+  `TimelineMetadata`: plain objects and arrays of strings, finite numbers, booleans,
+  `null`, or `undefined`. Move Maps, Sets, Dates, buffers, class instances, and cyclic
+  data into application-owned stores keyed by clip or source ID. These values are
+  rejected instead of being retained in mutable history snapshots.
+
+- [#60](https://github.com/TechSquidTV/Canvas-Timeline/pull/60) [`ceb3dd4`](https://github.com/TechSquidTV/Canvas-Timeline/commit/ceb3dd494a3c3cadc102630803f810dfe3e75b05) Thanks [@KyleTryon](https://github.com/KyleTryon)! - **BREAKING:** Redesign Mediabunny sources and controller lifecycle around concise app-resolved inputs, lazy loading, explicit recovery, and the shared Core media contract.
+
+  Migrate `{ id, url | blob | createInput }` sources to `{ sourceId, input, fallbacks?, timing? }`. Plain URL, `URL`, `Request`, `Blob`, and `File` values can be passed directly; object inputs provide custom formats, `UrlSource` options, supplied inputs, or input factories. The adapter no longer owns original/proxy selection. Applications should resolve the representation they want and reserve `fallbacks` for equivalent delivery alternatives.
+
+  `MediabunnyAdapter` now implements `TimelineMediaSyncAdapter` directly, so pass the adapter instead of the removed nested `syncAdapter` facade. Replace `durationBySourceId` with immutable `sourceStateById` metadata and attempt diagnostics. The high-level React hook returns its owned `canvasRef`; the low-level hook accepts a resolved canvas element. Sources load when active, with `preloadSource()`, `unloadSource()`, `retrySource()`, and `replaceSource()` available for explicit lifecycle control. Audio graphs are created only for decodable audio tracks, and caller-provided `AudioContext` instances remain caller-owned.
+
+  Runtime decoder recovery is coordinated with active output work. Synchronization waits for a recoverable fallback to commit, while terminal recovery failure uses the existing `sync-failed` result and pauses high-level playback. Later seek, render, source, canvas, and disposal operations supersede stale output without allowing late frames, audio, status, errors, or notifications to publish.
+
+  Terminal failures remain visible to ticks, seeks, and preloads until an explicit retry, replacement, unload, or changed source definition resets the source. Equivalent inline React source registries preserve pending and completed imperative replacements; semantic registry changes still reconcile the complete source registry.
+
+  **BREAKING:** Mediabunny adapter disposal is terminal. New loading, decoding, rendering, or mutating work requested after `dispose()` throws or rejects; read-only state and repeated teardown calls remain safe. In-flight operations release staged resources and cannot publish after disposal.
+
+  See the [media adapter migration guide](https://canvastimeline.com/docs/media-adapter-migration) for complete examples.
+
+### Patch Changes
+
+- Updated dependencies [[`e26b3f6`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e26b3f6f818a5f3ddbd8fe6b51c5dbff3003ae7b), [`ceb3dd4`](https://github.com/TechSquidTV/Canvas-Timeline/commit/ceb3dd494a3c3cadc102630803f810dfe3e75b05), [`a961752`](https://github.com/TechSquidTV/Canvas-Timeline/commit/a9617526544f823d787dc23f2e025d52d8c49f40), [`94bd617`](https://github.com/TechSquidTV/Canvas-Timeline/commit/94bd61774e8f508a584277622899ee6ded2de709), [`46cfa6d`](https://github.com/TechSquidTV/Canvas-Timeline/commit/46cfa6dcd2bf9400e2aeb847b5e8ea5bdc2fc48d), [`91f1c26`](https://github.com/TechSquidTV/Canvas-Timeline/commit/91f1c26a251e6f613d1762f760283ee38f848173), [`706989f`](https://github.com/TechSquidTV/Canvas-Timeline/commit/706989fccae05c8b22cade17d24ceb584edfe737), [`210c46d`](https://github.com/TechSquidTV/Canvas-Timeline/commit/210c46d148aff9aa3ffeacc56a94b00e9242675f), [`3ed9794`](https://github.com/TechSquidTV/Canvas-Timeline/commit/3ed97949998bcc06f58223d830b1408c4170e9d2)]:
+  - @techsquidtv/canvas-timeline-utils@0.2.0
+  - @techsquidtv/canvas-timeline-core@0.2.0
+  - @techsquidtv/canvas-timeline-react@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
