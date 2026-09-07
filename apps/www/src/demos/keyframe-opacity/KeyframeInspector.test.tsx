@@ -88,3 +88,23 @@ it.each(['change', 'pointerUp', 'Escape', 'unmount'] as const)(
     expect(engine.getEditPreview()).toBe(preview);
   }
 );
+
+it('keeps the curve lane button synchronized when undo restores track height', () => {
+  const { engine, getByRole } = setup();
+  fireEvent.click(getByRole('button', { name: 'Expand curve lane' }));
+  expect(engine.tracks[0].height).toBe(240);
+  const slider = getByRole('slider', { name: 'Opacity' });
+  fireEvent.change(slider, { target: { value: '0.6' } });
+  fireEvent.keyUp(slider, { key: 'ArrowRight' });
+  fireEvent.click(getByRole('button', { name: 'Undo' }));
+  expect(engine.keyframes.getClipKeyframes(opacityClipId)[1].value).toBe(0.28);
+  expect(engine.tracks[0].height).toBe(64);
+  expect(getByRole('button', { name: 'Expand curve lane' }).getAttribute('aria-expanded')).toBe(
+    'false'
+  );
+  fireEvent.click(getByRole('button', { name: 'Redo' }));
+  expect(engine.tracks[0].height).toBe(240);
+  expect(getByRole('button', { name: 'Collapse curve lane' }).getAttribute('aria-expanded')).toBe(
+    'true'
+  );
+});

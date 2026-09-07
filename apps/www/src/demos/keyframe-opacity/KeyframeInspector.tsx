@@ -2,6 +2,7 @@ import {
   useTimelineEngine,
   useTimelineKeyframes,
   useTimelineKeyframeGeometry,
+  useTimelineTrack,
 } from '@techsquidtv/canvas-timeline-react';
 import type {
   TimelineKeyframe,
@@ -30,12 +31,13 @@ import {
 export function KeyframeInspector() {
   const engine = useTimelineEngine();
   const state = useTimelineKeyframes({ clipId: opacityClipId, property: 'opacity' });
+  const curveTrack = useTimelineTrack('opacity-video-track');
   const live = useTimelineKeyframeGeometry({ clipId: opacityClipId, property: 'opacity' });
   const selected = live.keyframeRects.find((entry) => entry.keyframe.selected)?.keyframe;
   const keys = state.keyframes;
   const index = keys.findIndex((key) => key.id === selected?.id);
   const [message, setMessage] = useState('');
-  const [expanded, setExpanded] = useState(false);
+  const expanded = curveTrack.height > 64;
   const clipboard = useRef<TimelineKeyframeClipboard | null>(null);
   const valueEdit = useRef<{
     keyframeId: string | undefined;
@@ -399,9 +401,7 @@ export function KeyframeInspector() {
         className="media-sync-button"
         aria-expanded={expanded}
         onClick={() => {
-          const next = !expanded;
-          setExpanded(next);
-          engine.setTrackHeight('opacity-video-track', next ? 240 : 64);
+          curveTrack.setTrackHeight(expanded ? 64 : 240);
         }}
       >
         {expanded ? 'Collapse curve lane' : 'Expand curve lane'}
