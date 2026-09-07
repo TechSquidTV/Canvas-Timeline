@@ -4,6 +4,7 @@ const allowedScopes = [
   'core',
   'demo',
   'deps',
+  'deps-dev',
   'docs',
   'html-media',
   'mediabunny',
