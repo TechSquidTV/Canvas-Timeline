@@ -37,6 +37,20 @@ function namedImportsFrom(source: string, packageName: string): string[] {
 }
 
 describe('demo code examples', () => {
+  it('preserves type-only imports with trailing commas without adding an empty binding', () => {
+    const source = [
+      'import type {',
+      '  Track,',
+      '  Clip,',
+      "} from '@techsquidtv/canvas-timeline-core';",
+      "import { Timeline } from '@techsquidtv/canvas-timeline-react';",
+    ].join('\n');
+
+    expect(toCopyableDemoSource(source).trim()).toBe(
+      "import { type Track, type Clip, Timeline } from '@techsquidtv/canvas-timeline';"
+    );
+  });
+
   it('keeps adapter imports separate from the public timeline package projection', () => {
     const source = [
       "import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';",

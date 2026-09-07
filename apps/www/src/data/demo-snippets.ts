@@ -26,9 +26,12 @@ function mergePublicPackageImports(source: string): string {
     (_statement, typeOnly, importedNames) => {
       for (const importedName of importedNames.split(',')) {
         const trimmedName = importedName.trim();
+        if (!trimmedName) {
+          continue;
+        }
         const specifier =
           typeOnly && !trimmedName.startsWith('type ') ? `type ${trimmedName}` : trimmedName;
-        if (specifier && !seen.has(specifier)) {
+        if (!seen.has(specifier)) {
           seen.add(specifier);
           specifiers.push(specifier);
         }
