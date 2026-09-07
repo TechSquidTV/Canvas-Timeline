@@ -1,5 +1,29 @@
 # @techsquidtv/canvas-timeline-utils
 
+## 0.2.0
+
+### Minor Changes
+
+- [#85](https://github.com/TechSquidTV/Canvas-Timeline/pull/85) [`e26b3f6`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e26b3f6f818a5f3ddbd8fe6b51c5dbff3003ae7b) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Fix playback at low tick rates, fractional-time HTML media recovery, and drop-frame
+  timecode cache collisions. Restore saved playback ranges, own constructor time
+  values, and reject invalid track-height batches before applying any changes.
+
+  **BREAKING:** Geometry, active-media, and keyframe queries now expose readonly
+  document records. Accept `TimelineReadonly<Clip>` and `TimelineReadonly<Track>` in
+  read-only helpers, and use engine commands to edit the document. Metadata uses
+  `TimelineMetadata`: plain objects and arrays of strings, finite numbers, booleans,
+  `null`, or `undefined`. Move Maps, Sets, Dates, buffers, class instances, and cyclic
+  data into application-owned stores keyed by clip or source ID. These values are
+  rejected instead of being retained in mutable history snapshots.
+
+- [#83](https://github.com/TechSquidTV/Canvas-Timeline/pull/83) [`3ed9794`](https://github.com/TechSquidTV/Canvas-Timeline/commit/3ed97949998bcc06f58223d830b1408c4170e9d2) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Unify editing around validated preview/commit transactions, including atomic clipboard batches. Commits re-evaluate current state, preserving intervening edits and current locks/policy. Pointer cancellation discards clip previews.
+
+  **BREAKING:** replace direct engine clip mutators with `commitEdit`; use `engine.geometry`, `engine.media`, and `engine.keyframes` for their respective queries and operations. Engine read snapshots and rational times are readonly. React context carries only the engine; use `useTimelineEngine` for imperative access. Hook/geometry APIs no longer accept an unchecked track-kind generic. Command results now discriminate success payloads and failure reasons. RangeScrollbar exposes only axis-neutral thumb offset/size names. Query first content explicitly with `engine.media.getFirstContentTime`.
+
+  Bound history by entries and serialized bytes, share unchanged history records, index active media intervals, isolate React state subscriptions, and coalesce worker updates without resending document content for viewport-only changes. Migrate package consumers and docs together.
+
+  Active-media queries own their timing values and keep returned objects outside the membership cache. Clipboard batches preserve the rejecting edit’s reason and message.
+
 ## 0.1.0
 
 ### Minor Changes
