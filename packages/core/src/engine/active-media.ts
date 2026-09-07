@@ -13,6 +13,7 @@ import type {
   ActiveLayerResult,
   ActiveLayerSelector,
   Clip,
+  TimelineReadonly,
   ClipSourceRange,
   FirstContentTimeOptions,
   TimelineState,
@@ -261,7 +262,7 @@ export class TimelineMediaQueries {
    * @param clipIdOrClip - Clip object or id to inspect.
    * @returns Source range, or `undefined` when the clip is missing.
    */
-  getClipSourceRange(clipIdOrClip: string | Clip): ClipSourceRange | undefined {
+  getClipSourceRange(clipIdOrClip: string | TimelineReadonly<Clip>): ClipSourceRange | undefined {
     const clip = this.resolveClip(clipIdOrClip);
     if (clip === undefined) {
       return undefined;
@@ -276,7 +277,7 @@ export class TimelineMediaQueries {
    * @param clipIdOrClip - Clip object or id to inspect.
    * @returns Sync key, or `undefined` when the clip is missing.
    */
-  getClipSyncKey(clipIdOrClip: string | Clip): string | undefined {
+  getClipSyncKey(clipIdOrClip: string | TimelineReadonly<Clip>): string | undefined {
     const clip = this.resolveClip(clipIdOrClip);
     if (clip === undefined) {
       return undefined;
@@ -293,7 +294,7 @@ export class TimelineMediaQueries {
    * @returns Source time, or `undefined` when the clip is missing or the time is outside the clip.
    */
   timelineTimeToSourceTime(
-    clipIdOrClip: string | Clip,
+    clipIdOrClip: string | TimelineReadonly<Clip>,
     timelineTime: RationalTime = this.context.getState().playheadTime
   ): RationalTime | undefined {
     const clip = this.resolveClip(clipIdOrClip);
@@ -312,7 +313,7 @@ export class TimelineMediaQueries {
    * @returns Timeline time, or `undefined` when the clip is missing or the source time is outside the clip.
    */
   sourceTimeToTimelineTime(
-    clipIdOrClip: string | Clip,
+    clipIdOrClip: string | TimelineReadonly<Clip>,
     sourceTime: RationalTime
   ): RationalTime | undefined {
     const clip = this.resolveClip(clipIdOrClip);
@@ -322,7 +323,7 @@ export class TimelineMediaQueries {
 
     return mapSourceTimeToTimelineTime(clip, sourceTime);
   }
-  private resolveClip(clip: string | Clip): Clip | undefined {
+  private resolveClip(clip: string | TimelineReadonly<Clip>): TimelineReadonly<Clip> | undefined {
     return typeof clip === 'string' ? this.context.getClip(clip)?.clip : clip;
   }
 }

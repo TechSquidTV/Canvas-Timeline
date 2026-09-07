@@ -2,16 +2,16 @@ import {
   timelineCommandFail,
   timelineCommandInvalidInput,
   timelineCommandOk,
-} from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+} from '@techsquidtv/canvas-timeline-core';
 import type {
+  TimelineCommandResult,
   TimelineKeyframeBezierHandle,
   TimelineKeyframePropertyId,
   TimelineKeyframeSegmentGeometryOptions,
   TimelineKeyframeSide,
   TimelineKeyframeTangentHandle,
 } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /** Pointer data needed to begin a Bezier tangent handle drag by ids. */
 export interface TimelineKeyframeTangentDragIdStartInput {

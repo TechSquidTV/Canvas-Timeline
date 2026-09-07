@@ -2,7 +2,7 @@ import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import type {
   EngineEventMap,
   TimelineEngine,
-  TimelineState,
+  TimelineStateSnapshot,
 } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 type Store = ReturnType<typeof createStore>;
@@ -20,36 +20,15 @@ const events: readonly (keyof EngineEventMap)[] = [
   'track:select',
 ];
 function createStore(engine: TimelineEngine) {
-  let engineSnapshot = engine.getState();
-  let snapshot = structuredClone(engineSnapshot) as TimelineState;
+  let snapshot = engine.getState();
   const listeners = new Set<() => void>();
   let unsubscribe: (() => void)[] = [];
   const update = () => {
-    const state = engine.getState();
-    snapshot = {
-      ...state,
-      snapFeedback:
-        state.snapFeedback === engineSnapshot.snapFeedback
-          ? snapshot.snapFeedback
-          : (structuredClone(state.snapFeedback) as TimelineState['snapFeedback']),
-      clipDropFeedback:
-        state.clipDropFeedback === engineSnapshot.clipDropFeedback
-          ? snapshot.clipDropFeedback
-          : { ...state.clipDropFeedback },
-      tracks:
-        state.tracks !== engineSnapshot.tracks
-          ? (structuredClone(state.tracks) as TimelineState['tracks'])
-          : snapshot.tracks,
-      markers:
-        state.markers !== engineSnapshot.markers
-          ? (structuredClone(state.markers) as TimelineState['markers'])
-          : snapshot.markers,
-      clipGroups:
-        state.clipGroups !== engineSnapshot.clipGroups
-          ? (structuredClone(state.clipGroups) as TimelineState['clipGroups'])
-          : snapshot.clipGroups,
-    };
-    engineSnapshot = state;
+    const next = engine.getState();
+    if (next === snapshot) {
+      return;
+    }
+    snapshot = next;
     listeners.forEach((listener) => listener());
   };
   return {
@@ -70,9 +49,59 @@ function createStore(engine: TimelineEngine) {
   };
 }
 
-/** Selects state fields with shallow equality and stable document collection identities. */
-export function useTimelineSelector<Value extends object>(
-  selector: (state: TimelineState) => Value
+function shallowEqual<Value>(previous: Value, next: Value): boolean {
+  if (Object.is(previous, next)) {
+    return true;
+  }
+  if (
+    typeof previous !== 'object' ||
+    previous === null ||
+    typeof next !== 'object' ||
+    next === null
+  ) {
+    return false;
+  }
+  if (Object.getPrototypeOf(previous) !== Object.getPrototypeOf(next)) {
+    return false;
+  }
+  if (!Array.isArray(next) && Object.getPrototypeOf(next) !== Object.prototype) {
+    return false;
+  }
+  if (Array.isArray(previous) && Array.isArray(next) && previous.length !== next.length) {
+    return false;
+  }
+  const keys = Object.keys(next) as (keyof Value)[];
+  return (
+    keys.length === Object.keys(previous).length &&
+    keys.every((key) => Object.hasOwn(previous, key) && Object.is(previous[key], next[key]))
+  );
+}
+
+/**
+ * Selects a value from the engine's immutable, settled state snapshot.
+ *
+ * @remarks
+ * Primitive results use Object.is; arrays and plain objects compare their own
+ * enumerable fields shallowly. Supply isEqual for another selection policy.
+ * This hook excludes per-frame playback and edit-preview updates. Use
+ * {@link useTimelinePlayheadTime} for a live playback readout.
+ *
+ * @param selector - Pure projection of the readonly timeline snapshot.
+ * @param isEqual - Equality check used to preserve the last selected value.
+ * @template Value - Selected value, including primitive values.
+ * @returns The selected value, updated only when its equality check changes.
+ * @example
+ * ```tsx
+ * import { useTimelineSelector } from '@techsquidtv/canvas-timeline-react';
+ * export function TrackCount() {
+ *   const count = useTimelineSelector(state => state.tracks.length);
+ *   return <output>{count}</output>;
+ * }
+ * ```
+ */
+export function useTimelineSelector<Value>(
+  selector: (state: TimelineStateSnapshot) => Value,
+  isEqual: (previous: Value, next: Value) => boolean = shallowEqual
 ): Value {
   const engine = useTimelineEngine();
   const store = useMemo(() => {
@@ -83,19 +112,14 @@ export function useTimelineSelector<Value extends object>(
     }
     return result;
   }, [engine]);
-  const previous = useRef<Value | undefined>(undefined);
+  const previous = useRef<{ value: Value } | undefined>(undefined);
   const getSnapshot = useCallback(() => {
     const next = selector(store.getSnapshot());
-    const last = previous.current;
-    if (
-      last &&
-      Object.keys(next).length === Object.keys(last).length &&
-      (Object.keys(next) as (keyof Value)[]).every((key) => Object.is(last[key], next[key]))
-    ) {
-      return last;
+    if (previous.current && isEqual(previous.current.value, next)) {
+      return previous.current.value;
     }
-    previous.current = next;
+    previous.current = { value: next };
     return next;
-  }, [selector, store]);
+  }, [selector, store, isEqual]);
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }

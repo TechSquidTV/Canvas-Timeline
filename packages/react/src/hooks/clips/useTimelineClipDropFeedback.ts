@@ -49,7 +49,7 @@ export interface UseTimelineClipDropFeedbackResult {
  *
  * @example
  * ```tsx
- * import { useTimelineClipDropFeedback } from '#react/hooks';
+ * import { useTimelineClipDropFeedback } from '@techsquidtv/canvas-timeline-react';
  *
  * export function DropStatus() {
  *   const feedback = useTimelineClipDropFeedback();

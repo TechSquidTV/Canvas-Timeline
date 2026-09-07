@@ -1,14 +1,13 @@
-import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineGeometryRevision } from '#react/hooks/core/useTimelineGeometryRevision';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import { useTimelineTracks } from '#react/hooks/tracks/useTimelineTracks';
 import type {
+  TimelineCommandResult,
+  TimelineReadonly,
   TimelineTrackGeometryOptions,
   TimelineTrackRect,
   Track,
 } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineTrackGeometry } from '#react/hooks/tracks/useTimelineTrackGeometry';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineTrackCommands } from '#react/hooks/tracks/useTimelineTrackCommands';
 import { useCallback, useMemo } from 'react';
 /**
  * Result returned by `useTimelineTrack`.
@@ -27,11 +26,11 @@ export interface UseTimelineTrackResult {
   /** Requested track id. */
   trackId: string;
   /** Current track, or null when the id is missing. */
-  track: Track | null;
+  track: TimelineReadonly<Track> | null;
   /** Zero-based track index, or -1 when the track is missing. */
   trackIndex: number;
   /** Viewport row rectangle matching canvas track geometry. */
-  rect: TimelineTrackRect | null;
+  rect: Readonly<TimelineTrackRect> | null;
   /** Whether the requested track exists. */
   exists: boolean;
   /** App-defined track kind, or null when the track is missing. */
@@ -94,7 +93,7 @@ export interface UseTimelineTrackResult {
  *
  * @example
  * ```tsx
- * import { useTimelineTrack } from '#react/hooks';
+ * import { useTimelineTrack } from '@techsquidtv/canvas-timeline-react';
  *
  * export function TrackMuteButton({ trackId }: { trackId: string }) {
  *   const track = useTimelineTrack(trackId);
@@ -115,51 +114,18 @@ export function useTimelineTrack(
   trackId: string,
   options: TimelineTrackGeometryOptions = {}
 ): UseTimelineTrackResult {
-  const engine = useTimelineEngine();
-  const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
-  const tracksState = useTimelineTracks();
-  const revision = useTimelineGeometryRevision();
-  const trackSnapshot = useMemo(() => {
-    void revision;
-    const tracks = state.tracks;
-    const trackIndex = tracks.findIndex((candidate) => candidate.id === trackId);
-    const track = trackIndex === -1 ? null : tracks[trackIndex];
-
-    if (trackIndex === -1) {
-      return {
-        track: null,
-        trackIndex,
-        rect: null,
-      };
-    }
-
-    const rect =
-      engine.geometry.getTrackRects({
-        collapsedTrackHeight: options.collapsedTrackHeight,
-        edgeThreshold: options.edgeThreshold,
-        rulerHeight: options.rulerHeight,
-        touchEdgeThreshold: options.touchEdgeThreshold,
-        trackHeight: options.trackHeight,
-        viewportWidth: options.viewportWidth,
-      })[trackIndex] ?? null;
-
-    return {
-      track,
-      trackIndex,
-      rect,
-    };
-  }, [
-    engine,
-    options.collapsedTrackHeight,
-    options.edgeThreshold,
-    options.rulerHeight,
-    options.touchEdgeThreshold,
-    options.trackHeight,
-    options.viewportWidth,
-    revision,
-    state.tracks,
-    trackId,
-  ]);
+  const rect = useTimelineTrackGeometry(trackId, options);
+  const track = useTimelineSelector((state) => {
+    const indexed = rect === null ? undefined : state.tracks[rect.trackIndex];
+    return indexed?.id === trackId
+      ? indexed
+      : (state.tracks.find((candidate) => candidate.id === trackId) ?? null);
+  }, Object.is);
+  const tracksState = useTimelineTrackCommands();
+  const trackSnapshot = useMemo(
+    () => ({ track, trackIndex: rect?.trackIndex ?? -1, rect }),
+    [track, rect]
+  );
 
   const selectTrack = useCallback(() => tracksState.selectTrack(trackId), [trackId, tracksState]);
 
@@ -217,8 +183,6 @@ export function useTimelineTrack(
     const { rect, track, trackIndex } = trackSnapshot;
 
     if (track === null) {
-      const fail = () => timelineCommandFail('not-found');
-
       return {
         trackId,
         track: null,
@@ -235,17 +199,17 @@ export function useTimelineTrack(
         locked: false,
         targeted: false,
         collapsed: false,
-        selectTrack: fail,
-        toggleVisibility: fail,
-        setVisible: fail,
-        toggleMute: fail,
-        setMuted: fail,
-        toggleLock: fail,
-        setLocked: fail,
-        setTrackHeight: fail,
-        toggleTrackTarget: fail,
-        setTrackTarget: fail,
-        setTrackGroup: fail,
+        selectTrack,
+        toggleVisibility,
+        setVisible,
+        toggleMute,
+        setMuted,
+        toggleLock,
+        setLocked,
+        setTrackHeight,
+        toggleTrackTarget,
+        setTrackTarget,
+        setTrackGroup,
       };
     }
 

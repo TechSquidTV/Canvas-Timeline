@@ -1,17 +1,17 @@
 import { flattenTimelineClips } from '#react/hooks/clips/timelineClipModel';
 import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
-import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
-import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type {
+  TimelineCommandResult,
   Clip,
+  TimelineReadonly,
   ClipHitTestInput,
   TimelineClipGroup,
   TimelineEngine,
   TimelineInteractionGeometry,
 } from '@techsquidtv/canvas-timeline-core';
+import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
+import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
+import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo } from 'react';
 export type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
@@ -46,19 +46,19 @@ export type TimelineClipUpdate = Partial<Pick<Clip, 'label' | 'opacity' | 'color
  */
 export interface UseTimelineClipsResult {
   /** Flattened timeline clips in track order. */
-  clips: TimelineClipEntry[];
+  clips: TimelineReadonly<TimelineClipEntry>[];
   /** Currently selected clip, or null when no clip is selected. */
-  selectedClip: Clip | null;
+  selectedClip: TimelineReadonly<Clip> | null;
   /** ID of the currently selected clip, or null when no clip is selected. */
   selectedClipId: string | null;
   /** ID of the track containing the selected clip, or null when no clip is selected. */
   selectedClipTrackId: string | null;
   /** All selected clips in track order. */
-  selectedClips: Clip[];
+  selectedClips: TimelineReadonly<Clip>[];
   /** IDs of all selected clips in track order. */
   selectedClipIds: string[];
   /** Selected group when the primary selected clip belongs to one. */
-  selectedGroup: TimelineClipGroup | null;
+  selectedGroup: TimelineReadonly<TimelineClipGroup> | null;
   /** Selected group id when the primary selected clip belongs to one. */
   selectedGroupId: string | null;
   /** Returns a clip lookup from the engine, including containing track and indexes. */
@@ -108,7 +108,7 @@ export interface UseTimelineClipsResult {
  *
  * @example
  * ```tsx
- * import { useTimelineClips } from '#react/hooks';
+ * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react';
  *
  * export function ClipLabelEditor() {
  *   const { selectedClip, updateClip } = useTimelineClips();
@@ -129,7 +129,7 @@ export interface UseTimelineClipsResult {
  * @example
  * ```tsx
  * import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
- * import { useTimelineClips } from '#react/hooks';
+ * import { useTimelineClips } from '@techsquidtv/canvas-timeline-react';
  *
  * export function ClipInspector() {
  *   const { selectedClip, selectedClipTrackId, timelineTimeToSourceTime } = useTimelineClips();
@@ -145,7 +145,7 @@ export interface UseTimelineClipsResult {
  *       <dt>Track</dt>
  *       <dd>{selectedClipTrackId}</dd>
  *       <dt>Source start</dt>
- *       <dd>{toSeconds(sourceTime).toFixed(2)}s</dd>
+ *       <dd>{sourceTime === undefined ? 'Outside clip' : `${toSeconds(sourceTime).toFixed(2)}s`}</dd>
  *     </dl>
  *   );
  * }
@@ -183,20 +183,21 @@ export function useTimelineClips(): UseTimelineClipsResult {
     [engine]
   );
   const getClipSourceRange = useCallback(
-    (clipIdOrClip: string | Clip) => engine.media.getClipSourceRange(clipIdOrClip),
+    (clipIdOrClip: string | TimelineReadonly<Clip>) =>
+      engine.media.getClipSourceRange(clipIdOrClip),
     [engine]
   );
   const getClipSyncKey = useCallback(
-    (clipIdOrClip: string | Clip) => engine.media.getClipSyncKey(clipIdOrClip),
+    (clipIdOrClip: string | TimelineReadonly<Clip>) => engine.media.getClipSyncKey(clipIdOrClip),
     [engine]
   );
   const timelineTimeToSourceTime = useCallback(
-    (clipIdOrClip: string | Clip, timelineTime?: RationalTime) =>
+    (clipIdOrClip: string | TimelineReadonly<Clip>, timelineTime?: RationalTime) =>
       engine.media.timelineTimeToSourceTime(clipIdOrClip, timelineTime),
     [engine]
   );
   const sourceTimeToTimelineTime = useCallback(
-    (clipIdOrClip: string | Clip, sourceTime: RationalTime) =>
+    (clipIdOrClip: string | TimelineReadonly<Clip>, sourceTime: RationalTime) =>
       engine.media.sourceTimeToTimelineTime(clipIdOrClip, sourceTime),
     [engine]
   );
@@ -232,22 +233,9 @@ export function useTimelineClips(): UseTimelineClipsResult {
     [engine]
   );
 
-  const selectTimelineClip = useCallback(
-    (clipId: string | null) => {
-      if (clipId !== null && !engine.geometry.getClip(clipId)) {
-        return timelineCommandFail('not-found');
-      }
-      selectClip(clipId);
-      return timelineCommandOk();
-    },
-    [engine, selectClip]
-  );
-
   const updateClip = useCallback(
     (clipId: string, properties: TimelineClipUpdate) => {
-      return engine.updateClipProperties(clipId, properties)
-        ? timelineCommandOk()
-        : timelineCommandFail('not-found');
+      return engine.updateClipProperties(clipId, properties);
     },
     [engine]
   );
@@ -272,7 +260,7 @@ export function useTimelineClips(): UseTimelineClipsResult {
     canTrimClip,
     canSlipClip,
     canSlideClip,
-    selectClip: selectTimelineClip,
+    selectClip,
     updateClip,
   };
 }

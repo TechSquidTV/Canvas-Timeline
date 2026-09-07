@@ -1,5 +1,5 @@
-import { timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineScrollLeft } from '#react/hooks/viewport/useTimelineScrollLeft';

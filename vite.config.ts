@@ -658,9 +658,25 @@ export default defineConfig({
       },
     },
     globals: true,
-    include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['./test-utils/setup/browser-storage.ts'],
-    globalSetup: ['./test-utils/setup/api-reference.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}'],
+          exclude: ['**/node_modules/**', '**/.git/**', 'apps/www/src/lib/api-markdown.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'docs',
+          include: ['apps/www/src/lib/api-markdown.test.ts'],
+          globalSetup: ['./test-utils/setup/api-reference.ts'],
+        },
+      },
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

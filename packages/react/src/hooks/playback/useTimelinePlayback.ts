@@ -1,8 +1,7 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineCommandResult, PlaybackOptions } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
-import type { PlaybackOptions } from '@techsquidtv/canvas-timeline-core';
 import { addRational, fromSeconds, subRational } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback } from 'react';

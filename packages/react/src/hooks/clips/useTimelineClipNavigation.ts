@@ -1,12 +1,12 @@
 import { getClipAccessibleDescription, getClipAccessibleName } from '#react/accessibility';
 import type { TimelineClipEntry } from '#react/hooks/clips/timelineClipModel';
 import { useTimelineClips } from '#react/hooks/clips/useTimelineClips';
-import { timelineCommandFail } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineEditCommands } from '#react/hooks/editing/useTimelineEditCommands';
 import { useTimelineSnapping } from '#react/hooks/editing/useTimelineSnapping';
-import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineReadonly, Clip, Track } from '@techsquidtv/canvas-timeline-core';
 import { addRational, fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import React, { useCallback, useMemo, useState } from 'react';
 /**
@@ -23,9 +23,9 @@ import React, { useCallback, useMemo, useState } from 'react';
  */
 export interface TimelineNavigableClip {
   /** Raw timeline clip represented by this navigation item. */
-  clip: Clip;
+  clip: TimelineReadonly<Clip>;
   /** Track containing the clip. */
-  track: Track<string>;
+  track: TimelineReadonly<Track<string>>;
   /** Zero-based track index in timeline order. */
   trackIndex: number;
   /** Zero-based clip index inside the track. */
@@ -62,15 +62,27 @@ export interface TimelineClipNavigationOptions {
   /** Whether navigation also selects the active clip in the engine. Defaults to false. */
   selectOnNavigate?: boolean;
   /** Optional accessible label formatter for a canvas-rendered clip. */
-  getClipAriaLabel?: (clip: Clip, track: Track<string>) => string;
+  getClipAriaLabel?: (
+    clip: TimelineReadonly<Clip>,
+    track: TimelineReadonly<Track<string>>
+  ) => string;
   /** Optional accessible description formatter for a canvas-rendered clip. */
-  getClipAriaDescription?: (clip: Clip, track: Track<string>) => string;
+  getClipAriaDescription?: (
+    clip: TimelineReadonly<Clip>,
+    track: TimelineReadonly<Track<string>>
+  ) => string;
 }
 
 function buildNavigableClips(
-  clipEntries: TimelineClipEntry<string>[],
-  getClipAriaLabel?: (clip: Clip, track: Track<string>) => string,
-  getClipAriaDescription?: (clip: Clip, track: Track<string>) => string
+  clipEntries: readonly TimelineReadonly<TimelineClipEntry<string>>[],
+  getClipAriaLabel?: (
+    clip: TimelineReadonly<Clip>,
+    track: TimelineReadonly<Track<string>>
+  ) => string,
+  getClipAriaDescription?: (
+    clip: TimelineReadonly<Clip>,
+    track: TimelineReadonly<Track<string>>
+  ) => string
 ): TimelineNavigableClip[] {
   return clipEntries.map(({ clip, clipIndex, track, trackIndex }, index) => ({
     clip,
@@ -109,7 +121,7 @@ function getActiveClipStatus(activeClip: TimelineNavigableClip | null, clipCount
  *
  * @example
  * ```tsx
- * import { useTimelineClipNavigation } from '#react/hooks';
+ * import { useTimelineClipNavigation } from '@techsquidtv/canvas-timeline-react';
  *
  * export function CanvasClipNavigator() {
  *   const clipNavigation = useTimelineClipNavigation({ selectOnNavigate: true });

@@ -1,8 +1,8 @@
-import type { Clip, ClipSourceRange } from '#core/types';
+import type { Clip, ClipSourceRange, TimelineReadonly } from '#core/types';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { addRational, compareRational, subRational } from '@techsquidtv/canvas-timeline-utils';
 
-export function createClipSourceRange(clip: Clip): ClipSourceRange {
+export function createClipSourceRange(clip: TimelineReadonly<Clip>): ClipSourceRange {
   const duration = subRational(clip.timelineEnd, clip.timelineStart);
   return {
     sourceId: clip.sourceId,
@@ -12,7 +12,7 @@ export function createClipSourceRange(clip: Clip): ClipSourceRange {
   };
 }
 
-export function createClipSyncKey(clip: Clip): string {
+export function createClipSyncKey(clip: TimelineReadonly<Clip>): string {
   return [
     clip.id,
     clip.sourceId,
@@ -26,7 +26,7 @@ export function createClipSyncKey(clip: Clip): string {
 }
 
 export function mapTimelineTimeToSourceTime(
-  clip: Clip,
+  clip: TimelineReadonly<Clip>,
   timelineTime: RationalTime
 ): RationalTime | undefined {
   if (
@@ -40,7 +40,7 @@ export function mapTimelineTimeToSourceTime(
 }
 
 export function mapSourceTimeToTimelineTime(
-  clip: Clip,
+  clip: TimelineReadonly<Clip>,
   sourceTime: RationalTime
 ): RationalTime | undefined {
   const sourceEnd = addRational(

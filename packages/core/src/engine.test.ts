@@ -2009,7 +2009,7 @@ describe('TimelineEngine', () => {
       scrollEngine.on('scroll:change', scrollChange);
 
       expect(scrollEngine.maxScrollTop).toBe(48);
-      expect(scrollEngine.removeTrack('track-3')).toBe(true);
+      expect(scrollEngine.removeTrack('track-3')).toEqual({ ok: true });
 
       expect(scrollEngine.maxScrollTop).toBe(0);
       expect(scrollEngine.scrollTop).toBe(0);

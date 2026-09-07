@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
+
+// Only the docs test project runs this setup. Reuse the normal cached docs task.
 export default function setup() {
-  execFileSync(process.execPath, ['scripts/generate/api-reference.mjs'], {
-    cwd: fileURLToPath(new URL('../../apps/www/', import.meta.url)),
+  execFileSync('vp', ['run', 'docs:api'], {
+    cwd: fileURLToPath(new URL('../../', import.meta.url)),
     stdio: 'pipe',
   });
 }

@@ -24,7 +24,7 @@ import { useMemo } from 'react';
  * @example
  * ```tsx
  * import { useMemo } from 'react';
- * import { useActiveLayers } from '#react/hooks';
+ * import { useActiveLayers } from '@techsquidtv/canvas-timeline-react';
  *
  * const previewLayers = {
  *   visuals: { trackKind: 'visual' },

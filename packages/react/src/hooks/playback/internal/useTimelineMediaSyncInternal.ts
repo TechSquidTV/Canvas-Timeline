@@ -1,5 +1,11 @@
 import { useActiveLayers } from '#react/hooks/clips/useActiveLayers';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import type {
+  TimelineCommandResult,
+  ActiveLayerResult,
+  ActiveLayerSelector,
+  PlaybackOptions,
+  TimelineMediaSyncAdapter,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import {
   MediaClockOwnership,
@@ -13,12 +19,6 @@ import { useTimelineMediaPlaybackInternal } from '#react/hooks/playback/internal
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
 import type { UseTimelineMediaPlaybackOptions } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
-import type {
-  ActiveLayerResult,
-  ActiveLayerSelector,
-  PlaybackOptions,
-  TimelineMediaSyncAdapter,
-} from '@techsquidtv/canvas-timeline-core';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /**

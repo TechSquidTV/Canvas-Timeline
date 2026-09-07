@@ -18,6 +18,7 @@ import {
 import '#www/demos/keyframe-opacity/timeline-editor.css';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import type {
+  TimelineReadonly,
   TimelineKeyframeBezierHandle,
   TimelineKeyframeInterpolation,
   TimelineKeyframeSidePatch,
@@ -93,7 +94,7 @@ function TrackKeyframeButton({
   label,
   locked,
 }: {
-  track: Track | null;
+  track: TimelineReadonly<Track> | null;
   label: string;
   locked: boolean;
 }) {

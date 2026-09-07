@@ -7,6 +7,29 @@ order: 25
 
 Upgrading existing consumers? See the [engine and state migration guide](/docs/engine-migration).
 
+## Select custom state
+
+`useTimelineSelector` reads immutable settled state without cloning the engine's
+snapshot. Primitive selections use `Object.is`; arrays and plain objects compare
+their own enumerable fields shallowly. An optional second argument supplies a
+custom equality function. Unchanged tracks and clips retain their identities
+across unrelated edits, so a selector can subscribe to one document entity.
+
+```tsx
+import { useTimelineSelector } from '@techsquidtv/canvas-timeline-react';
+
+export function TrackCount() {
+  const count = useTimelineSelector((state) => state.tracks.length);
+  return <output>{count} tracks</output>;
+}
+```
+
+Selectors do not subscribe to per-frame playback or edit previews. Use
+`useTimelinePlayheadTime` for live playback readouts. Keep selectors pure and
+change document data through commands; hook snapshots are readonly.
+
+## Choose a domain hook
+
 The React package exposes hooks for binding product chrome, interaction layers,
 media monitors, and accessible controls to a shared `TimelineEngine`.
 This page explains how to choose timeline hooks imported from

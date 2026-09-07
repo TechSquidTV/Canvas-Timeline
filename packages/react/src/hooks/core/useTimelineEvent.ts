@@ -41,7 +41,7 @@ export interface TimelineEventOptions {
  * @example
  * ```tsx
  * import { useState } from 'react';
- * import { useTimelineEvent } from '#react/hooks';
+ * import { useTimelineEvent } from '@techsquidtv/canvas-timeline-react';
  *
  * export function PlaybackRateReadout() {
  *   const [rate, setRate] = useState(1);

@@ -47,7 +47,7 @@ export interface UseTimelineTrackHeaderResult extends UseTimelineTrackResult {
  *
  * @example
  * ```tsx
- * import { useTimelineTrackHeader } from '#react/hooks';
+ * import { useTimelineTrackHeader } from '@techsquidtv/canvas-timeline-react';
  *
  * export function CustomTrackHeader({ trackId }: { trackId: string }) {
  *   const header = useTimelineTrackHeader(trackId);

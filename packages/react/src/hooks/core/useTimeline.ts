@@ -1,6 +1,6 @@
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineState } from '#react/hooks/core/useTimelineState';
-import type { TimelineEngine, TimelineState } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineEngine, TimelineStateSnapshot } from '@techsquidtv/canvas-timeline-core';
 /**
  * Engine and synchronized state returned by {@link useTimeline}.
  */
@@ -8,7 +8,7 @@ export interface UseTimelineResult {
   /** Shared engine instance that owns timeline state and commands. */
   engine: TimelineEngine;
   /** React-rendered snapshot of the current timeline state. */
-  state: TimelineState;
+  state: TimelineStateSnapshot;
 }
 
 /**
@@ -21,7 +21,7 @@ export interface UseTimelineResult {
  * slice of timeline behavior.
  *
  * @returns Timeline context containing the shared `TimelineEngine` instance and
- * the synchronized `TimelineState` snapshot.
+ * the synchronized `TimelineStateSnapshot` snapshot.
  *
  * @throws Error when called outside of `TimelineProvider`.
  *

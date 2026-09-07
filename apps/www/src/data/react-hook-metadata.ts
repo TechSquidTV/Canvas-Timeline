@@ -43,6 +43,14 @@ export interface TimelineHookMetadata {
 // useTimelineGeometryRevision stay out of this catalog until they become public.
 export const timelineHookMetadata = [
   {
+    name: 'useTimelineSelector',
+    group: 'timeline-state',
+    category: 'state',
+    reactivity: 'snapshot',
+    description:
+      'Selects primitive or object values from readonly settled state with configurable equality.',
+  },
+  {
     name: 'useTimelineEngine',
     group: 'timeline-state',
     category: 'context',

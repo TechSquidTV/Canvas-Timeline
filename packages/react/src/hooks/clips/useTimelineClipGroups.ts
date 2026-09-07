@@ -1,16 +1,20 @@
-import { timelineCommandFail, timelineCommandOk } from '#react/hooks/core/timelineCommandResult';
-import type { TimelineCommandResult } from '#react/hooks/core/timelineCommandResult';
+import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type {
+  TimelineCommandResult,
+  TimelineReadonly,
+  TimelineClipEntry,
+  TimelineClipGroup,
+} from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
 import { useTimelineSelector } from '#react/hooks/core/useTimelineSelector';
 import { useTimelineSelection } from '#react/hooks/selection/useTimelineSelection';
-import type { TimelineClipEntry, TimelineClipGroup } from '@techsquidtv/canvas-timeline-core';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 /** Result returned by `useTimelineClipGroups`. */
 export interface UseTimelineClipGroupsResult {
   /** Current clip groups. */
-  groups: TimelineClipGroup[];
+  groups: readonly TimelineReadonly<TimelineClipGroup>[];
   /** Selected clip group, or null when the primary selected clip is ungrouped. */
-  selectedGroup: TimelineClipGroup | null;
+  selectedGroup: TimelineReadonly<TimelineClipGroup> | null;
   /** Selected clip group id, or null when the primary selected clip is ungrouped. */
   selectedGroupId: string | null;
   /** Returns one clip group by id. */
@@ -39,7 +43,7 @@ export function useTimelineClipGroups(): UseTimelineClipGroupsResult {
   const engine = useTimelineEngine();
   const state = useTimelineSelector((state) => ({ clipGroups: state.clipGroups }));
   const { selectedClipIds, selectedGroup, selectedGroupId } = useTimelineSelection();
-  const groups = useMemo(() => state.clipGroups, [state.clipGroups]);
+  const groups = state.clipGroups;
 
   const getClipGroup = useCallback((groupId: string) => engine.getClipGroup(groupId), [engine]);
   const getClipGroupForClip = useCallback(

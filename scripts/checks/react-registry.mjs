@@ -15,7 +15,8 @@ const outputDir = resolve(repoRoot, 'apps/www/.generated/react-registry-snippets
 const internalHookAllowlist = new Set([
   'useTimelineExternalStore',
   'useTimelineGeometryRevision',
-  'useTimelineSelector',
+  'useTimelineTrackCommands',
+  'useTimelineTrackGeometry',
   'useTimelineMediaPlaybackInternal',
   'useTimelineMediaSyncInternal',
 ]);
@@ -385,7 +386,7 @@ async function verifyInternalHookAllowlist({ exportedTimelineHookNames }) {
     (name) => !exportedTimelineHooks.has(name) && !internalHookAllowlist.has(name)
   );
   const staleAllowlistEntries = [...internalHookAllowlist].filter(
-    (name) => !hookFileNames.includes(name)
+    (name) => !hookFileNames.includes(name) || exportedTimelineHooks.has(name)
   );
 
   if (unexpectedInternalHooks.length > 0 || staleAllowlistEntries.length > 0) {
@@ -394,7 +395,10 @@ async function verifyInternalHookAllowlist({ exportedTimelineHookNames }) {
         'Hook files neither exported nor allowlisted as internal',
         unexpectedInternalHooks
       ),
-      formatList('Internal hook allowlist entries without matching files', staleAllowlistEntries),
+      formatList(
+        'Internal hook allowlist entries without matching internal files',
+        staleAllowlistEntries
+      ),
     ]
       .filter(Boolean)
       .join('\n');

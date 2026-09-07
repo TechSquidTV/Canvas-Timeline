@@ -1,27 +1,18 @@
+import type { TimelineEditRejectionReason } from '#core/types';
 /**
  * Machine-readable reason a timeline command could not be applied.
  */
 export type TimelineCommandFailureReason =
-  | 'not-found'
-  | 'locked'
-  | 'invalid-range'
-  | 'invalid-duration'
+  | TimelineEditRejectionReason
   | 'invalid-input'
-  | 'invalid-track'
-  | 'incompatible-track-kind'
-  | 'duplicate-id'
-  | 'disabled'
   | 'content-gap'
   | 'empty-selection'
   | 'empty-clipboard'
   | 'out-of-bounds'
-  | 'policy-rejected'
-  | 'source-bounds'
-  | 'sync-failed'
-  | 'unsupported';
+  | 'sync-failed';
 
 /**
- * Consistent result returned by React hook command APIs.
+ * Consistent result returned by timeline commands in Core and React.
  *
  * @template Value - Optional successful command payload.
  */

@@ -1,3 +1,5 @@
+import { timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
+import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { deriveTimelineSelection } from '#react/hooks/clips/timelineClipModel';
 import type { TimelineSelectionState } from '#react/hooks/clips/timelineClipModel';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -21,15 +23,15 @@ export type { TimelineSelectionState } from '#react/hooks/clips/timelineClipMode
  */
 export interface UseTimelineSelectionResult extends TimelineSelectionState {
   /** Selects a clip by id, or clears clip selection when passed null. */
-  selectClip: (clipId: string | null) => void;
+  selectClip: (clipId: string | null) => TimelineCommandResult;
   /** Selects multiple clips by id, clearing clips not included. */
-  selectClips: (clipIds: readonly string[]) => void;
+  selectClips: (clipIds: readonly string[]) => TimelineCommandResult;
   /** Toggles one clip in the current multi-selection. */
-  toggleClipSelection: (clipId: string, selected?: boolean) => boolean;
+  toggleClipSelection: (clipId: string, selected?: boolean) => TimelineCommandResult;
   /** Selects a track by id, or clears track selection when passed null. */
-  selectTrack: (trackId: string | null) => void;
+  selectTrack: (trackId: string | null) => TimelineCommandResult;
   /** Clears both clip and track selection. */
-  clearSelection: () => void;
+  clearSelection: () => TimelineCommandResult;
 }
 
 /**
@@ -45,7 +47,7 @@ export interface UseTimelineSelectionResult extends TimelineSelectionState {
  *
  * @example
  * ```tsx
- * import { useTimelineSelection } from '#react/hooks';
+ * import { useTimelineSelection } from '@techsquidtv/canvas-timeline-react';
  *
  * export function SelectionSummary() {
  *   const selection = useTimelineSelection();
@@ -79,21 +81,21 @@ export function useTimelineSelection(): UseTimelineSelectionResult {
 
   const selectClip = useCallback(
     (clipId: string | null) => {
-      engine.selectClip(clipId);
+      return engine.selectClip(clipId);
     },
     [engine]
   );
 
   const selectTrack = useCallback(
     (trackId: string | null) => {
-      engine.selectTrack(trackId);
+      return engine.selectTrack(trackId);
     },
     [engine]
   );
 
   const selectClips = useCallback(
     (clipIds: readonly string[]) => {
-      engine.selectClips(clipIds);
+      return engine.selectClips(clipIds);
     },
     [engine]
   );
@@ -106,6 +108,7 @@ export function useTimelineSelection(): UseTimelineSelectionResult {
   const clearSelection = useCallback(() => {
     engine.selectClip(null);
     engine.selectTrack(null);
+    return timelineCommandOk();
   }, [engine]);
 
   return {

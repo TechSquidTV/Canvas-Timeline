@@ -1,37 +1,12 @@
-import type { TimelineState, TimelineStateSnapshot, TimelineReadonly } from '#core/types';
-import {
-  createTrackSnapshots,
-  createMarkerSnapshots,
-  createClipGroupSnapshots,
-} from '#core/snapshot';
+import { createDocumentSnapshot, shareTimelineFeedback } from '#core/document-snapshot';
+import type { TimelineState, TimelineStateSnapshot } from '#core/types';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-/** Freezes a snapshot recursively without traversing the same metadata object twice. */
-function freezeTimelineSnapshot<Value>(value: Value, seen = new WeakSet<object>()): Value {
-  if (typeof value !== 'object' || value === null || seen.has(value)) {
-    return value;
-  }
-  seen.add(value);
-  for (const key of Object.keys(value) as (keyof Value)[]) {
-    freezeTimelineSnapshot(value[key], seen);
-  }
-  return Object.freeze(value);
-}
-
 /** Reuses unchanged document collections and scalar value objects across read snapshots. */
 export function createTimelineReadSnapshot(
   state: TimelineState,
   previous: TimelineStateSnapshot | undefined,
   documentChanged: boolean
 ): TimelineStateSnapshot {
-  const share = <Value>(
-    value: Value,
-    prior: TimelineReadonly<Value> | undefined
-  ): TimelineReadonly<Value> => {
-    if (prior !== undefined && JSON.stringify(value) === JSON.stringify(prior)) {
-      return prior;
-    }
-    return freezeTimelineSnapshot(value) as TimelineReadonly<Value>;
-  };
   const time = (value: RationalTime | undefined, prior: RationalTime | undefined) =>
     value === undefined
       ? undefined
@@ -40,24 +15,19 @@ export function createTimelineReadSnapshot(
         : { ...value };
   const next: TimelineStateSnapshot = {
     ...state,
-    tracks:
-      documentChanged || !previous
-        ? share(createTrackSnapshots(state.tracks), previous?.tracks)
-        : previous.tracks,
-    markers:
-      documentChanged || !previous
-        ? share(createMarkerSnapshots(state.markers), previous?.markers)
-        : previous.markers,
-    clipGroups:
-      documentChanged || !previous
-        ? share(createClipGroupSnapshots(state.clipGroups), previous?.clipGroups)
-        : previous.clipGroups,
+    ...(documentChanged || !previous
+      ? createDocumentSnapshot(state, previous)
+      : {
+          tracks: previous.tracks,
+          markers: previous.markers,
+          clipGroups: previous.clipGroups,
+        }),
     playheadTime: time(state.playheadTime, previous?.playheadTime) ?? { ...state.playheadTime },
     inPoint: time(state.inPoint, previous?.inPoint),
     outPoint: time(state.outPoint, previous?.outPoint),
     duration: time(state.duration, previous?.duration),
-    snapFeedback: share(structuredClone(state.snapFeedback), previous?.snapFeedback),
-    clipDropFeedback: share({ ...state.clipDropFeedback }, previous?.clipDropFeedback),
+    snapFeedback: shareTimelineFeedback(state.snapFeedback, previous?.snapFeedback),
+    clipDropFeedback: shareTimelineFeedback(state.clipDropFeedback, previous?.clipDropFeedback),
   };
   if (
     previous &&

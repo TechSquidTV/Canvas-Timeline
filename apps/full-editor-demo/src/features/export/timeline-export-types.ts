@@ -1,4 +1,9 @@
-import type { Clip, TimelineState, Track } from '@techsquidtv/canvas-timeline-core';
+import type {
+  Clip,
+  TimelineStateSnapshot,
+  Track,
+  TimelineReadonly,
+} from '@techsquidtv/canvas-timeline-core';
 import type { VideoResolutionPresetId } from '#full-editor/features/project/video-settings';
 import type { EditorTrackKind } from '#full-editor/features/project/demo-project';
 import type { SourceBinSource } from '#full-editor/features/source-bin/types';
@@ -23,16 +28,16 @@ export interface TimelineExportProfile {
 export interface TimelineExportPlanInput {
   profile: TimelineExportProfile;
   sources: readonly SourceBinSource[];
-  state: TimelineState;
+  state: TimelineStateSnapshot;
 }
 
 export interface TimelineExportSegment {
-  clip: Clip;
+  clip: TimelineReadonly<Clip>;
   endSeconds: number;
   source: SourceBinSource & { file: File };
   sourceStartSeconds: number;
   startSeconds: number;
-  track: Track<EditorTrackKind>;
+  track: TimelineReadonly<Track<EditorTrackKind>>;
 }
 
 export interface TimelineExportPlan {

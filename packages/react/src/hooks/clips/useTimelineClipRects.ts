@@ -34,7 +34,7 @@ export type UseTimelineClipRectsOptions = TimelineClipGeometryOptions;
  *
  * @example
  * ```tsx
- * import { useTimelineClipRects } from '#react/hooks';
+ * import { useTimelineClipRects } from '@techsquidtv/canvas-timeline-react';
  *
  * export function SelectedClipBadges() {
  *   const rects = useTimelineClipRects();

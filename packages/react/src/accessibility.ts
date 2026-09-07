@@ -1,4 +1,4 @@
-import type { Clip, Track } from '@techsquidtv/canvas-timeline-core';
+import type { Clip, Track, TimelineReadonly } from '@techsquidtv/canvas-timeline-core';
 import { subRational, toSeconds, type RationalTime } from '@techsquidtv/canvas-timeline-utils';
 
 /**
@@ -106,7 +106,7 @@ export function formatTimelineRangeValue(
   return `${range}, duration ${formatTimelineTimeValue(duration, options)}`;
 }
 
-function getTrackLabel<TrackKind = string>(track?: Track<TrackKind>) {
+function getTrackLabel<TrackKind = string>(track?: TimelineReadonly<Track<TrackKind>>) {
   return track?.name?.trim() || track?.id;
 }
 
@@ -120,7 +120,10 @@ function getTrackLabel<TrackKind = string>(track?: Track<TrackKind>) {
  * @returns Short label suitable for `aria-label`, active-descendant text, or
  * inspector headings.
  */
-export function getClipAccessibleName<TrackKind = string>(clip: Clip, track?: Track<TrackKind>) {
+export function getClipAccessibleName<TrackKind = string>(
+  clip: TimelineReadonly<Clip>,
+  track?: TimelineReadonly<Track<TrackKind>>
+) {
   const clipLabel = clip.label?.trim() || clip.id;
   const trackLabel = getTrackLabel(track);
   return trackLabel ? `${clipLabel} on ${trackLabel}` : clipLabel;
@@ -137,8 +140,8 @@ export function getClipAccessibleName<TrackKind = string>(clip: Clip, track?: Tr
  * flags.
  */
 export function getClipAccessibleDescription<TrackKind = string>(
-  clip: Clip,
-  track?: Track<TrackKind>
+  clip: TimelineReadonly<Clip>,
+  track?: TimelineReadonly<Track<TrackKind>>
 ) {
   const duration = subRational(clip.timelineEnd, clip.timelineStart);
   const parts = [

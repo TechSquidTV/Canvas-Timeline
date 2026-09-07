@@ -8,6 +8,7 @@ import type {
   TimelineTrackGeometryOptions,
   TimelineTrackHitTestResult,
   Track,
+  TimelineReadonly,
   TrackHitTestInput,
 } from '@techsquidtv/canvas-timeline-core';
 import { useCallback, useMemo } from 'react';
@@ -27,9 +28,9 @@ export interface TimelineTrackDropContext {
   /** Clip being moved. */
   clip: Clip;
   /** Track that contained the clip at drag start. */
-  sourceTrack: Track;
+  sourceTrack: TimelineReadonly<Track>;
   /** Candidate destination track. */
-  targetTrack: Track;
+  targetTrack: TimelineReadonly<Track>;
   /** Source track index at drag start. */
   sourceTrackIndex: number;
   /** Candidate destination track index. */
@@ -84,9 +85,11 @@ export interface UseTimelineTrackDropTargetsOptions extends TimelineTrackGeometr
  */
 export interface UseTimelineTrackDropTargetsResult {
   /** Viewport-space track rows in timeline order. */
-  trackTargets: TimelineTrackHitTestResult[];
+  trackTargets: TimelineReadonly<TimelineTrackHitTestResult>[];
   /** Hit-tests timeline tracks in viewport coordinates. */
-  getTrackAtViewportPoint: (input: TrackHitTestInput) => TimelineTrackHitTestResult | null;
+  getTrackAtViewportPoint: (
+    input: TrackHitTestInput
+  ) => TimelineReadonly<TimelineTrackHitTestResult> | null;
   /** Resolves whether one clip may drop on one candidate track. */
   canDropClipOnTrack: (
     clipId: string,
@@ -102,8 +105,8 @@ const acceptedDropResult: TimelineTrackDropResult = {
 };
 
 function isTrackDropTarget(
-  target: TimelineTrackHitTestResult | null
-): target is TimelineTrackHitTestResult {
+  target: TimelineReadonly<TimelineTrackHitTestResult> | null
+): target is TimelineReadonly<TimelineTrackHitTestResult> {
   return target !== null;
 }
 
@@ -143,7 +146,7 @@ function normalizeGuardResult(
  *
  * @example
  * ```tsx
- * import { useTimelineTrackDropTargets } from '#react/hooks';
+ * import { useTimelineTrackDropTargets } from '@techsquidtv/canvas-timeline-react';
  *
  * export function TrackDropOverlay({ clipId }: { clipId: string }) {
  *   const targets = useTimelineTrackDropTargets({
