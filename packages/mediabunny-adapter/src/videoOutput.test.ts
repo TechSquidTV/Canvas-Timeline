@@ -7,6 +7,7 @@ import {
   type MockCanvasSink,
   type MockAudioSink,
   type MockWrappedCanvas,
+  type MockWrappedAudioBuffer,
 } from '#mediabunny-adapter-test/testHelpers';
 
 const {
@@ -730,6 +731,79 @@ test('createMediabunnyAdapter falls back after a runtime video iterator failure'
   nowMilliseconds = 2_000;
   expect(adapter.getClockTime()).toBe(2);
 });
+
+test.each(['video', 'audio'] as const)(
+  'createMediabunnyAdapter preserves a settled terminal %s failure until explicitly retried',
+  async (output) => {
+    const decoderError = new Error('terminal decoder failure');
+    let failNextIterator = true;
+    const canvasSink: MockCanvasSink = {
+      getCanvas: vi.fn(async (timestamp) => ({
+        canvas: document.createElement('canvas'),
+        timestamp,
+        duration: 1 / 30,
+      })),
+      canvases: vi.fn(async function* () {
+        if (output === 'video' && failNextIterator) {
+          failNextIterator = false;
+          yield await Promise.reject<MockWrappedCanvas>(decoderError);
+        }
+      }),
+    };
+    const audioSink: MockAudioSink = {
+      buffers: vi.fn(async function* () {
+        if (output === 'audio' && failNextIterator) {
+          failNextIterator = false;
+          yield await Promise.reject<MockWrappedAudioBuffer>(decoderError);
+        }
+      }),
+    };
+    const mock = createMockMediabunny(
+      [
+        createMockInput({ audioTrack: createMockAudioTrack() }),
+        createMockInput({ audioTrack: createMockAudioTrack() }),
+      ],
+      { canvasSink, audioSink }
+    );
+    const adapter = createMediabunnyAdapter({
+      canvas: output === 'video' ? document.createElement('canvas') : null,
+      mediabunny: mock.module,
+      sources: [urlSource('source-1', 'https://media.example/video.mp4')],
+    });
+    const clip = createActiveClip(output === 'video' ? 'visual' : 'audio', 'source-1', 1);
+    const activeLayers = createActiveLayers([clip], 1);
+    try {
+      await adapter.seek(fromSeconds(1), activeLayers);
+      expect(adapter.startClock(fromSeconds(1), 1)).toBe(true);
+      await adapter.syncLayers({ timelineTime: fromSeconds(1), reason: 'play', activeLayers });
+      await vi.waitFor(() => {
+        expect(adapter.sourceStateById.get('source-1')?.status).toBe('failed');
+      });
+      const failedState = adapter.sourceStateById.get('source-1');
+      await expect(
+        adapter.syncLayers({ timelineTime: fromSeconds(1.1), reason: 'tick', activeLayers })
+      ).rejects.toBe(failedState?.error);
+      await expect(adapter.seek(fromSeconds(1), activeLayers)).rejects.toBe(failedState?.error);
+      await expect(adapter.preloadSource('source-1')).resolves.toMatchObject({
+        ok: false,
+        error: failedState?.error,
+      });
+      expect(adapter.sourceStateById.get('source-1')).toBe(failedState);
+      expect(mock.constructInput).toHaveBeenCalledTimes(1);
+
+      adapter.stopClock();
+      await expect(adapter.retrySource('source-1')).resolves.toMatchObject({
+        ok: true,
+        state: 'ready',
+      });
+      await expect(adapter.seek(fromSeconds(1), activeLayers)).resolves.toBeUndefined();
+      expect(mock.constructInput).toHaveBeenCalledTimes(2);
+      expect(adapter.sourceStateById.get('source-1')?.status).toBe('ready');
+    } finally {
+      adapter.dispose();
+    }
+  }
+);
 
 test('createMediabunnyAdapter lets a newer active-source request supersede a delayed request', async () => {
   const firstInput = createMockInput();

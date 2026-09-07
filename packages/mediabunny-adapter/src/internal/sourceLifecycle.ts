@@ -358,6 +358,16 @@ export class MediabunnySourceLifecycle {
       return existingPromise;
     }
 
+    const sourceState = this.getState(sourceId);
+    if (sourceState?.status === 'failed' && sourceState.error !== null) {
+      return Promise.resolve({
+        ok: false,
+        sourceId,
+        reason: 'load-failed',
+        error: sourceState.error,
+      });
+    }
+
     sourceOperation.recovery = null;
     const token = this.beginLoad(sourceId);
     const loadPromise = this.#loadSource(source, { status: 'loading', token }).finally(() => {
@@ -954,6 +964,23 @@ function isSupersededSourceLoadResult(
   result: TimelineMediaSourceOperationResult
 ): result is Extract<TimelineMediaSourceOperationResult, { ok: false }> {
   return !result.ok && result.error instanceof SupersededSourceLoadError;
+}
+
+export function areMediabunnySourceRegistriesEqual(
+  left: readonly MediabunnySource[],
+  right: readonly MediabunnySource[]
+) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const rightById = new Map(right.map((source) => [source.sourceId, source]));
+  return (
+    rightById.size === right.length &&
+    left.every((source) => {
+      const other = rightById.get(source.sourceId);
+      return other !== undefined && areMediabunnySourcesEqual(source, other);
+    })
+  );
 }
 
 function areMediabunnySourcesEqual(left: MediabunnySource, right: MediabunnySource) {

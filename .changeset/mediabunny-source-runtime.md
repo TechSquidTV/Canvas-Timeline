@@ -10,6 +10,8 @@ Migrate `{ id, url | blob | createInput }` sources to `{ sourceId, input, fallba
 
 Runtime decoder recovery is coordinated with active output work. Synchronization waits for a recoverable fallback to commit, while terminal recovery failure uses the existing `sync-failed` result and pauses high-level playback. Later seek, render, source, canvas, and disposal operations supersede stale output without allowing late frames, audio, status, errors, or notifications to publish.
 
+Terminal failures remain visible to ticks, seeks, and preloads until an explicit retry, replacement, unload, or changed source definition resets the source. Equivalent inline React source registries preserve pending and completed imperative replacements; semantic registry changes still reconcile the complete source registry.
+
 **BREAKING:** Mediabunny adapter disposal is terminal. New loading, decoding, rendering, or mutating work requested after `dispose()` throws or rejects; read-only state and repeated teardown calls remain safe. In-flight operations release staged resources and cannot publish after disposal.
 
 See the [media adapter migration guide](https://canvastimeline.com/docs/media-adapter-migration) for complete examples.

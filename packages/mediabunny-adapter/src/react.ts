@@ -13,6 +13,7 @@ import {
   type UseTimelineMediaSyncResult,
 } from '@techsquidtv/canvas-timeline-react';
 import { createMediabunnyAdapter } from '#mediabunny-adapter/createMediabunnyAdapter';
+import { areMediabunnySourceRegistriesEqual } from '#mediabunny-adapter/internal/sourceLifecycle';
 import type {
   CreateMediabunnyAdapterOptions,
   MediabunnyAdapter,
@@ -165,7 +166,9 @@ function useStableStringArray(values: readonly string[] | undefined) {
  * {@link useTimelineMediaSync} manually, inspect decoded frame state, or share
  * one adapter across custom preview controls. For a ready-made transport hook,
  * use {@link useMediabunnyTimelineMedia}. Ordinary URL source arrays are
- * reconciled by value; keep factories, track selectors, and custom option
+ * reconciled by value, preserving imperative replacements across equivalent
+ * props. Semantic prop changes reconcile the complete registry. Keep factories,
+ * track selectors, and custom option
  * objects stable because their identity represents executable policy. Pass the
  * currently resolved canvas element; changing it updates the adapter without
  * recreating source inputs.
@@ -213,6 +216,10 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const [adapter, setAdapter] = useState<MediabunnyAdapter>(noopAdapter);
   const ownedAdapterRef = useRef<MediabunnyAdapter>(noopAdapter);
+  const reconciledSourcesRef = useRef<{
+    adapter: MediabunnyAdapter;
+    sources: UseMediabunnyAdapterOptions['sources'];
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -254,9 +261,18 @@ export function useMediabunnyAdapter(options: UseMediabunnyAdapterOptions): Medi
   ]);
 
   useEffect(() => {
-    if (ownedAdapterRef.current === adapter) {
-      adapter.setSources(sources);
+    if (ownedAdapterRef.current !== adapter) {
+      return;
     }
+    const previous = reconciledSourcesRef.current;
+    if (
+      previous?.adapter === adapter &&
+      areMediabunnySourceRegistriesEqual(previous.sources, sources)
+    ) {
+      return;
+    }
+    adapter.setSources(sources);
+    reconciledSourcesRef.current = { adapter, sources };
   }, [adapter, sources]);
 
   useEffect(() => {

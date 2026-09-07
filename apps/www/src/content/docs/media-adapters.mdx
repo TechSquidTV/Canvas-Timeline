@@ -47,6 +47,9 @@ const sources = [
 application selected for this preview session. Ordinary inline URL descriptors
 do not need `useMemo`; hooks reconcile definitions and preserve adapters and
 loaded media when values have not changed.
+Equivalent React source props also preserve pending and completed imperative
+`replaceSource()` calls. A semantic change to the supplied registry still
+reconciles the complete registry and supersedes pending replacements.
 
 Use `fallbacks` only for ordered, content-equivalent ways to load the same
 choice—for example, an HLS endpoint followed by a direct file, or a CDN URL
@@ -188,6 +191,9 @@ When synchronization reaches a source whose decoder is recovering, it waits for
 the fallback controller to commit. If recovery exhausts the source's fallback
 chain, synchronization reports `sync-failed` and the high-level transport
 pauses; superseded recovery work cannot publish an error.
+Terminal failures remain observable on later ticks, seeks, and preload requests
+until `retrySource()`, `replaceSource()`, an unload, or a changed source definition
+explicitly resets that source.
 
 ## Apply playback ranges and errors
 
