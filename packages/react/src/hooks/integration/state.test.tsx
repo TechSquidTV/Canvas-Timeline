@@ -200,6 +200,39 @@ test('useTimelineClipboard exposes reactive clipboard state and command results'
   expect(engine.tracks[0].clips).toHaveLength(2);
 });
 
+test('clipboard batches report the rejecting edit and leave the document unchanged', () => {
+  const engine = new TimelineEngine({
+    tracks: [
+      createTrack('video', [
+        createClip('first', 0, 2, { selected: true }),
+        createClip('second', 3, 5, { selected: true }),
+      ]),
+    ],
+  });
+  engine.setEditPolicy({
+    validateCommand: ({ command }) =>
+      command.type === 'overwrite' && command.clip.sourceId === 'second-source'
+        ? { valid: false, reason: 'policy-rejected', message: 'Second source cannot be pasted' }
+        : undefined,
+  });
+  const { result } = renderHook(() => useTimelineClipboard(), {
+    wrapper: ({ children }) => <TimelineProvider engine={engine}>{children}</TimelineProvider>,
+  });
+  const before = engine.getState().tracks;
+  act(() => {
+    result.current.copySelection();
+  });
+  act(() => {
+    expect(result.current.pasteSelection(fromSeconds(10), 'video')).toEqual({
+      ok: false,
+      reason: 'policy-rejected',
+      message: 'Second source cannot be pasted',
+    });
+  });
+  expect(engine.getState().tracks).toBe(before);
+  expect(engine.canUndo).toBe(false);
+});
+
 test('useTimelineMarkers exposes marker commands without live playhead renders', () => {
   const engine = new TimelineEngine({
     duration: fromSeconds(10),

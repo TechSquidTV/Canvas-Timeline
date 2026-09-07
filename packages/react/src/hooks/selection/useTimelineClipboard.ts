@@ -82,7 +82,8 @@ export function useTimelineClipboard(): UseTimelineClipboardResult {
       if (!results?.length) {
         return timelineCommandFail('not-found');
       }
-      const failed = results.find((result) => !result.committed);
+      // Earlier valid edits are also uncommitted after rollback; report the rejecting edit.
+      const failed = results.find((result) => !result.preview.valid);
       return failed
         ? timelineCommandFail(failed.preview.reason ?? 'unsupported', failed.preview.message)
         : timelineCommandOk();

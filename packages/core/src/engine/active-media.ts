@@ -31,7 +31,7 @@ export class TimelineMediaQueries {
 
   private timeIndexes = new WeakMap<Track, { revision: number; index: ClipTimeIndex }>();
   private activeMediaCache:
-    | { revision: number; time: RationalTime; clips: ActiveClip[] }
+    | { revision: number; time: RationalTime; entries: Pick<ActiveClip, 'track' | 'clip'>[] }
     | undefined;
 
   /**
@@ -46,36 +46,38 @@ export class TimelineMediaQueries {
    * @returns Active clips with computed source-media timestamps.
    */
   getActiveClips(time: RationalTime = this.context.getState().playheadTime): ActiveClip[] {
-    const revision = this.context.getState().contentRevision;
+    const state = this.context.getState();
+    const revision = state.contentRevision;
     if (
-      this.activeMediaCache?.revision === revision &&
-      compareRational(this.activeMediaCache.time, time) === 0
+      this.activeMediaCache?.revision !== revision ||
+      compareRational(this.activeMediaCache.time, time) !== 0
     ) {
-      return this.activeMediaCache.clips;
-    }
-    const activeClips: ActiveClip[] = [];
-
-    for (const track of this.context.getState().tracks) {
-      if (!track.visible || track.muted) {
-        continue;
-      }
-      let cached = this.timeIndexes.get(track);
-      if (!cached || cached.revision !== revision) {
-        cached = { revision, index: new ClipTimeIndex(track.clips) };
-        this.timeIndexes.set(track, cached);
-      }
-      for (const clip of cached.index.at(time)) {
-        if (clip.disabled) {
+      const entries: Pick<ActiveClip, 'track' | 'clip'>[] = [];
+      for (const track of state.tracks) {
+        if (!track.visible || track.muted) {
           continue;
         }
-        const activeClip = this.createActiveClip(track, clip, time);
-        if (activeClip !== undefined) {
-          activeClips.push(activeClip);
+        let cached = this.timeIndexes.get(track);
+        if (!cached || cached.revision !== revision) {
+          cached = { revision, index: new ClipTimeIndex(track.clips) };
+          this.timeIndexes.set(track, cached);
+        }
+        for (const clip of cached.index.at(time)) {
+          if (!clip.disabled) {
+            entries.push({ track, clip });
+          }
         }
       }
+      // Cache membership only; caller-owned times and public result objects must stay outside it.
+      this.activeMediaCache = { revision, time: { ...time }, entries };
     }
-
-    this.activeMediaCache = { revision, time, clips: activeClips };
+    const activeClips: ActiveClip[] = [];
+    for (const { track, clip } of this.activeMediaCache.entries) {
+      const activeClip = this.createActiveClip(track, clip, time);
+      if (activeClip !== undefined) {
+        activeClips.push(activeClip);
+      }
+    }
     return activeClips;
   }
 
@@ -246,7 +248,7 @@ export class TimelineMediaQueries {
     return {
       track,
       clip,
-      timelineTime,
+      timelineTime: { ...timelineTime },
       sourceTime,
       sourceRange,
       syncKey,

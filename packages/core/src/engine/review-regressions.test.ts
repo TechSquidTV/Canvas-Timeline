@@ -138,6 +138,32 @@ describe('document transaction boundaries', () => {
     expect(engine.geometry.getClip('clip')?.clip.label).toBe('large');
   });
 
+  it('owns the active-query time independently of the caller', () => {
+    const engine = new TimelineEngine({
+      tracks: [track('a', [clip('first', 0, 2), clip('second', 3, 5)])],
+    });
+    const time = { v: 1, r: 1 };
+    const initial = engine.media.getActiveClips(time);
+    time.v = 4;
+    expect(initial[0].timelineTime).toEqual({ v: 1, r: 1 });
+    expect(engine.media.getActiveClips(time).map(({ clip }) => clip.id)).toEqual(['second']);
+  });
+
+  it('keeps returned arrays and derived timing out of its active-media cache', () => {
+    const engine = new TimelineEngine({ tracks: [track('a', [clip('first', 0, 2)])] });
+    const active = engine.media.getActiveClips(fromSeconds(1));
+    const entry = expectDefined(active[0], 'active clip');
+    entry.sourceTime = fromSeconds(100);
+    Object.assign(entry.sourceRange.start, { v: 999 });
+    Object.assign(entry.timelineTime, { v: 999 });
+    active.pop();
+    const again = engine.media.getActiveClips(fromSeconds(1));
+    expect(again.map(({ clip }) => clip.id)).toEqual(['first']);
+    expect(toSeconds(again[0].sourceTime)).toBe(1);
+    expect(toSeconds(again[0].sourceRange.start)).toBe(0);
+    expect(toSeconds(again[0].timelineTime)).toBe(1);
+  });
+
   it('finds overlapping half-open intervals and evaluates live selector predicates', () => {
     const engine = new TimelineEngine({
       tracks: [track('a', [clip('long', 0, 100), clip('short', 5, 6), clip('next', 6, 7)])],
