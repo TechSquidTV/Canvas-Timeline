@@ -87,6 +87,9 @@ export default defineConfig({
     },
     ssr: {
       optimizeDeps: {
+        // These generated imports escape the initial scan. Prebundle them before
+        // workerd starts so late optimization cannot replace chunks it is using.
+        include: ['astro/app/manifest', 'astro/logger/console', '@sentry/astro/middleware'],
         exclude: ['mediabunny'],
       },
       noExternal: [
