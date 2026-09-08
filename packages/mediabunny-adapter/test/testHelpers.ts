@@ -117,6 +117,8 @@ export interface MockMediabunny {
   constructCanvasSink: ReturnType<typeof vi.fn<() => void>>;
   constructInput: ReturnType<typeof vi.fn<() => void>>;
   createdBlobSources: Blob[];
+  createdBlobSourceOptions: RealMediabunny.BlobSourceOptions[];
+  createdUrlSourceOptions: RealMediabunny.UrlSourceOptions[];
   createdUrlSources: (string | URL | Request)[];
   module: MediabunnyModule;
 }
@@ -233,6 +235,8 @@ function createMockMediabunny(
 ): MockMediabunny {
   const createdUrlSources: (string | URL | Request)[] = [];
   const createdBlobSources: Blob[] = [];
+  const createdBlobSourceOptions: RealMediabunny.BlobSourceOptions[] = [];
+  const createdUrlSourceOptions: RealMediabunny.UrlSourceOptions[] = [];
   const { audioSink, canvasSink } = createSinkFactory(sinkOptions);
   const constructCanvasSink = vi.fn();
   const constructAudioSink = vi.fn();
@@ -249,14 +253,16 @@ function createMockMediabunny(
   }
 
   class MockUrlSource {
-    constructor(url: string | URL | Request) {
+    constructor(url: string | URL | Request, options: RealMediabunny.UrlSourceOptions = {}) {
       createdUrlSources.push(url);
+      createdUrlSourceOptions.push(options);
     }
   }
 
   class MockBlobSource {
-    constructor(blob: Blob) {
+    constructor(blob: Blob, options: RealMediabunny.BlobSourceOptions = {}) {
       createdBlobSources.push(blob);
+      createdBlobSourceOptions.push(options);
     }
   }
 
@@ -281,7 +287,9 @@ function createMockMediabunny(
     constructCanvasSink,
     constructInput,
     createdBlobSources,
+    createdBlobSourceOptions,
     createdUrlSources,
+    createdUrlSourceOptions,
     module: {
       ...RealMediabunny,
       Input: MockInputConstructor,

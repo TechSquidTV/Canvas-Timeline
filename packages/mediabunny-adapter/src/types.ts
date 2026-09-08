@@ -34,7 +34,10 @@ export type MediabunnySourceInput =
       url: string | URL | Request;
       /** Explicit formats such as `HLS_FORMATS`; defaults to `ALL_FORMATS`. */
       formats?: readonly Mediabunny.InputFormat[];
-      /** Cache, request, and parallel-loading options passed to `UrlSource`. */
+      /**
+       * Options passed to `UrlSource`. A supplied `handleUnhandledError` observes
+       * background read errors in addition to the adapter's source recovery.
+       */
       urlSourceOptions?: Mediabunny.UrlSourceOptions;
     }
   | {
@@ -93,7 +96,7 @@ export interface MediabunnySourceMetadata {
   firstTimestampSeconds: number;
   /** First timestamp mapped into the logical source time domain. */
   sourceFirstTimestampSeconds: number;
-  /** Earliest presentation timestamp across the selected audio and video tracks. */
+  /** Earliest non-negative presentation timestamp across the selected tracks. */
   presentationStartTimestampSeconds: number;
   /** End timestamp mapped into the logical source time domain. */
   sourceEndTimestampSeconds: number;

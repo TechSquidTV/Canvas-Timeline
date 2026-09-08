@@ -5,6 +5,20 @@ section: packages
 order: 35
 ---
 
+## Mediabunny 1.56.0 minimum
+
+**BREAKING:** The Mediabunny adapter now requires `mediabunny@^1.56.0`.
+Upgrade the peer dependency alongside Canvas Timeline to enable background read
+error recovery for adapter-created URL and Blob sources:
+
+```bash
+pnpm add mediabunny@^1.56.0
+```
+
+Custom `urlSourceOptions.handleUnhandledError` callbacks still receive the
+original error, alongside the adapter's automatic recovery. Supplied inputs and
+input factories retain responsibility for configuring their source callbacks.
+
 ## Breaking change warning
 
 The media adapters now accept one app-resolved media choice for each logical

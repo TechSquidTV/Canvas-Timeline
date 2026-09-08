@@ -5,6 +5,7 @@ export interface MediabunnySourceController {
   sourceId: string;
   disposed: boolean;
   input: Mediabunny.Input | null;
+  inputError: Error | null;
   ownsInput: boolean;
   inputIndex: number;
   mediaTimeOffsetSeconds: number;
@@ -151,6 +152,7 @@ export function createController(
     mediaTimeOffsetSeconds:
       timing === undefined ? 0 : timing.mediaTimeSeconds - timing.sourceTimeSeconds,
     input: null,
+    inputError: null,
     ownsInput: true,
     videoSink: null,
     audioSink: null,
