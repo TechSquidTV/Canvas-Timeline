@@ -342,7 +342,11 @@ export default defineConfig({
         command: 'vp run --filter @techsquidtv/canvas-timeline-www preview',
         cache: false,
       },
-      'release:publish': ['vp run repo:package:check', 'vp exec changeset publish'],
+      'release:publish': {
+        command: ['vp run repo:package:check', 'vp exec changeset publish'],
+        // Publishing must run every time and retain GitHub's OIDC request environment.
+        cache: false,
+      },
       'repo:typecheck': {
         command: 'tsc -b',
         input: [
