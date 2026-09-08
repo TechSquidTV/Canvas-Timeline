@@ -95,7 +95,7 @@ importers:
         version: 5.2.11
       '@mediabunny/aac-encoder':
         specifier: ^1.50.8
-        version: 1.50.8(mediabunny@1.50.8)
+        version: 1.50.8(mediabunny@1.56.0)
       '@techsquidtv/canvas-timeline-core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -115,8 +115,8 @@ importers:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.7)
       mediabunny:
-        specifier: ^1.50.8
-        version: 1.50.8
+        specifier: ^1.56.0
+        version: 1.56.0
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -209,8 +209,8 @@ importers:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.7)
       mediabunny:
-        specifier: ^1.50.8
-        version: 1.50.8
+        specifier: ^1.56.0
+        version: 1.56.0
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -311,8 +311,8 @@ importers:
         specifier: workspace:*
         version: link:../react
       mediabunny:
-        specifier: ^1.50.8
-        version: 1.50.8
+        specifier: ^1.56.0
+        version: 1.56.0
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4177,8 +4177,8 @@ packages:
   mdurl@2.0.0:
     resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
 
-  mediabunny@1.50.8:
-    resolution: {integrity: sha512-LgykLyQzhdpo0V2yw3UXmOpj+b4JAGdpHBwsPE6kjSt8Za0d1VllD+FV7EGHBcdV4+oHUAo+yrqbVAWxNSDCPQ==}
+  mediabunny@1.56.0:
+    resolution: {integrity: sha512-VLVYEVXI4fA2PabQoZs3XOmxDsio4gpG1Npz0iVICRNCQ+XYI3fBOngnwHljafaEjHUbYzrIDoctZbxcVfQpgQ==}
 
   merge2@1.4.1:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
@@ -6709,9 +6709,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mediabunny/aac-encoder@1.50.8(mediabunny@1.50.8)':
+  '@mediabunny/aac-encoder@1.50.8(mediabunny@1.56.0)':
     dependencies:
-      mediabunny: 1.50.8
+      mediabunny: 1.56.0
 
   '@napi-rs/wasm-runtime@1.2.3(@emnapi/core@1.11.0)(@emnapi/runtime@1.11.0)':
     dependencies:
@@ -9229,7 +9229,7 @@ snapshots:
 
   mdurl@2.0.0: {}
 
-  mediabunny@1.50.8:
+  mediabunny@1.56.0:
     dependencies:
       '@types/dom-mediacapture-transform': 0.1.12
       '@types/dom-webcodecs': 0.1.13

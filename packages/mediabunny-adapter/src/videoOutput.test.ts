@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vite-plus/test';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
-import { createMediabunnyAdapter, type MediabunnyModule } from '#mediabunny-adapter/index';
+import { createMediabunnyAdapter } from '#mediabunny-adapter/index';
 import {
   mediabunnyTestFixtures,
   type MockVideoTrack,
@@ -442,25 +442,6 @@ test('createMediabunnyAdapter rejects undecodable video and permits video withou
   window.AudioContext = previousAudioContext;
   (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext =
     previousWebkitAudioContext;
-
-  const moduleWithoutBlobSource = {
-    ...createMockMediabunny([]).module,
-    BlobSource: undefined,
-  } as unknown as MediabunnyModule;
-  const missingBlobSourceAdapter = createMediabunnyAdapter({
-    mediabunny: moduleWithoutBlobSource,
-    sources: [
-      {
-        sourceId: 'local-file',
-        input: new Blob(['sample']),
-      },
-    ],
-  });
-
-  await waitForAdapterLoad(missingBlobSourceAdapter);
-  expect(missingBlobSourceAdapter.error?.message).toBe(
-    'This Mediabunny version does not expose BlobSource for local files.'
-  );
 });
 
 test('createMediabunnyAdapter exposes selected-track metadata and runtime audio controls', async () => {

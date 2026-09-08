@@ -112,6 +112,12 @@ The optional `timing` anchor says that `sourceTimeSeconds` and
 source timestamps already equal media timestamps. This keeps epoch/live source
 time, proxies, transcodes, and trimmed cache files aligned.
 
+Mediabunny preserves negative decode timestamps in `firstTimestampSeconds` and
+maps them into `sourceFirstTimestampSeconds`. Presentation starts at the later of
+zero and the first timestamp; `durationSeconds` excludes negative preroll.
+`endTimestampSeconds` is an end timestamp, including for Matroska files whose
+container duration is measured relative to their first packet.
+
 Use `setSources(nextSources)` when replacing the complete registry. Use
 `replaceSource(source)` for one app-level media choice, and `retrySource(id)` to
 retry the preferred input and its fallbacks. Replacement and retry return a
@@ -191,6 +197,12 @@ When synchronization reaches a source whose decoder is recovering, it waits for
 the fallback controller to commit. If recovery exhausts the source's fallback
 chain, synchronization reports `sync-failed` and the high-level transport
 pauses; superseded recovery work cannot publish an error.
+With Mediabunny 1.56.0 or later, background URL and Blob reads use the same recovery
+path even when no read promise is pending. A supplied
+`urlSourceOptions.handleUnhandledError` also receives the original error as an
+observer. For supplied inputs and input factories, configure error callbacks on
+the underlying Mediabunny source when constructing it.
+
 Terminal failures remain observable on later ticks, seeks, and preload requests
 until `retrySource()`, `replaceSource()`, an unload, or a changed source definition
 explicitly resets that source.

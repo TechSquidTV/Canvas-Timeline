@@ -465,13 +465,22 @@ export class MediabunnySourceLifecycle {
     const token = this.beginLoad(source.sourceId);
     const replacementPromise = (async (): Promise<TimelineMediaSourceOperationResult> => {
       try {
-        const result = await this.#loadSource(source, {
+        let result = await this.#loadSource(source, {
           status: 'loading',
           token,
           replacement,
         });
         if (!this.isCurrentLoad(token) || operation.replacement !== replacement) {
           return createSupersededSourceLoadResult(source.sourceId);
+        }
+        if (result.ok && replacement.candidate?.inputError) {
+          result = {
+            ok: false,
+            sourceId: source.sourceId,
+            reason: 'load-failed',
+            error: replacement.candidate.inputError,
+          };
+          this.#controllerRuntime.disposeController(replacement.candidate);
         }
         if (result.ok) {
           if (replacement.candidate === null || replacement.readyState === null) {
@@ -737,9 +746,9 @@ export class MediabunnySourceLifecycle {
       return createSupersededSourceLoadResult(source.sourceId);
     }
     const attempts = [...previousAttempts];
-    let finalError = new Error(
-      `No remaining inputs are available for source "${source.sourceId}".`
-    );
+    let finalError =
+      previousAttempts.at(-1)?.error ??
+      new Error(`No remaining inputs are available for source "${source.sourceId}".`);
 
     for (let inputIndex = startIndex; inputIndex < inputs.length; inputIndex += 1) {
       const sourceInput = inputs[inputIndex];
@@ -756,13 +765,24 @@ export class MediabunnySourceLifecycle {
           this.#selectTracks,
           this.#controllerRuntime.ensureAudioRuntime,
           isCurrentLoad,
-          replacement !== undefined
+          replacement !== undefined,
+          () => {
+            if (
+              candidate.inputError !== null &&
+              this.getController(source.sourceId) === candidate
+            ) {
+              void this.recoverSource(source.sourceId, candidate, candidate.inputError);
+            }
+          }
         );
         if (!isCurrentLoad()) {
           this.#controllerRuntime.disposeController(candidate);
           return createSupersededSourceLoadResult(source.sourceId);
         }
 
+        if (candidate.inputError !== null) {
+          throw candidate.inputError;
+        }
         attempts.push({ inputIndex, status: 'ready', error: null });
         const readyState: MediabunnySourceState = {
           sourceId: source.sourceId,
@@ -1064,14 +1084,24 @@ async function loadMediabunnySourceController(
     gainNode: GainNode;
   } | null,
   isCurrentLoad: () => boolean,
-  deferAudioRuntime: boolean
+  deferAudioRuntime: boolean,
+  onInputError: () => void
 ): Promise<LoadedMediaInfo> {
   const assertCurrentLoad = () => {
     if (!isCurrentLoad()) {
       throw new SupersededSourceLoadError(source.sourceId);
     }
+    if (controller.inputError !== null) {
+      throw controller.inputError;
+    }
   };
-  const input = await createInput(mediabunny, sourceInput);
+  const input = await createInput(mediabunny, sourceInput, (error) => {
+    if (controller.disposed || controller.inputError !== null) {
+      return;
+    }
+    controller.inputError = error instanceof Error ? error : new Error(String(error));
+    onInputError();
+  });
   controller.input = input;
   controller.ownsInput = !isSuppliedMediabunnyInput(sourceInput);
   assertCurrentLoad();
@@ -1195,7 +1225,8 @@ async function loadMediabunnySourceController(
 
 async function createInput(
   mediabunny: MediabunnyModule,
-  sourceInput: MediabunnySourceInput
+  sourceInput: MediabunnySourceInput,
+  handleUnhandledError: NonNullable<Mediabunny.UrlSourceOptions['handleUnhandledError']>
 ): Promise<Mediabunny.Input> {
   if (isMediabunnyInputDescriptor(sourceInput) && sourceInput.kind === 'input') {
     return sourceInput.input;
@@ -1205,7 +1236,13 @@ async function createInput(
   }
   if (isMediabunnyInputDescriptor(sourceInput) && sourceInput.kind === 'url') {
     return new mediabunny.Input({
-      source: new mediabunny.UrlSource(sourceInput.url, sourceInput.urlSourceOptions),
+      source: new mediabunny.UrlSource(sourceInput.url, {
+        ...sourceInput.urlSourceOptions,
+        handleUnhandledError: (error) => {
+          handleUnhandledError(error);
+          return sourceInput.urlSourceOptions?.handleUnhandledError?.(error);
+        },
+      }),
       formats: [...(sourceInput.formats ?? mediabunny.ALL_FORMATS)],
     });
   }
@@ -1216,23 +1253,13 @@ async function createInput(
     sourceInput instanceof Request
   ) {
     return new mediabunny.Input({
-      source: new mediabunny.UrlSource(sourceInput),
+      source: new mediabunny.UrlSource(sourceInput, { handleUnhandledError }),
       formats: [...mediabunny.ALL_FORMATS],
     });
   }
 
-  const mediabunnyWithBlobSource = mediabunny as MediabunnyModule & {
-    BlobSource?: new (
-      blob: Blob | File
-    ) => ConstructorParameters<MediabunnyModule['Input']>[0]['source'];
-  };
-
-  if (mediabunnyWithBlobSource.BlobSource === undefined) {
-    throw new Error('This Mediabunny version does not expose BlobSource for local files.');
-  }
-
   return new mediabunny.Input({
-    source: new mediabunnyWithBlobSource.BlobSource(sourceInput),
+    source: new mediabunny.BlobSource(sourceInput, { handleUnhandledError }),
     formats: mediabunny.ALL_FORMATS,
   });
 }

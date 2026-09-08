@@ -13,7 +13,7 @@
 pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 ```
 
-`mediabunny` is a peer dependency. React and the Canvas Timeline React package are optional peers used only by the `./react` export. The framework-free root does not import React.
+`mediabunny` version `^1.56.0` is a peer dependency. React and the Canvas Timeline React package are optional peers used only by the `./react` export. The framework-free root does not import React.
 
 ## Choosing an API
 
@@ -84,6 +84,17 @@ The adapter implements `TimelineMediaSyncAdapter` directly. Its transport clock 
 Disposal is terminal. Operations already in flight release staged resources and cannot publish late state; new loading, decoding, rendering, or mutating calls after `dispose()` throw or reject. Read-only snapshots remain available, and repeated teardown calls such as `dispose()`, `stopClock()`, and `clearVideo()` remain safe.
 
 High-level React playback applies Core in/out and loop policy to the external clock. Paused preview, startup, loop, tick, pause, and rate operations are ordered so delayed lazy loading or decoding cannot overwrite a newer position. Concurrent `play()` calls share one pending startup; `pause()` cancels pending work with a non-error `cancelled` play result. `onError` receives a `TimelineMediaError` with a stable `reason`, including `sync-failed` for rendering or scheduling failures. Audio activation is requested without blocking visual transport, retained until a decodable audio track loads, and never resumes a supplied context for video-only media. If activation completes after visual playback has advanced, queued audio is discarded and scheduled again from the current transport position.
+
+## Background reads and timestamp origins
+
+The adapter routes background URL and Blob read failures through the same source
+recovery as decoder failures, including equivalent fallbacks and terminal errors
+in `sourceStateById`. A custom `urlSourceOptions.handleUnhandledError` still
+receives the original error as an observer. For supplied inputs and input factories,
+configure background error handling when constructing their Mediabunny sources.
+
+Negative decode timestamps are preserved in metadata and source-time mapping;
+presentation duration begins at the later of zero and the first media timestamp.
 
 ## Documentation
 

@@ -54,3 +54,4 @@ minimumReleaseAgeExclude:
   - miniflare@4.20260701.0
   - workerd@1.20260702.1
   - wrangler@4.107.0
+  - mediabunny@1.56.0

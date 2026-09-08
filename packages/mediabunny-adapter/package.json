@@ -60,7 +60,7 @@
   },
   "peerDependencies": {
     "@techsquidtv/canvas-timeline-react": "workspace:*",
-    "mediabunny": "^1.50.3",
+    "mediabunny": "^1.56.0",
     "react": "^19.2.7"
   },
   "peerDependenciesMeta": {
@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@techsquidtv/canvas-timeline-react": "workspace:*",
-    "mediabunny": "^1.50.8",
+    "mediabunny": "^1.56.0",
     "react": "^19.2.7"
   }
 }
