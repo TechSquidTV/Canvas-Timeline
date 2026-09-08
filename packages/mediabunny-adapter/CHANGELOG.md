@@ -1,5 +1,27 @@
 # @techsquidtv/canvas-timeline-mediabunny-adapter
 
+## 0.4.0
+
+### Minor Changes
+
+- [#101](https://github.com/TechSquidTV/Canvas-Timeline/pull/101) [`c2a7243`](https://github.com/TechSquidTV/Canvas-Timeline/commit/c2a7243e21ae5a7586f7339b5e0ae555b6415f9d) Thanks [@KyleTryon](https://github.com/KyleTryon)! - **BREAKING:** Require `mediabunny@^1.56.0`. Upgrade the Mediabunny peer alongside
+  Canvas Timeline. This minor release follows the suite's fixed pre-1.0 release group.
+
+  Route background URL and Blob read failures through existing source recovery and
+  equivalent fallbacks, preserving the original terminal error and ignoring stale
+  callbacks after disposal. Custom URL error callbacks remain observers; supplied
+  inputs and factories retain responsibility for their source callbacks.
+
+  Validate negative timestamp mapping and Matroska presentation duration against
+  Mediabunny 1.56.0, and remove the obsolete BlobSource compatibility check.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @techsquidtv/canvas-timeline-utils@0.4.0
+  - @techsquidtv/canvas-timeline-core@0.4.0
+  - @techsquidtv/canvas-timeline-react@0.4.0
+
 ## 0.3.0
 
 ### Patch Changes
