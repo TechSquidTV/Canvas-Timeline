@@ -22,7 +22,7 @@
     "docs:editor:verify": "node scripts/demos/verify-full-editor-build.mjs",
     "docs:search": "tsx scripts/generate/search-catalog.ts && pagefind --site dist/client && node scripts/verify/search-build.mjs",
     "docs:demo:new": "node scripts/demos/scaffold.mjs",
-    "clean": "rm -rf .astro dist .generated public/open-graph public/demos/full-editor-demo public/full-editor-demo"
+    "clean": "rm -rf .astro dist .generated public/open-graph public/_redirects public/demos/full-editor-demo public/full-editor-demo"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",

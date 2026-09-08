@@ -229,6 +229,7 @@ export default defineConfig({
         output: [
           'apps/www/.generated/api-reference.json',
           'apps/www/.generated/api-reference-warnings.txt',
+          'apps/www/public/_redirects',
         ],
       },
       'docs:demos': {

@@ -7,6 +7,7 @@ import SiteFooter from '#www/components/SiteFooter.astro';
 import {
   createSiteStructuredData,
   normalizeStructuredData,
+  toAbsoluteUrl,
   type StructuredDataInput,
 } from '#www/lib/structured-data';
 import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
@@ -55,7 +56,7 @@ if (search) {
 }
 const searchDocument = search?.exclude ? undefined : search;
 const pageTitle = title ? `${title} | ${site.name}` : site.name;
-const canonicalUrl = providedCanonicalUrl ?? new URL(Astro.url.pathname, site.url).toString();
+const canonicalUrl = toAbsoluteUrl(providedCanonicalUrl ?? Astro.url.pathname);
 const pageImage =
   image ??
   {
@@ -105,7 +106,7 @@ const structuredDataItems = [
         </>
       ) : null
     }
-    {noindex ? <meta name="robots" content="noindex, nofollow" /> : null}
+    {noindex ? <meta name="robots" content="noindex, follow" /> : null}
     <meta name="theme-color" content="#ffffff" />
     <link class="canonical-link" rel="canonical" href={canonicalUrl} />
     <link rel="sitemap" href="/sitemap-index.xml" />
@@ -113,6 +114,7 @@ const structuredDataItems = [
     <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css" />
     <script src="/pagefind/pagefind-component-ui.js" type="module"></script>
     <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:type" content={pageType} />
     <meta property="og:title" content={metaTitle} />
     <meta property="og:description" content={description} />
@@ -131,7 +133,7 @@ const structuredDataItems = [
     {tags.map((tag) => <meta property="article:tag" content={tag} />)}
     {
       structuredDataItems.map((item) => (
-        <script type="application/ld+json" set:html={JSON.stringify(item)} />
+        <script type="application/ld+json" set:html={JSON.stringify(item).replaceAll('<', '\\u003c')} />
       ))
     }
     <title>{pageTitle}</title>

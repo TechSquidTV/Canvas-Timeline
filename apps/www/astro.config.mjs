@@ -36,8 +36,24 @@ function mediabunnySsrStub() {
   };
 }
 
+// Read lazily: docs:api produces this data before the Astro build starts.
+let reexportPaths;
+function getReexportPaths() {
+  reexportPaths ??= new Set(
+    JSON.parse(
+      readFileSync(new URL('./.generated/api-reference.json', import.meta.url), 'utf8')
+    ).packages.flatMap((packageDoc) =>
+      packageDoc.symbols
+        .filter((symbol) => symbol.canonicalPackageSlug !== packageDoc.slug)
+        .map((symbol) => `/packages/${packageDoc.slug}/api/${symbol.slug}/`)
+    )
+  );
+  return reexportPaths;
+}
+
 export default defineConfig({
   site: 'https://canvastimeline.com',
+  trailingSlash: 'always',
   adapter: cloudflare(),
   integrations: [
     sentry(),
@@ -47,7 +63,9 @@ export default defineConfig({
     }),
     mdx(),
     react(),
-    sitemap(),
+    sitemap({
+      filter: (page) => !getReexportPaths().has(new URL(page).pathname),
+    }),
   ],
   markdown: {
     syntaxHighlight: false,

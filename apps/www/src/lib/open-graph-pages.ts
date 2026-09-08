@@ -140,16 +140,18 @@ export async function getOpenGraphPages(): Promise<Record<string, OpenGraphPage>
           description: `Generated API reference for ${packageDoc.name}.`,
         },
       ] as const,
-      ...packageDoc.symbols.map(
-        (symbol) =>
-          [
-            apiSymbolHref(packageDoc.slug, symbol.slug),
-            {
-              title: `${symbol.name} API`,
-              description: symbol.summary || `Generated API reference for ${symbol.name}.`,
-            },
-          ] as const
-      ),
+      ...packageDoc.symbols
+        .filter((symbol) => symbol.canonicalPackageSlug === packageDoc.slug)
+        .map(
+          (symbol) =>
+            [
+              apiSymbolHref(packageDoc.slug, symbol.slug),
+              {
+                title: `${symbol.name} API`,
+                description: symbol.summary || `Generated API reference for ${symbol.name}.`,
+              },
+            ] as const
+        ),
     ]),
     ...reactRegistryItems.map((item) => {
       const entry = registryDocsByKey.get(item.slug);

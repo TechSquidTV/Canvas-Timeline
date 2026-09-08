@@ -1,0 +1,22 @@
+# Prefer the HTML documentation when Markdown copies appear in search.
+/docs.md
+  Link: <https://canvastimeline.com/docs/>; rel="canonical"
+
+/docs/*.md
+  Link: <https://canvastimeline.com/docs/:splat/>; rel="canonical"
+
+/packages/:package/api.md
+  Link: <https://canvastimeline.com/packages/:package/api/>; rel="canonical"
+
+/packages/:package/api/*.md
+  Link: <https://canvastimeline.com/packages/:package/api/:splat/>; rel="canonical"
+
+/packages/react/registry/*.llms.md
+  Link: <https://canvastimeline.com/packages/react/registry/:splat/>; rel="canonical"
+
+# Keep Pages deployment aliases out of search results.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex
