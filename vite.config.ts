@@ -343,7 +343,11 @@ export default defineConfig({
         cache: false,
       },
       'release:publish': {
-        command: ['vp run repo:package:check', 'vp exec changeset publish'],
+        command: [
+          'node scripts/release/check-publish-auth.mjs',
+          'vp run repo:package:check',
+          'vp exec changeset publish',
+        ],
         // Publishing must run every time and retain GitHub's OIDC request environment.
         cache: false,
       },
