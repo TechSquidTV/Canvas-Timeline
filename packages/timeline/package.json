@@ -14,7 +14,7 @@
   "homepage": "https://canvastimeline.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/techsquidtv/canvas-timeline.git",
+    "url": "git+https://github.com/TechSquidTV/Canvas-Timeline.git",
     "directory": "packages/timeline"
   },
   "keywords": [
