@@ -39,7 +39,7 @@
     "@techsquidtv/canvas-timeline-react": "workspace:*",
     "@techsquidtv/canvas-timeline-renderer": "workspace:*",
     "@techsquidtv/canvas-timeline-utils": "workspace:*",
-    "astro": "^7.1.6",
+    "astro": "^7.2.8",
     "astro-expressive-code": "^0.44.1",
     "astro-og-canvas": "^0.13.0",
     "canvaskit-wasm": "^0.41.1",
