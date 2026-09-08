@@ -4,7 +4,7 @@ import type { PackageDoc } from '#www/data/packages';
 import type { ReactRegistryApi, ReactRegistryItem } from '#www/data/react-registry';
 import { site } from '#www/data/site';
 import type { ApiPackage, ApiSymbol } from '#www/lib/api-reference';
-import { apiPackageHref, apiSymbolHref } from '#www/lib/api-reference';
+import { apiPackageHref, apiSymbolHref, getApiSymbolMetadata } from '#www/lib/api-reference';
 import { openGraphRouteForPath } from '#www/lib/open-graph';
 
 const reactRegistryPackageName = '@techsquidtv/canvas-timeline-react';
@@ -51,7 +51,12 @@ interface ArticleStructuredDataInput {
 }
 
 export function toAbsoluteUrl(pathOrUrl: string): string {
-  return new URL(pathOrUrl, site.url).toString();
+  const url = new URL(pathOrUrl, site.url);
+  // Match Cloudflare's HTML directory routes while preserving assets and external URLs.
+  if (url.origin === site.url && !url.pathname.split('/').at(-1)?.includes('.')) {
+    url.pathname = `${url.pathname.replace(/\/$/u, '')}/`;
+  }
+  return url.toString();
 }
 
 export function normalizeStructuredData(input: StructuredDataInput | undefined): JsonLdObject[] {
@@ -153,6 +158,7 @@ function createTechArticleStructuredData(input: ArticleStructuredDataInput): Jso
     description: input.description,
     url: toAbsoluteUrl(input.url),
     mainEntityOfPage: toAbsoluteUrl(input.url),
+    image: toAbsoluteUrl(openGraphRouteForPath(input.url)),
     keywords: input.keywords?.join(', '),
     author: {
       '@id': toAbsoluteUrl('/#organization'),
@@ -190,7 +196,7 @@ export function createBlogPostStructuredData(post: BlogPost): JsonLdObject {
     publisher: {
       '@id': toAbsoluteUrl('/#organization'),
     },
-    mainEntityOfPage: post.data.canonicalUrl ?? postUrl,
+    mainEntityOfPage: toAbsoluteUrl(post.data.canonicalUrl ?? postUrl),
     image: toAbsoluteUrl(postImageSrc),
     keywords: post.data.tags.join(', '),
   };
@@ -276,8 +282,7 @@ export function createApiSymbolArticleStructuredData(
   symbol: ApiSymbol
 ): JsonLdObject {
   return createTechArticleStructuredData({
-    title: `${symbol.name} API`,
-    description: symbol.summary || `Generated API reference for ${symbol.name}.`,
+    ...getApiSymbolMetadata(packageDoc, symbol),
     url: apiSymbolHref(packageDoc.slug, symbol.slug),
     keywords: [packageDoc.name, symbol.name, symbol.kind, 'API reference'],
   });

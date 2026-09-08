@@ -88,6 +88,7 @@ describe('API Markdown builder', () => {
         ],
       ],
       sourcePackage: 'react',
+      canonicalPackageSlug: 'react',
     });
 
     expect(markdown).toContain('## Usage notes');

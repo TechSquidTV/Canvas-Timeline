@@ -15,6 +15,7 @@ coverage/
 .vercel/
 .netlify/
 apps/www/public/open-graph/
+apps/www/public/_redirects
 apps/www/public/demos/
 apps/www/public/full-editor-demo/
 *.tsbuildinfo

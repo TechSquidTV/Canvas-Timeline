@@ -14,14 +14,21 @@ import {
 
 describe('structured data helpers', () => {
   test('converts paths and URLs to canonical absolute URLs', () => {
-    expect(toAbsoluteUrl('/docs')).toBe('https://canvastimeline.com/docs');
+    expect(toAbsoluteUrl('/docs')).toBe('https://canvastimeline.com/docs/');
     expect(toAbsoluteUrl('https://example.com/path')).toBe('https://example.com/path');
+    expect(toAbsoluteUrl('/docs/')).toBe('https://canvastimeline.com/docs/');
+    expect(toAbsoluteUrl('/docs?ref=nav#intro')).toBe(
+      'https://canvastimeline.com/docs/?ref=nav#intro'
+    );
+    expect(toAbsoluteUrl('/open-graph/index.png')).toBe(
+      'https://canvastimeline.com/open-graph/index.png'
+    );
   });
 
   test('builds breadcrumb lists with stable positions', () => {
     const structuredData = createBreadcrumbStructuredData(
       [{ label: 'Home', href: '/' }, { label: 'Docs', href: '/docs' }, { label: 'Current' }],
-      'https://canvastimeline.com/docs/current'
+      'https://canvastimeline.com/docs/current/'
     );
 
     expect(structuredData?.itemListElement).toEqual([
@@ -35,13 +42,13 @@ describe('structured data helpers', () => {
         '@type': 'ListItem',
         position: 2,
         name: 'Docs',
-        item: 'https://canvastimeline.com/docs',
+        item: 'https://canvastimeline.com/docs/',
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: 'Current',
-        item: 'https://canvastimeline.com/docs/current',
+        item: 'https://canvastimeline.com/docs/current/',
       },
     ]);
   });
@@ -93,7 +100,7 @@ describe('structured data helpers', () => {
     expect(createPackageStructuredData(createPackageDoc())).toMatchObject({
       '@type': 'SoftwareSourceCode',
       name: '@techsquidtv/canvas-timeline-react',
-      url: 'https://canvastimeline.com/packages/react',
+      url: 'https://canvastimeline.com/packages/react/',
       codeRepository: 'https://github.com/techsquidtv/canvas-timeline/tree/main/packages/react',
       keywords: 'React, You need React bindings., Wrap editors in TimelineProvider.',
       targetProduct: {
@@ -112,12 +119,12 @@ describe('structured data helpers', () => {
       {
         position: 1,
         name: 'Basic Timeline',
-        url: 'https://canvastimeline.com/demos/basic-editor-surface',
+        url: 'https://canvastimeline.com/demos/basic-editor-surface/',
       },
       {
         position: 2,
         name: 'Timeline Stress Test',
-        url: 'https://canvastimeline.com/demos/timeline-stress-test',
+        url: 'https://canvastimeline.com/demos/timeline-stress-test/',
       },
     ]);
 

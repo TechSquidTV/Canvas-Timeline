@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -757,7 +757,7 @@ function normalizeSymbol(reflection, packageEntry, warnings) {
     sourcePackage: packageEntry.slug,
     source: source
       ? {
-          fileName: source.fileName,
+          fileName: relative(rootDir, sourceFilePath(source, packageEntry)).replaceAll('\\', '/'),
           line: source.line,
           url: source.url,
         }
@@ -838,6 +838,28 @@ for (const packageEntry of packageEntries) {
   packages.push(await runTypedoc(packageEntry));
 }
 
+// Resolve ownership from declaration identity, never from a coincidental name match.
+for (const packageDoc of packages) {
+  for (const symbol of packageDoc.symbols) {
+    const declaration = symbol.source;
+    const ownerSlug = declaration?.fileName.match(/^packages\/([^/]+)\/src\//u)?.[1];
+    const owner = packages.find((candidate) => candidate.slug === ownerSlug);
+    const ownerSymbol = owner?.symbols.find(
+      (candidate) =>
+        candidate.name === symbol.name &&
+        candidate.kind === symbol.kind &&
+        candidate.source?.fileName === declaration?.fileName &&
+        candidate.source?.line === declaration?.line
+    );
+
+    if (!ownerSymbol) {
+      throw new Error(`Cannot resolve declaration owner for ${packageDoc.slug}.${symbol.name}.`);
+    }
+
+    symbol.canonicalPackageSlug = owner.slug;
+  }
+}
+
 const symbols = packages.flatMap((packageDoc) =>
   packageDoc.symbols.map((symbol) => ({
     ...symbol,
@@ -881,6 +903,19 @@ const reference = {
   symbols,
   warnings,
 };
+const markdownRedirects = packages.flatMap((packageDoc) =>
+  packageDoc.symbols
+    .filter((symbol) => symbol.canonicalPackageSlug !== packageDoc.slug)
+    .map(
+      (symbol) =>
+        `/packages/${packageDoc.slug}/api/${symbol.slug}.md /packages/${symbol.canonicalPackageSlug}/api/${symbol.slug}.md 301`
+    )
+);
+if (markdownRedirects.length > 2000) {
+  throw new Error('API Markdown redirects exceed the Cloudflare Pages static redirect limit.');
+}
+await writeFile(resolve(appDir, 'public/_redirects'), `${markdownRedirects.join('\n')}\n`);
+
 const serializedReference = `${JSON.stringify(reference, null, 2)}\n`;
 const serializedWarnings =
   warnings.length > 0 ? `${warnings.join('\n')}\n` : 'No API documentation warnings.\n';

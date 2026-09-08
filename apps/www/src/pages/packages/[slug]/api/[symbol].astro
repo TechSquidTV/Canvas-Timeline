@@ -3,12 +3,14 @@ import BaseLayout from '#www/layouts/BaseLayout.astro';
 import CodeBlock from '#www/components/CodeBlock.astro';
 import ApiTypeText from '#www/components/ApiTypeText.astro';
 import MarkdownCopyButton from '#www/components/MarkdownCopyButton.astro';
+import { openGraphImage, openGraphRouteForPath } from '#www/lib/open-graph';
 import {
   apiPackageHref,
   apiDocPartHref,
   apiReference,
   apiSymbolHref,
   getApiSymbol,
+  getApiSymbolMetadata,
   type ApiDocTextPart,
   type ApiPackage,
   type ApiSymbol,
@@ -73,6 +75,9 @@ const returnMembersHeading =
 const examplesHeading = resolvedSymbol.examples.length > 0 ? 'Examples' : 'Aliased examples';
 const hexColorPattern = /^#[0-9a-f]{3,8}$/i;
 const structuredData = createApiSymbolArticleStructuredData(packageDoc, resolvedSymbol);
+const metadata = getApiSymbolMetadata(packageDoc, resolvedSymbol);
+const canonicalHref = apiSymbolHref(packageDoc.slug, resolvedSymbol.slug);
+const isCanonical = resolvedSymbol.canonicalPackageSlug === packageDoc.slug;
 const search = createApiSymbolSearchDocument({
   slug: packageDoc.slug,
   name: packageDoc.name,
@@ -176,8 +181,10 @@ function descriptionHtml(
 ---
 
 <BaseLayout
-  title={`${resolvedSymbol.name} API`}
-  description={resolvedSymbol.summary || `Generated API reference for ${resolvedSymbol.name}.`}
+  canonicalUrl={canonicalHref}
+  image={{ ...openGraphImage, src: openGraphRouteForPath(canonicalHref) }}
+  title={metadata.title}
+  description={metadata.description}
   breadcrumbs={[
     { label: 'Home', href: '/' },
     { label: 'Packages', href: '/packages' },
@@ -186,7 +193,7 @@ function descriptionHtml(
     { label: resolvedSymbol.name },
   ]}
   structuredData={structuredData}
-  search={search}
+  search={isCanonical ? search : undefined}
 >
   <!-- Hero Section -->
   <section class="relative overflow-hidden bg-background pt-12 pb-16 md:pt-16 md:pb-20 border-b border-border">

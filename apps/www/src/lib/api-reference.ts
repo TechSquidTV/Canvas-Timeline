@@ -70,6 +70,7 @@ export interface ApiSymbol {
   examples: string[];
   see: ApiDocTextPart[][];
   sourcePackage: string;
+  canonicalPackageSlug: string;
   packageName?: string;
   source?: {
     fileName: string;
@@ -329,6 +330,10 @@ function parseApiSymbol(value: JsonValue, fieldName: string): ApiSymbol {
     examples: readStringArray(object.examples, `${fieldName}.examples`),
     see: parseApiDocTextPartBlocks(object.see, `${fieldName}.see`),
     sourcePackage: readString(object.sourcePackage, `${fieldName}.sourcePackage`),
+    canonicalPackageSlug: readString(
+      object.canonicalPackageSlug,
+      `${fieldName}.canonicalPackageSlug`
+    ),
     packageName: readOptionalString(object.packageName, `${fieldName}.packageName`),
     source: parseApiSource(object.source, `${fieldName}.source`),
   };
@@ -367,12 +372,15 @@ export const apiReference = parseApiReference(
   apiReferenceData as typeof apiReferenceData & JsonValue
 );
 
-function getApiPackage(slug: string) {
-  return apiReference.packages.find((packageDoc) => packageDoc.slug === slug);
-}
+const apiSymbolsByPackage = new Map(
+  apiReference.packages.map((packageDoc) => [
+    packageDoc.slug,
+    new Map(packageDoc.symbols.map((symbol) => [symbol.slug, symbol])),
+  ])
+);
 
 export function getApiSymbol(packageSlug: string, symbolSlug: string) {
-  return getApiPackage(packageSlug)?.symbols.find((symbol) => symbol.slug === symbolSlug);
+  return apiSymbolsByPackage.get(packageSlug)?.get(symbolSlug);
 }
 
 export function apiPackageHref(packageSlug: string) {
@@ -380,7 +388,18 @@ export function apiPackageHref(packageSlug: string) {
 }
 
 export function apiSymbolHref(packageSlug: string, symbolSlug: string) {
-  return `${apiPackageHref(packageSlug)}/${symbolSlug}`;
+  const symbol = getApiSymbol(packageSlug, symbolSlug);
+  if (!symbol) {
+    throw new Error(`Unknown API symbol: ${packageSlug}.${symbolSlug}`);
+  }
+  return `${apiPackageHref(symbol.canonicalPackageSlug)}/${symbolSlug}`;
+}
+
+export function getApiSymbolMetadata(packageDoc: ApiPackage, symbol: ApiSymbol) {
+  return {
+    title: `${symbol.name} (${packageDoc.slug}) API`,
+    description: `${symbol.name} API reference for ${packageDoc.name}.${symbol.summary ? ` ${symbol.summary}` : ''}`,
+  };
 }
 
 export function apiDocPartHref(
