@@ -66,7 +66,7 @@ jobs:
       - name: Create release PR or publish to npm
         id: changesets
         # Action v1 supports the repository's Changesets CLI v2 and input names.
-        uses: changesets/action@v1.9.0
+        uses: changesets/action@v2.1.2
         with:
           title: 'chore(release): version packages'
           commit: 'chore(release): version packages'
