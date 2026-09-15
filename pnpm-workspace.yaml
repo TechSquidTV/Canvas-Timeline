@@ -11,11 +11,15 @@ allowBuilds:
   sharp: true
   workerd: true
 catalog:
+  react: 19.2.8
+  react-dom: 19.2.8
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
   vite-plus: 0.3.0
   '@vitest/coverage-v8': 4.1.11
 overrides:
+  react: 'catalog:'
+  react-dom: 'catalog:'
   sharp: ^0.35.4
   svgo: ^4.0.2
   undici@7.28.0: ^7.29.1

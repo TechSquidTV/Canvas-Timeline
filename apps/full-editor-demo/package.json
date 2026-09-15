@@ -23,8 +23,8 @@
     "@techsquidtv/canvas-timeline-utils": "workspace:*",
     "lucide-react": "^1.25.0",
     "mediabunny": "^1.56.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "react-resizable-panels": "^4.12.2"
   },
   "devDependencies": {

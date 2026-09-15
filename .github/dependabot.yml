@@ -4,6 +4,10 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    # Action v2 requires Changesets CLI v3 and a release-workflow migration.
+    ignore:
+      - dependency-name: 'changesets/action'
+        update-types: ['version-update:semver-major']
     groups:
       github-actions:
         patterns:
@@ -18,6 +22,10 @@ updates:
       default-days: 7
     versioning-strategy: increase-if-necessary
     groups:
+      react-runtime:
+        patterns:
+          - 'react'
+          - 'react-dom'
       astro-cloudflare:
         patterns:
           - 'astro'
