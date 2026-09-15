@@ -57,7 +57,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "catalog:",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "knip": "^6.27.0",
     "publint": "^0.3.21",
     "tsx": "^4.23.0",
