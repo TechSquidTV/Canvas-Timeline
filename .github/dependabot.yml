@@ -22,6 +22,10 @@ updates:
       default-days: 7
     versioning-strategy: increase-if-necessary
     groups:
+      react-runtime:
+        patterns:
+          - 'react'
+          - 'react-dom'
       astro-cloudflare:
         patterns:
           - 'astro'
