@@ -42,7 +42,7 @@
     "astro": "^7.2.8",
     "astro-expressive-code": "^0.44.1",
     "astro-og-canvas": "^0.13.0",
-    "canvaskit-wasm": "^0.41.1",
+    "canvaskit-wasm": "^0.42.0",
     "lucide-react": "^1.25.0",
     "mediabunny": "^1.56.0",
     "react": "catalog:",
