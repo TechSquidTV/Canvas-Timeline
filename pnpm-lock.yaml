@@ -170,7 +170,7 @@ importers:
         version: 0.44.0
       '@fontsource-variable/outfit':
         specifier: ^5.2.8
-        version: 5.2.8
+        version: 5.3.0
       '@sentry/astro':
         specifier: ^10.66.0
         version: 10.74.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(astro@7.3.2(@arethetypeswrong/core@0.18.5)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(@types/node@26.5.1)(jiti@2.7.0)(publint@0.3.24)(tsx@4.23.13)(typescript@6.0.3)(yaml@2.9.1))
@@ -1333,8 +1333,8 @@ packages:
   '@fontsource-variable/lexend@5.3.0':
     resolution: {integrity: sha512-3SXtiZ8rFbT0oaPzEboCG5RM3jtyhpNxandh1jWNLqvrJRfV/eP3R+GGw+o5e3hS1uqmAGutKxSvaWG5oyrimA==}
 
-  '@fontsource-variable/outfit@5.2.8':
-    resolution: {integrity: sha512-4oUDCZx/Tcz6HZP423w/niqEH31Gks5IsqHV2ZZz1qKHaVIZdj2f0/S1IK2n8jl6Xo0o3N+3RjNHlV9R73ozQA==}
+  '@fontsource-variable/outfit@5.3.0':
+    resolution: {integrity: sha512-fPb5XnYK0k7SbR++HEmm4+ZqDszmLKQ+sPRUr8oQ/KNC0vy6r6hazJFe8iYozv4cqlHbvJ/JECkJWrfDodUMVQ==}
 
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
@@ -6402,7 +6402,7 @@ snapshots:
 
   '@fontsource-variable/lexend@5.3.0': {}
 
-  '@fontsource-variable/outfit@5.2.8': {}
+  '@fontsource-variable/outfit@5.3.0': {}
 
   '@gerrit0/mini-shiki@3.23.0':
     dependencies:
