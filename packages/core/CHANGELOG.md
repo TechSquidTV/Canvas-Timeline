@@ -1,11 +1,11 @@
 # @techsquidtv/canvas-timeline-core
 
-## 0.4.1
+## 0.5.0
 
 ### Patch Changes
 
 - Updated dependencies []:
-  - @techsquidtv/canvas-timeline-utils@0.4.1
+  - @techsquidtv/canvas-timeline-utils@0.5.0
 
 ## 0.4.0
 
