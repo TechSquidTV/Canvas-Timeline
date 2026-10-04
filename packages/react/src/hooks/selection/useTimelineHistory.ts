@@ -1,4 +1,5 @@
 import { useTimelineExternalStore } from '#react/hooks/core/useTimelineExternalStore';
+import { runTimelineCommand } from '#react/hooks/core/runTimelineCommand';
 import { timelineCommandFail, timelineCommandOk } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineCommandResult } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '#react/hooks/core/useTimelineEngine';
@@ -30,19 +31,23 @@ export function useTimelineHistory(): UseTimelineHistoryResult {
   }));
 
   const undo = useCallback(() => {
-    if (!engine.canUndo) {
-      return timelineCommandFail('unsupported');
-    }
-    engine.undo();
-    return timelineCommandOk();
+    return runTimelineCommand(() => {
+      if (!engine.canUndo) {
+        return timelineCommandFail('unsupported');
+      }
+      engine.undo();
+      return timelineCommandOk();
+    });
   }, [engine]);
 
   const redo = useCallback(() => {
-    if (!engine.canRedo) {
-      return timelineCommandFail('unsupported');
-    }
-    engine.redo();
-    return timelineCommandOk();
+    return runTimelineCommand(() => {
+      if (!engine.canRedo) {
+        return timelineCommandFail('unsupported');
+      }
+      engine.redo();
+      return timelineCommandOk();
+    });
   }, [engine]);
 
   return {
