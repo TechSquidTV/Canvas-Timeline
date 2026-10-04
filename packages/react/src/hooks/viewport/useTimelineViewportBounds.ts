@@ -13,7 +13,11 @@ function getBounds(engine: TimelineEngine) {
   };
 }
 
-/** Observes limits even when content, dimensions, or policy changes leave live values unchanged. */
+/**
+ * Observes limits even when content, dimensions, or policy changes leave live values unchanged.
+ *
+ * @returns Current content time, scroll bounds, and zoom limits.
+ */
 export function useTimelineViewportBounds() {
   return useTimelineExternalStore(
     boundsEvents,

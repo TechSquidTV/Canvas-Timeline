@@ -106,8 +106,14 @@ export function useTimelineSelection(): UseTimelineSelectionResult {
   );
 
   const clearSelection = useCallback(() => {
-    engine.selectClip(null);
-    engine.selectTrack(null);
+    const clipResult = engine.selectClip(null);
+    if (!clipResult.ok) {
+      return clipResult;
+    }
+    const trackResult = engine.selectTrack(null);
+    if (!trackResult.ok) {
+      return trackResult;
+    }
     return timelineCommandOk();
   }, [engine]);
 
