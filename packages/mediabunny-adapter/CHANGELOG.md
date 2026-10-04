@@ -1,5 +1,14 @@
 # @techsquidtv/canvas-timeline-mediabunny-adapter
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`36469c3`](https://github.com/TechSquidTV/Canvas-Timeline/commit/36469c333f9aa33e1f7d1f4f33ae4295f26f4f8f), [`646e5d7`](https://github.com/TechSquidTV/Canvas-Timeline/commit/646e5d70b5308a8de802d06ebe4b8851206d46c3), [`4df36d6`](https://github.com/TechSquidTV/Canvas-Timeline/commit/4df36d6a8849f845fa07e395b6ec7c03853051e6), [`f1e58f4`](https://github.com/TechSquidTV/Canvas-Timeline/commit/f1e58f496b86db6ee7ddb192de500bb3f329752a), [`7e287d3`](https://github.com/TechSquidTV/Canvas-Timeline/commit/7e287d3aa5182e0e1fb512c55a33344d4a01dd66), [`e083792`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e083792cb045f89272b23d15465f42cb1cbe377e), [`a7dc9ac`](https://github.com/TechSquidTV/Canvas-Timeline/commit/a7dc9ac139e385e45f202022695a645a35a487f9)]:
+  - @techsquidtv/canvas-timeline-react@0.4.1
+  - @techsquidtv/canvas-timeline-core@0.4.1
+  - @techsquidtv/canvas-timeline-utils@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

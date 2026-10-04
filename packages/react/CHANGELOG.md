@@ -1,5 +1,26 @@
 # @techsquidtv/canvas-timeline-react
 
+## 0.4.1
+
+### Patch Changes
+
+- [#181](https://github.com/TechSquidTV/Canvas-Timeline/pull/181) [`36469c3`](https://github.com/TechSquidTV/Canvas-Timeline/commit/36469c333f9aa33e1f7d1f4f33ae4295f26f4f8f) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Normalize history undo and redo input errors as command failures and propagate the first engine failure when clearing selection.
+
+- [#126](https://github.com/TechSquidTV/Canvas-Timeline/pull/126) [`646e5d7`](https://github.com/TechSquidTV/Canvas-Timeline/commit/646e5d70b5308a8de802d06ebe4b8851206d46c3) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the resolved React runtime to 19.3.0 across the workspace.
+
+- [#179](https://github.com/TechSquidTV/Canvas-Timeline/pull/179) [`4df36d6`](https://github.com/TechSquidTV/Canvas-Timeline/commit/4df36d6a8849f845fa07e395b6ec7c03853051e6) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Expose useTimelineViewportBounds and useTimelineTrackGeometry through public hook entrypoints for custom viewport controls and track overlays.
+
+- [#180](https://github.com/TechSquidTV/Canvas-Timeline/pull/180) [`f1e58f4`](https://github.com/TechSquidTV/Canvas-Timeline/commit/f1e58f496b86db6ee7ddb192de500bb3f329752a) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Always clear a gesture's edit preview when committing throws, while propagating the original error.
+
+- [#182](https://github.com/TechSquidTV/Canvas-Timeline/pull/182) [`7e287d3`](https://github.com/TechSquidTV/Canvas-Timeline/commit/7e287d3aa5182e0e1fb512c55a33344d4a01dd66) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Correct keyframe drag examples to use the shared timeline viewport's coordinates, clarify command error normalization, and remove stray track documentation fragments.
+
+- [#177](https://github.com/TechSquidTV/Canvas-Timeline/pull/177) [`e083792`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e083792cb045f89272b23d15465f42cb1cbe377e) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Reset selector memoization when the provider's engine changes so equal selections retain values from the current engine.
+
+- [#178](https://github.com/TechSquidTV/Canvas-Timeline/pull/178) [`a7dc9ac`](https://github.com/TechSquidTV/Canvas-Timeline/commit/a7dc9ac139e385e45f202022695a645a35a487f9) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Preserve a measured viewport width of zero in viewport metrics and ruler ticks instead of replacing it with the default width.
+- Updated dependencies []:
+  - @techsquidtv/canvas-timeline-core@0.4.1
+  - @techsquidtv/canvas-timeline-utils@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes
