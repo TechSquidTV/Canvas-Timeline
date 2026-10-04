@@ -85,14 +85,14 @@ export function useTimelineSelector<Value>(
     }
     return result;
   }, [engine]);
-  const previous = useRef<{ value: Value } | undefined>(undefined);
+  const previous = useRef<{ engine: typeof engine; value: Value } | undefined>(undefined);
   const getSnapshot = useCallback(() => {
     const next = selector(store.getSnapshot());
-    if (previous.current && isEqual(previous.current.value, next)) {
+    if (previous.current?.engine === engine && isEqual(previous.current.value, next)) {
       return previous.current.value;
     }
-    previous.current = { value: next };
+    previous.current = { engine, value: next };
     return next;
-  }, [selector, store, isEqual]);
+  }, [selector, store, isEqual, engine]);
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }
