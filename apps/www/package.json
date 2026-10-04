@@ -32,7 +32,7 @@
     "@expressive-code/plugin-collapsible-sections": "^0.44.0",
     "@fontsource-variable/outfit": "^5.2.8",
     "@sentry/astro": "^10.66.0",
-    "@sentry/cloudflare": "^10.66.0",
+    "@sentry/cloudflare": "^11.0.0",
     "@techsquidtv/canvas-timeline-core": "workspace:*",
     "@techsquidtv/canvas-timeline-html-media-adapter": "workspace:*",
     "@techsquidtv/canvas-timeline-mediabunny-adapter": "workspace:*",
