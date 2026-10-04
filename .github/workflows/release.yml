@@ -60,9 +60,6 @@ jobs:
       - name: Run release validation
         run: vp run ci:quality
 
-      - name: Use npm with trusted publishing support
-        run: npm install --global npm@11
-
       - name: Create release PR or publish to npm
         id: changesets
         uses: changesets/action@v2.1.2
@@ -124,9 +121,6 @@ jobs:
 
       - name: Validate publishable packages
         run: vp run package:check
-
-      - name: Use npm with trusted publishing support
-        run: npm install --global npm@11
 
       - name: Publish snapshot packages
         env:
