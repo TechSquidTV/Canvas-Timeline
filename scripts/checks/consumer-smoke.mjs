@@ -147,6 +147,8 @@ import {
   TimelineEngine,
   TimelineProvider,
   fromSeconds,
+  useTimelineViewportBounds,
+  useTimelineTrackGeometry,
 } from '@techsquidtv/canvas-timeline';
 import '@techsquidtv/canvas-timeline/styles.css';
 import '@techsquidtv/canvas-timeline-react/base.css';
@@ -161,6 +163,12 @@ const engine = new TimelineEngine({
   tracks: [],
 });
 
+function GeometrySummary() {
+  const bounds = useTimelineViewportBounds();
+  const rect = useTimelineTrackGeometry('track', {});
+  return <output>{bounds.maxScrollLeft}:{rect?.width ?? 0}</output>;
+}
+
 function App() {
   const rendererName = FocusedCanvasRenderer.name;
   const mediaHookName = useHTMLTimelineMedia.name;
@@ -169,6 +177,7 @@ function App() {
 
   return (
     <TimelineProvider engine={engine}>
+      <GeometrySummary />
       <Timeline.Root aria-label="Consumer smoke timeline">
         <CanvasRenderer />
         <Timeline.ClipInteractionLayer />
@@ -195,6 +204,21 @@ createRoot(root).render(<App />);
     join(fixtureDir, 'ssr-headless.mjs'),
     `import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
+import * as ReactPackage from '@techsquidtv/canvas-timeline-react';
+import * as ReactHooks from '@techsquidtv/canvas-timeline-react/hooks';
+import * as TimelinePackage from '@techsquidtv/canvas-timeline';
+import * as TimelineHooks from '@techsquidtv/canvas-timeline/react';
+
+for (const entrypoint of [ReactPackage, ReactHooks, TimelinePackage, TimelineHooks]) {
+  if (
+    typeof entrypoint.useTimelineViewportBounds !== 'function' ||
+    typeof entrypoint.useTimelineTrackGeometry !== 'function' ||
+    entrypoint.useTimelineViewportBounds !== ReactHooks.useTimelineViewportBounds ||
+    entrypoint.useTimelineTrackGeometry !== ReactHooks.useTimelineTrackGeometry
+  ) {
+    throw new Error('Public geometry hook exports are missing or inconsistent');
+  }
+}
 
 const engine = new TimelineEngine({
   duration: fromSeconds(3),

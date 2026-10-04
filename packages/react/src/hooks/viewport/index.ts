@@ -6,6 +6,7 @@ export * from '#react/hooks/viewport/useTimelineScrollTop';
 export * from '#react/hooks/viewport/useTimelineTimePosition';
 export * from '#react/hooks/viewport/useTimelineVerticalRangeControl';
 export * from '#react/hooks/viewport/useTimelineViewport';
+export * from '#react/hooks/viewport/useTimelineViewportBounds';
 export * from '#react/hooks/viewport/useTimelineViewportRangeControl';
 export * from '#react/hooks/viewport/useTimelineZoomControl';
 export * from '#react/hooks/viewport/useTimelineZoomScale';

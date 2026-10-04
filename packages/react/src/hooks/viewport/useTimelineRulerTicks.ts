@@ -68,7 +68,7 @@ export function useTimelineRulerTicks(
       includeLabels,
       minimumMajorTickSpacing,
       scrollLeft: scrollLeft ?? state.scrollLeft,
-      viewportWidth: viewportWidth ?? (state.viewportWidth || 1000),
+      viewportWidth: viewportWidth ?? state.viewportWidth ?? 1000,
       zoomScale: zoomScale ?? state.zoomScale,
       ...getRulerFormatOptions(format, frameRate, timecodeFormatOptions),
     });

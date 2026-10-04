@@ -47,11 +47,14 @@ export class TimelineEditGesture {
       this.engine.cancelEdit();
       return timelineCommandOk();
     }
-    const result = this.engine.commitEdit(preview.command);
-    this.engine.cancelEdit();
-    return result.committed
-      ? timelineCommandOk()
-      : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
+    try {
+      const result = this.engine.commitEdit(preview.command);
+      return result.committed
+        ? timelineCommandOk()
+        : timelineCommandFail(result.preview.reason ?? 'unsupported', result.preview.message);
+    } finally {
+      this.engine.cancelEdit();
+    }
   }
 
   cancel() {

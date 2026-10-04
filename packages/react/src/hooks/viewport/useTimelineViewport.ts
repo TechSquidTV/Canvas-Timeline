@@ -131,7 +131,7 @@ export function useTimelineViewport(): UseTimelineViewportResult {
     [engine]
   );
 
-  const viewportWidth = state.viewportWidth || 1000;
+  const viewportWidth = state.viewportWidth ?? 1000;
   const viewportHeight = state.viewportHeight ?? 600;
   const safeZoomScale = Math.max(zoomScale || 0, 0.1);
   const maxContentTime = bounds.maxContentTime;
