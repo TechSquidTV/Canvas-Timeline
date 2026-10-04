@@ -27,7 +27,7 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.7",
     "@astrojs/mdx": "^7.0.5",
-    "@astrojs/react": "^6.0.2",
+    "@astrojs/react": "^7.0.0",
     "@astrojs/sitemap": "^3.7.3",
     "@expressive-code/plugin-collapsible-sections": "^0.44.0",
     "@fontsource-variable/outfit": "^5.2.8",
