@@ -111,6 +111,11 @@ internal optional-peer declarations while preventing Changesets from treating
 an atomic fixed-group peer update as an independent `1.0.0` bump. Snapshot and
 release workflows use the same entry point.
 
+## Dependency Updates
+
+Renovate manages dependency updates via [renovate.json](../renovate.json).
+Review each PR and add a changeset or empty changeset following the policy above.
+
 ## Release Publishing
 
 Releases are managed by Changesets and GitHub Actions. Manually dispatch the

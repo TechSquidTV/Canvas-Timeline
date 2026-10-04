@@ -66,7 +66,7 @@ To maintain a responsive 60fps editor, rendering and interaction are split stric
 
 - [apps/www](../../../apps/www): Astro docs site, source-backed demos, blog/docs content, API reference generation, React registry snippets, Open Graph images, and the primary QA playground.
 - [apps/www/src/demos](../../../apps/www/src/demos): executable demo sources. Use [manage-live-demos](../manage-live-demos/SKILL.md) for demo or registry work.
-- [.github](../../../.github): contributor docs, Dependabot, and GitHub Actions workflows.
+- [.github](../../../.github): contributor docs and GitHub Actions workflows; [renovate.json](../../../renovate.json) configures dependency updates.
 - [.agents/skills](../../../.agents/skills): repo-local Codex skills. Keep maps and validation commands synchronized with source moves.
 
 ### Repository Tooling

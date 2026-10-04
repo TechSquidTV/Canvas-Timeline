@@ -1,0 +1,78 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":disableDependencyDashboard", "security:minimumReleaseAgeNpm"],
+  "enabledManagers": ["npm", "github-actions"],
+  "timezone": "America/New_York",
+  "schedule": ["* 0-4 * * 6"],
+  "configMigration": true,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 10,
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "semanticCommitType": "chore",
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchPackageNames": ["react", "react-dom"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "React runtime"
+    },
+    {
+      "matchPackageNames": [
+        "astro",
+        "astro-*",
+        "@astrojs/*",
+        "@cloudflare/*",
+        "wrangler",
+        "workerd"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Astro and Cloudflare"
+    },
+    {
+      "matchPackageNames": ["@sentry/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Sentry"
+    },
+    {
+      "matchPackageNames": ["mediabunny", "@mediabunny/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Mediabunny"
+    },
+    {
+      "matchPackageNames": ["vite-plus", "@voidzero-dev/*", "vitest", "@vitest/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Vite tooling"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "semanticCommitType": "ci"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    },
+    {
+      "description": "Action v2 requires Changesets CLI v3 and a release-workflow migration.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["changesets/action"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
