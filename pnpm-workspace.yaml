@@ -22,7 +22,8 @@ overrides:
   react-dom: 'catalog:'
   sharp: ^0.35.4
   svgo: ^4.0.2
-  undici@7.28.0: ^7.29.1
+  http-cache-semantics@4: ^4.3.0
+  undici@7: ^7.29.1
   vite: 'catalog:'
   vitest: 'catalog:'
 peerDependencyRules:
@@ -59,3 +60,5 @@ minimumReleaseAgeExclude:
   - workerd@1.20260702.1
   - wrangler@4.107.0
   - mediabunny@1.56.0
+  # GHSA-ch52-4w7c-c8xp: allow the published security fix immediately.
+  - http-cache-semantics@4.3.0
