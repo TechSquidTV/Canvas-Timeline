@@ -128,7 +128,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       react-resizable-panels:
         specifier: ^4.12.2
-        version: 4.12.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 4.14.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.3
@@ -222,7 +222,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       react-resizable-panels:
         specifier: ^4.12.2
-        version: 4.12.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 4.14.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       rehype-expressive-code:
         specifier: ^0.44.2
         version: 0.44.2
@@ -4441,8 +4441,8 @@ packages:
     resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
 
-  react-resizable-panels@4.12.3:
-    resolution: {integrity: sha512-GHMJWnDXui/3RX4bT+cgBP+N3N2nkwcoZATr/2xLFpqQQe7TlBrE0cGM0dUa9ceT7A90tUrSRsiqgRG+g0/2AA==}
+  react-resizable-panels@4.14.1:
+    resolution: {integrity: sha512-OB1bXDNTLcGgTTbaX6Dn5efZhlMboSnkfr1w4xpsJTHPEbRJpACBhXpgRCXozgPO1ztgFeZRUe5J3mFNCVKm5g==}
     peerDependencies:
       react: 19.3.0
       react-dom: 19.3.0
@@ -9342,7 +9342,7 @@ snapshots:
 
   react-refresh@0.18.0: {}
 
-  react-resizable-panels@4.12.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  react-resizable-panels@4.14.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
