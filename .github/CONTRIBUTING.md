@@ -113,36 +113,8 @@ release workflows use the same entry point.
 
 ## Dependency Updates
 
-The Renovate GitHub app uses `renovate.json` to update npm dependencies, pnpm
-catalogs and overrides, and GitHub Actions. Routine update branches are created
-on Saturdays between midnight and 5 a.m. in `America/New_York`; existing branches
-can be refreshed outside that window. npm version updates wait seven days after
-release. Related minor and patch updates are grouped, while major updates are
-reviewed separately. Automatic merging is not enabled.
-
-Renovate PRs follow the Changesets policy above. Add an empty changeset for
-tooling, GitHub Actions, or app-only dependency updates that do not affect
-published packages. Add a release changeset when a dependency update affects
-published package contents or behavior. Review the actual diff before choosing;
-the bot does not add changesets automatically, and CI still requires them.
-
-Peer dependency updates are disabled in Renovate because published compatibility
-ranges require deliberate review. **Breaking changes:** dependency major updates
-may require code changes; `changesets/action` major updates remain disabled until
-the Changesets CLI and release workflow are migrated together.
-
-For the initial migration, enable the Renovate app for this repository before
-merging the configuration. Keep GitHub's dependency graph and Dependabot alerts
-enabled, and grant the app read access to Dependabot alerts so Renovate can open
-security fix PRs. Disable Dependabot security update PRs when switching to
-Renovate to avoid duplicate fixes; alerts remain enabled. Vulnerability fix PRs
-can bypass the routine schedule and release-age delay.
-
-Validate configuration changes with Renovate's repository config validator:
-
-```bash
-npx --yes --package renovate -- renovate-config-validator --strict --no-global renovate.json
-```
+Renovate manages dependency updates via [renovate.json](../renovate.json).
+Review each PR and add a changeset or empty changeset following the policy above.
 
 ## Release Publishing
 
