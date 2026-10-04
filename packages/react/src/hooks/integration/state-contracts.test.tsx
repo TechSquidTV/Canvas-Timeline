@@ -174,6 +174,34 @@ test('selectors support falsy primitives, custom equality, changing selectors, a
   expect(selected.at(-1)).toBe('other');
 });
 
+test('selectors reset equal-value identity on engine replacement and follow the new engine', () => {
+  const first = new TimelineEngine({ tracks: [] });
+  const second = new TimelineEngine({ tracks: [] });
+  let engine = first;
+  const { result, rerender, unmount } = renderHook(
+    () => useTimelineSelector((state) => state.tracks),
+    {
+      wrapper: ({ children }) => <TimelineProvider engine={engine}>{children}</TimelineProvider>,
+    }
+  );
+  const firstTracks = result.current;
+  engine = second;
+  rerender();
+  expect(result.current).toBe(second.getState().tracks);
+  expect(result.current).not.toBe(firstTracks);
+
+  const secondTracks = result.current;
+  act(() => {
+    first.addTrack(createTrack('old-engine', []));
+  });
+  expect(result.current).toBe(secondTracks);
+  act(() => {
+    second.addTrack(createTrack('new-engine', []));
+  });
+  expect(result.current.map((track) => track.id)).toEqual(['new-engine']);
+  unmount();
+});
+
 test('selection and collection hooks share Core command results', () => {
   const engine = new TimelineEngine({ tracks: [createTrack('a', [createClip('clip', 0, 1)])] });
   const { result } = renderHook(
