@@ -93,6 +93,22 @@ export const timelineHookMetadata = [
     description: 'Returns canonical viewport metrics and setters for custom chrome.',
   },
   {
+    name: 'useTimelineViewportBounds',
+    group: 'timeline-state',
+    category: 'viewport',
+    reactivity: 'live',
+    description:
+      'Observes content, scroll, and zoom limits as content, dimensions, or policy change.',
+  },
+  {
+    name: 'useTimelineTrackGeometry',
+    group: 'timeline-state',
+    category: 'geometry',
+    reactivity: 'live',
+    description:
+      'Shares reactive viewport-space row geometry across consumers with the same layout.',
+  },
+  {
     name: 'useTimelineEvent',
     group: 'timeline-state',
     category: 'events',

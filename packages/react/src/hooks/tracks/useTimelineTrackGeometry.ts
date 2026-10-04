@@ -77,7 +77,13 @@ function createStore(
   };
 }
 
-/** Shares row geometry across consumers using the same normalized layout options. */
+/**
+ * Shares row geometry across consumers using the same normalized layout options.
+ *
+ * @param trackId - Stable id of the track row to observe.
+ * @param options - Layout overrides matching the timeline renderer.
+ * @returns Readonly viewport-space row rectangle, or null when the track is missing.
+ */
 export function useTimelineTrackGeometry(trackId: string, options: TimelineTrackGeometryOptions) {
   const engine = useTimelineEngine();
   const rulerHeight = options.rulerHeight ?? defaultTimelineInteractionGeometry.rulerHeight;
