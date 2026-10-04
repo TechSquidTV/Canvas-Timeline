@@ -116,7 +116,7 @@ importers:
         version: link:../../packages/utils
       lucide-react:
         specifier: ^1.25.0
-        version: 1.45.0(react@19.3.0)
+        version: 1.48.0(react@19.3.0)
       mediabunny:
         specifier: ^1.56.0
         version: 1.56.1
@@ -210,7 +210,7 @@ importers:
         version: 0.42.0
       lucide-react:
         specifier: ^1.25.0
-        version: 1.45.0(react@19.3.0)
+        version: 1.48.0(react@19.3.0)
       mediabunny:
         specifier: ^1.56.0
         version: 1.56.1
@@ -3942,8 +3942,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.45.0:
-    resolution: {integrity: sha512-yH1ubCAduho9UR7oJhRXIQXogksRILBiTuZC4/bQIGeB9JOkxMlSuEHyyZpo1Z3S0yWJO2KTSUZbjiNvVxeOUw==}
+  lucide-react@1.48.0:
+    resolution: {integrity: sha512-R0CIKY/fXiC6y9xRBADgsK+VW2p/pcTJOMhLZf1T+uG+vJUvyUR02nGOgmIIC7MPkiNK4Ox8QDnbqF8rJYWPZQ==}
     peerDependencies:
       react: 19.3.0
 
@@ -8502,7 +8502,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.45.0(react@19.3.0):
+  lucide-react@1.48.0(react@19.3.0):
     dependencies:
       react: 19.3.0
 
