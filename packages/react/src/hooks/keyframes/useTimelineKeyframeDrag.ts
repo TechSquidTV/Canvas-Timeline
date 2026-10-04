@@ -132,23 +132,35 @@ interface ActiveKeyframeDrag {
  *
  * @example
  * ```tsx
+ * import type { RefObject } from 'react';
  * import { useTimelineKeyframeDrag } from '@techsquidtv/canvas-timeline-react';
  *
- * export function KeyframeHandle({ clipId, keyframeId }: { clipId: string; keyframeId: string }) {
+ * // Share the containing timeline viewport's ref, including its ruler area.
+ * export function KeyframeHandle({
+ *   clipId,
+ *   keyframeId,
+ *   viewportRef,
+ * }: {
+ *   clipId: string;
+ *   keyframeId: string;
+ *   viewportRef: RefObject<HTMLElement | null>;
+ * }) {
  *   const drag = useTimelineKeyframeDrag();
  *
  *   return (
  *     <button
  *       type="button"
  *       aria-pressed={drag.dragging}
- *       onPointerDown={(event) =>
+ *       onPointerDown={(event) => {
+ *         const rect = viewportRef.current?.getBoundingClientRect();
+ *         if (!rect) return;
  *         drag.startKeyframeDrag({
  *           clipId,
  *           keyframeId,
  *           clientX: event.clientX,
- *           viewportY: event.nativeEvent.offsetY,
- *         })
- *       }
+ *           viewportY: event.clientY - rect.top,
+ *         });
+ *       }}
  *     >
  *       Move keyframe
  *     </button>

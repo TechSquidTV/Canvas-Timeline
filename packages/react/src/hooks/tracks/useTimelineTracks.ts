@@ -15,8 +15,6 @@ import { useMemo } from 'react';
  * one row's DOM-ready state, use {@link useTimelineTrack} or
  * {@link useTimelineTrackHeader} instead.
  *
- * tracks, such as `"visual" | "audio"`.
- *
  * @see {@link https://canvastimeline.com/docs/tracks-and-clips | Tracks and clips}
  * @see {@link https://canvastimeline.com/docs/react-hooks | React editor hooks}
  */
@@ -47,7 +45,6 @@ export interface UseTimelineTracksResult extends UseTimelineTrackCommandsResult 
  * missing.
  *
  * @returns Track collection state and commands for selecting and updating tracks.
- * tracks, such as `"visual" | "audio"`.
  *
  * @example
  * ```tsx

@@ -56,6 +56,7 @@ const writeConsumerFixture = async ({ fixtureDir, tarballs, rootManifest }) => {
     'core/useTimelineSelector.ts',
     'clips/useTimelineClips.ts',
     'tracks/useTimelineTracks.ts',
+    'keyframes/useTimelineKeyframeDrag.ts',
   ];
   for (const [sourceIndex, source] of exampleSources.entries()) {
     const text = await readFile(join(packagesRoot, 'react/src/hooks', source), 'utf8');
