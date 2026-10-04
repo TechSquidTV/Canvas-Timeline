@@ -70,11 +70,12 @@ combinations remain unambiguous. Verify the complete fixed group in
 `.changeset/config.json`; do not reason about package bumps as independent
 versions.
 
-Use `vp run changeset:status` and `vp run changeset:version` rather than invoking
-the corresponding Changesets commands directly. These repository wrappers
-temporarily mask fixed-group workspace peer edges so a coordinated pre-1.0
-release does not receive an unintended major bump, then restore the manifests.
-Snapshot and release workflows must use the same wrapper.
+Use `vp run changeset:status` and `vp run changeset:version` for release planning
+and versioning. These scripts invoke Changesets CLI v3 directly; it handles
+fixed-group workspace peers without modifying peer declarations. Use
+`vp run changeset:version --snapshot <tag>` for snapshots. Verify that a patch
+Changeset produces a patch release for the entire fixed group when changing
+release tooling.
 
 Do not hand-edit package changelogs in feature PRs. Changesets generates version
 and changelog updates in the release PR. Review that release PR to verify every
@@ -148,7 +149,7 @@ Pause and resolve before opening or marking ready for review when:
 
 - Public package exports changed but there is no Changeset decision.
 - A Changeset or PR describes fixed-group public packages as independently
-  versioned, or a release path bypasses the lockstep wrapper.
+  versioned, or a release path bypasses the configured fixed group.
 - A PR adds compatibility aliases, deprecated fallbacks, or duplicate public
   APIs.
 - Docs examples or demos import private workspace paths instead of public package
