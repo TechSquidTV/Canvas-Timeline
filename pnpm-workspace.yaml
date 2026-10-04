@@ -23,7 +23,7 @@ overrides:
   sharp: ^0.35.4
   svgo: ^4.0.2
   http-cache-semantics@4: ^4.3.0
-  undici@7: ^7.29.1
+  undici@7: ^8.0.0
   vite: 'catalog:'
   vitest: 'catalog:'
 peerDependencyRules:
