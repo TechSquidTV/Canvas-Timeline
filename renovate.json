@@ -66,13 +66,6 @@
       "matchManagers": ["npm"],
       "matchDepTypes": ["peerDependencies"],
       "enabled": false
-    },
-    {
-      "description": "Action v2 requires Changesets CLI v3 and a release-workflow migration.",
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["changesets/action"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
     }
   ]
 }

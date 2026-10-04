@@ -348,7 +348,7 @@ export default defineConfig({
           'vp run repo:package:check',
           'vp exec changeset publish',
         ],
-        // Publishing must run every time and retain GitHub's OIDC request environment.
+        // Retain GitHub's OIDC environment and CHANGESETS_OUTPUT for action v2.
         cache: false,
       },
       'repo:typecheck': {

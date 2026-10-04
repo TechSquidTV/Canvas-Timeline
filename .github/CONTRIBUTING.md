@@ -105,11 +105,9 @@ package combinations unambiguous. While the project is pre-1.0, breaking
 changes use a minor changeset and must include a `**BREAKING:**` migration note;
 for example, the first coordinated release after `0.1.x` is `0.2.0`.
 
-Use the repository's `changeset:status` and `changeset:version` scripts instead
-of invoking those Changesets commands directly. The scripts preserve the real
-internal optional-peer declarations while preventing Changesets from treating
-an atomic fixed-group peer update as an independent `1.0.0` bump. Snapshot and
-release workflows use the same entry point.
+Use `vp run changeset:status` and `vp run changeset:version` for release planning
+and versioning. Changesets CLI v3 handles the fixed group and workspace peers
+directly, including snapshots.
 
 ## Dependency Updates
 

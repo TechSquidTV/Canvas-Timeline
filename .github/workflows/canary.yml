@@ -49,7 +49,7 @@ jobs:
       - name: Version snapshot packages
         env:
           SNAPSHOT_TAG: ${{ inputs.tag }}
-        run: node scripts/release/run-lockstep-changeset.mjs version --snapshot "$SNAPSHOT_TAG"
+        run: vp run changeset:version --snapshot "$SNAPSHOT_TAG"
 
       - name: Validate publishable packages
         run: vp run package:check
