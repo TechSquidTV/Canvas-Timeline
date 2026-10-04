@@ -9,7 +9,7 @@
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
   "labels": ["dependencies"],
-  "prConcurrentLimit": 10,
+  "prConcurrentLimit": 3,
   "packageRules": [
     {
       "matchManagers": ["npm"],
@@ -22,8 +22,22 @@
       "minimumReleaseAge": "7 days"
     },
     {
-      "matchPackageNames": ["react", "react-dom"],
+      "matchManagers": ["npm"],
       "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm dependencies"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "semanticCommitType": "ci"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    },
+    {
+      "matchPackageNames": ["react", "react-dom"],
+      "matchUpdateTypes": ["major"],
       "groupName": "React runtime"
     },
     {
@@ -35,32 +49,30 @@
         "wrangler",
         "workerd"
       ],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": ["major"],
       "groupName": "Astro and Cloudflare"
     },
     {
       "matchPackageNames": ["@sentry/*"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": ["major"],
       "groupName": "Sentry"
     },
     {
       "matchPackageNames": ["mediabunny", "@mediabunny/*"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": ["major"],
       "groupName": "Mediabunny"
     },
     {
-      "matchPackageNames": ["vite-plus", "@voidzero-dev/*", "vitest", "@vitest/*"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Vite tooling"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "groupName": "GitHub Actions",
-      "semanticCommitType": "ci"
-    },
-    {
+      "matchPackageNames": [
+        "vite",
+        "vite-plus",
+        "@vitejs/*",
+        "@voidzero-dev/*",
+        "vitest",
+        "@vitest/*"
+      ],
       "matchUpdateTypes": ["major"],
-      "groupName": null
+      "groupName": "Vite tooling"
     },
     {
       "matchManagers": ["npm"],
