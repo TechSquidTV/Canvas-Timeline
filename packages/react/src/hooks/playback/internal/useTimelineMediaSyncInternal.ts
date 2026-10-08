@@ -15,7 +15,7 @@ import { createMediaPlayFailure } from '#react/hooks/playback/internal/mediaPlay
 import type { TimelineMediaPlayResult } from '#react/hooks/playback/internal/mediaPlayResult';
 import { MediaSynchronizationQueue } from '#react/hooks/playback/internal/mediaSynchronizationQueue';
 import { usePausedMediaPreviewSynchronization } from '#react/hooks/playback/internal/pausedMediaPreviewScheduler';
-import { useTimelineMediaPlaybackInternal } from '#react/hooks/playback/internal/useTimelineMediaPlaybackInternal';
+import { useTimelineMediaPlaybackInternal } from '#react/hooks/playback/internal/externalMediaPlaybackTransport';
 import { toMediaError, withMediaCauseMessage } from '#react/hooks/playback/mediaError';
 import type { UseTimelineMediaPlaybackOptions } from '#react/hooks/playback/useTimelineMediaPlayback';
 import { TimelineMediaError } from '@techsquidtv/canvas-timeline-core';
