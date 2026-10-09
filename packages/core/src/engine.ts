@@ -35,7 +35,7 @@ import {
 import type { TimelineZoomConstraints } from '#core/engine/geometry';
 import { TimelineGeometry } from '#core/engine/interaction-geometry';
 import { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
-import { TimelineKeyframes } from '#core/engine/keyframes';
+import { TimelineKeyframes } from '#core/engine/keyframe-state';
 import type {
   SnapPreparationOptions,
   TimelineSnapProvider,
