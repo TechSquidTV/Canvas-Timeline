@@ -2,4 +2,4 @@ export {
   useTimelineMediaPlayback,
   type UseTimelineMediaPlaybackOptions,
   type UseTimelineMediaPlaybackResult,
-} from '#react/hooks/playback/internal/useTimelineMediaPlaybackInternal';
+} from '#react/hooks/playback/internal/externalMediaPlaybackTransport';
