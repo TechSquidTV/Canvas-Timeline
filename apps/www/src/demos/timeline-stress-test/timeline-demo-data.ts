@@ -1,11 +1,20 @@
-import type { Track, Clip, Marker } from '@techsquidtv/canvas-timeline-core';
+import type { Track, Clip, Marker, TimelineKeyframe } from '@techsquidtv/canvas-timeline-core';
 import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
+import { opacityKeyframeProperty } from '#www/demos/demo-keyframe-properties';
 import { getDemoClipColor } from '#www/demos/demo-clip-colors';
+
+export interface BenchmarkConfig {
+  numTracks: number;
+  clipsPerTrack: number;
+  durationSeconds: number;
+  keyframesPerClip: number;
+}
 
 export function generateStressTestData(
   numTracks: number,
   clipsPerTrack: number,
-  durationSeconds: number
+  durationSeconds: number,
+  keyframesPerClip: number
 ) {
   const tracks: Track<'visual' | 'audio'>[] = [];
   const segmentWidth = durationSeconds / Math.max(1, clipsPerTrack);
@@ -24,6 +33,10 @@ export function generateStressTestData(
       const endSec = Math.min(startSec + clipDuration, durationSeconds);
 
       if (startSec < durationSeconds && startSec < endSec) {
+        const keyframes: TimelineKeyframe[] | undefined =
+          keyframesPerClip > 0
+            ? createDemoKeyframes(keyframesPerClip, startSec, endSec, `clip-${t}-${c}`)
+            : undefined;
         clips.push({
           id: `clip-${t}-${c}`,
           sourceId: `source-${t}-${c}`,
@@ -33,6 +46,7 @@ export function generateStressTestData(
           selected: false,
           color: getDemoClipColor(t * clipsPerTrack + c),
           label: `Trk ${t + 1} Clp ${c + 1}`,
+          ...(keyframes === undefined ? {} : { keyframes }),
         });
       }
     }
@@ -69,3 +83,24 @@ export function generateStressTestData(
 export const initialNumTracks = 15;
 export const initialClipsPerTrack = 8;
 export const initialDurationSeconds = 120;
+export const initialKeyframesPerClip = 0;
+
+function createDemoKeyframes(
+  count: number,
+  startSec: number,
+  endSec: number,
+  idPrefix: string
+): TimelineKeyframe[] {
+  const keyframes: TimelineKeyframe[] = [];
+  const span = Math.max(endSec - startSec, 0.001);
+  for (let k = 0; k < count; k++) {
+    const timeSec = startSec + (span * (k + 1)) / (count + 1);
+    keyframes.push({
+      id: `${idPrefix}-kf-${k}`,
+      property: opacityKeyframeProperty.id,
+      time: fromSeconds(timeSec),
+      value: 0.25 + 0.75 * ((k % 4) / 3),
+    });
+  }
+  return keyframes;
+}

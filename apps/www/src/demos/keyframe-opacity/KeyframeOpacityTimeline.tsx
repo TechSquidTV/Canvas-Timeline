@@ -1,9 +1,9 @@
+import { opacityKeyframeProperty } from '#www/demos/demo-keyframe-properties';
 import { KeyframeInspector } from '#www/demos/keyframe-opacity/KeyframeInspector';
 import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import {
   findClipContainingTime,
   findOpacityKeyframeAtTime,
-  opacityKeyframeProperty,
   opacityKeyframeValuePadding,
   toggleOpacityKeyframeAtTime,
 } from '#www/demos/keyframe-opacity/keyframe-opacity-utils';
