@@ -114,6 +114,18 @@ directly, including snapshots.
 Renovate manages dependency updates via [renovate.json](../renovate.json).
 Review each PR and add a changeset or empty changeset following the policy above.
 
+Regular updates and lockfile maintenance run on Saturday mornings. Lockfile
+maintenance refreshes transitive dependencies within the declared version ranges.
+GitHub vulnerability alerts let Renovate open security fixes outside that schedule
+and without the ordinary seven-day npm release delay; the production dependency
+audit remains an independent check.
+
+Use Vite+ to select the pinned pnpm version. `pmOnFail: ignore` prevents pnpm from
+adding an environment document to the lockfile, which GitHub's dependency graph
+currently cannot parse. Keep the project lockfile as a single YAML document so
+Dependabot alerts include resolved transitive dependencies. See
+[the upstream parser issue](https://github.com/dependabot/dependabot-core/issues/15904).
+
 ## Release Publishing
 
 Releases are managed by Changesets and GitHub Actions. Manually dispatch the
