@@ -4,7 +4,8 @@ import type {
   TimelineKeyframePropertyId,
   TimelineRegisteredKeyframePropertyDefinition,
 } from '#core/types';
-import { assertValidTimelineNumber, cloneTimelineKeyframes } from '#core/snapshot';
+import { assertValidTimelineNumber } from '#core/validation';
+import { cloneTimelineKeyframes } from '#core/model-clone';
 
 export class KeyframePropertyRegistry {
   private properties = new Map<

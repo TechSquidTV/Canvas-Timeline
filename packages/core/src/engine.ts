@@ -56,12 +56,14 @@ import {
   assertNonNegativeTimelineNumber,
   assertPositiveTimelineNumber,
   assertValidTimelineNumber,
+} from '#core/validation';
+import {
   cloneRationalTime,
   createClipGroupSnapshots,
   createMarkerSnapshots,
   createTrackSnapshot,
   createTrackSnapshots,
-} from '#core/snapshot';
+} from '#core/model-clone';
 import { createTimelineReadSnapshot } from '#core/state-snapshot';
 import type {
   Clip,

@@ -14,7 +14,7 @@ import {
   getTimelineKeyframeValuePoint,
   normalizeTimelineKeyframeBezierHandle,
 } from '#core/keyframes';
-import { cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/snapshot';
+import { cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/model-clone';
 import type {
   Clip,
   ClipViewportRect,

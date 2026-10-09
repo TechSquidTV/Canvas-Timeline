@@ -2,7 +2,11 @@ import { findClipInTracks } from '#core/engine/clip-lookup';
 import { insertCurveKeyframe } from '#core/engine/keyframe-curves';
 import type { KeyframePropertyRegistry } from '#core/engine/keyframe-property-registry';
 import { normalizeTimelineKeyframeSideInterpolation } from '#core/keyframes';
-import { cloneTimelineKeyframe, createClipSnapshot, sortTimelineKeyframes } from '#core/snapshot';
+import {
+  cloneTimelineKeyframe,
+  createClipSnapshot,
+  sortTimelineKeyframes,
+} from '#core/model-clone';
 import type {
   Clip,
   TimelineEditValidationResult,

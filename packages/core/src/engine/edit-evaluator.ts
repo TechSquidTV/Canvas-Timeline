@@ -12,13 +12,13 @@ import type {
   TimelineResolvedClipGroupPlacements,
   TimelineResolvedEdit,
 } from '#core/engine/types';
+import { assertValidClipTiming } from '#core/validation';
 import {
-  assertValidClipTiming,
   cloneRationalTime,
   createClipGroupSnapshots,
   createClipSnapshot,
   createTrackSnapshots,
-} from '#core/snapshot';
+} from '#core/model-clone';
 import type {
   Clip,
   TimelineClipGroup,

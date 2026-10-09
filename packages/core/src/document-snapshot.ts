@@ -2,7 +2,7 @@ import {
   createClipSnapshot,
   createMarkerSnapshots,
   createClipGroupSnapshots,
-} from '#core/snapshot';
+} from '#core/model-clone';
 import type { TimelineReadonly, TimelineState, TimelineStateSnapshot, Track } from '#core/types';
 
 /** Compares model values without serializing or cloning unchanged document nodes. */
