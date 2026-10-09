@@ -10,5 +10,5 @@ export * from '#core/types';
 export type { TimelineHistoryOptions } from '#core/history';
 
 export type { TimelineGeometry } from '#core/engine/interaction-geometry';
-export type { TimelineKeyframes } from '#core/engine/keyframes';
+export type { TimelineKeyframes } from '#core/engine/keyframe-state';
 export type { TimelineMediaQueries } from '#core/engine/active-media';
