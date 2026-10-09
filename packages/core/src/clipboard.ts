@@ -1,5 +1,5 @@
 import type { TimelineEngine } from '#core/engine';
-import { createClipSnapshot } from '#core/snapshot';
+import { createClipSnapshot } from '#core/model-clone';
 import type { Clip, TimelineEditCommand } from '#core/types';
 import { addRational, compareRational, subRational } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';

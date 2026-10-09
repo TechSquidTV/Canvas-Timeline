@@ -1,5 +1,5 @@
 import type { Clip } from '#core/types';
-import { hasTimelineKeyframes } from '#core/snapshot';
+import { hasTimelineKeyframes } from '#core/model-clone';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import { addRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 

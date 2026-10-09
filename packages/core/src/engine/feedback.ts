@@ -6,7 +6,7 @@ import type {
   TimelineEditValidationResult,
   TimelineSnapFeedback,
 } from '#core/types';
-import { cloneRationalTime, createClipSnapshot } from '#core/snapshot';
+import { cloneRationalTime, createClipSnapshot } from '#core/model-clone';
 
 export const emptyTimelineSnapFeedback: TimelineSnapFeedback = {
   lines: [],

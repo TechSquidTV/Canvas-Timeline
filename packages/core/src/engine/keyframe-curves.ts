@@ -11,7 +11,7 @@ import type {
   TimelineKeyframeSideInterpolation,
   TimelineReadonly,
 } from '#core/types';
-import { cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/snapshot';
+import { cloneTimelineKeyframe, sortTimelineKeyframes } from '#core/model-clone';
 import { compareRational, subRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 
