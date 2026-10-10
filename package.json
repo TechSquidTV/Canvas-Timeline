@@ -18,9 +18,9 @@
     "#www-generated/*": "./apps/www/.generated/*"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24.15.0"
   },
-  "packageManager": "pnpm@12.7.0",
+  "packageManager": "pnpm@12.9.1",
   "scripts": {
     "build": "vp run repo:build",
     "changeset": "changeset",
