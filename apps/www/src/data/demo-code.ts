@@ -23,6 +23,8 @@ import keyframeOpacityLocalStylesSource from '#www/demos/keyframe-opacity/timeli
 import sharedTimelineEditorStylesSource from '#www/demos/shared-timeline-editor.css?raw';
 import stressTestTimelineSource from '#www/demos/timeline-stress-test/TimelineStressTest?raw';
 import stressTestDataSource from '#www/demos/timeline-stress-test/timeline-demo-data?raw';
+import stressTestBenchmarksSource from '#www/demos/timeline-stress-test/timeline-benchmarks?raw';
+import demoKeyframePropertiesSource from '#www/demos/demo-keyframe-properties?raw';
 import stressTestControlsSource from '#www/demos/timeline-stress-test/timeline-benchmark-controls?raw';
 import reactDomTimelineTimelineSource from '#www/demos/react-dom-timeline/ReactDOMTimeline?raw';
 import reactDomTimelineDataSource from '#www/demos/react-dom-timeline/timeline-demo-data?raw';
@@ -59,6 +61,13 @@ const demoClipColorsTab: DemoCodeTab = {
   id: 'clip-colors',
   label: 'Clip colors',
   code: toCopyableDemoSource(demoClipColorsSource),
+  lang: 'ts',
+};
+
+const demoKeyframePropertiesTab: DemoCodeTab = {
+  id: 'keyframe-properties',
+  label: 'Keyframe properties',
+  code: toCopyableDemoSource(demoKeyframePropertiesSource),
   lang: 'ts',
 };
 
@@ -200,6 +209,7 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
         lang: 'tsx',
       },
       demoClipColorsTab,
+      demoKeyframePropertiesTab,
       demoInstrumentationTab,
       metricsCommonTab,
       {
@@ -216,6 +226,7 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
         'apps/www/src/demos/keyframe-opacity/KeyframeInspector.tsx',
         'apps/www/src/demos/keyframe-opacity/keyframe-opacity-utils.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/demos/demo-keyframe-properties.ts',
         'apps/www/src/lib/metrics-common.ts',
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/shared-timeline-editor.css',
@@ -228,8 +239,15 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
     tsx: toCopyableDemoSource(stressTestTimelineSource),
     extraTabs: [
       demoClipColorsTab,
+      demoKeyframePropertiesTab,
       demoInstrumentationTab,
       metricsCommonTab,
+      {
+        id: 'benchmark-runner',
+        label: 'Benchmark runner',
+        code: toCopyableDemoSource(stressTestBenchmarksSource),
+        lang: 'ts',
+      },
       {
         id: 'controls',
         label: 'Benchmark controls',
@@ -248,9 +266,11 @@ export const demoCodeExamples: Record<LiveDemoId, DemoCodeExample> = {
       component: 'apps/www/src/demos/timeline-stress-test/TimelineStressTest.tsx',
       utilities: [
         'apps/www/src/demos/timeline-stress-test/timeline-benchmark-controls.tsx',
+        'apps/www/src/demos/timeline-stress-test/timeline-benchmarks.ts',
         'apps/www/src/demos/react-dom-timeline/DOMTimelineComponents.tsx',
         'apps/www/src/demos/demo-clip-colors.ts',
         'apps/www/src/demos/demo-instrumentation.ts',
+        'apps/www/src/demos/demo-keyframe-properties.ts',
         'apps/www/src/lib/metrics-common.ts',
       ],
       data: 'apps/www/src/demos/timeline-stress-test/timeline-demo-data.ts',

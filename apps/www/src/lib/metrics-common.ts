@@ -2,7 +2,15 @@ type MetricAttributeValue = string | number | boolean;
 export type MetricAttributes = Record<string, MetricAttributeValue>;
 
 type RendererType = 'canvas' | 'dom';
-export type TimelineMetricOperation = 'scrub' | 'zoom' | 'pan' | 'drag' | 'trim';
+export type TimelineMetricOperation =
+  | 'scrub'
+  | 'zoom'
+  | 'pan'
+  | 'drag'
+  | 'trim'
+  | 'drag-rejected'
+  | 'commit'
+  | 'undo';
 
 export interface NormalizedRouteMetric {
   route: string;
@@ -14,6 +22,8 @@ export interface TimelineMetricContext {
   renderer: RendererType;
   trackCount: number;
   clipCount: number;
+  keyframeCount?: number;
+  benchmarkScope?: 'engine' | 'interactive';
 }
 
 export interface WorkerRenderMetric {
@@ -131,5 +141,9 @@ export function timelineMetricAttributes(context: TimelineMetricContext): Metric
     renderer: context.renderer,
     track_count_bucket: bucketCount(context.trackCount),
     clip_count_bucket: bucketCount(context.clipCount),
+    ...(context.keyframeCount === undefined
+      ? {}
+      : { keyframe_count_bucket: bucketCount(context.keyframeCount) }),
+    ...(context.benchmarkScope === undefined ? {} : { benchmark_scope: context.benchmarkScope }),
   };
 }

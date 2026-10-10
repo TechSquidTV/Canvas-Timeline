@@ -1,5 +1,5 @@
+import { opacityKeyframeProperty } from '#www/demos/demo-keyframe-properties';
 import { KeyframeInspector } from '#www/demos/keyframe-opacity/KeyframeInspector';
-import { opacityKeyframeProperty } from '#www/demos/keyframe-opacity/keyframe-opacity-utils';
 import { demoTracks, opacityClipId } from '#www/demos/keyframe-opacity/timeline-demo-data';
 import { TimelineEngine } from '@techsquidtv/canvas-timeline-core';
 import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
