@@ -20,7 +20,7 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@12.7.0",
+  "packageManager": "pnpm@12.9.1",
   "scripts": {
     "build": "vp run repo:build",
     "changeset": "changeset",
