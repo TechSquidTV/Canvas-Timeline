@@ -9,7 +9,7 @@
     "url": "https://github.com/techsquidtv/canvas-timeline/issues"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24.15.0"
   },
   "homepage": "https://canvastimeline.com",
   "repository": {

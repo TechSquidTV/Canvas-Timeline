@@ -60,7 +60,7 @@ export function EditorTimeline() {
 
 ## Compatibility
 
-Canvas Timeline currently targets Node `>=24`, React `^19.2.7`, and modern
+Canvas Timeline currently targets Node `>=24.15.0`, React `^19.2.7`, and modern
 Chromium, Firefox, and Safari browsers. Headless imports from core and utils are
 safe for server-side code; React components, renderer components, media
 adapters, and worker-backed canvas rendering belong behind client/browser
