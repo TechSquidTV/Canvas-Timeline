@@ -1,6 +1,5 @@
 import { useTimeline } from '@techsquidtv/canvas-timeline-react';
 import type { CanvasRendererStats } from '@techsquidtv/canvas-timeline-renderer';
-import { fromSeconds, round, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import {
   type Dispatch,
   type FormEvent,
@@ -12,13 +11,14 @@ import {
   useState,
 } from 'react';
 import type { DemoMetrics } from '#www/demos/demo-instrumentation';
-import type { TimelineMetricContext, TimelineMetricOperation } from '#www/lib/metrics-common';
-
-interface BenchmarkConfig {
-  numTracks: number;
-  clipsPerTrack: number;
-  durationSeconds: number;
-}
+import type { TimelineMetricContext } from '#www/lib/metrics-common';
+import type { BenchmarkConfig } from '#www/demos/timeline-stress-test/timeline-demo-data';
+import {
+  benchmarkTitles,
+  runTimelineBenchmark,
+  type BenchmarkResult,
+  type BenchmarkType,
+} from '#www/demos/timeline-stress-test/timeline-benchmarks';
 
 export interface BenchmarkDisplayOptions {
   rendererType: 'canvas' | 'dom';
@@ -35,59 +35,6 @@ interface BenchmarkControlsProps {
   metrics?: DemoMetrics;
 }
 
-const roundMetric = (value: number) => round(value, 1);
-
-const percentile = (values: number[], ratio: number) => {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
-};
-
-const gradeForFrames = (avgFps: number, minFps: number) => {
-  if (avgFps >= 58 && minFps >= 45) {
-    return 'S+';
-  }
-  if (avgFps >= 55 && minFps >= 40) {
-    return 'A';
-  }
-  if (avgFps >= 45 && minFps >= 30) {
-    return 'B';
-  }
-  if (avgFps >= 30 && minFps >= 20) {
-    return 'C';
-  }
-  return 'D';
-};
-
-const summarizeFrames = (frameTimes: number[]) => {
-  const totalFrames = frameTimes.length;
-  const totalDurationSec = frameTimes.reduce((a, b) => a + b, 0) / 1000;
-  const avgFps = totalDurationSec > 0 ? totalFrames / totalDurationSec : 0;
-  const maxFrameMs = frameTimes.length > 0 ? Math.max(...frameTimes) : 0;
-  const minFps = maxFrameMs > 0 ? 1000 / maxFrameMs : 0;
-
-  return {
-    avgFps,
-    minFps,
-    p95FrameMs: percentile(frameTimes, 0.95),
-    totalFrames,
-  };
-};
-
-const summarizeWorkerStats = (stats: CanvasRendererStats[]) => {
-  const durations = stats.map((entry) => entry.drawDurationMs);
-  const total = durations.reduce((a, b) => a + b, 0);
-
-  return {
-    workerDraws: stats.length,
-    workerAvgMs: durations.length > 0 ? total / durations.length : 0,
-    workerMaxMs: durations.length > 0 ? Math.max(...durations) : 0,
-  };
-};
-
 export function BenchmarkControls({
   config,
   onApplyConfig,
@@ -98,39 +45,13 @@ export function BenchmarkControls({
   renderStatsRef,
   metrics,
 }: BenchmarkControlsProps) {
-  const configKey = [config.numTracks, config.clipsPerTrack, config.durationSeconds].join(':');
-
-  return (
-    <BenchmarkControlsInner
-      key={configKey}
-      config={config}
-      onApplyConfig={onApplyConfig}
-      totalClips={totalClips}
-      displayOptions={displayOptions}
-      onDisplayOptionsChange={onDisplayOptionsChange}
-      onCollectRenderStatsChange={onCollectRenderStatsChange}
-      renderStatsRef={renderStatsRef}
-      metrics={metrics}
-    />
-  );
-}
-
-function BenchmarkControlsInner({
-  config,
-  onApplyConfig,
-  totalClips,
-  displayOptions,
-  onDisplayOptionsChange,
-  onCollectRenderStatsChange,
-  renderStatsRef,
-  metrics,
-}: BenchmarkControlsProps) {
-  const { engine, state } = useTimeline();
+  const { engine } = useTimeline();
 
   // Local draft state for controls so slider dragging is smooth
   const [draftTracks, setDraftTracks] = useState(config.numTracks);
   const [draftClips, setDraftClips] = useState(config.clipsPerTrack);
   const [draftDuration, setDraftDuration] = useState(config.durationSeconds);
+  const [draftKeyframes, setDraftKeyframes] = useState(config.keyframesPerClip);
 
   // FPS tracking
   const [fps, setFps] = useState(60);
@@ -138,25 +59,8 @@ function BenchmarkControlsInner({
 
   // Benchmark scrubbing state
   const [isBenchmarking, setIsBenchmarking] = useState(false);
-  const [benchmarkResult, setBenchmarkResult] = useState<{
-    type: 'scrub' | 'zoom';
-    avgFps: number;
-    minFps: number;
-    p95FrameMs: number;
-    grade: string;
-    frameCount: number;
-    engineAvgMs?: number;
-    engineMaxMs?: number;
-    renderEvents?: number;
-    settledEvents?: number;
-    zoomEvents?: number;
-    scrollEvents?: number;
-    workerDraws?: number;
-    workerAvgMs?: number;
-    workerMaxMs?: number;
-  } | null>(null);
+  const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const benchmarkRunIdRef = useRef(0);
   const lastFpsMetricAtRef = useRef(0);
 
   const createMetricContext = useCallback(
@@ -165,8 +69,9 @@ function BenchmarkControlsInner({
       renderer: displayOptions.rendererType,
       trackCount: config.numTracks,
       clipCount: totalClips,
+      keyframeCount: totalClips * config.keyframesPerClip,
     }),
-    [config.numTracks, displayOptions.rendererType, totalClips]
+    [config.numTracks, config.keyframesPerClip, displayOptions.rendererType, totalClips]
   );
 
   useEffect(() => {
@@ -204,268 +109,66 @@ function BenchmarkControlsInner({
     return () => cancelAnimationFrame(animId);
   }, [createMetricContext, metrics]);
 
-  const reportBenchmarkMetrics = (
-    operation: TimelineMetricOperation,
-    frameTimes: readonly number[],
-    interactionLatencies: readonly number[]
-  ) => {
-    const context = createMetricContext();
-
-    metrics?.onTimelineFrameTimes?.(context, frameTimes, operation);
-    metrics?.onTimelineInteractionLatencies?.(context, operation, interactionLatencies);
-    metrics?.onTimelineWorkerRenderStats?.(
-      context,
-      renderStatsRef.current.map((entry) => ({
-        reason: entry.reason,
-        durationMs: entry.drawDurationMs,
-      }))
-    );
-  };
-
-  // Automated Benchmark Scrubbing
-  const runScrubBenchmark = () => {
-    if (isBenchmarking) {
+  const runBenchmark = (type: BenchmarkType) => {
+    if (cleanupRef.current !== null) {
       return;
     }
-
-    cleanupRef.current?.();
-    const runId = benchmarkRunIdRef.current + 1;
-    benchmarkRunIdRef.current = runId;
-    let animationFrameId = 0;
-    let cancelled = false;
-    const cleanup = () => {
-      cancelled = true;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      onCollectRenderStatsChange(false);
-    };
-    cleanupRef.current = cleanup;
-
     setIsBenchmarking(true);
     setBenchmarkResult(null);
     renderStatsRef.current = [];
-    onCollectRenderStatsChange(true);
-
-    const duration = toSeconds(state.duration || fromSeconds(config.durationSeconds));
-    const originalPlayhead = toSeconds(state.playheadTime);
-
-    // Pause playback if running to control scrub exclusively
-    engine.pause();
-
-    const frameTimes: number[] = [];
-    const interactionLatencies: number[] = [];
-    let lastFrameTime = performance.now();
-    let elapsedFrames = 0;
-    const testDurationMs = 4000; // 4 seconds test
-    const startTime = performance.now();
-
-    const benchmarkStep = () => {
-      if (cancelled || benchmarkRunIdRef.current !== runId) {
-        return;
-      }
-
-      const now = performance.now();
-      const delta = now - lastFrameTime;
-      lastFrameTime = now;
-
-      // Track frame times (ms per frame)
-      if (elapsedFrames > 0) {
-        frameTimes.push(delta);
-      }
-      elapsedFrames++;
-
-      // Programmatically advance playhead over a range
-      const testElapsed = now - startTime;
-      const progress = (testElapsed % 1000) / 1000; // loop playhead position every 1s
-      const nextTimeSec = progress * Math.min(30, duration); // scrub within the first 30 seconds
-
-      const updateStartedAt = performance.now();
-      engine.updatePlayhead(fromSeconds(nextTimeSec));
-      interactionLatencies.push(performance.now() - updateStartedAt);
-
-      if (testElapsed < testDurationMs) {
-        animationFrameId = requestAnimationFrame(benchmarkStep);
-      } else {
-        // Benchmark complete! Analyze results
+    const context: TimelineMetricContext = {
+      ...createMetricContext(),
+      benchmarkScope: type === 'commit' ? 'engine' : 'interactive',
+    };
+    cleanupRef.current = runTimelineBenchmark({
+      engine,
+      type,
+      collectWorkerStats: displayOptions.rendererType === 'canvas',
+      getWorkerStats: () => renderStatsRef.current,
+      onMeasurementStart: () => {
+        renderStatsRef.current = [];
+        onCollectRenderStatsChange(
+          displayOptions.rendererType === 'canvas' && (type === 'scrub' || type === 'zoom')
+        );
+      },
+      onMeasurementEnd: () => onCollectRenderStatsChange(false),
+      onResult: (result) => {
         cleanupRef.current = null;
-        onCollectRenderStatsChange(false);
         setIsBenchmarking(false);
-        engine.updatePlayhead(fromSeconds(originalPlayhead)); // restore original playhead
-        engine.settle();
-
-        const frameSummary = summarizeFrames(frameTimes);
-        const workerSummary = summarizeWorkerStats(renderStatsRef.current);
-        reportBenchmarkMetrics('scrub', frameTimes, interactionLatencies);
-
-        setBenchmarkResult({
-          type: 'scrub',
-          avgFps: roundMetric(frameSummary.avgFps),
-          minFps: roundMetric(frameSummary.minFps),
-          p95FrameMs: roundMetric(frameSummary.p95FrameMs),
-          grade: gradeForFrames(frameSummary.avgFps, frameSummary.minFps),
-          frameCount: frameSummary.totalFrames,
-          workerDraws: workerSummary.workerDraws,
-          workerAvgMs: roundMetric(workerSummary.workerAvgMs),
-          workerMaxMs: roundMetric(workerSummary.workerMaxMs),
-        });
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(benchmarkStep);
-  };
-
-  const runZoomBenchmark = () => {
-    if (isBenchmarking) {
-      return;
-    }
-
-    cleanupRef.current?.();
-    const runId = benchmarkRunIdRef.current + 1;
-    benchmarkRunIdRef.current = runId;
-    let animationFrameId = 0;
-    let finishTimeoutId = 0;
-    let cancelled = false;
-    let unsubscribers: Array<() => void> = [];
-    const cleanup = () => {
-      cancelled = true;
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      if (finishTimeoutId) {
-        window.clearTimeout(finishTimeoutId);
-      }
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
-      unsubscribers = [];
-      onCollectRenderStatsChange(false);
-    };
-    cleanupRef.current = cleanup;
-
-    setIsBenchmarking(true);
-    setBenchmarkResult(null);
-    renderStatsRef.current = [];
-    onCollectRenderStatsChange(true);
-
-    const originalZoom = engine.zoomScale;
-    const originalScrollLeft = engine.scrollLeft;
-    const viewportWidth = state.viewportWidth || 1000;
-    const duration = toSeconds(state.duration || fromSeconds(config.durationSeconds));
-    const minAllowedZoom = duration > 0 ? viewportWidth / duration : originalZoom;
-    const minZoom = Math.max(minAllowedZoom, originalZoom * 0.65);
-    const maxZoom = Math.max(minZoom, originalZoom * 1.6);
-    const midZoom = (minZoom + maxZoom) / 2;
-    const zoomAmplitude = (maxZoom - minZoom) / 2;
-
-    engine.pause();
-
-    const frameTimes: number[] = [];
-    const engineTimes: number[] = [];
-    const eventCounts = {
-      render: 0,
-      settled: 0,
-      zoom: 0,
-      scroll: 0,
-    };
-    unsubscribers = [
-      engine.on('render', () => {
-        eventCounts.render++;
-      }),
-      engine.on('state:settled', () => {
-        eventCounts.settled++;
-      }),
-      engine.on('zoom:change', () => {
-        eventCounts.zoom++;
-      }),
-      engine.on('scroll:change', () => {
-        eventCounts.scroll++;
-      }),
-    ];
-
-    let lastFrameTime = performance.now();
-    let elapsedFrames = 0;
-    const testDurationMs = 4000;
-    const startTime = performance.now();
-
-    const finishBenchmark = () => {
-      if (cancelled || benchmarkRunIdRef.current !== runId) {
-        return;
-      }
-
-      cleanupRef.current = null;
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
-      unsubscribers = [];
-      onCollectRenderStatsChange(false);
-
-      engine.setZoomScale(originalZoom);
-      engine.setScrollLeft(originalScrollLeft);
-      engine.settle();
-
-      const frameSummary = summarizeFrames(frameTimes);
-      const workerSummary = summarizeWorkerStats(renderStatsRef.current);
-      const totalEngineMs = engineTimes.reduce((a, b) => a + b, 0);
-      reportBenchmarkMetrics('zoom', frameTimes, engineTimes);
-
-      setIsBenchmarking(false);
-      setBenchmarkResult({
-        type: 'zoom',
-        avgFps: roundMetric(frameSummary.avgFps),
-        minFps: roundMetric(frameSummary.minFps),
-        p95FrameMs: roundMetric(frameSummary.p95FrameMs),
-        grade: gradeForFrames(frameSummary.avgFps, frameSummary.minFps),
-        frameCount: frameSummary.totalFrames,
-        engineAvgMs: roundMetric(engineTimes.length > 0 ? totalEngineMs / engineTimes.length : 0),
-        engineMaxMs: roundMetric(engineTimes.length > 0 ? Math.max(...engineTimes) : 0),
-        renderEvents: eventCounts.render,
-        settledEvents: eventCounts.settled,
-        zoomEvents: eventCounts.zoom,
-        scrollEvents: eventCounts.scroll,
-        workerDraws: workerSummary.workerDraws,
-        workerAvgMs: roundMetric(workerSummary.workerAvgMs),
-        workerMaxMs: roundMetric(workerSummary.workerMaxMs),
-      });
-    };
-
-    const benchmarkStep = () => {
-      if (cancelled || benchmarkRunIdRef.current !== runId) {
-        return;
-      }
-
-      const now = performance.now();
-      const delta = now - lastFrameTime;
-      lastFrameTime = now;
-
-      if (elapsedFrames > 0) {
-        frameTimes.push(delta);
-      }
-      elapsedFrames++;
-
-      const testElapsed = now - startTime;
-      const phase = (testElapsed / 1000) * Math.PI * 2;
-      const nextZoom = midZoom + Math.sin(phase) * zoomAmplitude;
-      const updateStartedAt = performance.now();
-      engine.setZoomScale(nextZoom);
-      engineTimes.push(performance.now() - updateStartedAt);
-
-      if (testElapsed < testDurationMs) {
-        animationFrameId = requestAnimationFrame(benchmarkStep);
-      } else {
-        finishTimeoutId = window.setTimeout(finishBenchmark, 100);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(benchmarkStep);
+        setBenchmarkResult(result);
+        if (result.status !== 'complete') {
+          return;
+        }
+        if (result.frameTimes.length > 0 && (type === 'scrub' || type === 'zoom')) {
+          metrics?.onTimelineFrameTimes?.(context, result.frameTimes, type);
+        }
+        for (const sample of result.interactions) {
+          metrics?.onTimelineInteractionLatencies?.(context, sample.operation, sample.values);
+        }
+        if (result.workerStats.length > 0) {
+          metrics?.onTimelineWorkerRenderStats?.(
+            context,
+            result.workerStats.map((entry) => ({
+              reason: entry.reason,
+              durationMs: entry.drawDurationMs,
+            }))
+          );
+        }
+      },
+    });
   };
 
   const handleApply = (e: FormEvent) => {
     e.preventDefault();
     cleanupRef.current?.();
     cleanupRef.current = null;
-    benchmarkRunIdRef.current++;
     setIsBenchmarking(false);
+    setBenchmarkResult(null);
     onApplyConfig({
       numTracks: draftTracks,
       clipsPerTrack: draftClips,
       durationSeconds: draftDuration,
+      keyframesPerClip: draftKeyframes,
     });
   };
 
@@ -524,10 +227,30 @@ function BenchmarkControlsInner({
           />
         </div>
 
+        <div className="timeline-benchmark-control-group">
+          <label htmlFor="input-keyframes">
+            <span>Keyframes per Clip (data):</span>
+            <span className="value-badge">{draftKeyframes}</span>
+          </label>
+          <input
+            id="input-keyframes"
+            type="range"
+            min="0"
+            max="16"
+            value={draftKeyframes}
+            onChange={(e) => setDraftKeyframes(parseInt(e.target.value, 10))}
+            className="timeline-control-slider"
+          />
+        </div>
+
         <button type="submit" className="timeline-benchmark-submit-btn">
           Apply & Regenerate
         </button>
       </form>
+      <p className="benchmark-note">
+        Keyframe density adds edit, serialization, and history work. Keyframe curves are hidden in
+        both renderers.
+      </p>
 
       <div className="timeline-benchmark-diagnostics">
         <h3 className="timeline-benchmark-section-title">Diagnostics</h3>
@@ -538,13 +261,15 @@ function BenchmarkControlsInner({
           <select
             id="select-renderer"
             className="timeline-control-select"
+            disabled={isBenchmarking}
             value={displayOptions.rendererType}
-            onChange={(event) =>
+            onChange={(event) => {
+              setBenchmarkResult(null);
               onDisplayOptionsChange((current) => ({
                 ...current,
                 rendererType: event.target.value as 'canvas' | 'dom',
-              }))
-            }
+              }));
+            }}
           >
             <option value="canvas">Canvas (Worker)</option>
             <option value="dom">React DOM (Main Thread)</option>
@@ -577,98 +302,41 @@ function BenchmarkControlsInner({
 
         {/* Benchmark controls */}
         <div className="benchmark-action-area">
-          <button
-            type="button"
-            className={`benchmark-btn ${isBenchmarking ? 'is-running' : ''}`}
-            onClick={runScrubBenchmark}
-            disabled={isBenchmarking}
-          >
-            {isBenchmarking ? 'Running...' : 'Run Scrub FPS'}
-          </button>
-          <button
-            type="button"
-            className={`benchmark-btn ${isBenchmarking ? 'is-running' : ''}`}
-            onClick={runZoomBenchmark}
-            disabled={isBenchmarking}
-          >
-            {isBenchmarking ? 'Running...' : 'Run Zoom FPS'}
-          </button>
+          {(['scrub', 'zoom', 'drag', 'commit'] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              className={`benchmark-btn ${isBenchmarking ? 'is-running' : ''}`}
+              onClick={() => runBenchmark(type)}
+              disabled={isBenchmarking}
+            >
+              {isBenchmarking ? 'Running...' : `Run ${benchmarkTitles[type]}`}
+            </button>
+          ))}
         </div>
 
         {/* Benchmark Results */}
         {benchmarkResult && (
-          <div className="benchmark-results-card">
+          <div className="benchmark-results-card" role="status">
             <div className="results-header">
-              <span className="results-title">
-                {benchmarkResult.type === 'zoom' ? 'Zoom FPS Results' : 'Scrub FPS Results'}
-              </span>
-              <span className={`results-grade grade-${benchmarkResult.grade.charAt(0)}`}>
-                {benchmarkResult.grade}
-              </span>
-            </div>
-            <div className="results-metrics">
-              <div className="metric-row">
-                <span>Average FPS:</span>
-                <strong>{benchmarkResult.avgFps}</strong>
-              </div>
-              <div className="metric-row">
-                <span>Minimum FPS:</span>
-                <strong>{benchmarkResult.minFps}</strong>
-              </div>
-              <div className="metric-row">
-                <span>P95 Frame:</span>
-                <strong>{benchmarkResult.p95FrameMs}ms</strong>
-              </div>
-              <div className="metric-row">
-                <span>Total Frames:</span>
-                <strong>{benchmarkResult.frameCount}</strong>
-              </div>
-              {benchmarkResult.type === 'zoom' && (
-                <>
-                  <div className="metric-row">
-                    <span>setZoom Avg:</span>
-                    <strong>{benchmarkResult.engineAvgMs}ms</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>setZoom Max:</span>
-                    <strong>{benchmarkResult.engineMaxMs}ms</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>Engine Events:</span>
-                    <strong>
-                      r{benchmarkResult.renderEvents} / s{benchmarkResult.settledEvents} / z
-                      {benchmarkResult.zoomEvents} / x{benchmarkResult.scrollEvents}
-                    </strong>
-                  </div>
-                </>
-              )}
-              {displayOptions.rendererType === 'canvas' ? (
-                <>
-                  <div className="metric-row">
-                    <span>Worker Draws:</span>
-                    <strong>{benchmarkResult.workerDraws}</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>Worker Avg:</span>
-                    <strong>{benchmarkResult.workerAvgMs}ms</strong>
-                  </div>
-                  <div className="metric-row">
-                    <span>Worker Max:</span>
-                    <strong>{benchmarkResult.workerMaxMs}ms</strong>
-                  </div>
-                </>
-              ) : (
-                <div className="metric-row">
-                  <span>Worker Stats:</span>
-                  <strong>N/A (DOM Mode)</strong>
-                </div>
+              <span className="results-title">{benchmarkTitles[benchmarkResult.type]} Results</span>
+              {benchmarkResult.status === 'complete' && benchmarkResult.grade !== null && (
+                <span className={`results-grade grade-${benchmarkResult.grade.charAt(0)}`}>
+                  {benchmarkResult.grade}
+                </span>
               )}
             </div>
-            <p className="benchmark-note">
-              {benchmarkResult.type === 'zoom'
-                ? 'Zoom exercises full render, settle, scrollbar, DOM row, worker clone, ruler, clip, and text drawing paths.'
-                : 'Scrub isolates playhead movement against the current canvas and interaction layer density.'}
-            </p>
+            {benchmarkResult.status === 'complete' && (
+              <div className="results-metrics">
+                {benchmarkResult.metrics.map((metric) => (
+                  <div className="metric-row" key={metric.label}>
+                    <span>{metric.label}:</span>
+                    <strong>{metric.value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="benchmark-note">{benchmarkResult.note}</p>
           </div>
         )}
       </div>

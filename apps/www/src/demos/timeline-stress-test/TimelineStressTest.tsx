@@ -14,23 +14,20 @@ import { fromSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   generateStressTestData,
+  type BenchmarkConfig,
   initialNumTracks,
   initialClipsPerTrack,
   initialDurationSeconds,
+  initialKeyframesPerClip,
 } from '#www/demos/timeline-stress-test/timeline-demo-data';
 import {
   BenchmarkControls,
   type BenchmarkDisplayOptions,
 } from '#www/demos/timeline-stress-test/timeline-benchmark-controls';
+import { opacityKeyframeProperty } from '#www/demos/demo-keyframe-properties';
 import type { DemoMetrics } from '#www/demos/demo-instrumentation';
 import { RulerDOM, DOMClip } from '#www/demos/react-dom-timeline/DOMTimelineComponents';
 import '@techsquidtv/canvas-timeline-react/styles.css';
-
-interface BenchmarkConfig {
-  numTracks: number;
-  clipsPerTrack: number;
-  durationSeconds: number;
-}
 
 function TimelineLayers({ displayOptions }: { displayOptions: BenchmarkDisplayOptions }) {
   const { state } = useTimeline();
@@ -102,6 +99,7 @@ export function TimelineStressTest({ metrics }: { metrics?: DemoMetrics }) {
     numTracks: initialNumTracks,
     clipsPerTrack: initialClipsPerTrack,
     durationSeconds: initialDurationSeconds,
+    keyframesPerClip: initialKeyframesPerClip,
   });
   const [displayOptions, setDisplayOptions] = useState<BenchmarkDisplayOptions>({
     rendererType: 'canvas',
@@ -117,8 +115,13 @@ export function TimelineStressTest({ metrics }: { metrics?: DemoMetrics }) {
   }, []);
 
   const { tracks, markers } = useMemo(() => {
-    return generateStressTestData(config.numTracks, config.clipsPerTrack, config.durationSeconds);
-  }, [config.numTracks, config.clipsPerTrack, config.durationSeconds]);
+    return generateStressTestData(
+      config.numTracks,
+      config.clipsPerTrack,
+      config.durationSeconds,
+      config.keyframesPerClip
+    );
+  }, [config.numTracks, config.clipsPerTrack, config.durationSeconds, config.keyframesPerClip]);
 
   const engine = useMemo(() => {
     return new TimelineEngine({
@@ -127,6 +130,7 @@ export function TimelineStressTest({ metrics }: { metrics?: DemoMetrics }) {
       zoomScale: 50,
       tracks,
       markers,
+      keyframeProperties: [opacityKeyframeProperty],
     });
   }, [tracks, markers, config.durationSeconds]);
 
@@ -135,7 +139,7 @@ export function TimelineStressTest({ metrics }: { metrics?: DemoMetrics }) {
   }, [tracks]);
 
   // Re-key the timeline container on engine changes to force clean mount/unmount of renderer & worker
-  const engineKey = `${config.numTracks}-${config.clipsPerTrack}-${config.durationSeconds}`;
+  const engineKey = `${config.numTracks}-${config.clipsPerTrack}-${config.durationSeconds}-${config.keyframesPerClip}`;
 
   return (
     <div className="timeline-stress-layout">

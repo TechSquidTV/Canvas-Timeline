@@ -1,7 +1,7 @@
+import { opacityKeyframeProperty } from '#www/demos/demo-keyframe-properties';
 import {
   findClipContainingTime,
   findOpacityKeyframeAtTime,
-  opacityKeyframeProperty,
   createCurvePresetCommand,
   getCurvePresetId,
   toggleOpacityKeyframeAtTime,

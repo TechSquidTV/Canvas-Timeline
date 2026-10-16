@@ -197,7 +197,7 @@ export const demoDocs: DemoDoc[] = [
     slug: 'timeline-stress-test',
     title: 'Timeline Stress Test & Benchmark',
     description:
-      'A high-density stress test and performance benchmark demo, enabling configurable tracks, clips, and timeline durations with a real-time FPS monitor, automated scrubbing test, and React DOM reconciliation overhead toggle.',
+      'A configurable timeline benchmark with track, clip, duration, and keyframe data density controls; scrub and zoom FPS tests; drag preview timings; and isolated commit/undo timings in Canvas or React DOM mode.',
     status: 'Performance',
     difficulty: 'Intermediate',
     packageFocus: [

@@ -1,4 +1,3 @@
-import { createTimelineScalarKeyframeProperty } from '@techsquidtv/canvas-timeline-core';
 import type {
   TimelineReadonly,
   Clip,
@@ -9,16 +8,6 @@ import type {
 } from '@techsquidtv/canvas-timeline-core';
 import { compareRational, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
-export const opacityKeyframeProperty = createTimelineScalarKeyframeProperty({
-  id: 'opacity',
-  label: 'Opacity',
-  min: 0,
-  max: 1,
-  defaultValue: 1,
-  formatValue: (value) => `${Math.round(value * 100)}%`,
-  getBaseValue: (clip) => clip.opacity ?? 1,
-});
-
 export const opacityKeyframeValuePadding = 10;
 
 export function findClipContainingTime(
