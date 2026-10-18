@@ -1,4 +1,5 @@
 import type { TimelineEngine } from '#core/engine';
+import { cloneRationalTime } from '#core/model-clone';
 import type {
   ExternalPlaybackUpdate,
   PlaybackClockSource,
@@ -21,6 +22,7 @@ export class PlaybackManager {
   private playbackAutoEnd = false;
   private respectInOut = true;
   private loopRange = false;
+  private contentEndCache: { revision: number; value: RationalTime } | null = null;
 
   constructor(
     engine: TimelineEngine,
@@ -101,12 +103,11 @@ export class PlaybackManager {
         return rangeStart;
       }
     }
-    if (
-      options.loop === true &&
-      state.duration !== undefined &&
-      compareRational(state.playheadTime, state.duration) >= 0
-    ) {
-      return rangeStart;
+    if (options.loop === true) {
+      const loopEnd = state.duration !== undefined ? state.duration : this.resolveContentEnd();
+      if (compareRational(state.playheadTime, loopEnd) >= 0) {
+        return rangeStart;
+      }
     }
     return state.playheadTime;
   }
@@ -117,6 +118,21 @@ export class PlaybackManager {
       return { time: this.engine.getTime(), action: 'continue' };
     }
     return this.advanceTo(time);
+  }
+
+  /**
+   * Content end used as the playback boundary when no explicit duration is set.
+   * Cached per content revision because `maxContentTime` walks every clip.
+   */
+  private resolveContentEnd(): RationalTime {
+    const revision = this.engine.contentRevision;
+    const cached = this.contentEndCache;
+    if (cached && cached.revision === revision) {
+      return cached.value;
+    }
+    const value = cloneRationalTime(this.engine.maxContentTime);
+    this.contentEndCache = { revision, value };
+    return value;
   }
 
   private advanceTo(nextTime: RationalTime): ExternalPlaybackUpdate {
@@ -144,7 +160,18 @@ export class PlaybackManager {
     if (this.respectInOut) {
       considerBoundary(state.outPoint, 'in-out');
     }
-    considerBoundary(state.duration, 'duration');
+    if (state.duration !== undefined) {
+      considerBoundary(state.duration, 'duration');
+    } else {
+      const contentEnd = this.resolveContentEnd();
+      if (compareRational(contentEnd, timelineStart) > 0) {
+        considerBoundary(contentEnd, 'duration');
+      } else if (compareRational(nextTime, timelineStart) > 0) {
+        // Empty timeline: nothing to play, so pause instead of looping or pinning at zero.
+        this.pause();
+        return { time: this.engine.getTime(), action: 'pause', reason: 'duration' };
+      }
+    }
     considerBoundary(this.playbackTargetTime, 'target');
 
     if (boundaryTime !== undefined && boundaryReason !== undefined) {

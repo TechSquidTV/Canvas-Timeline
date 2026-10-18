@@ -28,6 +28,50 @@ function createPlayback(rate = 24) {
   };
 }
 
+function createContentPlayback(rate = 24) {
+  let frame: FrameRequestCallback = () => {};
+  let milliseconds = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => milliseconds);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  });
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  const engine = new TimelineEngine({
+    tracks: [
+      {
+        id: 'track1',
+        kind: 'visual',
+        clips: [
+          {
+            id: 'clip1',
+            sourceId: 'src1',
+            timelineStart: fromSeconds(1, rate),
+            timelineEnd: fromSeconds(3, rate),
+            sourceStart: fromSeconds(0, rate),
+            selected: false,
+          },
+        ],
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+      },
+    ],
+    playheadTime: fromSeconds(0, rate),
+  });
+  return {
+    engine,
+    advance: (seconds: number, frames = 60) => {
+      const start = milliseconds;
+      for (let index = 1; index <= frames; index++) {
+        milliseconds = start + (seconds * 1000 * index) / frames;
+        frame(milliseconds);
+      }
+    },
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -76,6 +120,39 @@ test('internal playback resets fractional carry when looping and stops at an exa
   advance(0.5, 30);
   expect(toSeconds(engine.getTime())).toBe(2.75);
   expect(engine.getState().playing).toBe(false);
+  engine.pause();
+});
+
+test('internal playback loops at the content end without an explicit duration', () => {
+  const { engine, advance } = createContentPlayback();
+  engine.play({ loop: true });
+  advance(3);
+  expect(toSeconds(engine.getTime())).toBe(0);
+  expect(engine.getState().playing).toBe(true);
+  advance(0.5, 30);
+  expect(toSeconds(engine.getTime())).toBe(0.5);
+  engine.pause();
+});
+
+test('internal playback pauses at the content end without an explicit duration', () => {
+  const { engine, advance } = createContentPlayback();
+  engine.play();
+  advance(3.5);
+  expect(toSeconds(engine.getTime())).toBe(3);
+  expect(engine.getState().playing).toBe(false);
+});
+
+test('internal loop playback restarted at the content end resets to the range start', () => {
+  const { engine, advance } = createContentPlayback();
+  engine.play();
+  advance(3.5);
+  expect(toSeconds(engine.getTime())).toBe(3);
+  expect(engine.getState().playing).toBe(false);
+  engine.play({ loop: true });
+  expect(toSeconds(engine.getTime())).toBe(0);
+  advance(0.5, 30);
+  expect(toSeconds(engine.getTime())).toBe(0.5);
+  expect(engine.getState().playing).toBe(true);
   engine.pause();
 });
 

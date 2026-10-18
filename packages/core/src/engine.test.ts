@@ -732,6 +732,112 @@ describe('TimelineEngine', () => {
       expect(toSeconds(rangedEngine.getTime())).toBe(2);
       expect(rangedEngine.getState().playing).toBe(true);
     });
+
+    it('loops external playback at the content end without an explicit duration', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+      });
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(rangedEngine.play({ clock: 'external', loop: true })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
+        action: 'loop',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
+
+    it('pauses external playback at the content end without an explicit duration', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+      });
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(rangedEngine.play({ clock: 'external' })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
+        action: 'pause',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
+    });
+
+    it('resets external loop playback started at the content end', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+      });
+      rangedEngine.setInPoint(fromSeconds(2), false);
+      rangedEngine.setTime(fromSeconds(5));
+
+      expect(rangedEngine.getPlaybackStartTime({ respectInOut: true, loop: true })).toEqual(
+        fromSeconds(2)
+      );
+      expect(rangedEngine.play({ clock: 'external', respectInOut: true, loop: true })).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(2);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
+
+    it('prefers looping at the content end over an equal auto-end target', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+      });
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(rangedEngine.play({ clock: 'external', autoEnd: true, loop: true })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
+        action: 'loop',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(rangedEngine.getState().playing).toBe(true);
+    });
+
+    it('still auto-ends at the content end when looping is not requested', () => {
+      const rangedEngine = new TimelineEngine({
+        tracks: [mockTrack],
+      });
+      rangedEngine.setTime(fromSeconds(4));
+
+      expect(rangedEngine.play({ clock: 'external', autoEnd: true })).toBe(true);
+      expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
+        action: 'pause',
+        reason: 'duration',
+      });
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
+    });
+
+    it('pauses external loop playback on an empty timeline instead of looping at zero', () => {
+      const emptyEngine = new TimelineEngine({ tracks: [] });
+
+      expect(emptyEngine.play({ clock: 'external', loop: true })).toBe(true);
+      expect(emptyEngine.updateExternalPlaybackTime(fromSeconds(0.25))).toMatchObject({
+        action: 'pause',
+        reason: 'duration',
+      });
+      expect(toSeconds(emptyEngine.getTime())).toBe(0);
+      expect(emptyEngine.getState().playing).toBe(false);
+    });
+
+    it('pauses internal loop playback on an empty timeline instead of spinning', () => {
+      const emptyEngine = new TimelineEngine({ tracks: [] });
+      let playbackFrame: FrameRequestCallback | undefined;
+      const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(0);
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        playbackFrame = callback;
+        return 1;
+      });
+
+      expect(emptyEngine.play({ loop: true })).toBe(true);
+      playbackFrame?.(16);
+
+      expect(toSeconds(emptyEngine.getTime())).toBe(0);
+      expect(emptyEngine.getState().playing).toBe(false);
+      expect(rafSpy).toHaveBeenCalledOnce();
+      nowSpy.mockRestore();
+      rafSpy.mockRestore();
+    });
   });
 
   describe('Snapping', () => {
