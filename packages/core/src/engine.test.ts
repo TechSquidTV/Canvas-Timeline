@@ -1284,6 +1284,91 @@ describe('TimelineEngine', () => {
         })
       ).toBeUndefined();
     });
+
+    it('returns the true minimum matching start when initial-state clips are unsorted', () => {
+      const unsortedEngine = new TimelineEngine({
+        playheadTime: fromSeconds(0),
+        tracks: [
+          {
+            id: 'video-unsorted',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'unsorted-late-clip',
+                sourceId: 'source-main',
+                timelineStart: fromSeconds(4),
+                timelineEnd: fromSeconds(6),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+              {
+                id: 'unsorted-early-clip',
+                sourceId: 'source-main',
+                timelineStart: fromSeconds(1),
+                timelineEnd: fromSeconds(3),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+
+      expect(
+        toSeconds(
+          expectDefined(
+            unsortedEngine.media.getFirstContentTime({
+              layers: { visuals: { trackKind: 'visual' } },
+            }),
+            'first content time'
+          )
+        )
+      ).toBeCloseTo(1);
+    });
+
+    it('returns the true minimum matching start when addTrack clips are unsorted', () => {
+      engine.addTrack({
+        id: 'audio-unsorted',
+        kind: 'audio',
+        clips: [
+          {
+            id: 'unsorted-audio-late',
+            sourceId: 'source-audio',
+            timelineStart: fromSeconds(2.5),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'unsorted-audio-early',
+            sourceId: 'source-audio',
+            timelineStart: fromSeconds(0.5),
+            timelineEnd: fromSeconds(2),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+      });
+
+      expect(
+        toSeconds(
+          expectDefined(
+            engine.media.getFirstContentTime({
+              layers: { audio: { trackKind: 'audio' } },
+            }),
+            'first content time'
+          )
+        )
+      ).toBeCloseTo(0.5);
+    });
   });
 
   describe('Undo/Redo', () => {
