@@ -20,6 +20,7 @@ export type ClipCreatedReason =
   | 'split'
   | 'insert'
   | 'overwrite'
+  | 'insert-split'
   | 'overwrite-split'
   | 'range-split';
 

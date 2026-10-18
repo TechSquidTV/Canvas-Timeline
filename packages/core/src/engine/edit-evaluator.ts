@@ -1539,6 +1539,59 @@ export function normalizeClipGroupsForTracks(
   return nextGroups;
 }
 
+/** Ripple existing segments before adding the placed clip to the track. */
+function resolveTrackInsert(context: EditContext, track: Track, placedClip: Clip) {
+  const duration = subRational(placedClip.timelineEnd, placedClip.timelineStart);
+  const changedClips: Clip[] = [];
+  const createdClips: Clip[] = [];
+  const createdClipEvents: TimelineCreatedClipEvent[] = [];
+  const impacts: TimelineEditImpact[] = [];
+
+  for (const clip of track.clips) {
+    if (compareRational(clip.timelineStart, placedClip.timelineStart) >= 0) {
+      clip.timelineStart = addRational(clip.timelineStart, duration);
+      clip.timelineEnd = addRational(clip.timelineEnd, duration);
+      shiftClipKeyframes(clip, duration);
+      changedClips.push(createClipSnapshot(clip));
+    } else if (compareRational(clip.timelineEnd, placedClip.timelineStart) > 0) {
+      const originalClip = createClipSnapshot(clip);
+      const rightClip = createClipSnapshot(clip, {
+        id: context.allocateId(`insert:${placedClip.id}:${clip.id}`),
+        timelineStart: placedClip.timelineEnd,
+        timelineEnd: addRational(clip.timelineEnd, duration),
+        sourceStart: addRational(
+          clip.sourceStart,
+          subRational(placedClip.timelineStart, clip.timelineStart)
+        ),
+      });
+      clip.timelineEnd = cloneRationalTime(placedClip.timelineStart);
+      shiftClipKeyframes(rightClip, duration);
+      preserveClipKeyframeRange(clip, context.keyframeProperties, context.allocateId);
+      preserveClipKeyframeRange(rightClip, context.keyframeProperties, context.allocateId);
+      changedClips.push(createClipSnapshot(clip), createClipSnapshot(rightClip));
+      createdClips.push(createClipSnapshot(rightClip));
+      createdClipEvents.push({
+        clip: rightClip,
+        reason: 'insert-split',
+        originClipId: clip.id,
+      });
+      impacts.push({
+        clipId: clip.id,
+        trackId: track.id,
+        originalClip,
+        resultClips: [createClipSnapshot(clip), createClipSnapshot(rightClip)],
+        effect: 'split',
+        affectedStartTime: placedClip.timelineStart,
+        affectedEndTime: placedClip.timelineEnd,
+        cutStart: false,
+        cutEnd: false,
+      });
+    }
+  }
+  track.clips.push(...createdClipEvents.map((event) => event.clip));
+  return { changedClips, createdClips, createdClipEvents, impacts };
+}
+
 function resolveInsertEdit(
   context: EditContext,
   command: TimelineInsertEditCommand
@@ -1555,14 +1608,7 @@ function resolveInsertEdit(
   }
 
   const placedClip = createPlacedClip(context, command);
-  const duration = subRational(placedClip.timelineEnd, placedClip.timelineStart);
-  for (const clip of targetTrack.clips) {
-    if (compareRational(clip.timelineStart, placedClip.timelineStart) >= 0) {
-      clip.timelineStart = addRational(clip.timelineStart, duration);
-      clip.timelineEnd = addRational(clip.timelineEnd, duration);
-      shiftClipKeyframes(clip, duration);
-    }
-  }
+  const insertResult = resolveTrackInsert(context, targetTrack, placedClip);
   targetTrack.clips.push(placedClip);
   targetTrack.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
 
@@ -1577,14 +1623,8 @@ function resolveInsertEdit(
     tracks,
     createResolvedEditPreview(context, command, {
       snap: command.snap === false ? null : context.resolveSnap(command.startTime, false),
-      changedClips: targetTrack.clips
-        .filter(
-          (clip) =>
-            clip.id !== placedClip.id &&
-            compareRational(clip.timelineStart, placedClip.timelineEnd) >= 0
-        )
-        .map((clip) => createClipSnapshot(clip)),
-      createdClips: [createClipSnapshot(placedClip)],
+      changedClips: insertResult.changedClips,
+      createdClips: [createClipSnapshot(placedClip), ...insertResult.createdClips],
       removedClips: [],
       affectedRanges: [
         {
@@ -1593,9 +1633,9 @@ function resolveInsertEdit(
           endTime: placedClip.timelineEnd,
         },
       ],
-      impacts: [],
+      impacts: insertResult.impacts,
     }),
-    { createdClipEvents: [placedClipEvent] }
+    { createdClipEvents: [placedClipEvent, ...insertResult.createdClipEvents] }
   );
 }
 
@@ -1622,8 +1662,10 @@ function resolveInsertClipGroupEdit(
     return createRejectedResolvedEdit(context, command, tracks, resolvedPlacements.validation);
   }
 
-  const changedClips: Clip[] = [];
-  const createdClips = resolvedPlacements.placements.map((placement) =>
+  const changedClipIds = new Set<string>();
+  const splitEvents: TimelineCreatedClipEvent[] = [];
+  const impacts: TimelineEditImpact[] = [];
+  const placedClips = resolvedPlacements.placements.map((placement) =>
     createClipSnapshot(placement.clip)
   );
   const affectedRanges = resolvedPlacements.placements.map((placement) => ({
@@ -1631,40 +1673,30 @@ function resolveInsertClipGroupEdit(
     startTime: placement.clip.timelineStart,
     endTime: placement.clip.timelineEnd,
   }));
-  const placementsByTrack = new Map<
-    string,
-    { clip: Clip; duration: RationalTime; track: Track }[]
-  >();
 
-  for (const placement of resolvedPlacements.placements) {
-    const duration = subRational(placement.clip.timelineEnd, placement.clip.timelineStart);
-    const trackPlacements = placementsByTrack.get(placement.track.id) ?? [];
-    trackPlacements.push({ clip: placement.clip, duration, track: placement.track });
-    placementsByTrack.set(placement.track.id, trackPlacements);
-  }
-
-  for (const [, trackPlacements] of placementsByTrack) {
-    const track = trackPlacements[0]?.track;
-    if (track === undefined) {
-      continue;
+  // Placement times are final timeline coordinates. Each insertion sees all prior
+  // ripple deltas, including those applied to newly split right-hand segments.
+  const orderedPlacements = [...resolvedPlacements.placements].sort((a, b) =>
+    compareRational(a.clip.timelineStart, b.clip.timelineStart)
+  );
+  for (const placement of orderedPlacements) {
+    const result = resolveTrackInsert(context, placement.track, placement.clip);
+    for (const clip of result.changedClips) {
+      changedClipIds.add(clip.id);
     }
-    for (const clip of track.clips) {
-      const originalStart = cloneRationalTime(clip.timelineStart);
-      let delta = fromSeconds(0, originalStart.r);
-      for (const placement of trackPlacements) {
-        if (compareRational(originalStart, placement.clip.timelineStart) >= 0) {
-          delta = addRational(delta, placement.duration);
-        }
-      }
-      if (toSeconds(delta) === 0) {
-        continue;
-      }
-      clip.timelineStart = addRational(clip.timelineStart, delta);
-      clip.timelineEnd = addRational(clip.timelineEnd, delta);
-      shiftClipKeyframes(clip, delta);
-      changedClips.push(createClipSnapshot(clip));
-    }
+    splitEvents.push(...result.createdClipEvents);
+    impacts.push(...result.impacts);
   }
+  const changedClips = tracks.flatMap((track) =>
+    track.clips
+      .filter((clip) => changedClipIds.has(clip.id))
+      .map((clip) => createClipSnapshot(clip))
+  );
+  const createdClipEvents = splitEvents.map((event) => ({
+    ...event,
+    clip: createClipSnapshot(event.clip),
+  }));
+  const createdClips = [...placedClips, ...createdClipEvents.map((event) => event.clip)];
 
   for (const placement of resolvedPlacements.placements) {
     placement.track.clips.push(placement.clip);
@@ -1681,14 +1713,14 @@ function resolveInsertClipGroupEdit(
       createdClips,
       removedClips: [],
       affectedRanges,
-      impacts: [],
+      impacts,
     }),
     {
       clipGroups: createClipGroupsAfterGroupedPlacement(context, command),
-      createdClipEvents: createdClips.map((clip) => ({
-        clip,
-        reason: 'insert',
-      })),
+      createdClipEvents: [
+        ...placedClips.map((clip): TimelineCreatedClipEvent => ({ clip, reason: 'insert' })),
+        ...createdClipEvents,
+      ],
     }
   );
 }
