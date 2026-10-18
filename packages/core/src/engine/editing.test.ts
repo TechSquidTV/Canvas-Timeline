@@ -153,6 +153,212 @@ describe('TimelineEngine editing', () => {
       ).toBe(1);
     });
 
+    it.each(['insert', 'insert-clip-group'] as const)(
+      'splits straddling clips for %s with stable previews, keyframes, lineage, and history',
+      (type) => {
+        const original = {
+          ...createEditClip('a', 0, 10),
+          sourceStart: fromSeconds(3),
+          keyframes: [
+            { id: 'start', property: 'opacity', time: fromSeconds(0), value: 0 },
+            { id: 'end', property: 'opacity', time: fromSeconds(10), value: 1 },
+          ],
+        };
+        const insertEngine = new TimelineEngine({
+          tracks: [
+            createEditTrack('track1', [original, createEditClip('later', 10, 12)]),
+            createEditTrack('track2', []),
+          ],
+          keyframeProperties: [opacityKeyframeProperty],
+        });
+        const placement = {
+          clip: createEditClip('inserted', 0, 2),
+          targetTrackId: 'track1',
+          startTime: fromSeconds(4),
+        };
+        const command =
+          type === 'insert'
+            ? { type, ...placement, snap: false as const }
+            : {
+                type,
+                placements: [
+                  placement,
+                  {
+                    ...placement,
+                    clip: createEditClip('companion', 0, 2),
+                    targetTrackId: 'track2',
+                  },
+                ],
+                snap: false as const,
+              };
+        const created: ClipCreatedEvent[] = [];
+        insertEngine.on('clip:created', (event) => created.push(event));
+        const preview = insertEngine.previewEdit(command);
+        const right = expectDefined(
+          preview.createdClips.find((clip) => clip.id !== 'inserted' && clip.id !== 'companion'),
+          'split clip'
+        );
+        expect(preview.changedClips.map((clip) => clip.id)).toContain(right.id);
+        expect(preview.changedClips.map((clip) => clip.id)).toContain('a');
+        expect(preview.impacts).toMatchObject([{ clipId: 'a', effect: 'split' }]);
+        expect(insertEngine.tracks[0].clips).toEqual([original, createEditClip('later', 10, 12)]);
+        expect(created).toHaveLength(0);
+
+        expect(insertEngine.commitEdit(command).committed).toBe(true);
+        expect(
+          insertEngine.tracks[0].clips.map((clip) => [
+            clip.id,
+            toSeconds(clip.timelineStart),
+            toSeconds(clip.timelineEnd),
+            toSeconds(clip.sourceStart),
+          ])
+        ).toEqual([
+          ['a', 0, 4, 3],
+          ['inserted', 4, 6, 0],
+          [right.id, 6, 12, 7],
+          ['later', 12, 14, 0],
+        ]);
+        const left = expectDefined(insertEngine.geometry.getClip('a'), 'left clip').clip;
+        const committedRight = expectDefined(
+          insertEngine.geometry.getClip(right.id),
+          'right clip'
+        ).clip;
+        expect(left.keyframes?.map((key) => [toSeconds(key.time), key.value])).toEqual([
+          [0, 0],
+          [4, 0.4],
+        ]);
+        expect(committedRight.keyframes?.map((key) => [toSeconds(key.time), key.value])).toEqual([
+          [6, 0.4],
+          [12, 1],
+        ]);
+        expect(created).toMatchObject([
+          { reason: 'insert', clip: { id: 'inserted' } },
+          ...(type === 'insert-clip-group'
+            ? [{ reason: 'insert', clip: { id: 'companion' } }]
+            : []),
+          { reason: 'insert-split', originClipId: 'a', clip: { id: right.id } },
+        ]);
+        const committedTracks = insertEngine.tracks;
+        insertEngine.undo();
+        expect(insertEngine.tracks[0].clips).toEqual([original, createEditClip('later', 10, 12)]);
+        insertEngine.redo();
+        expect(insertEngine.tracks).toEqual(committedTracks);
+      }
+    );
+
+    it.each(['insert', 'insert-clip-group'] as const)(
+      'keeps exact clip edges as shift-only boundaries for %s',
+      (type) => {
+        const insertEngine = new TimelineEngine({
+          tracks: [
+            createEditTrack('track1', [createEditClip('a', 0, 4), createEditClip('b', 4, 8)]),
+            createEditTrack('track2', []),
+          ],
+        });
+        const placement = {
+          clip: createEditClip('inserted', 0, 2),
+          targetTrackId: 'track1',
+          startTime: fromSeconds(4),
+        };
+        const result = insertEngine.commitEdit(
+          type === 'insert'
+            ? { type, ...placement, snap: false }
+            : {
+                type,
+                placements: [
+                  placement,
+                  {
+                    ...placement,
+                    clip: createEditClip('companion', 0, 2),
+                    targetTrackId: 'track2',
+                  },
+                ],
+                snap: false,
+              }
+        );
+        expect(result.committed).toBe(true);
+        expect(result.preview.createdClips.map((clip) => clip.id)).toEqual(
+          type === 'insert' ? ['inserted'] : ['inserted', 'companion']
+        );
+        expect(result.preview.impacts).toEqual([]);
+        expect(
+          insertEngine.tracks[0].clips.map((clip) => [
+            clip.id,
+            toSeconds(clip.timelineStart),
+            toSeconds(clip.timelineEnd),
+          ])
+        ).toEqual([
+          ['a', 0, 4],
+          ['inserted', 4, 6],
+          ['b', 6, 10],
+        ]);
+      }
+    );
+
+    it('accumulates grouped insert ripples on split segments in placement order per track', () => {
+      const insertEngine = new TimelineEngine({
+        tracks: [
+          createEditTrack('video', [createEditClip('a', 0, 10)]),
+          createEditTrack('audio', [createEditClip('b', 0, 10)], { kind: 'audio' }),
+        ],
+      });
+      const result = insertEngine.commitEdit({
+        type: 'insert-clip-group',
+        groupId: 'drops',
+        snap: false,
+        placements: [
+          {
+            clip: createEditClip('second', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(8),
+          },
+          {
+            clip: createEditClip('first', 0, 2),
+            targetTrackId: 'video',
+            startTime: fromSeconds(4),
+          },
+          {
+            clip: createEditClip('sound', 0, 2),
+            targetTrackId: 'audio',
+            startTime: fromSeconds(4),
+          },
+        ],
+      });
+      expect(result.committed).toBe(true);
+      expect(
+        insertEngine.tracks[0].clips.map((clip) => [
+          toSeconds(clip.timelineStart),
+          toSeconds(clip.timelineEnd),
+          toSeconds(clip.sourceStart),
+        ])
+      ).toEqual([
+        [0, 4, 0],
+        [4, 6, 0],
+        [6, 8, 4],
+        [8, 10, 0],
+        [10, 14, 6],
+      ]);
+      expect(
+        insertEngine.tracks[1].clips.map((clip) => [
+          toSeconds(clip.timelineStart),
+          toSeconds(clip.timelineEnd),
+        ])
+      ).toEqual([
+        [0, 4],
+        [4, 6],
+        [6, 12],
+      ]);
+      expect(result.preview.impacts.map((impact) => impact.effect)).toEqual([
+        'split',
+        'split',
+        'split',
+      ]);
+      for (const clip of result.preview.createdClips) {
+        expect(insertEngine.geometry.getClip(clip.id)?.clip).toEqual(clip);
+      }
+      expect(insertEngine.getClipGroup('drops')?.clipIds).toEqual(['second', 'first', 'sound']);
+    });
+
     it('commits insert, overwrite, and range removal commands', () => {
       const commandEngine = new TimelineEngine({
         tracks: [
