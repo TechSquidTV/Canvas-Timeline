@@ -39,8 +39,9 @@ export class PlaybackManager {
 
     this.playbackClockSource = options.clock ?? 'internal';
     this.playbackAutoEnd = options.autoEnd ?? options.toTime !== undefined;
-    this.playbackTargetTime =
-      options.toTime ?? (options.autoEnd ? this.engine.maxContentTime : undefined);
+    // Only explicit toTime targets are captured; implicit autoEnd ends resolve to the
+    // live duration/content-end boundary so content edits stay coherent during playback.
+    this.playbackTargetTime = options.toTime;
     this.respectInOut = options.respectInOut ?? true;
     this.loopRange = options.loop ?? false;
     state.playing = true;
@@ -166,8 +167,9 @@ export class PlaybackManager {
       const contentEnd = this.resolveContentEnd();
       if (compareRational(contentEnd, timelineStart) > 0) {
         considerBoundary(contentEnd, 'duration');
-      } else if (compareRational(nextTime, timelineStart) > 0) {
-        // Empty timeline: nothing to play, so pause instead of looping or pinning at zero.
+      } else {
+        // Empty timeline: nothing to play, so pause instead of looping or pinning at
+        // zero, regardless of whether the playback clock has advanced past zero.
         this.pause();
         return { time: this.engine.getTime(), action: 'pause', reason: 'duration' };
       }
