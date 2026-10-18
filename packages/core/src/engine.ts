@@ -307,6 +307,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       const scrollChanged = this.clampScrollTop();
       this.normalizeClipGroups();
       this.invalidateContent();
+      const maxContentTime = this.maxContentTime;
+      if (compareRational(this.state.playheadTime, maxContentTime) > 0) {
+        this.updatePlayhead(maxContentTime);
+      }
       this.snapshot();
       this.emit('track:remove', { track: removed });
 
@@ -844,6 +848,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.editPreview = null;
     this.editImpacts = null;
     this.invalidateContent();
+    const maxContentTime = this.maxContentTime;
+    if (compareRational(this.state.playheadTime, maxContentTime) > 0) {
+      this.updatePlayhead(maxContentTime);
+    }
     this.snapshot();
     const results = resolutions.map((resolved) => {
       this.emitEditCommitEvents(resolved);

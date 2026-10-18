@@ -1655,6 +1655,124 @@ describe('TimelineEngine', () => {
     });
   });
 
+  describe('Playhead bounds after edits', () => {
+    it('clamps the playhead when deleting the last clip', () => {
+      engine.updatePlayhead(fromSeconds(4));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      expect(engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] }).committed).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(0);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledExactlyOnceWith(engine.maxContentTime);
+
+      engine.undo();
+
+      expect(engine.getState().tracks[0].clips[0].id).toBe('clip1');
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledTimes(1);
+    });
+
+    it('clamps the playhead to a nonzero content end after trimming', () => {
+      engine.updatePlayhead(fromSeconds(4));
+
+      expect(
+        engine.commitEdit({
+          type: 'trim',
+          clipId: 'clip1',
+          edge: 'end',
+          newTime: fromSeconds(3),
+        }).committed
+      ).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(3);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+    });
+
+    it('clamps the playhead after deleting a trailing range', () => {
+      engine.updatePlayhead(fromSeconds(4));
+
+      expect(
+        engine.commitEdit({
+          type: 'delete-range',
+          startTime: fromSeconds(3),
+          endTime: fromSeconds(5),
+          trackIds: ['track1'],
+        }).committed
+      ).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(3);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+    });
+
+    it('clamps the playhead when removing the last track', () => {
+      engine.updatePlayhead(fromSeconds(4));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      expect(engine.removeTrack('track1')).toEqual({ ok: true });
+
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledExactlyOnceWith(engine.maxContentTime);
+
+      engine.undo();
+
+      expect(engine.getState().tracks[0].id).toBe('track1');
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not emit a scrub when an edit leaves the playhead within bounds', () => {
+      engine.updatePlayhead(fromSeconds(3));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.commitEdit({
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'end',
+        newTime: fromSeconds(3),
+      });
+      engine.addTrack({ ...mockTrack, id: 'empty-track', clips: [] });
+      engine.removeTrack('empty-track');
+
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+      expect(scrub).not.toHaveBeenCalled();
+    });
+
+    it('preserves the playhead within an explicit duration after deleting content', () => {
+      engine.setDuration(fromSeconds(10));
+      engine.updatePlayhead(fromSeconds(7));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] });
+      engine.removeTrack('track1');
+
+      expect(toSeconds(engine.maxContentTime)).toBe(10);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(7);
+      expect(scrub).not.toHaveBeenCalled();
+    });
+
+    it('keeps the current playhead when undo restores shorter content', () => {
+      engine.commitEdit({
+        type: 'move',
+        clipId: 'clip1',
+        startTime: fromSeconds(5),
+      });
+      engine.updatePlayhead(fromSeconds(7));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.undo();
+
+      expect(toSeconds(engine.maxContentTime)).toBe(5);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(7);
+      expect(scrub).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Deletion lifecycle', () => {
     it('emits clip:removed for direct clip deletion', () => {
       const removed = vi.fn();
