@@ -943,6 +943,120 @@ describe('TimelineEngine keyframes', () => {
       expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([2, 3, 5, 6]);
     });
 
+    it('filters keyframes when roll trims move clip boundaries', () => {
+      const rollEngine = new TimelineEngine({
+        tracks: [
+          createKeyframeTrack([
+            createKeyframeClip('roll-left', 0, 8, [0, 4, 7]),
+            createKeyframeClip('roll-right', 8, 12, [9, 10, 11]),
+          ]),
+        ],
+        keyframeProperties: [opacityKeyframeProperty],
+      });
+
+      const beforeRoll = [4.5, 4.9, 5].map((time) =>
+        rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(time))
+      );
+      expect(
+        rollEngine.commitEdit({
+          type: 'roll-trim',
+          leftClipId: 'roll-left',
+          rightClipId: 'roll-right',
+          boundaryTime: fromSeconds(5),
+          snap: false,
+        }).committed
+      ).toBe(true);
+
+      const rolledLeft = expectDefined(
+        rollEngine.geometry.getClip('roll-left')?.clip,
+        'rolled left clip'
+      );
+      const rolledRight = expectDefined(
+        rollEngine.geometry.getClip('roll-right')?.clip,
+        'rolled right clip'
+      );
+      expect(toSeconds(rolledLeft.timelineStart)).toBe(0);
+      expect(toSeconds(rolledLeft.timelineEnd)).toBe(5);
+      expect(keyframeSeconds(rolledLeft)).toEqual([0, 4, 5]);
+      expect(toSeconds(rolledRight.timelineStart)).toBe(5);
+      expect(toSeconds(rolledRight.timelineEnd)).toBe(12);
+      expect(keyframeSeconds(rolledRight)).toEqual([9, 10, 11]);
+      for (const rolled of [rolledLeft, rolledRight]) {
+        for (const keyframe of rolled.keyframes ?? []) {
+          expect(toSeconds(keyframe.time)).toBeGreaterThanOrEqual(toSeconds(rolled.timelineStart));
+          expect(toSeconds(keyframe.time)).toBeLessThanOrEqual(toSeconds(rolled.timelineEnd));
+        }
+      }
+      expect(
+        rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(4.9))
+      ).toBeCloseTo(0.65);
+      for (const [index, time] of [4.5, 4.9, 5].entries()) {
+        expect(
+          rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(time))
+        ).toBeCloseTo(beforeRoll[index] ?? 0);
+      }
+    });
+
+    it('inserts boundary keyframes when roll trims contract the right clip start', () => {
+      const rollRightEngine = new TimelineEngine({
+        tracks: [
+          createKeyframeTrack([
+            createKeyframeClip('extend-left', 0, 8, [0, 4, 7]),
+            createKeyframeClip('contract-right', 8, 12, [8.5, 10, 11]),
+          ]),
+        ],
+        keyframeProperties: [opacityKeyframeProperty],
+      });
+
+      const beforeRoll = [9.5, 9.6].map((time) =>
+        rollRightEngine.keyframes.getClipPropertyValueAtTime(
+          'contract-right',
+          'opacity',
+          fromSeconds(time)
+        )
+      );
+      expect(
+        rollRightEngine.commitEdit({
+          type: 'roll-trim',
+          leftClipId: 'extend-left',
+          rightClipId: 'contract-right',
+          boundaryTime: fromSeconds(9.5),
+          snap: false,
+        }).committed
+      ).toBe(true);
+
+      const extendedLeft = expectDefined(
+        rollRightEngine.geometry.getClip('extend-left')?.clip,
+        'extended left clip'
+      );
+      const contractedRight = expectDefined(
+        rollRightEngine.geometry.getClip('contract-right')?.clip,
+        'contracted right clip'
+      );
+      expect(toSeconds(extendedLeft.timelineEnd)).toBe(9.5);
+      expect(keyframeSeconds(extendedLeft)).toEqual([0, 4, 7]);
+      expect(toSeconds(contractedRight.timelineStart)).toBe(9.5);
+      expect(toSeconds(contractedRight.timelineEnd)).toBe(12);
+      expect(keyframeSeconds(contractedRight)).toEqual([9.5, 10, 11]);
+      for (const keyframe of contractedRight.keyframes ?? []) {
+        expect(toSeconds(keyframe.time)).toBeGreaterThanOrEqual(
+          toSeconds(contractedRight.timelineStart)
+        );
+        expect(toSeconds(keyframe.time)).toBeLessThanOrEqual(
+          toSeconds(contractedRight.timelineEnd)
+        );
+      }
+      for (const [index, time] of [9.5, 9.6].entries()) {
+        expect(
+          rollRightEngine.keyframes.getClipPropertyValueAtTime(
+            'contract-right',
+            'opacity',
+            fromSeconds(time)
+          )
+        ).toBeCloseTo(beforeRoll[index] ?? 0);
+      }
+    });
+
     it('preserves selected clip keyframes through cut and shifts them on paste', () => {
       const cutEngine = new TimelineEngine({
         tracks: [createKeyframeTrack([createKeyframeClip('cut-source', 1, 5, [2, 4])])],
