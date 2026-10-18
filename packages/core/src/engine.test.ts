@@ -952,6 +952,63 @@ describe('TimelineEngine', () => {
     });
   });
 
+  describe('In/Out range ordering', () => {
+    it.each([4, 4.005, 8])('clears both points when setting in to %s after out at 4', (time) => {
+      engine.setOutPoint(fromSeconds(4, 24));
+      engine.setInPoint(fromSeconds(time, 24000));
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+    });
+
+    it.each([8, 7.995, 4])('clears both points when setting out to %s after in at 8', (time) => {
+      engine.setInPoint(fromSeconds(8, 24));
+      engine.setOutPoint(fromSeconds(time, 24000));
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+    });
+
+    it.each([4, 4.005, 8])('clears collapsed or inverted restored ranges with in at %s', (time) => {
+      const restored = new TimelineEngine({
+        tracks: [],
+        inPoint: fromSeconds(time, 24000),
+        outPoint: fromSeconds(4, 24),
+      });
+      expect(restored.getState().inPoint).toBeUndefined();
+      expect(restored.getState().outPoint).toBeUndefined();
+    });
+
+    it('preserves ordered and partial restored ranges', () => {
+      for (const [start, end] of [
+        [2, 4],
+        [2, undefined],
+        [undefined, 4],
+      ] as const) {
+        const inPoint = start === undefined ? undefined : fromSeconds(start);
+        const outPoint = end === undefined ? undefined : fromSeconds(end);
+        const restored = new TimelineEngine({ tracks: [], inPoint, outPoint });
+        expect(restored.getState().inPoint).toEqual(inPoint);
+        expect(restored.getState().outPoint).toEqual(outPoint);
+      }
+    });
+
+    it('normalizes crossings after snapping and publishes the cleared range', () => {
+      engine.setInOutRange(fromSeconds(2), fromSeconds(4));
+      const onInOut = vi.fn();
+      engine.on('state:inOut', onInOut);
+      engine.prepareSnapping({ ignoreInPoint: true });
+      engine.setInPoint(fromSeconds(5.05), true);
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+      expect(onInOut).toHaveBeenCalledOnce();
+      expect(onInOut).toHaveBeenCalledWith({
+        state: expect.objectContaining({
+          inPoint: undefined,
+          outPoint: undefined,
+        }),
+      });
+    });
+  });
+
   describe('Snapping', () => {
     it('does not snap an in point back to itself while dragging it', () => {
       engine = new TimelineEngine({
@@ -1502,6 +1559,91 @@ describe('TimelineEngine', () => {
         })
       ).toBeUndefined();
     });
+
+    it('returns the true minimum matching start when initial-state clips are unsorted', () => {
+      const unsortedEngine = new TimelineEngine({
+        playheadTime: fromSeconds(0),
+        tracks: [
+          {
+            id: 'video-unsorted',
+            kind: 'visual',
+            clips: [
+              {
+                id: 'unsorted-late-clip',
+                sourceId: 'source-main',
+                timelineStart: fromSeconds(4),
+                timelineEnd: fromSeconds(6),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+              {
+                id: 'unsorted-early-clip',
+                sourceId: 'source-main',
+                timelineStart: fromSeconds(1),
+                timelineEnd: fromSeconds(3),
+                sourceStart: fromSeconds(0),
+                selected: false,
+              },
+            ],
+            selected: false,
+            locked: false,
+            muted: false,
+            visible: true,
+          },
+        ],
+      });
+
+      expect(
+        toSeconds(
+          expectDefined(
+            unsortedEngine.media.getFirstContentTime({
+              layers: { visuals: { trackKind: 'visual' } },
+            }),
+            'first content time'
+          )
+        )
+      ).toBeCloseTo(1);
+    });
+
+    it('returns the true minimum matching start when addTrack clips are unsorted', () => {
+      engine.addTrack({
+        id: 'audio-unsorted',
+        kind: 'audio',
+        clips: [
+          {
+            id: 'unsorted-audio-late',
+            sourceId: 'source-audio',
+            timelineStart: fromSeconds(2.5),
+            timelineEnd: fromSeconds(4),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+          {
+            id: 'unsorted-audio-early',
+            sourceId: 'source-audio',
+            timelineStart: fromSeconds(0.5),
+            timelineEnd: fromSeconds(2),
+            sourceStart: fromSeconds(0),
+            selected: false,
+          },
+        ],
+        selected: false,
+        locked: false,
+        muted: false,
+        visible: true,
+      });
+
+      expect(
+        toSeconds(
+          expectDefined(
+            engine.media.getFirstContentTime({
+              layers: { audio: { trackKind: 'audio' } },
+            }),
+            'first content time'
+          )
+        )
+      ).toBeCloseTo(0.5);
+    });
   });
 
   describe('Undo/Redo', () => {
@@ -1813,6 +1955,124 @@ describe('TimelineEngine', () => {
         })?.track.id
       ).toBe('collapsed');
       expect(geometryEngine.geometry.getTrackAtPoint({ y: 10, rulerHeight: 20 })).toBeNull();
+    });
+  });
+
+  describe('Playhead bounds after edits', () => {
+    it('clamps the playhead when deleting the last clip', () => {
+      engine.updatePlayhead(fromSeconds(4));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      expect(engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] }).committed).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(0);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledExactlyOnceWith(engine.maxContentTime);
+
+      engine.undo();
+
+      expect(engine.getState().tracks[0].clips[0].id).toBe('clip1');
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledTimes(1);
+    });
+
+    it('clamps the playhead to a nonzero content end after trimming', () => {
+      engine.updatePlayhead(fromSeconds(4));
+
+      expect(
+        engine.commitEdit({
+          type: 'trim',
+          clipId: 'clip1',
+          edge: 'end',
+          newTime: fromSeconds(3),
+        }).committed
+      ).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(3);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+    });
+
+    it('clamps the playhead after deleting a trailing range', () => {
+      engine.updatePlayhead(fromSeconds(4));
+
+      expect(
+        engine.commitEdit({
+          type: 'delete-range',
+          startTime: fromSeconds(3),
+          endTime: fromSeconds(5),
+          trackIds: ['track1'],
+        }).committed
+      ).toBe(true);
+
+      expect(toSeconds(engine.maxContentTime)).toBe(3);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+    });
+
+    it('clamps the playhead when removing the last track', () => {
+      engine.updatePlayhead(fromSeconds(4));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      expect(engine.removeTrack('track1')).toEqual({ ok: true });
+
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledExactlyOnceWith(engine.maxContentTime);
+
+      engine.undo();
+
+      expect(engine.getState().tracks[0].id).toBe('track1');
+      expect(toSeconds(engine.getState().playheadTime)).toBe(0);
+      expect(scrub).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not emit a scrub when an edit leaves the playhead within bounds', () => {
+      engine.updatePlayhead(fromSeconds(3));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.commitEdit({
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'end',
+        newTime: fromSeconds(3),
+      });
+      engine.addTrack({ ...mockTrack, id: 'empty-track', clips: [] });
+      engine.removeTrack('empty-track');
+
+      expect(toSeconds(engine.getState().playheadTime)).toBe(3);
+      expect(scrub).not.toHaveBeenCalled();
+    });
+
+    it('preserves the playhead within an explicit duration after deleting content', () => {
+      engine.setDuration(fromSeconds(10));
+      engine.updatePlayhead(fromSeconds(7));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.commitEdit({ type: 'delete-clips', clipIds: ['clip1'] });
+      engine.removeTrack('track1');
+
+      expect(toSeconds(engine.maxContentTime)).toBe(10);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(7);
+      expect(scrub).not.toHaveBeenCalled();
+    });
+
+    it('keeps the current playhead when undo restores shorter content', () => {
+      engine.commitEdit({
+        type: 'move',
+        clipId: 'clip1',
+        startTime: fromSeconds(5),
+      });
+      engine.updatePlayhead(fromSeconds(7));
+      const scrub = vi.fn();
+      engine.on('playhead:scrub', scrub);
+
+      engine.undo();
+
+      expect(toSeconds(engine.maxContentTime)).toBe(5);
+      expect(toSeconds(engine.getState().playheadTime)).toBe(7);
+      expect(scrub).not.toHaveBeenCalled();
     });
   });
 
