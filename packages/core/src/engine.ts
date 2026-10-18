@@ -269,6 +269,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     let nextTrack: Track;
     try {
       nextTrack = createTrackSnapshot(track);
+      for (const clip of nextTrack.clips) {
+        this.keyframeProperties.normalizeClipKeyframes(clip);
+      }
     } catch (cause) {
       return timelineCommandInvalidInput('Invalid track.', cause);
     }
