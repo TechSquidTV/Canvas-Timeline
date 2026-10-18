@@ -847,8 +847,12 @@ export class MediabunnySourceLifecycle {
       this.#controllerRuntime.disposeController(previous);
     }
     this.setController(candidate);
-    setTimelineClock(candidate, transport.timelineSeconds, transport.playbackRate);
-    candidate.playing = transport.playing;
+    setTimelineClock(
+      candidate,
+      transport.timelineSeconds,
+      transport.playbackRate,
+      transport.playing
+    );
     if (!this.#isActive()) {
       return false;
     }

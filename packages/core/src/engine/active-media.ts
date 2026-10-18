@@ -188,7 +188,6 @@ export class TimelineMediaQueries {
           compareRational(clip.timelineStart, firstContentTime) < 0
         ) {
           firstContentTime = clip.timelineStart;
-          break;
         }
       }
     }
