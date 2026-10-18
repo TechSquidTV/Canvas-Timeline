@@ -1160,6 +1160,8 @@ function resolveRollTrimEdit(
     subRational(boundaryTime, right.clip.timelineStart)
   );
   right.clip.timelineStart = boundaryTime;
+  preserveClipKeyframeRange(left.clip, context.keyframeProperties, context.allocateId);
+  preserveClipKeyframeRange(right.clip, context.keyframeProperties, context.allocateId);
   left.track.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
 
   return createResolvedEdit(
