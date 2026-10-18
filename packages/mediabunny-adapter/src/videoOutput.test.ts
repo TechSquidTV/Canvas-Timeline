@@ -944,6 +944,76 @@ test('createMediabunnyAdapter re-anchors the transport clock after a mid-playbac
   adapter.dispose();
 });
 
+test('createMediabunnyAdapter processes a later resume when an activation resume precedes its statechange', async () => {
+  let nowMilliseconds = 1_000;
+  vi.spyOn(performance, 'now').mockImplementation(() => nowMilliseconds);
+  const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
+  const audioContext = createMockAudioContext({ deferStateChanges: true });
+  audioContext.state = 'suspended';
+  const audioSink: MockAudioSink = {
+    buffers: vi.fn(async function* (start: number, end: number) {
+      yield {
+        buffer: {} as AudioBuffer,
+        timestamp: start,
+        duration: end - start,
+      };
+    }),
+  };
+  const adapter = createMediabunnyAdapter({
+    audio: { context: audioContext as unknown as AudioContext },
+    mediabunny: createMockMediabunny([input], { audioSink }).module,
+    sources: [urlSource('audio-source', 'https://media.example/audio.webm')],
+  });
+  const activeAudio = createActiveClip('audio', 'audio-source', 1);
+  const activeLayers = createActiveLayers([activeAudio], 1);
+
+  await adapter.seek(fromSeconds(1), activeLayers);
+  adapter.requestClockActivation(1);
+  expect(adapter.startClock(fromSeconds(1), 1)).toBe(true);
+  await adapter.syncLayers({ timelineTime: fromSeconds(1), reason: 'play', activeLayers });
+  await vi.waitFor(() => {
+    expect(audioContext.createBufferSource).toHaveBeenCalledOnce();
+  });
+  const playingNode = audioContext.createBufferSource.mock.results[0]?.value;
+  await vi.waitFor(() => {
+    expect(adapter.audioStatus).toEqual({ state: 'running' });
+  });
+
+  nowMilliseconds = 2_000;
+  audioContext.currentTime = 11;
+  expect(adapter.getClockTime()).toBeCloseTo(2, 5);
+
+  await audioContext.suspend();
+  audioContext.flushStateChanges();
+  expect(adapter.audioStatus).toEqual({ state: 'suspended' });
+
+  nowMilliseconds = 3_500;
+  const timeWhileSuspended = adapter.getClockTime();
+  expect(timeWhileSuspended).toBeGreaterThan(2);
+
+  await audioContext.resume();
+  audioContext.flushStateChanges();
+  expect(adapter.audioStatus).toEqual({ state: 'running' });
+  expect(playingNode?.stop).toHaveBeenCalledOnce();
+  const timeAtResume = adapter.getClockTime();
+  expect(timeAtResume).toBeGreaterThanOrEqual(timeWhileSuspended);
+
+  nowMilliseconds = 4_000;
+  audioContext.currentTime = 11.5;
+  expect(adapter.getClockTime()).toBeCloseTo(timeAtResume + 0.5, 5);
+
+  await adapter.syncLayers({
+    timelineTime: fromSeconds(timeAtResume),
+    reason: 'tick',
+    activeLayers,
+  });
+  await vi.waitFor(() => {
+    expect(audioContext.createBufferSource).toHaveBeenCalledTimes(2);
+  });
+
+  adapter.dispose();
+});
+
 test('createMediabunnyAdapter detaches audio state listeners on dispose', async () => {
   const input = createMockInput({ videoTrack: null, audioTrack: createMockAudioTrack() });
   const audioContext = createMockAudioContext();

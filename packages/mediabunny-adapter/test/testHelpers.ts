@@ -111,6 +111,7 @@ export interface MockAudioContext {
   suspend: ReturnType<typeof vi.fn<() => Promise<void>>>;
   addEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
   removeEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
+  flushStateChanges: () => void;
 }
 
 export interface MockMediabunny {
@@ -183,16 +184,24 @@ function createMockInput(
   };
 }
 
-function createMockAudioContext(): MockAudioContext {
+function createMockAudioContext(options: { deferStateChanges?: boolean } = {}): MockAudioContext {
   const gainNode = {
     gain: { value: 1 },
     connect: vi.fn(),
     disconnect: vi.fn(),
   } as unknown as GainNode;
   const stateChangeListeners = new Set<() => void>();
+  const pendingStateChangeEmits: Array<() => void> = [];
   const emitStateChange = () => {
     for (const listener of stateChangeListeners) {
       listener();
+    }
+  };
+  const deliverStateChange = () => {
+    if (options.deferStateChanges === true) {
+      pendingStateChangeEmits.push(emitStateChange);
+    } else {
+      emitStateChange();
     }
   };
   const context: MockAudioContext = {
@@ -215,19 +224,19 @@ function createMockAudioContext(): MockAudioContext {
     close: vi.fn(async () => {
       if (context.state !== 'closed') {
         context.state = 'closed';
-        emitStateChange();
+        deliverStateChange();
       }
     }),
     resume: vi.fn(async () => {
       if (context.state !== 'running') {
         context.state = 'running';
-        emitStateChange();
+        deliverStateChange();
       }
     }),
     suspend: vi.fn(async () => {
       if (context.state === 'running') {
         context.state = 'suspended';
-        emitStateChange();
+        deliverStateChange();
       }
     }),
     addEventListener: vi.fn((type: string, listener: () => void) => {
@@ -240,6 +249,11 @@ function createMockAudioContext(): MockAudioContext {
         stateChangeListeners.delete(listener);
       }
     }),
+    flushStateChanges: () => {
+      while (pendingStateChangeEmits.length > 0) {
+        pendingStateChangeEmits.shift()?.();
+      }
+    },
   };
   return context;
 }

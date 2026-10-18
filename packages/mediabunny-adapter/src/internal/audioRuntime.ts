@@ -231,6 +231,7 @@ export class MediabunnyAudioRuntime {
       return;
     }
     if (context.state === 'suspended') {
+      this.#activationResumeHandled = false;
       if (this.#status.state !== 'suspended') {
         this.#status = { state: 'suspended' };
         this.#dependencies.notify();
