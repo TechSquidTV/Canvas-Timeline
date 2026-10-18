@@ -1992,6 +1992,137 @@ describe('TimelineEngine', () => {
       expect(toSeconds(endEngine.getState().tracks[0].clips[0].timelineEnd)).toBe(20);
     });
 
+    it('should reject trims whose clamped result violates the opposite edge lock', () => {
+      const maxEndEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(10),
+                timelineEnd: fromSeconds(20),
+                maxEnd: fromSeconds(15),
+              },
+            ],
+          },
+        ],
+      });
+      const startCommand = {
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'start',
+        newTime: fromSeconds(12),
+        snap: false,
+      } as const;
+
+      expect(maxEndEngine.validateEdit(startCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      expect(maxEndEngine.commitEdit(startCommand).committed).toBe(false);
+      expect(toSeconds(maxEndEngine.getState().tracks[0].clips[0].timelineStart)).toBe(10);
+
+      const minStartEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(10),
+                timelineEnd: fromSeconds(20),
+                minStart: fromSeconds(15),
+              },
+            ],
+          },
+        ],
+      });
+      const endCommand = {
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'end',
+        newTime: fromSeconds(18),
+        snap: false,
+      } as const;
+
+      expect(minStartEngine.validateEdit(endCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      expect(minStartEngine.commitEdit(endCommand).committed).toBe(false);
+      expect(toSeconds(minStartEngine.getState().tracks[0].clips[0].timelineEnd)).toBe(20);
+    });
+
+    it('should reject snapped insert and overwrite placements that violate the clip locks', () => {
+      const insertEngine = new TimelineEngine({
+        tracks: [{ ...mockTrack, clips: [] }],
+        markers: [{ id: 'marker-1', time: fromSeconds(9.95), label: 'M1' }],
+      });
+      insertEngine.prepareSnapping();
+      const insertCommand = {
+        type: 'insert',
+        clip: {
+          ...mockClip,
+          id: 'snap-insert',
+          timelineStart: fromSeconds(0),
+          timelineEnd: fromSeconds(10),
+          minStart: fromSeconds(10),
+        },
+        targetTrackId: 'track1',
+        startTime: fromSeconds(10),
+      } as const;
+
+      expect(insertEngine.validateEdit(insertCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      const insertResult = insertEngine.commitEdit(insertCommand);
+      expect(insertResult.committed).toBe(false);
+      expect(insertResult.preview.reason).toBe('source-bounds');
+      expect(insertEngine.geometry.getClip('snap-insert')).toBeUndefined();
+      expect(insertEngine.getState().tracks[0].clips).toHaveLength(0);
+      expect(insertEngine.canUndo).toBe(false);
+
+      const unsnappedResult = insertEngine.commitEdit({ ...insertCommand, snap: false });
+      expect(unsnappedResult.committed).toBe(true);
+      expect(
+        toSeconds(
+          expectDefined(insertEngine.geometry.getClip('snap-insert'), 'snap-insert').clip
+            .timelineStart
+        )
+      ).toBe(10);
+
+      const overwriteEngine = new TimelineEngine({
+        tracks: [{ ...mockTrack, clips: [] }],
+        markers: [{ id: 'marker-2', time: fromSeconds(20.05), label: 'M2' }],
+      });
+      overwriteEngine.prepareSnapping();
+      const overwriteCommand = {
+        type: 'overwrite',
+        clip: {
+          ...mockClip,
+          id: 'snap-overwrite',
+          timelineStart: fromSeconds(0),
+          timelineEnd: fromSeconds(10),
+          maxEnd: fromSeconds(20),
+        },
+        targetTrackId: 'track1',
+        startTime: fromSeconds(10),
+      } as const;
+
+      expect(overwriteEngine.validateEdit(overwriteCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      const overwriteResult = overwriteEngine.commitEdit(overwriteCommand);
+      expect(overwriteResult.committed).toBe(false);
+      expect(overwriteResult.preview.reason).toBe('source-bounds');
+      expect(overwriteEngine.geometry.getClip('snap-overwrite')).toBeUndefined();
+      expect(overwriteEngine.getState().tracks[0].clips).toHaveLength(0);
+      expect(overwriteEngine.canUndo).toBe(false);
+    });
+
     it('should publish preview state when live overwrite changes clip membership', () => {
       const previewEngine = new TimelineEngine({
         tracks: [

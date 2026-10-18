@@ -452,8 +452,9 @@ function validateTrimEditCommand(
  * Resolves the clamped post-trim bounds for a trim command.
  *
  * Returns null when the clip's own `minStart`/`maxEnd` locks conflict with the
- * trim so no valid clamped range exists; callers must reject such commands
- * instead of producing a clip whose end is at or before its start.
+ * trim so no valid clamped range exists: either the clamped range would have an
+ * end at or before its start, or it would still violate either lock. Callers
+ * must reject such commands instead of committing a lock-violating clip.
  */
 function resolveTrimmedClipBounds(
   clip: Clip,
@@ -467,7 +468,10 @@ function resolveTrimmedClipBounds(
     if (clip.minStart !== undefined) {
       start = maxRational(start, clip.minStart);
     }
-    if (compareRational(start, clip.timelineEnd) >= 0) {
+    if (
+      compareRational(start, clip.timelineEnd) >= 0 ||
+      !isWithinClipBounds(clip, start, clip.timelineEnd)
+    ) {
       return null;
     }
     return { start, end: clip.timelineEnd };
@@ -476,7 +480,10 @@ function resolveTrimmedClipBounds(
   if (clip.maxEnd !== undefined) {
     end = minRational(end, clip.maxEnd);
   }
-  if (compareRational(end, clip.timelineStart) <= 0) {
+  if (
+    compareRational(end, clip.timelineStart) <= 0 ||
+    !isWithinClipBounds(clip, clip.timelineStart, end)
+  ) {
     return null;
   }
   return { start: clip.timelineStart, end };
@@ -637,9 +644,10 @@ function validatePlaceClipCommand(
   if (compareRational(duration, fromSeconds(minimumTimelineEditDurationSeconds, duration.r)) < 0) {
     return rejectEdit(context, 'invalid-duration');
   }
-  if (
-    !isWithinClipBounds(command.clip, command.startTime, addRational(command.startTime, duration))
-  ) {
+  const snap =
+    command.snap === false ? null : resolveClipBoundarySnap(context, command.startTime, duration);
+  const placedStart = snap?.startTime ?? command.startTime;
+  if (!isWithinClipBounds(command.clip, placedStart, addRational(placedStart, duration))) {
     return rejectEdit(context, 'source-bounds');
   }
   return defaultTimelineEditValidationResult;
@@ -1658,6 +1666,14 @@ function resolveInsertEdit(
   }
 
   const placedClip = createPlacedClip(context, command);
+  if (!isWithinClipBounds(placedClip, placedClip.timelineStart, placedClip.timelineEnd)) {
+    return createRejectedResolvedEdit(
+      context,
+      command,
+      tracks,
+      rejectEdit(context, 'source-bounds')
+    );
+  }
   const insertResult = resolveTrackInsert(context, targetTrack, placedClip);
   targetTrack.clips.push(placedClip);
   targetTrack.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
@@ -1832,6 +1848,14 @@ function resolveOverwriteEdit(
   }
 
   const placedClip = createPlacedClip(context, command);
+  if (!isWithinClipBounds(placedClip, placedClip.timelineStart, placedClip.timelineEnd)) {
+    return createRejectedResolvedEdit(
+      context,
+      command,
+      tracks,
+      rejectEdit(context, 'source-bounds')
+    );
+  }
   targetTrack.clips.push(placedClip);
   const overwriteResult = resolveTrackOverwrite(context, targetTrack, placedClip);
 
