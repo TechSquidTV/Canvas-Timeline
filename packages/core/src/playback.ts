@@ -148,7 +148,11 @@ export class PlaybackManager {
     considerBoundary(this.playbackTargetTime, 'target');
 
     if (boundaryTime !== undefined && boundaryReason !== undefined) {
-      if (boundaryReason !== 'target' && this.loopRange) {
+      if (
+        boundaryReason !== 'target' &&
+        this.loopRange &&
+        compareRational(inLimit, boundaryTime) < 0
+      ) {
         this.engine.updatePlayhead(inLimit);
         return { time: this.engine.getTime(), action: 'loop', reason: boundaryReason };
       }

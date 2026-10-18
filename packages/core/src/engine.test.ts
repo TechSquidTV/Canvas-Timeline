@@ -734,6 +734,63 @@ describe('TimelineEngine', () => {
     });
   });
 
+  describe('In/Out range ordering', () => {
+    it.each([4, 4.005, 8])('clears both points when setting in to %s after out at 4', (time) => {
+      engine.setOutPoint(fromSeconds(4, 24));
+      engine.setInPoint(fromSeconds(time, 24000));
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+    });
+
+    it.each([8, 7.995, 4])('clears both points when setting out to %s after in at 8', (time) => {
+      engine.setInPoint(fromSeconds(8, 24));
+      engine.setOutPoint(fromSeconds(time, 24000));
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+    });
+
+    it.each([4, 4.005, 8])('clears collapsed or inverted restored ranges with in at %s', (time) => {
+      const restored = new TimelineEngine({
+        tracks: [],
+        inPoint: fromSeconds(time, 24000),
+        outPoint: fromSeconds(4, 24),
+      });
+      expect(restored.getState().inPoint).toBeUndefined();
+      expect(restored.getState().outPoint).toBeUndefined();
+    });
+
+    it('preserves ordered and partial restored ranges', () => {
+      for (const [start, end] of [
+        [2, 4],
+        [2, undefined],
+        [undefined, 4],
+      ] as const) {
+        const inPoint = start === undefined ? undefined : fromSeconds(start);
+        const outPoint = end === undefined ? undefined : fromSeconds(end);
+        const restored = new TimelineEngine({ tracks: [], inPoint, outPoint });
+        expect(restored.getState().inPoint).toEqual(inPoint);
+        expect(restored.getState().outPoint).toEqual(outPoint);
+      }
+    });
+
+    it('normalizes crossings after snapping and publishes the cleared range', () => {
+      engine.setInOutRange(fromSeconds(2), fromSeconds(4));
+      const onInOut = vi.fn();
+      engine.on('state:inOut', onInOut);
+      engine.prepareSnapping({ ignoreInPoint: true });
+      engine.setInPoint(fromSeconds(5.05), true);
+      expect(engine.getState().inPoint).toBeUndefined();
+      expect(engine.getState().outPoint).toBeUndefined();
+      expect(onInOut).toHaveBeenCalledOnce();
+      expect(onInOut).toHaveBeenCalledWith({
+        state: expect.objectContaining({
+          inPoint: undefined,
+          outPoint: undefined,
+        }),
+      });
+    });
+  });
+
   describe('Snapping', () => {
     it('does not snap an in point back to itself while dragging it', () => {
       engine = new TimelineEngine({

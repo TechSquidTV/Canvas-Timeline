@@ -116,6 +116,18 @@ export type {
   TimelineSnapProviderContext,
 } from '#core/engine/snapping';
 
+function shouldClearInOutRange(
+  inPoint: RationalTime | undefined,
+  outPoint: RationalTime | undefined
+): boolean {
+  return (
+    inPoint !== undefined &&
+    outPoint !== undefined &&
+    (compareRational(inPoint, outPoint) >= 0 ||
+      Math.abs(toSeconds(inPoint) - toSeconds(outPoint)) <= 0.01)
+  );
+}
+
 /**
  * TimelineEngine
  *
@@ -1228,6 +1240,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       outPoint:
         initialState.outPoint === undefined ? undefined : cloneRationalTime(initialState.outPoint),
     };
+    if (shouldClearInOutRange(this.state.inPoint, this.state.outPoint)) {
+      this.state.inPoint = undefined;
+      this.state.outPoint = undefined;
+    }
     this.geometry = new TimelineGeometry({
       getState: () => this.getState(),
       getRenderState: () => this.getRenderState(),
@@ -1692,7 +1708,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
-   * Sets or clears the in-point boundary.
+   * Sets or clears the in-point boundary. Clears both points when it reaches or crosses the out-point.
    *
    * @param time - New in-point time, or `undefined` to clear it.
    * @param snap - Whether to snap the boundary to nearby indexed edges.
@@ -1707,11 +1723,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.publishSnapFeedback(emptyTimelineSnapFeedback);
     }
 
-    if (
-      time !== undefined &&
-      this.state.outPoint !== undefined &&
-      Math.abs(toSeconds(time) - toSeconds(this.state.outPoint)) <= 0.01
-    ) {
+    if (shouldClearInOutRange(time, this.state.outPoint)) {
       this.clearInOutPoints();
       return;
     }
@@ -1722,7 +1734,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   /**
-   * Sets or clears the out-point boundary.
+   * Sets or clears the out-point boundary. Clears both points when it reaches or crosses the in-point.
    *
    * @param time - New out-point time, or `undefined` to clear it.
    * @param snap - Whether to snap the boundary to nearby indexed edges.
@@ -1737,11 +1749,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
       this.publishSnapFeedback(emptyTimelineSnapFeedback);
     }
 
-    if (
-      time !== undefined &&
-      this.state.inPoint !== undefined &&
-      Math.abs(toSeconds(time) - toSeconds(this.state.inPoint)) <= 0.01
-    ) {
+    if (shouldClearInOutRange(this.state.inPoint, time)) {
       this.clearInOutPoints();
       return;
     }
