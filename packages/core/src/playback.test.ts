@@ -92,3 +92,65 @@ test('seeking discards the prior frame remainder', () => {
   expect(toSeconds(engine.getTime())).toBe(10);
   engine.pause();
 });
+
+// Bypass normalization through the mutable event state to exercise the playback guard itself.
+test.each([4, 8])(
+  'internal looping pauses instead of reseeking an invalid in-point at %s',
+  (start) => {
+    const { engine, advance } = createPlayback();
+    engine.on('state:inOut', ({ state }) => {
+      state.inPoint = fromSeconds(start, 24);
+    });
+    engine.setInOutRange(fromSeconds(2, 24), fromSeconds(4, 24));
+    engine.play({ loop: true });
+    const onScrub = vi.fn();
+    engine.on('playhead:scrub', onScrub);
+    advance(5, 1);
+    expect(engine.getState().playing).toBe(false);
+    expect(toSeconds(engine.getTime())).toBe(4);
+    expect(onScrub).toHaveBeenCalledOnce();
+    advance(1);
+    expect(onScrub).toHaveBeenCalledOnce();
+  }
+);
+
+test.each([4, 8])(
+  'external looping pauses at the boundary for an invalid in-point at %s',
+  (start) => {
+    const { engine } = createPlayback();
+    engine.on('state:inOut', ({ state }) => {
+      state.inPoint = fromSeconds(start, 24);
+    });
+    engine.setInOutRange(fromSeconds(2, 24), fromSeconds(4, 24));
+    engine.play({ clock: 'external', loop: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(5, 24))).toEqual({
+      action: 'pause',
+      reason: 'in-out',
+      time: fromSeconds(4, 24),
+    });
+    expect(engine.getState().playing).toBe(false);
+  }
+);
+
+test.each(['in', 'out'] as const)(
+  'loop playback advances after crossing the %s boundary',
+  (boundary) => {
+    const { engine, advance } = createPlayback();
+    if (boundary === 'in') {
+      engine.setOutPoint(fromSeconds(4, 24));
+      engine.setInPoint(fromSeconds(8, 24));
+    } else {
+      engine.setInPoint(fromSeconds(8, 24));
+      engine.setOutPoint(fromSeconds(4, 24));
+    }
+    engine.setTime(fromSeconds(8, 24));
+    engine.play({ loop: true });
+    const scrubTimes: number[] = [];
+    engine.on('playhead:scrub', (time) => scrubTimes.push(toSeconds(time)));
+    advance(1, 24);
+    expect(toSeconds(engine.getTime())).toBe(9);
+    expect(scrubTimes).toHaveLength(24);
+    expect(new Set(scrubTimes).size).toBe(scrubTimes.length);
+    engine.pause();
+  }
+);
