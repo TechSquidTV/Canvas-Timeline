@@ -36,6 +36,21 @@ function readTimelinePlaybackSeconds(
   return clock.timelineTimeAtStart;
 }
 
+function applyTimelinePlaybackClock(
+  state: TimelinePlaybackClockState,
+  timelineSeconds: number,
+  playbackRate: number,
+  playing: boolean,
+  audioContext: AudioContext | null
+) {
+  state.timelineTimeAtStart = timelineSeconds;
+  state.audioContextStartTime = audioContext?.currentTime ?? null;
+  state.audioClockReady = audioContext?.state === 'running';
+  state.wallClockStartTime = playing ? performance.now() / 1000 : null;
+  state.playbackRate = playbackRate;
+  state.playing = playing;
+}
+
 export class MediabunnyTransportClock {
   readonly #state: TimelinePlaybackClockState = {
     timelineTimeAtStart: 0,
@@ -58,31 +73,33 @@ export class MediabunnyTransportClock {
     return readTimelinePlaybackSeconds(this.#state, audioContext);
   }
 
+  getFallbackTime() {
+    return readTimelinePlaybackSeconds(this.#state, null);
+  }
+
   set(
     timelineSeconds: number,
     playbackRate: number,
     playing: boolean,
     audioContext: AudioContext | null
   ) {
-    this.#state.timelineTimeAtStart = timelineSeconds;
-    this.#state.audioContextStartTime = audioContext?.currentTime ?? null;
-    this.#state.audioClockReady = audioContext?.state === 'running';
-    this.#state.wallClockStartTime = playing ? performance.now() / 1000 : null;
-    this.#state.playing = playing;
-    this.#state.playbackRate = playbackRate;
+    applyTimelinePlaybackClock(this.#state, timelineSeconds, playbackRate, playing, audioContext);
   }
 }
 
 export function setTimelineClock(
   controller: MediabunnyTransportController,
   timelineSeconds: number,
-  playbackRate: number
+  playbackRate: number,
+  playing: boolean
 ) {
-  controller.timelineTimeAtStart = timelineSeconds;
-  controller.audioContextStartTime = controller.audioContext?.currentTime ?? null;
-  controller.audioClockReady = controller.audioContext?.state === 'running';
-  controller.wallClockStartTime = performance.now() / 1000;
-  controller.playbackRate = playbackRate;
+  applyTimelinePlaybackClock(
+    controller,
+    timelineSeconds,
+    playbackRate,
+    playing,
+    controller.audioContext
+  );
 }
 
 export function getTimelinePlaybackSeconds(controller: MediabunnyTransportController) {
