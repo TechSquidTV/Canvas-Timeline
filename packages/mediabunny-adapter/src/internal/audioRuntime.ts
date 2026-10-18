@@ -34,6 +34,8 @@ export class MediabunnyAudioRuntime {
   #activationGeneration = 0;
   #activationTimer: number | null = null;
   #pendingActivationRate: number | null = null;
+  #activationResumeHandled = false;
+  #removeContextStateChangeListener: (() => void) | null = null;
 
   constructor(
     audioOptions: CreateMediabunnyAdapterOptions['audio'],
@@ -93,6 +95,7 @@ export class MediabunnyAudioRuntime {
       this.#context = new AudioContextCtor();
       this.#ownsContext = true;
     }
+    this.#attachContextStateChangeListener();
     this.#masterGainNode = this.#context.createGain();
     this.#updateMasterGain();
     this.#masterGainNode.connect(this.#audioOptions?.destination ?? this.#context.destination);
@@ -149,13 +152,8 @@ export class MediabunnyAudioRuntime {
         }
         this.#clearActivationTimer();
         this.#pendingActivationRate = null;
-        const timelineSeconds = this.#transportClock.getTime(this.clockContext);
-        for (const controller of this.#dependencies.controllerValues()) {
-          stopAudioIterator(controller);
-          stopQueuedAudio(controller);
-          controller.activeAudioSyncKey = undefined;
-        }
-        this.#resynchronizeClocks(timelineSeconds);
+        this.#resynchronizeAfterContextResume();
+        this.#activationResumeHandled = true;
         this.#status = { state: 'running' };
         this.#dependencies.notify();
       },
@@ -204,6 +202,9 @@ export class MediabunnyAudioRuntime {
 
   dispose() {
     this.cancelPendingActivation();
+    this.#removeContextStateChangeListener?.();
+    this.#removeContextStateChangeListener = null;
+    this.#activationResumeHandled = false;
     this.#masterGainNode?.disconnect();
     if (this.#ownsContext) {
       void this.#context?.close();
@@ -211,13 +212,65 @@ export class MediabunnyAudioRuntime {
     this.#masterGainNode = null;
   }
 
+  #attachContextStateChangeListener() {
+    const context = this.#context;
+    if (context === null || this.#removeContextStateChangeListener !== null) {
+      return;
+    }
+    const listener = () => {
+      this.#handleContextStateChange(context);
+    };
+    context.addEventListener('statechange', listener);
+    this.#removeContextStateChangeListener = () => {
+      context.removeEventListener('statechange', listener);
+    };
+  }
+
+  #handleContextStateChange(context: AudioContext) {
+    if (this.#removeContextStateChangeListener === null || context !== this.#context) {
+      return;
+    }
+    if (context.state === 'suspended') {
+      if (this.#status.state !== 'suspended') {
+        this.#status = { state: 'suspended' };
+        this.#dependencies.notify();
+      }
+      return;
+    }
+    if (context.state !== 'running') {
+      return;
+    }
+    if (this.#activationResumeHandled) {
+      this.#activationResumeHandled = false;
+      return;
+    }
+    this.#activationGeneration += 1;
+    this.#clearActivationTimer();
+    this.#pendingActivationRate = null;
+    if (!this.#dependencies.isActive()) {
+      return;
+    }
+    this.#resynchronizeAfterContextResume();
+    this.#status = { state: 'running' };
+    this.#dependencies.notify();
+  }
+
+  #resynchronizeAfterContextResume() {
+    const timelineSeconds = this.#transportClock.getFallbackTime();
+    for (const controller of this.#dependencies.controllerValues()) {
+      stopAudioIterator(controller);
+      stopQueuedAudio(controller);
+      controller.activeAudioSyncKey = undefined;
+    }
+    this.#resynchronizeClocks(timelineSeconds);
+  }
+
   #resynchronizeClocks(timelineSeconds: number) {
     const playbackRate = this.#transportClock.playbackRate;
     const playing = this.#transportClock.playing;
     this.#transportClock.set(timelineSeconds, playbackRate, playing, this.clockContext);
     for (const controller of this.#dependencies.controllerValues()) {
-      setTimelineClock(controller, timelineSeconds, playbackRate);
-      controller.playing = playing;
+      setTimelineClock(controller, timelineSeconds, playbackRate, playing);
     }
   }
 

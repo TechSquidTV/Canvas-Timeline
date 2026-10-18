@@ -108,6 +108,9 @@ export interface MockAudioContext {
   createBufferSource: ReturnType<typeof vi.fn<() => AudioBufferSourceNode>>;
   close: ReturnType<typeof vi.fn<() => Promise<void>>>;
   resume: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  suspend: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  addEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
+  removeEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
 }
 
 export interface MockMediabunny {
@@ -186,6 +189,12 @@ function createMockAudioContext(): MockAudioContext {
     connect: vi.fn(),
     disconnect: vi.fn(),
   } as unknown as GainNode;
+  const stateChangeListeners = new Set<() => void>();
+  const emitStateChange = () => {
+    for (const listener of stateChangeListeners) {
+      listener();
+    }
+  };
   const context: MockAudioContext = {
     currentTime: 10,
     destination: {} as AudioNode,
@@ -203,9 +212,33 @@ function createMockAudioContext(): MockAudioContext {
       };
       return node as unknown as AudioBufferSourceNode;
     }),
-    close: vi.fn(async () => {}),
+    close: vi.fn(async () => {
+      if (context.state !== 'closed') {
+        context.state = 'closed';
+        emitStateChange();
+      }
+    }),
     resume: vi.fn(async () => {
-      context.state = 'running';
+      if (context.state !== 'running') {
+        context.state = 'running';
+        emitStateChange();
+      }
+    }),
+    suspend: vi.fn(async () => {
+      if (context.state === 'running') {
+        context.state = 'suspended';
+        emitStateChange();
+      }
+    }),
+    addEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') {
+        stateChangeListeners.add(listener);
+      }
+    }),
+    removeEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') {
+        stateChangeListeners.delete(listener);
+      }
     }),
   };
   return context;
