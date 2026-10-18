@@ -442,7 +442,44 @@ function validateTrimEditCommand(
   if (compareRational(duration, minDuration) < 0) {
     return rejectEdit(context, 'invalid-duration');
   }
+  if (resolveTrimmedClipBounds(found.clip, command.edge, command.newTime, minDuration) === null) {
+    return rejectEdit(context, 'source-bounds');
+  }
   return defaultTimelineEditValidationResult;
+}
+
+/**
+ * Resolves the clamped post-trim bounds for a trim command.
+ *
+ * Returns null when the clip's own `minStart`/`maxEnd` locks conflict with the
+ * trim so no valid clamped range exists; callers must reject such commands
+ * instead of producing a clip whose end is at or before its start.
+ */
+function resolveTrimmedClipBounds(
+  clip: Clip,
+  edge: 'start' | 'end',
+  targetTime: RationalTime,
+  minDuration: RationalTime
+): { start: RationalTime; end: RationalTime } | null {
+  if (edge === 'start') {
+    const maxStart = subRational(clip.timelineEnd, minDuration);
+    let start = minRational(maxRational(targetTime, fromSeconds(0, targetTime.r)), maxStart);
+    if (clip.minStart !== undefined) {
+      start = maxRational(start, clip.minStart);
+    }
+    if (compareRational(start, clip.timelineEnd) >= 0) {
+      return null;
+    }
+    return { start, end: clip.timelineEnd };
+  }
+  let end = maxRational(targetTime, addRational(clip.timelineStart, minDuration));
+  if (clip.maxEnd !== undefined) {
+    end = minRational(end, clip.maxEnd);
+  }
+  if (compareRational(end, clip.timelineStart) <= 0) {
+    return null;
+  }
+  return { start: clip.timelineStart, end };
 }
 
 function validateClipEditCommand(
@@ -599,6 +636,11 @@ function validatePlaceClipCommand(
   const duration = subRational(command.clip.timelineEnd, command.clip.timelineStart);
   if (compareRational(duration, fromSeconds(minimumTimelineEditDurationSeconds, duration.r)) < 0) {
     return rejectEdit(context, 'invalid-duration');
+  }
+  if (
+    !isWithinClipBounds(command.clip, command.startTime, addRational(command.startTime, duration))
+  ) {
+    return rejectEdit(context, 'source-bounds');
   }
   return defaultTimelineEditValidationResult;
 }
@@ -1068,20 +1110,24 @@ function resolveTrimEdit(
   const oldStart = found.clip.timelineStart;
   const oldEnd = found.clip.timelineEnd;
 
+  const trimmedBounds = resolveTrimmedClipBounds(found.clip, command.edge, targetTime, minDuration);
+  if (trimmedBounds === null) {
+    return createRejectedResolvedEdit(
+      context,
+      command,
+      tracks,
+      rejectEdit(context, 'source-bounds')
+    );
+  }
+
   if (command.edge === 'start') {
-    const maxStart = subRational(found.clip.timelineEnd, minDuration);
-    let startTime = minRational(maxRational(targetTime, fromSeconds(0, targetTime.r)), maxStart);
-    if (found.clip.minStart !== undefined) {
-      startTime = maxRational(startTime, found.clip.minStart);
-    }
-    found.clip.timelineStart = startTime;
-    found.clip.sourceStart = addRational(found.clip.sourceStart, subRational(startTime, oldStart));
+    found.clip.timelineStart = trimmedBounds.start;
+    found.clip.sourceStart = addRational(
+      found.clip.sourceStart,
+      subRational(trimmedBounds.start, oldStart)
+    );
   } else {
-    let endTime = maxRational(targetTime, addRational(found.clip.timelineStart, minDuration));
-    if (found.clip.maxEnd !== undefined) {
-      endTime = minRational(endTime, found.clip.maxEnd);
-    }
-    found.clip.timelineEnd = endTime;
+    found.clip.timelineEnd = trimmedBounds.end;
   }
 
   const delta =

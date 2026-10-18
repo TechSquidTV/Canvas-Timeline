@@ -1890,6 +1890,108 @@ describe('TimelineEngine', () => {
       expect(toSeconds(clip.sourceStart)).toBeCloseTo(1);
     });
 
+    it('should reject insert and overwrite placements that violate the clip locks', () => {
+      const insertCommand = {
+        type: 'insert',
+        clip: { ...mockClip, id: 'locked-insert', minStart: fromSeconds(2) },
+        targetTrackId: 'track1',
+        startTime: fromSeconds(1),
+        snap: false,
+      } as const;
+      expect(engine.validateEdit(insertCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      const insertResult = engine.commitEdit(insertCommand);
+      expect(insertResult.committed).toBe(false);
+      expect(insertResult.preview.reason).toBe('source-bounds');
+      expect(engine.geometry.getClip('locked-insert')).toBeUndefined();
+
+      const overwriteCommand = {
+        type: 'overwrite',
+        clip: { ...mockClip, id: 'locked-overwrite', maxEnd: fromSeconds(3) },
+        targetTrackId: 'track1',
+        startTime: fromSeconds(1),
+        snap: false,
+      } as const;
+      expect(engine.validateEdit(overwriteCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      const overwriteResult = engine.commitEdit(overwriteCommand);
+      expect(overwriteResult.committed).toBe(false);
+      expect(overwriteResult.preview.reason).toBe('source-bounds');
+      expect(engine.geometry.getClip('locked-overwrite')).toBeUndefined();
+      expect(engine.canUndo).toBe(false);
+    });
+
+    it('should reject trims into inconsistent clip bounds instead of throwing', () => {
+      const boundsEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(10),
+                timelineEnd: fromSeconds(20),
+                minStart: fromSeconds(25),
+              },
+            ],
+          },
+        ],
+      });
+      const startCommand = {
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'start',
+        newTime: fromSeconds(15),
+        snap: false,
+      } as const;
+
+      expect(boundsEngine.validateEdit(startCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      expect(() => boundsEngine.previewEdit(startCommand)).not.toThrow();
+      const startResult = boundsEngine.commitEdit(startCommand);
+      expect(startResult.committed).toBe(false);
+      expect(startResult.preview.reason).toBe('source-bounds');
+      expect(toSeconds(boundsEngine.getState().tracks[0].clips[0].timelineStart)).toBe(10);
+      expect(boundsEngine.canUndo).toBe(false);
+
+      const endEngine = new TimelineEngine({
+        tracks: [
+          {
+            ...mockTrack,
+            clips: [
+              {
+                ...mockClip,
+                timelineStart: fromSeconds(10),
+                timelineEnd: fromSeconds(20),
+                maxEnd: fromSeconds(5),
+              },
+            ],
+          },
+        ],
+      });
+      const endCommand = {
+        type: 'trim',
+        clipId: 'clip1',
+        edge: 'end',
+        newTime: fromSeconds(15),
+        snap: false,
+      } as const;
+
+      expect(endEngine.validateEdit(endCommand)).toMatchObject({
+        valid: false,
+        reason: 'source-bounds',
+      });
+      expect(() => endEngine.previewEdit(endCommand)).not.toThrow();
+      expect(endEngine.commitEdit(endCommand).committed).toBe(false);
+      expect(toSeconds(endEngine.getState().tracks[0].clips[0].timelineEnd)).toBe(20);
+    });
+
     it('should publish preview state when live overwrite changes clip membership', () => {
       const previewEngine = new TimelineEngine({
         tracks: [
