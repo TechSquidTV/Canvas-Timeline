@@ -173,6 +173,9 @@ export function preserveClipKeyframeRange(
   }
   clip.keyframes = clip.keyframes.map(cloneTimelineKeyframe);
   for (const property of new Set(clip.keyframes.map((key) => key.property))) {
+    if (!registry.has(property)) {
+      continue;
+    }
     for (const [side, time] of [
       ['start', clip.timelineStart],
       ['end', clip.timelineEnd],

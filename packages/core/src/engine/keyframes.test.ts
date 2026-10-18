@@ -1,4 +1,4 @@
-import type { TimelineReadonly, Clip, Track } from '#core/types';
+import type { TimelineReadonly, TimelineEditCommand, Clip, Track } from '#core/types';
 import { TimelineEngine } from '#core/engine';
 import {
   createTimelineScalarKeyframeProperty,
@@ -161,6 +161,104 @@ describe('TimelineEngine keyframes', () => {
     function keyframeSeconds(clip: TimelineReadonly<Clip> | undefined): number[] {
       return (clip?.keyframes ?? []).map((keyframe) => toSeconds(keyframe.time));
     }
+
+    it.each([false, true])('validates addTrack keyframes (empty: %s)', (empty) => {
+      const clip = createKeyframeClip('incoming', 0, 10, empty ? [] : [1, 8]);
+      clip.keyframes?.forEach((key) => {
+        key.property = 'nope';
+      });
+      const track = createKeyframeTrack([clip]);
+      const before = engine.getState();
+      const input = structuredClone(track);
+
+      expect(engine.addTrack(track)).toMatchObject(
+        empty ? { ok: true } : { ok: false, reason: 'invalid-input' }
+      );
+      expect(track).toEqual(input);
+      expect(engine.canUndo).toBe(empty);
+      if (empty) {
+        expect(engine.tracks[1].clips[0].keyframes).toEqual([]);
+      } else {
+        expect(engine.getState()).toEqual(before);
+      }
+    });
+
+    it.each(['insert', 'overwrite', 'insert-clip-group', 'overwrite-clip-group'] as const)(
+      'validates %s keyframe properties without mutating input or history',
+      (type) => {
+        for (const empty of [false, true]) {
+          const placementEngine = new TimelineEngine({ tracks: [createKeyframeTrack([])] });
+          const clip = createKeyframeClip('incoming', 0, 10, empty ? [] : [1, 8]);
+          clip.keyframes?.forEach((key) => {
+            key.property = 'nope';
+          });
+          const placement = { clip, targetTrackId: 'keyframe-track', startTime: fromSeconds(0) };
+          const command: TimelineEditCommand =
+            type === 'insert' || type === 'overwrite'
+              ? { type, ...placement, snap: false }
+              : {
+                  type,
+                  placements: [
+                    { ...placement, clip: createKeyframeClip('first', 0, 2, []) },
+                    { ...placement, startTime: fromSeconds(3) },
+                  ],
+                  snap: false,
+                };
+          const before = placementEngine.getState();
+          const input = structuredClone(command);
+
+          expect(placementEngine.previewEdit(command).valid).toBe(empty);
+          expect(placementEngine.getState()).toEqual(before);
+          expect(placementEngine.commitEdit(command).committed).toBe(empty);
+          expect(command).toEqual(input);
+          expect(placementEngine.canUndo).toBe(empty);
+          if (empty) {
+            expect(
+              placementEngine.tracks[0].clips.every((entry) => entry.keyframes?.length === 0)
+            ).toBe(true);
+          } else {
+            expect(placementEngine.getState()).toEqual(before);
+          }
+        }
+      }
+    );
+
+    it.each(['trim', 'split', 'overwrite'] as const)(
+      'preserves an already-loaded clip with unregistered properties during %s',
+      (type) => {
+        const loadedEngine = new TimelineEngine({ tracks: [createKeyframeTrack([])] });
+        const clip = createKeyframeClip('loaded', 0, 10, [1, 4, 8]);
+        clip.keyframes?.forEach((key) => {
+          key.property = 'nope';
+        });
+        // Simulate historical state that bypassed the now-validated ingress paths.
+        loadedEngine['state'].tracks[0].clips.push(clip);
+        loadedEngine.invalidateContent();
+        const before = loadedEngine.getState();
+        const command: TimelineEditCommand =
+          type === 'trim'
+            ? { type, clipId: 'loaded', edge: 'end', newTime: fromSeconds(6), snap: false }
+            : type === 'split'
+              ? { type, clipIds: ['loaded'], time: fromSeconds(6) }
+              : {
+                  type,
+                  clip: createKeyframeClip('winner', 0, 3, []),
+                  targetTrackId: 'keyframe-track',
+                  startTime: fromSeconds(6),
+                  snap: false,
+                };
+
+        expect(loadedEngine.previewEdit(command).valid).toBe(true);
+        expect(loadedEngine.getState()).toEqual(before);
+        expect(loadedEngine.commitEdit(command).committed).toBe(true);
+        for (const result of loadedEngine.tracks[0].clips) {
+          for (const key of result.keyframes ?? []) {
+            expect(toSeconds(key.time)).toBeGreaterThanOrEqual(toSeconds(result.timelineStart));
+            expect(toSeconds(key.time)).toBeLessThanOrEqual(toSeconds(result.timelineEnd));
+          }
+        }
+      }
+    );
 
     it('refreshes drawing snapshots during a keyframe preview', () => {
       const before = engine.getRenderState();
@@ -941,6 +1039,120 @@ describe('TimelineEngine keyframes', () => {
         newTime: fromSeconds(6),
       });
       expect(keyframeSeconds(trimEngine.geometry.getClip('trimmed')?.clip)).toEqual([2, 3, 5, 6]);
+    });
+
+    it('filters keyframes when roll trims move clip boundaries', () => {
+      const rollEngine = new TimelineEngine({
+        tracks: [
+          createKeyframeTrack([
+            createKeyframeClip('roll-left', 0, 8, [0, 4, 7]),
+            createKeyframeClip('roll-right', 8, 12, [9, 10, 11]),
+          ]),
+        ],
+        keyframeProperties: [opacityKeyframeProperty],
+      });
+
+      const beforeRoll = [4.5, 4.9, 5].map((time) =>
+        rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(time))
+      );
+      expect(
+        rollEngine.commitEdit({
+          type: 'roll-trim',
+          leftClipId: 'roll-left',
+          rightClipId: 'roll-right',
+          boundaryTime: fromSeconds(5),
+          snap: false,
+        }).committed
+      ).toBe(true);
+
+      const rolledLeft = expectDefined(
+        rollEngine.geometry.getClip('roll-left')?.clip,
+        'rolled left clip'
+      );
+      const rolledRight = expectDefined(
+        rollEngine.geometry.getClip('roll-right')?.clip,
+        'rolled right clip'
+      );
+      expect(toSeconds(rolledLeft.timelineStart)).toBe(0);
+      expect(toSeconds(rolledLeft.timelineEnd)).toBe(5);
+      expect(keyframeSeconds(rolledLeft)).toEqual([0, 4, 5]);
+      expect(toSeconds(rolledRight.timelineStart)).toBe(5);
+      expect(toSeconds(rolledRight.timelineEnd)).toBe(12);
+      expect(keyframeSeconds(rolledRight)).toEqual([9, 10, 11]);
+      for (const rolled of [rolledLeft, rolledRight]) {
+        for (const keyframe of rolled.keyframes ?? []) {
+          expect(toSeconds(keyframe.time)).toBeGreaterThanOrEqual(toSeconds(rolled.timelineStart));
+          expect(toSeconds(keyframe.time)).toBeLessThanOrEqual(toSeconds(rolled.timelineEnd));
+        }
+      }
+      expect(
+        rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(4.9))
+      ).toBeCloseTo(0.65);
+      for (const [index, time] of [4.5, 4.9, 5].entries()) {
+        expect(
+          rollEngine.keyframes.getClipPropertyValueAtTime('roll-left', 'opacity', fromSeconds(time))
+        ).toBeCloseTo(beforeRoll[index] ?? 0);
+      }
+    });
+
+    it('inserts boundary keyframes when roll trims contract the right clip start', () => {
+      const rollRightEngine = new TimelineEngine({
+        tracks: [
+          createKeyframeTrack([
+            createKeyframeClip('extend-left', 0, 8, [0, 4, 7]),
+            createKeyframeClip('contract-right', 8, 12, [8.5, 10, 11]),
+          ]),
+        ],
+        keyframeProperties: [opacityKeyframeProperty],
+      });
+
+      const beforeRoll = [9.5, 9.6].map((time) =>
+        rollRightEngine.keyframes.getClipPropertyValueAtTime(
+          'contract-right',
+          'opacity',
+          fromSeconds(time)
+        )
+      );
+      expect(
+        rollRightEngine.commitEdit({
+          type: 'roll-trim',
+          leftClipId: 'extend-left',
+          rightClipId: 'contract-right',
+          boundaryTime: fromSeconds(9.5),
+          snap: false,
+        }).committed
+      ).toBe(true);
+
+      const extendedLeft = expectDefined(
+        rollRightEngine.geometry.getClip('extend-left')?.clip,
+        'extended left clip'
+      );
+      const contractedRight = expectDefined(
+        rollRightEngine.geometry.getClip('contract-right')?.clip,
+        'contracted right clip'
+      );
+      expect(toSeconds(extendedLeft.timelineEnd)).toBe(9.5);
+      expect(keyframeSeconds(extendedLeft)).toEqual([0, 4, 7]);
+      expect(toSeconds(contractedRight.timelineStart)).toBe(9.5);
+      expect(toSeconds(contractedRight.timelineEnd)).toBe(12);
+      expect(keyframeSeconds(contractedRight)).toEqual([9.5, 10, 11]);
+      for (const keyframe of contractedRight.keyframes ?? []) {
+        expect(toSeconds(keyframe.time)).toBeGreaterThanOrEqual(
+          toSeconds(contractedRight.timelineStart)
+        );
+        expect(toSeconds(keyframe.time)).toBeLessThanOrEqual(
+          toSeconds(contractedRight.timelineEnd)
+        );
+      }
+      for (const [index, time] of [9.5, 9.6].entries()) {
+        expect(
+          rollRightEngine.keyframes.getClipPropertyValueAtTime(
+            'contract-right',
+            'opacity',
+            fromSeconds(time)
+          )
+        ).toBeCloseTo(beforeRoll[index] ?? 0);
+      }
     });
 
     it('preserves selected clip keyframes through cut and shifts them on paste', () => {

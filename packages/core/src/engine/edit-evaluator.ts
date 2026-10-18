@@ -336,12 +336,14 @@ function validateEditCommandTiming(
       case 'overwrite':
         assertValidRationalTime(command.startTime, 'command.startTime');
         assertValidClipTiming(command.clip, 'command.clip');
+        context.keyframeProperties.normalizeClipKeyframes({ ...command.clip });
         break;
       case 'insert-clip-group':
       case 'overwrite-clip-group':
         for (const [index, placement] of command.placements.entries()) {
           assertValidRationalTime(placement.startTime, `command.placements[${index}].startTime`);
           assertValidClipTiming(placement.clip, `command.placements[${index}].clip`);
+          context.keyframeProperties.normalizeClipKeyframes({ ...placement.clip });
         }
         break;
       case 'delete-range':
@@ -1158,6 +1160,8 @@ function resolveRollTrimEdit(
     subRational(boundaryTime, right.clip.timelineStart)
   );
   right.clip.timelineStart = boundaryTime;
+  preserveClipKeyframeRange(left.clip, context.keyframeProperties, context.allocateId);
+  preserveClipKeyframeRange(right.clip, context.keyframeProperties, context.allocateId);
   left.track.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
 
   return createResolvedEdit(

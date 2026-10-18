@@ -206,8 +206,7 @@ export function createMediabunnyAdapter(
 
   const setAllClocks = (timelineSeconds: number, playbackRate: number, playing: boolean) => {
     for (const controller of sourceLifecycle.controllerValues()) {
-      setTimelineClock(controller, timelineSeconds, playbackRate);
-      controller.playing = playing;
+      setTimelineClock(controller, timelineSeconds, playbackRate, playing);
     }
   };
 
