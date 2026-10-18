@@ -1,4 +1,4 @@
-import type { TimelineReadonly, Clip, Track } from '#core/types';
+import type { TimelineReadonly, TimelineEditCommand, Clip, Track } from '#core/types';
 import { TimelineEngine } from '#core/engine';
 import {
   createTimelineScalarKeyframeProperty,
@@ -161,6 +161,104 @@ describe('TimelineEngine keyframes', () => {
     function keyframeSeconds(clip: TimelineReadonly<Clip> | undefined): number[] {
       return (clip?.keyframes ?? []).map((keyframe) => toSeconds(keyframe.time));
     }
+
+    it.each([false, true])('validates addTrack keyframes (empty: %s)', (empty) => {
+      const clip = createKeyframeClip('incoming', 0, 10, empty ? [] : [1, 8]);
+      clip.keyframes?.forEach((key) => {
+        key.property = 'nope';
+      });
+      const track = createKeyframeTrack([clip]);
+      const before = engine.getState();
+      const input = structuredClone(track);
+
+      expect(engine.addTrack(track)).toMatchObject(
+        empty ? { ok: true } : { ok: false, reason: 'invalid-input' }
+      );
+      expect(track).toEqual(input);
+      expect(engine.canUndo).toBe(empty);
+      if (empty) {
+        expect(engine.tracks[1].clips[0].keyframes).toEqual([]);
+      } else {
+        expect(engine.getState()).toEqual(before);
+      }
+    });
+
+    it.each(['insert', 'overwrite', 'insert-clip-group', 'overwrite-clip-group'] as const)(
+      'validates %s keyframe properties without mutating input or history',
+      (type) => {
+        for (const empty of [false, true]) {
+          const placementEngine = new TimelineEngine({ tracks: [createKeyframeTrack([])] });
+          const clip = createKeyframeClip('incoming', 0, 10, empty ? [] : [1, 8]);
+          clip.keyframes?.forEach((key) => {
+            key.property = 'nope';
+          });
+          const placement = { clip, targetTrackId: 'keyframe-track', startTime: fromSeconds(0) };
+          const command: TimelineEditCommand =
+            type === 'insert' || type === 'overwrite'
+              ? { type, ...placement, snap: false }
+              : {
+                  type,
+                  placements: [
+                    { ...placement, clip: createKeyframeClip('first', 0, 2, []) },
+                    { ...placement, startTime: fromSeconds(3) },
+                  ],
+                  snap: false,
+                };
+          const before = placementEngine.getState();
+          const input = structuredClone(command);
+
+          expect(placementEngine.previewEdit(command).valid).toBe(empty);
+          expect(placementEngine.getState()).toEqual(before);
+          expect(placementEngine.commitEdit(command).committed).toBe(empty);
+          expect(command).toEqual(input);
+          expect(placementEngine.canUndo).toBe(empty);
+          if (empty) {
+            expect(
+              placementEngine.tracks[0].clips.every((entry) => entry.keyframes?.length === 0)
+            ).toBe(true);
+          } else {
+            expect(placementEngine.getState()).toEqual(before);
+          }
+        }
+      }
+    );
+
+    it.each(['trim', 'split', 'overwrite'] as const)(
+      'preserves an already-loaded clip with unregistered properties during %s',
+      (type) => {
+        const loadedEngine = new TimelineEngine({ tracks: [createKeyframeTrack([])] });
+        const clip = createKeyframeClip('loaded', 0, 10, [1, 4, 8]);
+        clip.keyframes?.forEach((key) => {
+          key.property = 'nope';
+        });
+        // Simulate historical state that bypassed the now-validated ingress paths.
+        loadedEngine['state'].tracks[0].clips.push(clip);
+        loadedEngine.invalidateContent();
+        const before = loadedEngine.getState();
+        const command: TimelineEditCommand =
+          type === 'trim'
+            ? { type, clipId: 'loaded', edge: 'end', newTime: fromSeconds(6), snap: false }
+            : type === 'split'
+              ? { type, clipIds: ['loaded'], time: fromSeconds(6) }
+              : {
+                  type,
+                  clip: createKeyframeClip('winner', 0, 3, []),
+                  targetTrackId: 'keyframe-track',
+                  startTime: fromSeconds(6),
+                  snap: false,
+                };
+
+        expect(loadedEngine.previewEdit(command).valid).toBe(true);
+        expect(loadedEngine.getState()).toEqual(before);
+        expect(loadedEngine.commitEdit(command).committed).toBe(true);
+        for (const result of loadedEngine.tracks[0].clips) {
+          for (const key of result.keyframes ?? []) {
+            expect(toSeconds(key.time)).toBeGreaterThanOrEqual(toSeconds(result.timelineStart));
+            expect(toSeconds(key.time)).toBeLessThanOrEqual(toSeconds(result.timelineEnd));
+          }
+        }
+      }
+    );
 
     it('refreshes drawing snapshots during a keyframe preview', () => {
       const before = engine.getRenderState();
