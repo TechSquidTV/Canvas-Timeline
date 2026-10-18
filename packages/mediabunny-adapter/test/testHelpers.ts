@@ -108,6 +108,10 @@ export interface MockAudioContext {
   createBufferSource: ReturnType<typeof vi.fn<() => AudioBufferSourceNode>>;
   close: ReturnType<typeof vi.fn<() => Promise<void>>>;
   resume: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  suspend: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  addEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
+  removeEventListener: ReturnType<typeof vi.fn<(type: string, listener: () => void) => void>>;
+  flushStateChanges: () => void;
 }
 
 export interface MockMediabunny {
@@ -180,12 +184,26 @@ function createMockInput(
   };
 }
 
-function createMockAudioContext(): MockAudioContext {
+function createMockAudioContext(options: { deferStateChanges?: boolean } = {}): MockAudioContext {
   const gainNode = {
     gain: { value: 1 },
     connect: vi.fn(),
     disconnect: vi.fn(),
   } as unknown as GainNode;
+  const stateChangeListeners = new Set<() => void>();
+  const pendingStateChangeEmits: Array<() => void> = [];
+  const emitStateChange = () => {
+    for (const listener of stateChangeListeners) {
+      listener();
+    }
+  };
+  const deliverStateChange = () => {
+    if (options.deferStateChanges === true) {
+      pendingStateChangeEmits.push(emitStateChange);
+    } else {
+      emitStateChange();
+    }
+  };
   const context: MockAudioContext = {
     currentTime: 10,
     destination: {} as AudioNode,
@@ -203,10 +221,39 @@ function createMockAudioContext(): MockAudioContext {
       };
       return node as unknown as AudioBufferSourceNode;
     }),
-    close: vi.fn(async () => {}),
-    resume: vi.fn(async () => {
-      context.state = 'running';
+    close: vi.fn(async () => {
+      if (context.state !== 'closed') {
+        context.state = 'closed';
+        deliverStateChange();
+      }
     }),
+    resume: vi.fn(async () => {
+      if (context.state !== 'running') {
+        context.state = 'running';
+        deliverStateChange();
+      }
+    }),
+    suspend: vi.fn(async () => {
+      if (context.state === 'running') {
+        context.state = 'suspended';
+        deliverStateChange();
+      }
+    }),
+    addEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') {
+        stateChangeListeners.add(listener);
+      }
+    }),
+    removeEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') {
+        stateChangeListeners.delete(listener);
+      }
+    }),
+    flushStateChanges: () => {
+      while (pendingStateChangeEmits.length > 0) {
+        pendingStateChangeEmits.shift()?.();
+      }
+    },
   };
   return context;
 }
