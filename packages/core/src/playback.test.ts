@@ -157,6 +157,41 @@ test.each([false, true])(
   }
 );
 
+test.each([false, true])(
+  'auto-end wins over an equal out-point for internal and external clocks (explicit duration: %s)',
+  (explicitDuration) => {
+    const { engine, advance } = createContentPlayback();
+    if (explicitDuration) {
+      engine.setDuration(fromSeconds(3, 24));
+    }
+    engine.setInOutRange(fromSeconds(0, 24), fromSeconds(3, 24));
+    engine.play({ loop: true, autoEnd: true });
+    advance(3);
+    expect(toSeconds(engine.getTime())).toBe(3);
+    expect(engine.getState().playing).toBe(false);
+
+    engine.setTime(fromSeconds(0, 24));
+    engine.play({ clock: 'external', loop: true, autoEnd: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+      action: 'pause',
+      reason: 'target',
+      time: fromSeconds(3, 24),
+    });
+    expect(engine.getState().playing).toBe(false);
+  }
+);
+
+test('an explicit auto-end target wins over an equal out-point before content end', () => {
+  const { engine } = createContentPlayback();
+  engine.setInOutRange(fromSeconds(0, 24), fromSeconds(2, 24));
+  engine.play({ clock: 'external', loop: true, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'pause',
+    reason: 'target',
+    time: fromSeconds(2, 24),
+  });
+});
+
 test('an earlier in/out boundary still loops before the auto-end target', () => {
   const { engine } = createContentPlayback();
   engine.setInOutRange(fromSeconds(1, 24), fromSeconds(2, 24));

@@ -158,15 +158,15 @@ export class PlaybackManager {
       boundaryReason = reason;
     };
 
-    if (this.respectInOut) {
-      considerBoundary(state.outPoint, 'in-out');
-    }
     if (this.playbackAutoEnd) {
       considerBoundary(
         this.playbackTargetTime ??
           (state.duration !== undefined ? state.duration : this.resolveContentEnd()),
         'target'
       );
+    }
+    if (this.respectInOut) {
+      considerBoundary(state.outPoint, 'in-out');
     }
     if (state.duration !== undefined) {
       considerBoundary(state.duration, 'duration');

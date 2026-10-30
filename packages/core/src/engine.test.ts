@@ -630,7 +630,7 @@ describe('TimelineEngine', () => {
       }
     );
 
-    it('preserves range precedence when an out point and target are equal', () => {
+    it('prefers auto-end when an out point and target are equal', () => {
       const rangedEngine = new TimelineEngine({
         tracks: [mockTrack],
         duration: fromSeconds(20),
@@ -647,11 +647,11 @@ describe('TimelineEngine', () => {
         })
       ).toBe(true);
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(6))).toMatchObject({
-        action: 'loop',
-        reason: 'in-out',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(toSeconds(rangedEngine.getTime())).toBe(0);
-      expect(rangedEngine.getState().playing).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
     });
 
     it('stops internal playback at an earlier target before later range boundaries', () => {
