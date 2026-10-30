@@ -25,7 +25,6 @@ interface ActiveEdit {
   clipId: string;
   region: ClipHitRegion;
   viewportTop: number;
-  dragging: boolean;
 }
 
 /**
@@ -133,6 +132,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
     const state = useTimelineSelector((state) => ({ tracks: state.tracks }));
     const internalRef = useRef<HTMLDivElement>(null);
     const activeEditRef = useRef<ActiveEdit | null>(null);
+    const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>(null);
     const [hoveredClipId, setHoveredClipId] = useState<string | null>(null);
     const [hoveredRegion, setHoveredRegion] = useState<ClipHitRegion>('body');
     const [overlay, setOverlay] = useState<OverlayState | null>(null);
@@ -176,15 +176,14 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       [controlledActiveClipId, keyboardActiveClipId]
     );
     const targetClipId = useMemo(
-      () =>
-        activeEditRef.current?.clipId ?? hoveredClipId ?? externalActiveClipId ?? selectedClipId,
-      [externalActiveClipId, hoveredClipId, selectedClipId]
+      () => activeEdit?.clipId ?? hoveredClipId ?? externalActiveClipId ?? selectedClipId,
+      [activeEdit, externalActiveClipId, hoveredClipId, selectedClipId]
     );
     const targetRegion = useMemo(
       () =>
-        activeEditRef.current?.region ??
+        activeEdit?.region ??
         (hoveredClipId ? hoveredRegion : externalActiveClipId ? activeClipRegion : 'body'),
-      [activeClipRegion, externalActiveClipId, hoveredClipId, hoveredRegion]
+      [activeClipRegion, activeEdit, externalActiveClipId, hoveredClipId, hoveredRegion]
     );
 
     const ref = useCallback(
@@ -257,7 +256,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
 
     useEffect(() => {
       return () => {
-        if (activeEditRef.current?.dragging) {
+        if (activeEditRef.current) {
           if (activeEditRef.current.region === 'body') {
             cancelClipDrag();
           } else {
@@ -270,7 +269,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
     const handleActivePointerMove = useCallback(
       (event: PointerEvent) => {
         const activeEdit = activeEditRef.current;
-        if (!activeEdit?.dragging) {
+        if (!activeEdit) {
           return;
         }
 
@@ -290,6 +289,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       (event: PointerEvent) => {
         const activeEdit = activeEditRef.current;
         activeEditRef.current = null;
+        setActiveEdit(null);
 
         try {
           internalRef.current?.releasePointerCapture(event.pointerId);
@@ -297,7 +297,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           // Pointer capture may already be released by the browser.
         }
 
-        if (activeEdit?.dragging) {
+        if (activeEdit) {
           if (activeEdit.region === 'body') {
             if (event.type === 'pointercancel') {
               cancelClipDrag();
@@ -461,12 +461,13 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       }
       internalRef.current?.setPointerCapture(event.pointerId);
 
-      activeEditRef.current = {
+      const edit: ActiveEdit = {
         clipId: hit.clip.id,
         region: hit.region,
         viewportTop: event.clientY - point.y + geometry.rulerHeight,
-        dragging: true,
       };
+      activeEditRef.current = edit;
+      setActiveEdit(edit);
     };
 
     const cursorRegion = overlay?.region ?? hoveredRegion;
@@ -476,7 +477,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
       clipNavigation.isFocusTargetFocused &&
       overlay?.clipId === clipNavigation.activeClipId;
     const showFocusVisible = activeClipFocusVisible ?? isKeyboardActiveOverlay;
-    const cursor = activeEditRef.current?.dragging
+    const cursor = activeEdit
       ? 'grabbing'
       : cursorRegion === 'body'
         ? overlay?.canMove === false
@@ -511,7 +512,7 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
           <div
             className="timeline-clip-interaction-overlay"
             data-region={overlay.region}
-            data-active={activeEditRef.current?.clipId === overlay.clipId ? 'true' : undefined}
+            data-active={activeEdit?.clipId === overlay.clipId ? 'true' : undefined}
             data-editable={isEditable ? 'true' : undefined}
             data-focus-visible={showFocusVisible ? 'true' : undefined}
             style={{
@@ -524,11 +525,11 @@ export const ClipInteractionLayer = React.forwardRef<HTMLDivElement, ClipInterac
               <>
                 <div
                   className="timeline-clip-interaction-handle timeline-clip-interaction-handle-left"
-                  data-active={activeEditRef.current?.region === 'start-edge' ? 'true' : undefined}
+                  data-active={activeEdit?.region === 'start-edge' ? 'true' : undefined}
                 />
                 <div
                   className="timeline-clip-interaction-handle timeline-clip-interaction-handle-right"
-                  data-active={activeEditRef.current?.region === 'end-edge' ? 'true' : undefined}
+                  data-active={activeEdit?.region === 'end-edge' ? 'true' : undefined}
                 />
               </>
             )}
