@@ -5,7 +5,7 @@
 ### Minor Changes
 
 - [#206](https://github.com/TechSquidTV/Canvas-Timeline/pull/206) [`90ab8ef`](https://github.com/TechSquidTV/Canvas-Timeline/commit/90ab8ef65fcbb772b865a985a505664bb6360192) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Split clips straddling single or grouped ripple insertions while preserving source offsets and keyframe curves. Split-off clips now appear in previews and emit `clip:created` events with reason `insert-split` and origin clip lineage.
-  
+
   **BREAKING:** `ClipCreatedReason` includes `insert-split`. Update exhaustive switches and `clip:created` handlers to handle the new reason and use `originClipId` to identify the source clip.
 
 ### Patch Changes
