@@ -1,5 +1,15 @@
 # @techsquidtv/canvas-timeline-mediabunny-adapter
 
+## 0.6.0
+
+### Patch Changes
+
+- [#211](https://github.com/TechSquidTV/Canvas-Timeline/pull/211) [`a6e289b`](https://github.com/TechSquidTV/Canvas-Timeline/commit/a6e289b5034b3420dd4f143d085ecb78f360d06d) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Fix the Mediabunny transport clock so a mid-playback `AudioContext` suspend no longer silently degrades to wall-clock time and jumps backward on resume. The adapter now listens for context `statechange` events, reports the suspension through `audioStatus`, and re-anchors `timelineTimeAtStart`/`audioContextStartTime` when the context resumes, keeping `getClockTime()` monotonic across suspend/resume. The controller clock writer now shares one implementation with `MediabunnyTransportClock` instead of diverging on `wallClockStartTime`.
+- Updated dependencies [[`97907cb`](https://github.com/TechSquidTV/Canvas-Timeline/commit/97907cb4ce2547b10b3894f4646b80ad6fd88d8d), [`1b15dbc`](https://github.com/TechSquidTV/Canvas-Timeline/commit/1b15dbc427d2431a9dcd4192111799bdb5bb107c), [`62983c5`](https://github.com/TechSquidTV/Canvas-Timeline/commit/62983c52ac6506f4cb5e2803031327f2c72f2592), [`434e765`](https://github.com/TechSquidTV/Canvas-Timeline/commit/434e765b7544fc5c70431a687188c0b8d4a52b81), [`c2df09f`](https://github.com/TechSquidTV/Canvas-Timeline/commit/c2df09f528d6ea00ab35d41621a0835e57418a16), [`90ab8ef`](https://github.com/TechSquidTV/Canvas-Timeline/commit/90ab8ef65fcbb772b865a985a505664bb6360192), [`293fc1d`](https://github.com/TechSquidTV/Canvas-Timeline/commit/293fc1d6c30082b245884216f96ed2d5db1b2151), [`083949c`](https://github.com/TechSquidTV/Canvas-Timeline/commit/083949c2223c42c4bf66700562a84b765bdc4f32), [`90e3b56`](https://github.com/TechSquidTV/Canvas-Timeline/commit/90e3b569e8543da2f67ced607710a8e7825d6347), [`f5b6fa4`](https://github.com/TechSquidTV/Canvas-Timeline/commit/f5b6fa4e199b01db8984f850bd54cfbc592958da)]:
+  - @techsquidtv/canvas-timeline-react@0.6.0
+  - @techsquidtv/canvas-timeline-core@0.6.0
+  - @techsquidtv/canvas-timeline-utils@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes
