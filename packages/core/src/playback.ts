@@ -158,6 +158,14 @@ export class PlaybackManager {
       boundaryReason = reason;
     };
 
+    const prioritizeAutoEnd = this.playbackAutoEnd && this.loopRange;
+    if (prioritizeAutoEnd) {
+      considerBoundary(
+        this.playbackTargetTime ??
+          (state.duration !== undefined ? state.duration : this.resolveContentEnd()),
+        'target'
+      );
+    }
     if (this.respectInOut) {
       considerBoundary(state.outPoint, 'in-out');
     }
@@ -174,7 +182,9 @@ export class PlaybackManager {
         return { time: this.engine.getTime(), action: 'pause', reason: 'duration' };
       }
     }
-    considerBoundary(this.playbackTargetTime, 'target');
+    if (!prioritizeAutoEnd) {
+      considerBoundary(this.playbackTargetTime, 'target');
+    }
 
     if (boundaryTime !== undefined && boundaryReason !== undefined) {
       if (
