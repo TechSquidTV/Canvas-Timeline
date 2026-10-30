@@ -53,7 +53,15 @@ function clampUnitInterval(value: number, label: string) {
   return Math.max(0, Math.min(1, value));
 }
 
-/** Evaluates one coordinate of a cubic Bezier without allocating intermediate points. */
+/**
+ * Evaluates one coordinate of a cubic Bezier without allocating intermediate points.
+ *
+ * @param start - Coordinate at the start of the curve.
+ * @param control1 - Coordinate of the first control point.
+ * @param control2 - Coordinate of the second control point.
+ * @param end - Coordinate at the end of the curve.
+ * @param t - Curve parameter, typically between 0 and 1.
+ */
 export function evaluateTimelineCubicBezier(
   start: number,
   control1: number,
@@ -70,7 +78,13 @@ export function evaluateTimelineCubicBezier(
   );
 }
 
-/** Resolves a monotonic normalized time coordinate to its Bezier parameter. */
+/**
+ * Resolves a monotonic normalized time coordinate to its Bezier parameter.
+ *
+ * @param progress - Normalized time coordinate, clamped to the unit interval.
+ * @param outgoingX - First control point time coordinate, clamped to the unit interval.
+ * @param incomingX - Second control point time coordinate, clamped to the unit interval.
+ */
 export function getTimelineKeyframeBezierParameter(
   progress: number,
   outgoingX: number,
