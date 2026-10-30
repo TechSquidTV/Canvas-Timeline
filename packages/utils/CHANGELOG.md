@@ -1,11 +1,5 @@
 # @techsquidtv/canvas-timeline-utils
 
-## 0.6.0
-
-### Minor Changes
-
-- [#189](https://github.com/TechSquidTV/Canvas-Timeline/pull/189) [`2c3cd6f`](https://github.com/TechSquidTV/Canvas-Timeline/commit/2c3cd6f9b0cc414b8cabe6a752f1433ed32405d4) Thanks [@renovate](https://github.com/apps/renovate)! - **BREAKING:** Require Node.js 24.15.0 or newer for the repository and all public packages. Upgrade older Node.js installations before installing or building Canvas Timeline.
-
 ## 0.5.0
 
 No changes in this release.

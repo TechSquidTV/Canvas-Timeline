@@ -1,6 +1,6 @@
 {
   "name": "@techsquidtv/canvas-timeline-html-media-adapter",
-  "version": "0.6.0",
+  "version": "0.5.0",
   "license": "MPL-2.0",
   "description": "HTMLMediaElement adapter for Canvas Timeline media playback.",
   "type": "module",
@@ -9,7 +9,7 @@
     "url": "https://github.com/techsquidtv/canvas-timeline/issues"
   },
   "engines": {
-    "node": ">=24.15.0"
+    "node": ">=24"
   },
   "homepage": "https://canvastimeline.com",
   "repository": {
