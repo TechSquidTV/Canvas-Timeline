@@ -386,10 +386,8 @@ test('useMediabunnyTimelineMedia creates an adapter and exposes sync state', asy
     createMediabunnyAdapter,
   }));
 
-  const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
-    import('#mediabunny-adapter/react'),
-    import('@techsquidtv/canvas-timeline-react'),
-  ]);
+  const { TimelineProvider } = await import('@techsquidtv/canvas-timeline-react');
+  const { useMediabunnyTimelineMedia } = await import('#mediabunny-adapter/react');
   const { result } = renderHook(
     () =>
       useMediabunnyTimelineMedia({
@@ -471,10 +469,8 @@ test('useMediabunnyTimelineMedia accepts an explicit Mediabunny loader', async (
     createMediabunnyAdapter,
   }));
 
-  const [{ useMediabunnyTimelineMedia }, { TimelineProvider }] = await Promise.all([
-    import('#mediabunny-adapter/react'),
-    import('@techsquidtv/canvas-timeline-react'),
-  ]);
+  const { TimelineProvider } = await import('@techsquidtv/canvas-timeline-react');
+  const { useMediabunnyTimelineMedia } = await import('#mediabunny-adapter/react');
   renderHook(
     () =>
       useMediabunnyTimelineMedia({
