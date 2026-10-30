@@ -158,7 +158,7 @@ export class PlaybackManager {
       boundaryReason = reason;
     };
 
-    if (this.playbackAutoEnd) {
+    if (this.playbackAutoEnd && this.loopRange) {
       considerBoundary(
         this.playbackTargetTime ??
           (state.duration !== undefined ? state.duration : this.resolveContentEnd()),

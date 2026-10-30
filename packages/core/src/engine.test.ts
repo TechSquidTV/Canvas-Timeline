@@ -802,7 +802,7 @@ describe('TimelineEngine', () => {
       expect(rangedEngine.play({ clock: 'external', autoEnd: true })).toBe(true);
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
         action: 'pause',
-        reason: 'target',
+        reason: 'duration',
       });
       expect(toSeconds(rangedEngine.getTime())).toBe(5);
       expect(rangedEngine.getState().playing).toBe(false);

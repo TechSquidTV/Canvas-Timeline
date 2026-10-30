@@ -192,6 +192,34 @@ test('an explicit auto-end target wins over an equal out-point before content en
   });
 });
 
+test.each(['duration', 'in-out'] as const)(
+  'auto-end preserves the %s stop reason when looping is disabled',
+  (boundary) => {
+    const { engine } = createContentPlayback();
+    engine.setDuration(fromSeconds(3, 24));
+    if (boundary === 'in-out') {
+      engine.setInOutRange(fromSeconds(0, 24), fromSeconds(3, 24));
+    }
+    engine.play({ clock: 'external', autoEnd: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+      action: 'pause',
+      reason: boundary,
+      time: fromSeconds(3, 24),
+    });
+  }
+);
+
+test('a non-looping auto-end target before the duration retains the target reason', () => {
+  const { engine } = createContentPlayback();
+  engine.setDuration(fromSeconds(3, 24));
+  engine.play({ clock: 'external', toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'pause',
+    reason: 'target',
+    time: fromSeconds(2, 24),
+  });
+});
+
 test('an earlier in/out boundary still loops before the auto-end target', () => {
   const { engine } = createContentPlayback();
   engine.setInOutRange(fromSeconds(1, 24), fromSeconds(2, 24));
