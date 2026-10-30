@@ -220,6 +220,27 @@ test('a non-looping auto-end target before the duration retains the target reaso
   });
 });
 
+test('an explicit target is still evaluated when looping without auto-end', () => {
+  const { engine } = createContentPlayback();
+  engine.play({ clock: 'external', loop: true, autoEnd: false, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'continue',
+    time: fromSeconds(2, 24),
+  });
+  expect(engine.getState().playing).toBe(true);
+});
+
+test('an equal out-point still loops when auto-end is disabled', () => {
+  const { engine } = createContentPlayback();
+  engine.setInOutRange(fromSeconds(0, 24), fromSeconds(2, 24));
+  engine.play({ clock: 'external', loop: true, autoEnd: false, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'loop',
+    reason: 'in-out',
+    time: fromSeconds(0, 24),
+  });
+});
+
 test('an earlier in/out boundary still loops before the auto-end target', () => {
   const { engine } = createContentPlayback();
   engine.setInOutRange(fromSeconds(1, 24), fromSeconds(2, 24));

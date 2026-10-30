@@ -158,7 +158,8 @@ export class PlaybackManager {
       boundaryReason = reason;
     };
 
-    if (this.playbackAutoEnd && this.loopRange) {
+    const prioritizeAutoEnd = this.playbackAutoEnd && this.loopRange;
+    if (prioritizeAutoEnd) {
       considerBoundary(
         this.playbackTargetTime ??
           (state.duration !== undefined ? state.duration : this.resolveContentEnd()),
@@ -181,7 +182,9 @@ export class PlaybackManager {
         return { time: this.engine.getTime(), action: 'pause', reason: 'duration' };
       }
     }
-    considerBoundary(this.playbackTargetTime, 'target');
+    if (!prioritizeAutoEnd) {
+      considerBoundary(this.playbackTargetTime, 'target');
+    }
 
     if (boundaryTime !== undefined && boundaryReason !== undefined) {
       if (
