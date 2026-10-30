@@ -518,6 +518,50 @@ describe('ClipInteractionLayer', () => {
     });
   });
 
+  it.each(['pointerup', 'pointercancel', 'lostpointercapture'] as const)(
+    'updates the active trim handle at gesture boundaries on %s',
+    (ending) => {
+      const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
+      const { container } = render(
+        <TimelineProvider engine={engine}>
+          <ClipInteractionLayer />
+        </TimelineProvider>
+      );
+      const layer = container.querySelector('.timeline-clip-interaction-layer') as HTMLElement;
+      fireEvent.pointerMove(layer, { clientX: 100, clientY: 40, pointerType: 'mouse' });
+      const overlay = container.querySelector('.timeline-clip-interaction-overlay') as HTMLElement;
+      const handle = container.querySelector(
+        '.timeline-clip-interaction-handle-left'
+      ) as HTMLElement;
+      expect(handle.getAttribute('data-active')).toBeNull();
+
+      fireEvent.pointerDown(layer, {
+        clientX: 100,
+        clientY: 40,
+        pointerType: 'mouse',
+        button: 0,
+        pointerId: 1,
+      });
+      expect(overlay.getAttribute('data-active')).toBe('true');
+      expect(handle.getAttribute('data-active')).toBe('true');
+      expect(layer.style.cursor).toBe('grabbing');
+
+      if (ending === 'lostpointercapture') {
+        fireLostPointerCapture(layer, 1);
+      } else {
+        fireEvent[ending === 'pointerup' ? 'pointerUp' : 'pointerCancel'](layer, {
+          clientX: 100,
+          clientY: 40,
+          pointerType: 'mouse',
+          pointerId: 1,
+        });
+      }
+      expect(overlay.getAttribute('data-active')).toBeNull();
+      expect(handle.getAttribute('data-active')).toBeNull();
+      expect(layer.style.cursor).toBe('ew-resize');
+    }
+  );
+
   it('trims a clip edge through delegated pointer interaction', () => {
     const engine = createEngine([createTrack('track-1', [createClip('clip-1', 1, 5)])]);
     const trimClip = vi.spyOn(engine, 'previewEdit');

@@ -15,7 +15,11 @@ export interface UseTimelineKeyframeGeometryResult {
   visibleKeyframes: VisibleTimelineKeyframe[];
 }
 
-/** Reads live geometry separately from settled keyframe commands and inspector state. */
+/**
+ * Reads live geometry separately from settled keyframe commands and inspector state.
+ *
+ * @param options - Filters and viewport geometry used to calculate keyframe positions.
+ */
 export function useTimelineKeyframeGeometry(
   options: TimelineKeyframeGeometryOptions = {}
 ): UseTimelineKeyframeGeometryResult {
