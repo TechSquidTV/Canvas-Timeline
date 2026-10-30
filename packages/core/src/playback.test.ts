@@ -134,6 +134,135 @@ test('internal playback loops at the content end without an explicit duration', 
   engine.pause();
 });
 
+test.each([false, true])(
+  'auto-end takes precedence over looping for internal and external clocks (explicit duration: %s)',
+  (explicitDuration) => {
+    const { engine, advance } = createContentPlayback();
+    if (explicitDuration) {
+      engine.setDuration(fromSeconds(3, 24));
+    }
+    engine.play({ loop: true, autoEnd: true });
+    advance(3);
+    expect(toSeconds(engine.getTime())).toBe(3);
+    expect(engine.getState().playing).toBe(false);
+
+    engine.setTime(fromSeconds(0, 24));
+    engine.play({ clock: 'external', loop: true, autoEnd: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+      action: 'pause',
+      reason: 'target',
+      time: fromSeconds(3, 24),
+    });
+    expect(engine.getState().playing).toBe(false);
+  }
+);
+
+test.each([false, true])(
+  'auto-end wins over an equal out-point for internal and external clocks (explicit duration: %s)',
+  (explicitDuration) => {
+    const { engine, advance } = createContentPlayback();
+    if (explicitDuration) {
+      engine.setDuration(fromSeconds(3, 24));
+    }
+    engine.setInOutRange(fromSeconds(0, 24), fromSeconds(3, 24));
+    engine.play({ loop: true, autoEnd: true });
+    advance(3);
+    expect(toSeconds(engine.getTime())).toBe(3);
+    expect(engine.getState().playing).toBe(false);
+
+    engine.setTime(fromSeconds(0, 24));
+    engine.play({ clock: 'external', loop: true, autoEnd: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+      action: 'pause',
+      reason: 'target',
+      time: fromSeconds(3, 24),
+    });
+    expect(engine.getState().playing).toBe(false);
+  }
+);
+
+test('an explicit auto-end target wins over an equal out-point before content end', () => {
+  const { engine } = createContentPlayback();
+  engine.setInOutRange(fromSeconds(0, 24), fromSeconds(2, 24));
+  engine.play({ clock: 'external', loop: true, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'pause',
+    reason: 'target',
+    time: fromSeconds(2, 24),
+  });
+});
+
+test.each(['duration', 'in-out'] as const)(
+  'auto-end preserves the %s stop reason when looping is disabled',
+  (boundary) => {
+    const { engine } = createContentPlayback();
+    engine.setDuration(fromSeconds(3, 24));
+    if (boundary === 'in-out') {
+      engine.setInOutRange(fromSeconds(0, 24), fromSeconds(3, 24));
+    }
+    engine.play({ clock: 'external', autoEnd: true });
+    expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+      action: 'pause',
+      reason: boundary,
+      time: fromSeconds(3, 24),
+    });
+  }
+);
+
+test('a non-looping auto-end target before the duration retains the target reason', () => {
+  const { engine } = createContentPlayback();
+  engine.setDuration(fromSeconds(3, 24));
+  engine.play({ clock: 'external', toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'pause',
+    reason: 'target',
+    time: fromSeconds(2, 24),
+  });
+});
+
+test('an explicit target is still evaluated when looping without auto-end', () => {
+  const { engine } = createContentPlayback();
+  engine.play({ clock: 'external', loop: true, autoEnd: false, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'continue',
+    time: fromSeconds(2, 24),
+  });
+  expect(engine.getState().playing).toBe(true);
+});
+
+test('an equal out-point still loops when auto-end is disabled', () => {
+  const { engine } = createContentPlayback();
+  engine.setInOutRange(fromSeconds(0, 24), fromSeconds(2, 24));
+  engine.play({ clock: 'external', loop: true, autoEnd: false, toTime: fromSeconds(2, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'loop',
+    reason: 'in-out',
+    time: fromSeconds(0, 24),
+  });
+});
+
+test('an earlier in/out boundary still loops before the auto-end target', () => {
+  const { engine } = createContentPlayback();
+  engine.setInOutRange(fromSeconds(1, 24), fromSeconds(2, 24));
+  engine.play({ clock: 'external', loop: true, autoEnd: true });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(2, 24))).toEqual({
+    action: 'loop',
+    reason: 'in-out',
+    time: fromSeconds(1, 24),
+  });
+});
+
+test('an explicit auto-end target at the duration takes precedence over looping', () => {
+  const { engine } = createContentPlayback();
+  engine.setDuration(fromSeconds(3, 24));
+  engine.play({ clock: 'external', loop: true, toTime: fromSeconds(3, 24) });
+  expect(engine.updateExternalPlaybackTime(fromSeconds(3, 24))).toEqual({
+    action: 'pause',
+    reason: 'target',
+    time: fromSeconds(3, 24),
+  });
+});
+
 test('internal playback pauses at the content end without an explicit duration', () => {
   const { engine, advance } = createContentPlayback();
   engine.play();
