@@ -18,16 +18,19 @@ catalog:
   react: 19.3.1
   react-dom: 19.3.1
   vite: npm:@voidzero-dev/vite-plus-core@0.3.3
-  vitest: 4.1.12
+  vitest: 4.1.11
   vite-plus: 0.3.3
-  '@vitest/coverage-v8': 4.1.12
+  '@vitest/coverage-v8': 4.1.11
 overrides:
   react: 'catalog:'
   react-dom: 'catalog:'
   sharp: ^0.35.5
   svgo: ^4.0.2
   http-cache-semantics@4: ^4.3.0
-  undici@7: ^8.0.0
+  undici@7: ^8.12.2
+  undici@8: ^8.12.2
+  zod@4: ^4.6.6
+  smol-toml: ^1.9.0
   vite: 'catalog:'
   vitest: 'catalog:'
 peerDependencyRules:
