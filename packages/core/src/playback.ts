@@ -161,6 +161,13 @@ export class PlaybackManager {
     if (this.respectInOut) {
       considerBoundary(state.outPoint, 'in-out');
     }
+    if (this.playbackAutoEnd) {
+      considerBoundary(
+        this.playbackTargetTime ??
+          (state.duration !== undefined ? state.duration : this.resolveContentEnd()),
+        'target'
+      );
+    }
     if (state.duration !== undefined) {
       considerBoundary(state.duration, 'duration');
     } else {

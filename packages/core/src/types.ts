@@ -25,7 +25,7 @@ export type PlaybackClockSource = 'internal' | 'external';
 export interface PlaybackOptions {
   /** Optional timeline time at which playback should stop when auto-ending. */
   toTime?: RationalTime;
-  /** Whether playback should pause at `toTime` or at the content end. */
+  /** Whether playback should pause at `toTime` or at the content end, even when looping. */
   autoEnd?: boolean;
   /** Clock source that advances the playhead during playback. */
   clock?: PlaybackClockSource;

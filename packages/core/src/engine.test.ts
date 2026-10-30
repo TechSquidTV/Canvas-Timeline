@@ -778,7 +778,7 @@ describe('TimelineEngine', () => {
       expect(rangedEngine.getState().playing).toBe(true);
     });
 
-    it('prefers looping at the content end over an equal auto-end target', () => {
+    it('prefers auto-end over looping at the content end', () => {
       const rangedEngine = new TimelineEngine({
         tracks: [mockTrack],
       });
@@ -786,11 +786,11 @@ describe('TimelineEngine', () => {
 
       expect(rangedEngine.play({ clock: 'external', autoEnd: true, loop: true })).toBe(true);
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
-        action: 'loop',
-        reason: 'duration',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(toSeconds(rangedEngine.getTime())).toBe(0);
-      expect(rangedEngine.getState().playing).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(5);
+      expect(rangedEngine.getState().playing).toBe(false);
     });
 
     it('still auto-ends at the content end when looping is not requested', () => {
@@ -802,13 +802,13 @@ describe('TimelineEngine', () => {
       expect(rangedEngine.play({ clock: 'external', autoEnd: true })).toBe(true);
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
         action: 'pause',
-        reason: 'duration',
+        reason: 'target',
       });
       expect(toSeconds(rangedEngine.getTime())).toBe(5);
       expect(rangedEngine.getState().playing).toBe(false);
     });
 
-    it('keeps loop precedence when a trim extends the content end during playback', () => {
+    it('keeps the auto-end target current when a trim extends the content end during playback', () => {
       const rangedEngine = new TimelineEngine({
         tracks: [mockTrack],
       });
@@ -830,14 +830,14 @@ describe('TimelineEngine', () => {
         action: 'continue',
       });
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(8.25))).toMatchObject({
-        action: 'loop',
-        reason: 'duration',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(toSeconds(rangedEngine.getTime())).toBe(0);
-      expect(rangedEngine.getState().playing).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(8);
+      expect(rangedEngine.getState().playing).toBe(false);
     });
 
-    it('keeps loop precedence when an added clip extends the content end during playback', () => {
+    it('keeps the auto-end target current when an added clip extends the content end during playback', () => {
       const rangedEngine = new TimelineEngine({
         tracks: [mockTrack],
       });
@@ -866,14 +866,14 @@ describe('TimelineEngine', () => {
         action: 'continue',
       });
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(9.25))).toMatchObject({
-        action: 'loop',
-        reason: 'duration',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(toSeconds(rangedEngine.getTime())).toBe(0);
-      expect(rangedEngine.getState().playing).toBe(true);
+      expect(toSeconds(rangedEngine.getTime())).toBe(9);
+      expect(rangedEngine.getState().playing).toBe(false);
     });
 
-    it('keeps loop precedence when undo restores a longer content end during playback', () => {
+    it('keeps the auto-end target current when undo restores a longer content end during playback', () => {
       const rangedEngine = new TimelineEngine({
         tracks: [mockTrack],
       });
@@ -889,19 +889,20 @@ describe('TimelineEngine', () => {
         }).committed
       ).toBe(true);
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(3.25))).toMatchObject({
-        action: 'loop',
-        reason: 'duration',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(toSeconds(rangedEngine.getTime())).toBe(0);
+      expect(toSeconds(rangedEngine.getTime())).toBe(3);
       rangedEngine.undo();
+      rangedEngine.play({ clock: 'external', autoEnd: true, loop: true });
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(4))).toMatchObject({
         action: 'continue',
       });
       expect(rangedEngine.updateExternalPlaybackTime(fromSeconds(5.25))).toMatchObject({
-        action: 'loop',
-        reason: 'duration',
+        action: 'pause',
+        reason: 'target',
       });
-      expect(rangedEngine.getState().playing).toBe(true);
+      expect(rangedEngine.getState().playing).toBe(false);
     });
 
     it('pauses external loop playback on an empty timeline instead of looping at zero', () => {
