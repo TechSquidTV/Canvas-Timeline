@@ -18,9 +18,9 @@ pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 CI checks the adapter against the minimum supported Mediabunny version and the
 version in the workspace lockfile. Compatible newer 1.x versions may be used,
 but the lockfile is updated separately as dependency updates pass the
-repository's release-age policy. Mediabunny applies video flip metadata when
-rendering canvas frames; the adapter currently exposes rotation, but not flip,
-in its video metadata.
+repository's release-age policy. Mediabunny 1.57.0 and later apply video flip
+metadata when rendering canvas frames; the adapter currently exposes rotation,
+but not flip, in its video metadata.
 
 ## Choosing an API
 
