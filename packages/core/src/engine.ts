@@ -145,6 +145,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   private snapIndex = new SnapIndex();
   private snapProviders = new Set<TimelineSnapProvider>();
   private keyframeProperties = new KeyframePropertyRegistry();
+  private contentEndCache: RationalTime | undefined;
 
   private playbackManager: PlaybackManager;
   private historyManager: HistoryManager;
@@ -557,10 +558,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
 
   /**
    * Maximum timeline time used for playback and scroll clamping.
+   * The derived clip end is cached until content changes; callers receive an owned time.
    */
   get maxContentTime(): RationalTime {
     if (this.state.duration !== undefined) {
-      return this.state.duration;
+      return cloneRationalTime(this.state.duration);
+    }
+    if (this.contentEndCache !== undefined) {
+      return cloneRationalTime(this.contentEndCache);
     }
     let max = { v: 0, r: 24000 };
     for (const track of this.state.tracks) {
@@ -572,7 +577,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
         }
       }
     }
-    return max;
+    this.contentEndCache = cloneRationalTime(max);
+    return cloneRationalTime(this.contentEndCache);
   }
 
   /**
@@ -1953,6 +1959,8 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.markers = markers;
     this.state.clipGroups = clipGroups;
     this.clearEditPreview();
+    // History clamps the viewport before publishing the content revision.
+    this.contentEndCache = undefined;
     this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
     this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
     this.clampScrollTop();
@@ -2300,6 +2308,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
   /** Invalidates content-dependent queries and renderer snapshots. */
   invalidateContent() {
+    this.contentEndCache = undefined;
     this.state.contentRevision++;
     this.emit('content:change', this.state.contentRevision);
   }
