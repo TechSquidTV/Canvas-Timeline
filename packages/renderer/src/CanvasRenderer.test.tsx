@@ -7,7 +7,7 @@ import {
   TimelineEngine,
 } from '@techsquidtv/canvas-timeline-core';
 import type { TimelineKeyframePropertyDefinition } from '@techsquidtv/canvas-timeline-core';
-import { TimelineProvider } from '@techsquidtv/canvas-timeline-react';
+import { Timeline, TimelineProvider } from '@techsquidtv/canvas-timeline-react';
 import { fromSeconds, toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { CanvasRenderer } from '#renderer/CanvasRenderer';
 import { TimelineCanvasLayer } from '#renderer/TimelineCanvasLayer';
@@ -213,6 +213,46 @@ describe('CanvasRenderer', () => {
     }
     vi.unstubAllGlobals();
   });
+
+  it.each(['scrub', 'playback'] as const)(
+    'updates the DOM playhead without worker messages or canvas frames during %s',
+    (mode) => {
+      const requestFrame = vi.spyOn(window, 'requestAnimationFrame');
+      const engine = createEngineWithClip();
+      const { container, unmount } = render(
+        <TimelineProvider engine={engine}>
+          <CanvasRenderer />
+          <Timeline.PlayheadGrabber />
+        </TimelineProvider>
+      );
+      const worker = MockWorker.instances[0];
+      const grabber = container.querySelector<HTMLElement>('.timeline-playhead-grabber');
+      worker.postMessage.mockClear();
+      requestFrame.mockClear();
+
+      act(() => {
+        if (mode === 'playback') {
+          engine.play({ clock: 'external' });
+        }
+        for (const seconds of [1, 2, 3]) {
+          const time = fromSeconds(seconds);
+          if (mode === 'playback') {
+            engine.updateExternalPlaybackTime(time);
+          } else {
+            engine.updatePlayhead(time);
+          }
+          expect(grabber?.style.transform).toBe(`translateX(${engine.timeToPixel(time)}px)`);
+        }
+      });
+
+      expect(toSeconds(engine.playheadTime)).toBe(3);
+      expect(worker.postMessage).not.toHaveBeenCalled();
+      expect(requestFrame).not.toHaveBeenCalled();
+      unmount();
+      engine.pause();
+      requestFrame.mockRestore();
+    }
+  );
 
   it('coalesces viewport bursts and sends document data only when content changes', () => {
     const frames: FrameRequestCallback[] = [];
@@ -529,100 +569,116 @@ describe('CanvasRenderer', () => {
     expect(initMessage?.options.showRulerLabels).toBe(false);
   });
 
-  it('draws a custom canvas layer with visible clips and cleans up subscriptions', async () => {
-    const engine = createEngineWithClip();
-    const clearRect = vi.fn();
-    const setTransform = vi.fn();
-    const canvasContext = {
-      clearRect,
-      scale: vi.fn(),
-      setTransform,
-    } as Partial<CanvasRenderingContext2D> as CanvasRenderingContext2D;
-    const draw = vi.fn((context: TimelineCanvasLayerDrawContext) => {
-      expect(context.width).toBe(320);
-      expect(context.height).toBe(120);
-    });
-    const frameCallbacks: FrameRequestCallback[] = [];
-    const getBoundingClientRect = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockReturnValue({
-        bottom: 120,
-        height: 120,
-        left: 0,
-        right: 320,
-        top: 0,
-        width: 320,
-        x: 0,
-        y: 0,
-        toJSON: () => ({}),
+  it.each([false, true])(
+    'draws a custom layer with redrawOnPlayhead=%s and cleans up',
+    async (redrawOnPlayhead) => {
+      const engine = createEngineWithClip();
+      const clearRect = vi.fn();
+      const setTransform = vi.fn();
+      const canvasContext = {
+        clearRect,
+        scale: vi.fn(),
+        setTransform,
+      } as Partial<CanvasRenderingContext2D> as CanvasRenderingContext2D;
+      const draw = vi.fn((context: TimelineCanvasLayerDrawContext) => {
+        expect(context.width).toBe(320);
+        expect(context.height).toBe(120);
       });
-    const getContext = vi
-      .spyOn(HTMLCanvasElement.prototype, 'getContext')
-      .mockImplementation((contextId) => (contextId === '2d' ? canvasContext : null));
-    const requestAnimationFrame = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback) => {
-        frameCallbacks.push(callback);
-        return frameCallbacks.length;
-      });
-    const cancelAnimationFrame = vi
-      .spyOn(window, 'cancelAnimationFrame')
-      .mockImplementation(() => undefined);
-    vi.stubGlobal('devicePixelRatio', 2);
+      const frameCallbacks: FrameRequestCallback[] = [];
+      const getBoundingClientRect = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({
+          bottom: 120,
+          height: 120,
+          left: 0,
+          right: 320,
+          top: 0,
+          width: 320,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        });
+      const getContext = vi
+        .spyOn(HTMLCanvasElement.prototype, 'getContext')
+        .mockImplementation((contextId) => (contextId === '2d' ? canvasContext : null));
+      const requestAnimationFrame = vi
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((callback) => {
+          frameCallbacks.push(callback);
+          return frameCallbacks.length;
+        });
+      const cancelAnimationFrame = vi
+        .spyOn(window, 'cancelAnimationFrame')
+        .mockImplementation(() => undefined);
+      vi.stubGlobal('devicePixelRatio', 2);
 
-    const flushFrames = () => {
-      const pending = frameCallbacks.splice(0, frameCallbacks.length);
-      for (const callback of pending) {
-        callback(16);
+      const flushFrames = () => {
+        const pending = frameCallbacks.splice(0, frameCallbacks.length);
+        for (const callback of pending) {
+          callback(16);
+        }
+      };
+
+      const { container, unmount } = render(
+        <TimelineProvider engine={engine}>
+          <TimelineCanvasLayer
+            draw={draw}
+            overscanPixels={10}
+            redrawOnPlayhead={redrawOnPlayhead}
+          />
+        </TimelineProvider>
+      );
+
+      act(() => {
+        flushFrames();
+      });
+
+      await waitFor(() => expect(draw).toHaveBeenCalledTimes(1));
+      const canvas = container.querySelector('canvas');
+      const firstContext = draw.mock.calls[0][0];
+
+      expect(canvas?.width).toBe(640);
+      expect(canvas?.height).toBe(240);
+      expect(firstContext.dpr).toBe(2);
+      expect(firstContext.clipRects).toHaveLength(1);
+      expect(firstContext.visibleClips.map(({ clip }) => clip.id)).toEqual(['clip-1']);
+      expect(toSeconds(firstContext.visibleClips[0].visibleSourceStartTime)).toBeCloseTo(10.2);
+      expect(setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
+      expect(clearRect).toHaveBeenCalledWith(0, 0, 320, 120);
+
+      act(() => {
+        firstContext.requestDraw();
+        flushFrames();
+      });
+
+      expect(draw).toHaveBeenCalledTimes(2);
+
+      act(() => {
+        engine.updatePlayhead(fromSeconds(2));
+        flushFrames();
+      });
+      expect(draw).toHaveBeenCalledTimes(redrawOnPlayhead ? 3 : 2);
+      if (redrawOnPlayhead) {
+        expect(draw.mock.calls.at(-1)?.[0].reason).toBe('playhead');
       }
-    };
 
-    const { container, unmount } = render(
-      <TimelineProvider engine={engine}>
-        <TimelineCanvasLayer draw={draw} overscanPixels={10} />
-      </TimelineProvider>
-    );
+      const callsBeforeUnmount = draw.mock.calls.length;
+      unmount();
 
-    act(() => {
-      flushFrames();
-    });
+      act(() => {
+        engine.setScrollLeft(0);
+        flushFrames();
+      });
 
-    await waitFor(() => expect(draw).toHaveBeenCalledTimes(1));
-    const canvas = container.querySelector('canvas');
-    const firstContext = draw.mock.calls[0][0];
+      expect(draw).toHaveBeenCalledTimes(callsBeforeUnmount);
+      expect(MockResizeObserver.instances[0].disconnect).toHaveBeenCalledTimes(1);
 
-    expect(canvas?.width).toBe(640);
-    expect(canvas?.height).toBe(240);
-    expect(firstContext.dpr).toBe(2);
-    expect(firstContext.clipRects).toHaveLength(1);
-    expect(firstContext.visibleClips.map(({ clip }) => clip.id)).toEqual(['clip-1']);
-    expect(toSeconds(firstContext.visibleClips[0].visibleSourceStartTime)).toBeCloseTo(10.2);
-    expect(setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
-    expect(clearRect).toHaveBeenCalledWith(0, 0, 320, 120);
-
-    act(() => {
-      firstContext.requestDraw();
-      flushFrames();
-    });
-
-    expect(draw).toHaveBeenCalledTimes(2);
-
-    const callsBeforeUnmount = draw.mock.calls.length;
-    unmount();
-
-    act(() => {
-      engine.setScrollLeft(0);
-      flushFrames();
-    });
-
-    expect(draw).toHaveBeenCalledTimes(callsBeforeUnmount);
-    expect(MockResizeObserver.instances[0].disconnect).toHaveBeenCalledTimes(1);
-
-    getBoundingClientRect.mockRestore();
-    getContext.mockRestore();
-    requestAnimationFrame.mockRestore();
-    cancelAnimationFrame.mockRestore();
-  });
+      getBoundingClientRect.mockRestore();
+      getContext.mockRestore();
+      requestAnimationFrame.mockRestore();
+      cancelAnimationFrame.mockRestore();
+    }
+  );
 
   it('forwards worker render stats when diagnostics are enabled', async () => {
     const onRenderStats = vi.fn();

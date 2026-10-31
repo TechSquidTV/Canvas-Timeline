@@ -48,11 +48,6 @@ self.onmessage = (event: MessageEvent<CanvasRendererWorkerMessage>) => {
       showKeyframes: keyframesRequested && message.options?.keyframeGeometry !== undefined,
     };
     requestRender('options');
-  } else if (message.type === 'UPDATE_PLAYHEAD') {
-    if (state) {
-      state.playheadTime = message.time;
-      requestRender('playhead');
-    }
   } else if (message.type === 'RESIZE') {
     if (canvas) {
       canvas.width = message.width;
