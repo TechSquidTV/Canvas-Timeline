@@ -23,10 +23,6 @@ export type CanvasRendererWorkerMessage =
       keyframesRequested?: boolean;
     }
   | {
-      type: 'UPDATE_PLAYHEAD';
-      time: TimelineStateSnapshot['playheadTime'];
-    }
-  | {
       type: 'RESIZE';
       width: number;
       height: number;

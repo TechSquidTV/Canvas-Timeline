@@ -10,12 +10,11 @@ import type {
   TimelineKeyframeRenderGeometry,
 } from '@techsquidtv/canvas-timeline-core';
 import { useTimelineEngine } from '@techsquidtv/canvas-timeline-react';
-import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 import React, { useEffect, useRef } from 'react';
 /**
  * Reason the worker rendered a new canvas timeline frame.
  */
-export type CanvasRendererRenderReason = 'init' | 'state' | 'playhead' | 'options' | 'resize';
+export type CanvasRendererRenderReason = 'init' | 'state' | 'options' | 'resize';
 
 /**
  * Diagnostic timing details emitted after a canvas renderer draw pass.
@@ -418,12 +417,8 @@ export function CanvasRenderer({
         workerRef.current?.postMessage(message);
       });
     };
-    const handlePlayhead = (time: RationalTime) => {
-      workerRef.current?.postMessage({ type: 'UPDATE_PLAYHEAD', time });
-    };
 
     const unsubRender = engine.on('render', handleRender);
-    const unsubPlayhead = engine.on('playhead:scrub', handlePlayhead);
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -451,7 +446,6 @@ export function CanvasRenderer({
       }
       unsubscribeContent.forEach((unsubscribe) => unsubscribe());
       unsubRender();
-      unsubPlayhead();
       workerRef.current?.terminate();
       resizeObserver.disconnect();
       if (container.contains(canvas)) {

@@ -5,6 +5,16 @@ section: concepts
 order: 27
 ---
 
+`CanvasRenderer` redraws when timeline content, viewport, options, or canvas size
+changes. Playhead-only updates during scrubbing and playback move the DOM
+`Timeline.PlayheadGrabber` without redrawing the built-in canvas. Custom
+`TimelineCanvasLayer` drawings that depend on the playhead can opt in with
+`redrawOnPlayhead`.
+
+Worker draw diagnostics (`onRenderStats`) report `init`, `state`, `options`, or
+`resize` as the render reason. Remove any `playhead` reason handling when
+migrating; custom canvas layer draw reasons still include `playhead` when opted in.
+
 ## Local theme overrides
 
 Use the `theme` prop when canvas-painted visuals need explicit overrides:
