@@ -1,5 +1,4 @@
 import type { TimelineEngine } from '#core/engine';
-import { cloneRationalTime } from '#core/model-clone';
 import type {
   ExternalPlaybackUpdate,
   PlaybackClockSource,
@@ -22,7 +21,6 @@ export class PlaybackManager {
   private playbackAutoEnd = false;
   private respectInOut = true;
   private loopRange = false;
-  private contentEndCache: { revision: number; value: RationalTime } | null = null;
 
   constructor(
     engine: TimelineEngine,
@@ -105,7 +103,7 @@ export class PlaybackManager {
       }
     }
     if (options.loop === true) {
-      const loopEnd = state.duration !== undefined ? state.duration : this.resolveContentEnd();
+      const loopEnd = this.engine.maxContentTime;
       if (compareRational(state.playheadTime, loopEnd) >= 0) {
         return rangeStart;
       }
@@ -119,21 +117,6 @@ export class PlaybackManager {
       return { time: this.engine.getTime(), action: 'continue' };
     }
     return this.advanceTo(time);
-  }
-
-  /**
-   * Content end used as the playback boundary when no explicit duration is set.
-   * Cached per content revision because `maxContentTime` walks every clip.
-   */
-  private resolveContentEnd(): RationalTime {
-    const revision = this.engine.contentRevision;
-    const cached = this.contentEndCache;
-    if (cached && cached.revision === revision) {
-      return cached.value;
-    }
-    const value = cloneRationalTime(this.engine.maxContentTime);
-    this.contentEndCache = { revision, value };
-    return value;
   }
 
   private advanceTo(nextTime: RationalTime): ExternalPlaybackUpdate {
@@ -160,11 +143,7 @@ export class PlaybackManager {
 
     const prioritizeAutoEnd = this.playbackAutoEnd && this.loopRange;
     if (prioritizeAutoEnd) {
-      considerBoundary(
-        this.playbackTargetTime ??
-          (state.duration !== undefined ? state.duration : this.resolveContentEnd()),
-        'target'
-      );
+      considerBoundary(this.playbackTargetTime ?? this.engine.maxContentTime, 'target');
     }
     if (this.respectInOut) {
       considerBoundary(state.outPoint, 'in-out');
@@ -172,7 +151,7 @@ export class PlaybackManager {
     if (state.duration !== undefined) {
       considerBoundary(state.duration, 'duration');
     } else {
-      const contentEnd = this.resolveContentEnd();
+      const contentEnd = this.engine.maxContentTime;
       if (compareRational(contentEnd, timelineStart) > 0) {
         considerBoundary(contentEnd, 'duration');
       } else {
