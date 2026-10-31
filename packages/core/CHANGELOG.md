@@ -1,5 +1,13 @@
 # @techsquidtv/canvas-timeline-core
 
+## 0.7.0
+
+### Patch Changes
+
+- [#222](https://github.com/TechSquidTV/Canvas-Timeline/pull/222) [`2076768`](https://github.com/TechSquidTV/Canvas-Timeline/commit/207676815064f0560939f749473f79e931a4d078) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Cache the timeline content end across playback, scrubbing, and viewport queries. Share the engine cache with playback and refresh it after content edits and history restoration.
+- Updated dependencies []:
+  - @techsquidtv/canvas-timeline-utils@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

@@ -1,5 +1,20 @@
 # @techsquidtv/canvas-timeline-renderer
 
+## 0.7.0
+
+### Minor Changes
+
+- [#221](https://github.com/TechSquidTV/Canvas-Timeline/pull/221) [`2e1f1fc`](https://github.com/TechSquidTV/Canvas-Timeline/commit/2e1f1fc65bd2b8ab5e7609b4cd07f847ef0fafe4) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Skip built-in canvas worker messages and redraws for playhead-only scrubbing and playback updates. DOM playheads continue updating, and custom canvas layers retain the `redrawOnPlayhead` option.
+
+  **BREAKING:** Remove `playhead` from `CanvasRendererRenderReason` because playhead-only updates no longer trigger worker draws. Remove handlers for that diagnostic reason. Custom canvas layer render reasons are unchanged.
+
+### Patch Changes
+
+- Updated dependencies [[`2076768`](https://github.com/TechSquidTV/Canvas-Timeline/commit/207676815064f0560939f749473f79e931a4d078)]:
+  - @techsquidtv/canvas-timeline-core@0.7.0
+  - @techsquidtv/canvas-timeline-react@0.7.0
+  - @techsquidtv/canvas-timeline-utils@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes
