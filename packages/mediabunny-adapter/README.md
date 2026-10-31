@@ -15,6 +15,13 @@ pnpm add @techsquidtv/canvas-timeline-mediabunny-adapter mediabunny
 
 `mediabunny` version `^1.56.0` is a peer dependency. React and the Canvas Timeline React package are optional peers used only by the `./react` export. The framework-free root does not import React.
 
+CI checks the adapter against the minimum supported Mediabunny version and the
+version in the workspace lockfile. Compatible newer 1.x versions may be used,
+but the lockfile is updated separately as dependency updates pass the
+repository's release-age policy. Mediabunny 1.57.0 and later apply video flip
+metadata when rendering canvas frames; the adapter currently exposes rotation,
+but not flip, in its video metadata.
+
 ## Choosing an API
 
 - Start with `useMediabunnyTimelineMedia` in React apps. It creates the adapter, connects it to timeline playback, and returns play/pause/rate controls plus decoded-frame status.

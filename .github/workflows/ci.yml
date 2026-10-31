@@ -91,6 +91,39 @@ jobs:
           path: node_modules/.vite/task-cache
           key: ${{ steps.vite-task-cache.outputs.cache-primary-key }}
 
+  mediabunny-compatibility:
+    name: Mediabunny compatibility (${{ matrix.version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [minimum, locked]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: '24'
+          cache: true
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Install minimum supported Mediabunny
+        if: matrix.version == 'minimum'
+        run: |
+          minimum=$(node -e "const range = require('./packages/mediabunny-adapter/package.json').peerDependencies.mediabunny; if (!/^\\^\\d+\\.\\d+\\.\\d+$/.test(range)) throw new Error('Expected a caret peer range'); process.stdout.write(range.slice(1))")
+          vp add --filter @techsquidtv/canvas-timeline-mediabunny-adapter -D -E "mediabunny@$minimum"
+
+      - name: Typecheck against selected Mediabunny
+        run: vp exec tsc -b packages/mediabunny-adapter --force
+
+      - name: Test adapter against selected Mediabunny
+        run: vp test packages/mediabunny-adapter/src
+
   build:
     name: Build and Package
     runs-on: ubuntu-latest
