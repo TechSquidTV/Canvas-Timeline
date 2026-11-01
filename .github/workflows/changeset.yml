@@ -16,22 +16,29 @@ permissions:
 jobs:
   status:
     name: Changeset status
-    if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Vite+
+        if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
         uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: '24'
           cache: true
 
       - name: Install dependencies
+        if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
         run: vp install --frozen-lockfile
 
       - name: Require a changeset or an empty changeset
+        if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
         run: vp run changeset:status
+
+      - name: Accept versioned release PR
+        if: ${{ startsWith(github.head_ref, 'changeset-release/') }}
+        run: echo 'Release PRs consume changesets during versioning.'

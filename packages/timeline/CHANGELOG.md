@@ -1,5 +1,16 @@
 # @techsquidtv/canvas-timeline
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [[`2076768`](https://github.com/TechSquidTV/Canvas-Timeline/commit/207676815064f0560939f749473f79e931a4d078), [`2e1f1fc`](https://github.com/TechSquidTV/Canvas-Timeline/commit/2e1f1fc65bd2b8ab5e7609b4cd07f847ef0fafe4)]:
+  - @techsquidtv/canvas-timeline-core@0.7.0
+  - @techsquidtv/canvas-timeline-renderer@0.7.0
+  - @techsquidtv/canvas-timeline-html-media-adapter@0.7.0
+  - @techsquidtv/canvas-timeline-react@0.7.0
+  - @techsquidtv/canvas-timeline-utils@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes
