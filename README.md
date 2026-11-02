@@ -20,7 +20,7 @@ smooth while your app owns the product UI around them.
 - [Package docs](https://canvastimeline.com/packages)
 - [React registry](https://canvastimeline.com/packages/react/registry)
 - [Support & troubleshooting](https://canvastimeline.com/docs/support-and-troubleshooting)
-- [Changelog](./CHANGELOG.md)
+- [Package changelogs](./CHANGELOG.md)
 - [NPM package](https://www.npmjs.com/package/@techsquidtv/canvas-timeline)
 
 ## Install
