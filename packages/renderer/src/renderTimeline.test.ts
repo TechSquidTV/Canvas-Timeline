@@ -568,6 +568,35 @@ describe('renderTimeline', () => {
     );
   });
 
+  it('paints fractional-height rows at their engine hit-test boundaries', () => {
+    const state = createStateWithContent();
+    state.tracks = Array.from({ length: 10 }, (_, i) => ({
+      ...state.tracks[0],
+      id: String(i),
+      clips: [],
+      locked: true,
+      height: 48.75,
+    }));
+    const engine = new TimelineEngine({ tracks: state.tracks });
+    const ctx = new FakeCanvasContext();
+    renderTimeline(
+      ctx as unknown as OffscreenCanvasRenderingContext2D,
+      { width: 400, height: 600 } as OffscreenCanvas,
+      state,
+      1
+    );
+    for (const row of engine.geometry.getTrackRects()) {
+      expect(engine.geometry.getTrackAtPoint({ y: row.y })?.track.id).toBe(row.trackId);
+      expect(ctx.fills).toContainEqual(
+        expect.objectContaining({
+          fillStyle: defaultTimelineRendererTheme.colors.track.lockedOverlay,
+          y: row.y,
+          height: row.height,
+        })
+      );
+    }
+  });
+
   it('clips partially visible tracks and culls fully offscreen tracks', () => {
     const ctx = new FakeCanvasContext();
 

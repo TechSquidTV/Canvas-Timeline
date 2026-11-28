@@ -1,3 +1,4 @@
+import { getTimelineTrackHeight } from '@techsquidtv/canvas-timeline-core';
 import type { Clip } from '@techsquidtv/canvas-timeline-core';
 import { drawClip } from '#renderer/render/clips';
 import { getActiveWidth } from '#renderer/render/geometry';
@@ -48,10 +49,9 @@ export function drawTracks(renderContext: RenderContext) {
     const muted = track.muted;
     const locked = track.locked;
     const visible = track.visible;
-    const rawTrackHeight = track.collapsed ? 24 : track.height || theme.metrics.trackHeight;
-    const y = Math.floor(currentY);
-    currentY += rawTrackHeight;
-    const trackHeight = Math.floor(rawTrackHeight);
+    const trackHeight = getTimelineTrackHeight(track, theme.metrics.trackHeight);
+    const y = currentY;
+    currentY += trackHeight;
     const trackBottom = y + trackHeight;
     const visibleY = Math.max(y, theme.metrics.rulerHeight);
     const visibleBottom = Math.min(trackBottom, height);

@@ -1,6 +1,7 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
 import {
   defaultTimelineViewportWidth,
+  getTimelineTrackHeight,
   normalizeViewportCoordinate,
   resolveTimelineInteractionGeometry,
 } from '#core/engine/geometry';
@@ -302,9 +303,7 @@ export class TimelineGeometry {
     track: TimelineReadonly<Track>,
     geometry: ResolvedTimelineInteractionGeometry
   ): number {
-    return Math.floor(
-      track.collapsed ? geometry.collapsedTrackHeight : (track.height ?? geometry.trackHeight)
-    );
+    return getTimelineTrackHeight(track, geometry.trackHeight, geometry.collapsedTrackHeight);
   }
 
   /** @internal Visits drawing geometry for composed services. */
