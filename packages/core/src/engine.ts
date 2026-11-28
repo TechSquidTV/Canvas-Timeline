@@ -120,10 +120,14 @@ function findDuplicateDocumentId(tracks: TimelineStateSnapshot['tracks']): strin
   const trackIds = new Set<string>();
   const clipIds = new Set<string>();
   for (const track of tracks) {
-    if (trackIds.has(track.id)) return `duplicate track id "${track.id}".`;
+    if (trackIds.has(track.id)) {
+      return `duplicate track id "${track.id}".`;
+    }
     trackIds.add(track.id);
     for (const clip of track.clips) {
-      if (clipIds.has(clip.id)) return `duplicate clip id "${clip.id}".`;
+      if (clipIds.has(clip.id)) {
+        return `duplicate clip id "${clip.id}".`;
+      }
       clipIds.add(clip.id);
     }
   }
