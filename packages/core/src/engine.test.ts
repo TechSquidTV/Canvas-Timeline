@@ -2059,7 +2059,7 @@ describe('TimelineEngine', () => {
       expect(scrub).not.toHaveBeenCalled();
     });
 
-    it('keeps the current playhead when undo restores shorter content', () => {
+    it('scrubs to the new end when undo restores shorter content', () => {
       engine.commitEdit({
         type: 'move',
         clipId: 'clip1',
@@ -2072,8 +2072,8 @@ describe('TimelineEngine', () => {
       engine.undo();
 
       expect(toSeconds(engine.maxContentTime)).toBe(5);
-      expect(toSeconds(engine.getState().playheadTime)).toBe(7);
-      expect(scrub).not.toHaveBeenCalled();
+      expect(toSeconds(engine.getState().playheadTime)).toBe(5);
+      expect(scrub).toHaveBeenCalledOnce();
     });
   });
 

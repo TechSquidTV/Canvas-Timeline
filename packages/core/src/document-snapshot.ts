@@ -68,7 +68,7 @@ function shareCollection<Value extends { id: string }>(
     : Object.freeze(next);
 }
 
-function shareTrack(
+export function shareTrack(
   track: Track,
   previous: TimelineReadonly<Track> | undefined
 ): TimelineReadonly<Track> {
