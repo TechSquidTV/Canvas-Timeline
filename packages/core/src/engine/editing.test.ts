@@ -1279,8 +1279,11 @@ describe('TimelineEngine editing', () => {
           createEditTrack('a2', [], { kind: 'audio' }),
         ],
       });
-      if (grouped) editor.createClipGroup({ id: 'av', clipIds: ['video', 'audio'] });
-      else editor.selectClips(['video', 'audio']);
+      if (grouped) {
+        editor.createClipGroup({ id: 'av', clipIds: ['video', 'audio'] });
+      } else {
+        editor.selectClips(['video', 'audio']);
+      }
       editor.copySelection();
       for (const target of [undefined, 'v2']) {
         expect(
