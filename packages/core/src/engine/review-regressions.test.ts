@@ -195,6 +195,19 @@ describe('document transaction boundaries', () => {
     expect(engine.canUndo).toBe(false);
   });
 
+  it('checks initial track ids and globally unique clip ids', () => {
+    expect(() => new TimelineEngine({ tracks: [track('a'), track('a')] })).toThrow(
+      'duplicate track id "a"'
+    );
+    expect(() => new TimelineEngine({ tracks: [track('a', [clip('x'), clip('x')])] })).toThrow(
+      'duplicate clip id "x"'
+    );
+    expect(
+      () => new TimelineEngine({ tracks: [track('a', [clip('x')]), track('b', [clip('x')])] })
+    ).toThrow('duplicate clip id "x"');
+    expect(() => new TimelineEngine({ tracks: [track('a', [clip('a')])] })).not.toThrow();
+  });
+
   it('owns incoming time values and freezes read snapshots', () => {
     const time = { v: 60, r: 60 };
     const markerTime = { v: 120, r: 60 };
