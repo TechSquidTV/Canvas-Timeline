@@ -139,12 +139,7 @@ function resolveTimelineEdit(
   }
   const validation = validateEditCommand(context, command);
   if (!validation.valid) {
-    return createRejectedResolvedEdit(
-      context,
-      command,
-      createTrackSnapshots(context.state.tracks),
-      validation
-    );
+    return createRejectedResolvedEdit(context, command, context.state.tracks, validation);
   }
 
   switch (command.type) {
@@ -976,7 +971,15 @@ function resolveMoveEdit(
   context: EditContext,
   command: TimelineMoveEditCommand
 ): TimelineResolvedEdit {
-  const tracks = createTrackSnapshots(context.state.tracks);
+  const tracks = [...context.state.tracks];
+  const editedTracks = new Set<Track>();
+  const editTrack = (index: number) => {
+    if (!editedTracks.has(tracks[index])) {
+      tracks[index] = { ...tracks[index], clips: [...tracks[index].clips] };
+      editedTracks.add(tracks[index]);
+    }
+    return tracks[index];
+  };
   const found = findClipInTracks(tracks, command.clipId);
   if (!found) {
     return createRejectedResolvedEdit(context, command, tracks, rejectEdit(context, 'not-found'));
@@ -1037,15 +1040,15 @@ function resolveMoveEdit(
     });
     shiftClipKeyframes(movedClip, deltaTime);
     if (linkedClipId === command.clipId && targetTrack.id !== linked.track.id) {
-      linked.track.clips.splice(linked.clipIndex, 1);
-      targetTrack.clips.push(movedClip);
+      editTrack(linked.trackIndex).clips.splice(linked.clipIndex, 1);
+      editTrack(tracks.indexOf(targetTrack)).clips.push(movedClip);
     } else {
-      linked.track.clips.splice(linked.clipIndex, 1, movedClip);
+      editTrack(linked.trackIndex).clips.splice(linked.clipIndex, 1, movedClip);
     }
     changedClips.push(createClipSnapshot(movedClip));
   }
 
-  for (const track of tracks) {
+  for (const track of editedTracks) {
     track.clips.sort((a, b) => compareRational(a.timelineStart, b.timelineStart));
   }
   const moved = findClipInTracks(tracks, command.clipId);
