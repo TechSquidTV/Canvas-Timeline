@@ -385,6 +385,9 @@ describe('CanvasRenderer', () => {
   });
 
   it('reports keyframe geometry preparation errors without throwing', async () => {
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(new DOMRect(0, 0, 400, 160));
     const onRenderError = vi.fn();
 
     expect(() => {
@@ -415,6 +418,7 @@ describe('CanvasRenderer', () => {
     expect(initMessage?.options.showKeyframes).toBe(false);
     expect(initMessage?.keyframesRequested).toBe(true);
     expect(initMessage?.options.keyframeGeometry).toBeUndefined();
+    bounds.mockRestore();
   });
 
   it('rounds fractional CSS sizes up for the canvas backing bitmap', async () => {
