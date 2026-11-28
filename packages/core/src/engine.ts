@@ -116,6 +116,20 @@ export type {
   TimelineSnapProviderContext,
 } from '#core/engine/snapping';
 
+function findDuplicateDocumentId(tracks: TimelineStateSnapshot['tracks']): string | undefined {
+  const trackIds = new Set<string>();
+  const clipIds = new Set<string>();
+  for (const track of tracks) {
+    if (trackIds.has(track.id)) return `duplicate track id "${track.id}".`;
+    trackIds.add(track.id);
+    for (const clip of track.clips) {
+      if (clipIds.has(clip.id)) return `duplicate clip id "${clip.id}".`;
+      clipIds.add(clip.id);
+    }
+  }
+  return undefined;
+}
+
 function shouldClearInOutRange(
   inPoint: RationalTime | undefined,
   outPoint: RationalTime | undefined
@@ -264,19 +278,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param track - Track to add. Its id should be unique within the timeline.
    */
   addTrack(track: Track): TimelineCommandResult {
-    const clipIds = new Set(
-      this.state.tracks.flatMap((entry) => entry.clips.map((clip) => clip.id))
-    );
-    if (
-      this.state.tracks.some((entry) => entry.id === track.id) ||
-      track.clips.some((clip) => {
-        if (clipIds.has(clip.id)) {
-          return true;
-        }
-        clipIds.add(clip.id);
-        return false;
-      })
-    ) {
+    if (findDuplicateDocumentId([...this.state.tracks, track])) {
       return timelineCommandFail('duplicate-id');
     }
     let nextTrack: Track;
@@ -1219,6 +1221,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     keyframeProperties?: TimelineKeyframePropertyDefinition[];
   }) {
     super();
+    const duplicateId = findDuplicateDocumentId(initialState.tracks);
+    if (duplicateId) {
+      throw new RangeError(duplicateId);
+    }
     assertPositiveTimelineNumber(initialState.zoomScale ?? 100, 'initialState.zoomScale');
     assertNonNegativeTimelineNumber(initialState.scrollLeft ?? 0, 'initialState.scrollLeft');
     assertNonNegativeTimelineNumber(initialState.scrollTop ?? 0, 'initialState.scrollTop');
