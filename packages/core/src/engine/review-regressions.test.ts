@@ -36,6 +36,23 @@ describe('document transaction boundaries', () => {
     expect(toSeconds(engine.tracks[0].clips[0].timelineStart)).toBe(4);
   });
 
+  it('clamps the playhead before publishing a shorter undo or redo document', () => {
+    const engine = new TimelineEngine({ tracks: [track('short', [clip('s', 0, 2)])] });
+    engine.addTrack(track('long', [clip('l', 0, 20)]));
+    engine.setTime(fromSeconds(15));
+    const observed: number[] = [];
+    engine.on('content:change', () => observed.push(toSeconds(engine.getState().playheadTime)));
+    engine.undo();
+    expect(observed).toEqual([2]);
+    engine.redo();
+    engine.removeTrack('long');
+    engine.undo();
+    engine.setTime(fromSeconds(15));
+    engine.redo();
+    expect(observed.at(-1)).toBe(2);
+    expect(toSeconds(engine.getTime())).toBe(2);
+  });
+
   it('reconciles both viewport axes when history restores smaller content', () => {
     const engine = new TimelineEngine({ tracks: [track('a', [clip('clip')])] });
     engine.setViewportWidth(100);

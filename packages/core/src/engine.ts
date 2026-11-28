@@ -59,6 +59,7 @@ import {
 } from '#core/validation';
 import {
   cloneRationalTime,
+  cloneClipGroup,
   createClipGroupSnapshots,
   createMarkerSnapshots,
   createTrackSnapshot,
@@ -758,11 +759,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   getClipGroup(id: string) {
-    return getClipGroup(this.getEditContext(), id);
+    const group = getClipGroup(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   getClipGroupForClip(id: string) {
-    return getClipGroupForClip(this.getEditContext(), id);
+    const group = getClipGroupForClip(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   validateEdit(command: TimelineEditCommand): TimelineEditValidationResult {
@@ -1113,7 +1116,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.snapshot();
     this.emit('state:settled');
     this.emit('render');
-    return group;
+    return cloneClipGroup(group);
   }
 
   /**
@@ -1187,7 +1190,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     this.selectClips(group.clipIds);
-    return group;
+    return cloneClipGroup(group);
   }
   readonly geometry: TimelineGeometry;
   readonly keyframes: TimelineKeyframes;
@@ -1974,7 +1977,15 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
     this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
     this.clampScrollTop();
+    const end = this.maxContentTime;
+    const clampPlayhead = compareRational(this.state.playheadTime, end) > 0;
+    if (clampPlayhead) {
+      this.state.playheadTime = end;
+    }
     this.invalidateContent();
+    if (clampPlayhead) {
+      this.updatePlayhead(end);
+    }
     this.publishSnapFeedback(emptyTimelineSnapFeedback);
     this.clearClipDropFeedback();
     this.emit('edit:preview', null);
@@ -2047,7 +2058,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Pastes clipboard clips at a timeline time.
    *
    * Relative offsets between copied clips are preserved. When no target track is
-   * supplied, the first targeted track is used, then the first track as fallback.
+   * supplied, a targeted track anchors the paste. Without a target, multi-track
+   * selections retain their source tracks and single-track selections use the first track.
+   * An explicit or targeted anchor preserves the copied row offsets.
    *
    * @param time - Timeline time for the earliest pasted clip.
    * @param targetTrackId - Optional destination track id.
