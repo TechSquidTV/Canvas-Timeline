@@ -97,6 +97,32 @@ describe('TimelineEngine keyframes', () => {
       }
     );
 
+    it('keeps crossing segments with both anchors offscreen and skips offscreen rows', () => {
+      const keys = [1, 5].map((second) => ({
+        id: String(second),
+        property: 'opacity',
+        time: fromSeconds(second),
+        value: 0.5,
+      }));
+      const editor = new TimelineEngine({
+        tracks: Array.from({ length: 10 }, (_, i) => ({
+          ...mockTrack,
+          id: 'row' + i,
+          clips: [{ ...mockClip, id: 'c' + i, keyframes: keys }],
+        })),
+        keyframeProperties: [opacityKeyframeProperty],
+        zoomScale: 100,
+        scrollLeft: 200,
+      });
+      const options = { property: 'opacity', viewportWidth: 100, viewportHeight: 79 };
+      const result = editor.keyframes.getKeyframeRenderGeometry(options);
+      expect(result.clips.map((clip) => clip.clipId)).toEqual(['c0']);
+      expect(result.clips[0].points).toEqual([]);
+      expect(result.clips[0].segments.map((s) => s.segmentId)).toEqual(
+        editor.keyframes.getVisibleKeyframeSegments(options).map((s) => s.segmentId)
+      );
+    });
+
     it('validates both interpolation sides before applying either side', () => {
       const first = expectDefined(
         engine.keyframes.setClipKeyframe({
