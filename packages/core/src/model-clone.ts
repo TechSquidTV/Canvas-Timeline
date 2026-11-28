@@ -221,6 +221,14 @@ export function createMarkerSnapshots(
   });
 }
 
+export function cloneClipGroup(group: TimelineReadonly<TimelineClipGroup>): TimelineClipGroup {
+  return {
+    id: group.id,
+    clipIds: [...group.clipIds],
+    ...(group.label !== undefined ? { label: group.label } : {}),
+  };
+}
+
 export function createClipGroupSnapshots(
   clipGroups: readonly TimelineReadonly<TimelineClipGroup>[] | undefined
 ): TimelineClipGroup[] {
@@ -244,10 +252,6 @@ export function createClipGroupSnapshots(
       }
       groupedClipIds.add(clipId);
     }
-    return {
-      id: group.id,
-      clipIds: [...group.clipIds],
-      ...(group.label !== undefined ? { label: group.label } : {}),
-    };
+    return cloneClipGroup(group);
   });
 }
