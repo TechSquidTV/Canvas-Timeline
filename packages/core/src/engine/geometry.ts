@@ -32,7 +32,14 @@ export const defaultTimelineInteractionGeometry = {
   touchEdgeThreshold: 24,
 } as const;
 
-/** Resolves the row height in CSS pixels used by track painting and pointer geometry. */
+/**
+ * Resolves the row height in CSS pixels used by track painting and pointer geometry.
+ *
+ * @param track - Track collapse state and optional expanded height override.
+ * @param trackHeight - Default height of an expanded row in CSS pixels.
+ * @param collapsedTrackHeight - Height of a collapsed row in CSS pixels.
+ * @returns The whole-pixel height used to lay out the row.
+ */
 export function getTimelineTrackHeight(
   track: Pick<Track, 'collapsed' | 'height'>,
   trackHeight: number,
