@@ -771,6 +771,21 @@ describe('TimelineEngine editing', () => {
       ).toBeCloseTo(5);
     });
 
+    it('returns independently owned clip group memberships', () => {
+      const editor = new TimelineEngine({
+        tracks: [createEditTrack('v', [createEditClip('a', 0, 2), createEditClip('b', 2, 4)])],
+      });
+      const group = expectDefined(
+        editor.createClipGroup({ id: 'group', clipIds: ['a', 'b'] }),
+        'group'
+      );
+      group.clipIds.pop();
+      editor.getClipGroup('group')?.clipIds.pop();
+      editor.getClipGroupForClip('a')?.clipIds.pop();
+      expect(editor.getClipGroup('group')?.clipIds).toEqual(['a', 'b']);
+      expect(editor.clipGroups[0].clipIds).toEqual(['a', 'b']);
+    });
+
     it('rejects duplicate group ids in initial clip group state', () => {
       expect(
         () =>
