@@ -1964,7 +1964,15 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
     this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
     this.clampScrollTop();
+    const end = this.maxContentTime;
+    const clampPlayhead = compareRational(this.state.playheadTime, end) > 0;
+    if (clampPlayhead) {
+      this.state.playheadTime = end;
+    }
     this.invalidateContent();
+    if (clampPlayhead) {
+      this.updatePlayhead(end);
+    }
     this.publishSnapFeedback(emptyTimelineSnapFeedback);
     this.clearClipDropFeedback();
     this.emit('edit:preview', null);
