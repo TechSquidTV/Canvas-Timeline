@@ -614,7 +614,72 @@ export class TimelineKeyframes {
       return next;
     };
 
-    for (const keyframeRect of this.getVisibleKeyframes(options)) {
+    const overscan = Math.max(0, options.overscanPixels ?? 0);
+    const width = Math.max(
+      0,
+      options.viewportWidth ?? this.context.state.viewportWidth ?? defaultTimelineViewportWidth
+    );
+    const size = Math.max(4, options.keyframeSize ?? 8);
+    // Oversized handles and value padding can extend beyond short clips and rows.
+    const extraY = Math.max(size, Math.max(0, options.keyframeValuePadding ?? 7) + 1);
+    const verticalBounds =
+      options.viewportHeight === undefined
+        ? undefined
+        : {
+            top: -overscan - extraY,
+            bottom: Math.max(0, options.viewportHeight) + overscan,
+          };
+    const points: TimelineKeyframeRect<string>[] = [];
+    const segments: TimelineKeyframeSegment<string>[] = [];
+    this.context.geometry.forEachTimelineClipGeometry(
+      options,
+      (track, clip, trackIndex, clipIndex, rect) => {
+        if (
+          (options.clipId !== undefined && options.clipId !== clip.id) ||
+          (options.selectedClipOnly && !clip.selected) ||
+          !clip.keyframes?.length ||
+          rect.x > width + overscan ||
+          rect.x + Math.max(size, rect.width) < -overscan
+        ) {
+          return;
+        }
+        const keys = this.getPropertyKeys(clip, options.property);
+        for (const [index, key] of keys.entries()) {
+          points.push(
+            this.createTimelineKeyframeRect(
+              track,
+              clip,
+              trackIndex,
+              clipIndex,
+              key,
+              index,
+              rect,
+              options
+            )
+          );
+          const next = keys[index + 1];
+          if (next && (!options.selectedKeyframeOnly || key.selected || next.selected)) {
+            segments.push(
+              this.createTimelineKeyframeSegment(
+                track,
+                clip,
+                trackIndex,
+                clipIndex,
+                key,
+                next,
+                index,
+                index + 1,
+                rect,
+                options
+              )
+            );
+          }
+        }
+      },
+      verticalBounds
+    );
+
+    for (const keyframeRect of this.getVisibleKeyframes(options, points)) {
       const renderClip = getRenderClip(keyframeRect.clip.id, keyframeRect.track.id);
       const point: TimelineKeyframeRenderPoint = {
         clipId: keyframeRect.clip.id,
@@ -630,7 +695,7 @@ export class TimelineKeyframes {
       renderClip.points.push(point);
     }
 
-    for (const segment of this.getVisibleKeyframeSegments(options)) {
+    for (const segment of this.getVisibleKeyframeSegments(options, segments)) {
       const renderClip = getRenderClip(segment.clip.id, segment.track.id);
       const renderSegment: TimelineKeyframeRenderSegment = {
         clipId: segment.clip.id,

@@ -1,5 +1,5 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
-import type { createDocumentSnapshot } from '#core/document-snapshot';
+import { shareTrack, type createDocumentSnapshot } from '#core/document-snapshot';
 import {
   timelineCommandOk,
   timelineCommandFail,
@@ -59,6 +59,7 @@ import {
 } from '#core/validation';
 import {
   cloneRationalTime,
+  cloneClipGroup,
   createClipGroupSnapshots,
   createMarkerSnapshots,
   createTrackSnapshot,
@@ -116,6 +117,24 @@ export type {
   TimelineSnapProvider,
   TimelineSnapProviderContext,
 } from '#core/engine/snapping';
+
+function findDuplicateDocumentId(tracks: TimelineStateSnapshot['tracks']): string | undefined {
+  const trackIds = new Set<string>();
+  const clipIds = new Set<string>();
+  for (const track of tracks) {
+    if (trackIds.has(track.id)) {
+      return `duplicate track id "${track.id}".`;
+    }
+    trackIds.add(track.id);
+    for (const clip of track.clips) {
+      if (clipIds.has(clip.id)) {
+        return `duplicate clip id "${clip.id}".`;
+      }
+      clipIds.add(clip.id);
+    }
+  }
+  return undefined;
+}
 
 function shouldClearInOutRange(
   inPoint: RationalTime | undefined,
@@ -265,19 +284,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * @param track - Track to add. Its id should be unique within the timeline.
    */
   addTrack(track: Track): TimelineCommandResult {
-    const clipIds = new Set(
-      this.state.tracks.flatMap((entry) => entry.clips.map((clip) => clip.id))
-    );
-    if (
-      this.state.tracks.some((entry) => entry.id === track.id) ||
-      track.clips.some((clip) => {
-        if (clipIds.has(clip.id)) {
-          return true;
-        }
-        clipIds.add(clip.id);
-        return false;
-      })
-    ) {
+    if (findDuplicateDocumentId([...this.state.tracks, track])) {
       return timelineCommandFail('duplicate-id');
     }
     let nextTrack: Track;
@@ -753,11 +760,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   getClipGroup(id: string) {
-    return getClipGroup(this.getEditContext(), id);
+    const group = getClipGroup(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   getClipGroupForClip(id: string) {
-    return getClipGroupForClip(this.getEditContext(), id);
+    const group = getClipGroupForClip(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   validateEdit(command: TimelineEditCommand): TimelineEditValidationResult {
@@ -798,6 +807,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
     this.previewTracks = resolved.preview.valid ? resolved.tracks : null;
     if (resolved.moveResult) {
+      const committed = this.getState();
+      const tracks = resolved.tracks.map((track, index) =>
+        track === this.state.tracks[index]
+          ? committed.tracks[index]
+          : shareTrack(track, committed.tracks[index])
+      );
+      this.renderSnapshot = Object.freeze({ ...committed, tracks: Object.freeze(tracks) });
+      this.renderedTracks = this.previewTracks;
       resolved.preview.moveResult = resolved.moveResult;
       this.emit('clip:move', { ...resolved.moveResult, phase: 'preview' });
     }
@@ -852,8 +869,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.renderSnapshot = undefined;
     this.renderedTracks = null;
     this.normalizeClipGroups();
-    for (const track of this.state.tracks) {
-      this.sortTrackClips(track);
+    if (commands.some((command) => command.type !== 'move')) {
+      for (const track of this.state.tracks) {
+        this.sortTrackClips(track);
+      }
     }
     this.editPreview = null;
     this.editImpacts = null;
@@ -1108,7 +1127,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.snapshot();
     this.emit('state:settled');
     this.emit('render');
-    return group;
+    return cloneClipGroup(group);
   }
 
   /**
@@ -1182,7 +1201,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     this.selectClips(group.clipIds);
-    return group;
+    return cloneClipGroup(group);
   }
   readonly geometry: TimelineGeometry;
   readonly keyframes: TimelineKeyframes;
@@ -1220,6 +1239,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     keyframeProperties?: TimelineKeyframePropertyDefinition[];
   }) {
     super();
+    const duplicateId = findDuplicateDocumentId(initialState.tracks);
+    if (duplicateId) {
+      throw new RangeError(duplicateId);
+    }
     assertPositiveTimelineNumber(initialState.zoomScale ?? 100, 'initialState.zoomScale');
     assertNonNegativeTimelineNumber(initialState.scrollLeft ?? 0, 'initialState.scrollLeft');
     assertNonNegativeTimelineNumber(initialState.scrollTop ?? 0, 'initialState.scrollTop');
@@ -1965,7 +1988,15 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.state.zoomScale = this.clampZoomScale(this.state.zoomScale);
     this.state.scrollLeft = Math.max(0, Math.min(this.state.scrollLeft, this.maxScrollLeft));
     this.clampScrollTop();
+    const end = this.maxContentTime;
+    const clampPlayhead = compareRational(this.state.playheadTime, end) > 0;
+    if (clampPlayhead) {
+      this.state.playheadTime = end;
+    }
     this.invalidateContent();
+    if (clampPlayhead) {
+      this.updatePlayhead(end);
+    }
     this.publishSnapFeedback(emptyTimelineSnapFeedback);
     this.clearClipDropFeedback();
     this.emit('edit:preview', null);
@@ -2038,7 +2069,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Pastes clipboard clips at a timeline time.
    *
    * Relative offsets between copied clips are preserved. When no target track is
-   * supplied, the first targeted track is used, then the first track as fallback.
+   * supplied, a targeted track anchors the paste. Without a target, multi-track
+   * selections retain their source tracks and single-track selections use the first track.
+   * An explicit or targeted anchor preserves the copied row offsets.
    *
    * @param time - Timeline time for the earliest pasted clip.
    * @param targetTrackId - Optional destination track id.

@@ -315,18 +315,23 @@ export class TimelineGeometry {
       trackIndex: number,
       clipIndex: number,
       rect: ClipViewportRect
-    ) => void
+    ) => void,
+    verticalBounds?: { top: number; bottom: number }
   ): void {
     const resolvedGeometry = resolveTimelineInteractionGeometry(options);
     let y = resolvedGeometry.rulerHeight - this.context.getState().scrollTop;
 
-    for (
-      let trackIndex = 0;
-      trackIndex < this.context.getRenderState().tracks.length;
-      trackIndex++
-    ) {
-      const track = this.context.getRenderState().tracks[trackIndex];
+    const { tracks } = this.context.getRenderState();
+    for (const [trackIndex, track] of tracks.entries()) {
+      if (verticalBounds && y > verticalBounds.bottom) {
+        break;
+      }
       const trackHeight = this.getTrackViewportHeight(track, resolvedGeometry);
+
+      if (verticalBounds && y + trackHeight < verticalBounds.top) {
+        y += trackHeight;
+        continue;
+      }
 
       for (let clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
         const clip = track.clips[clipIndex];
