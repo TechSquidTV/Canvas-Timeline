@@ -105,6 +105,33 @@ describe('document transaction boundaries', () => {
     expect(engine.markers[0].description).toBeUndefined();
   });
 
+  it('shares untouched rows across move previews and isolates overwrite victims', () => {
+    const editor = new TimelineEngine({
+      tracks: [
+        track('src', [clip('mover', 0, 1)]),
+        track('dst', [clip('victim', 3, 8)]),
+        track('other', [clip('sibling')]),
+      ],
+    });
+    const before = editor.getState();
+    editor.previewEdit({
+      type: 'move',
+      clipId: 'mover',
+      targetTrackId: 'dst',
+      startTime: fromSeconds(4),
+      overwrite: true,
+      snap: false,
+    });
+    const preview = editor.getRenderState();
+    expect(preview.tracks[2]).toBe(before.tracks[2]);
+    expect(preview.tracks[1].clips).toHaveLength(3);
+    expect(editor.getState().tracks).toBe(before.tracks);
+    editor.renameTrack('other', 'renamed');
+    expect(preview.tracks[2].name).toBeUndefined();
+    editor.cancelEdit();
+    expect(editor.getRenderState().tracks[1].clips).toHaveLength(1);
+  });
+
   it('commits against current content after a preview', () => {
     const engine = new TimelineEngine({ tracks: [track('a', [clip('clip')])] });
     const command = {

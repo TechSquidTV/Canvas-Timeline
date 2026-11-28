@@ -1,5 +1,5 @@
 import { findClipInTracks } from '#core/engine/clip-lookup';
-import type { createDocumentSnapshot } from '#core/document-snapshot';
+import { shareTrack, type createDocumentSnapshot } from '#core/document-snapshot';
 import {
   timelineCommandOk,
   timelineCommandFail,
@@ -797,6 +797,14 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
     this.previewTracks = resolved.preview.valid ? resolved.tracks : null;
     if (resolved.moveResult) {
+      const committed = this.getState();
+      const tracks = resolved.tracks.map((track, index) =>
+        track === this.state.tracks[index]
+          ? committed.tracks[index]
+          : shareTrack(track, committed.tracks[index])
+      );
+      this.renderSnapshot = Object.freeze({ ...committed, tracks: Object.freeze(tracks) });
+      this.renderedTracks = this.previewTracks;
       resolved.preview.moveResult = resolved.moveResult;
       this.emit('clip:move', { ...resolved.moveResult, phase: 'preview' });
     }
@@ -851,8 +859,10 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.renderSnapshot = undefined;
     this.renderedTracks = null;
     this.normalizeClipGroups();
-    for (const track of this.state.tracks) {
-      this.sortTrackClips(track);
+    if (commands.some((command) => command.type !== 'move')) {
+      for (const track of this.state.tracks) {
+        this.sortTrackClips(track);
+      }
     }
     this.editPreview = null;
     this.editImpacts = null;
