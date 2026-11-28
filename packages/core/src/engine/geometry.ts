@@ -1,4 +1,4 @@
-import type { TimelineInteractionGeometry } from '#core/types';
+import type { TimelineInteractionGeometry, Track } from '#core/types';
 import type { TimecodeFrameRate } from '@techsquidtv/canvas-timeline-utils';
 
 /** Default zoom-in density when a frame rate constrains timeline zoom. */
@@ -31,6 +31,15 @@ export const defaultTimelineInteractionGeometry = {
   /** Wider touch edge hit-test threshold in CSS pixels. */
   touchEdgeThreshold: 24,
 } as const;
+
+/** Resolves the row height in CSS pixels used by track painting and pointer geometry. */
+export function getTimelineTrackHeight(
+  track: Pick<Track, 'collapsed' | 'height'>,
+  trackHeight: number,
+  collapsedTrackHeight: number = defaultTimelineInteractionGeometry.collapsedTrackHeight
+): number {
+  return Math.floor(track.collapsed ? collapsedTrackHeight : (track.height ?? trackHeight));
+}
 
 export const defaultTimelineViewportWidth = 1000;
 export const defaultTimelineViewportHeight = 600;

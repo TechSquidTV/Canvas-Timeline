@@ -105,6 +105,7 @@ import {
 import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export { shiftClipKeyframes } from '#core/engine/clip-keyframes';
 export {
+  getTimelineTrackHeight,
   defaultTimelineInteractionGeometry,
   defaultTimelineMaxPixelsPerFrame,
 } from '#core/engine/geometry';

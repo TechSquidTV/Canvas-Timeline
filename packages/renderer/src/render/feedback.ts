@@ -1,3 +1,4 @@
+import { getTimelineTrackHeight } from '@techsquidtv/canvas-timeline-core';
 import { toSeconds } from '@techsquidtv/canvas-timeline-utils';
 import { getActiveWidth, secondsToX } from '#renderer/render/geometry';
 import type { RenderContext } from '#renderer/render/types';
@@ -7,7 +8,7 @@ function findTrackBand(renderContext: RenderContext, trackId: string) {
   let y = theme.metrics.rulerHeight - state.scrollTop;
 
   for (const track of state.tracks) {
-    const height = Math.floor(track.collapsed ? 24 : (track.height ?? theme.metrics.trackHeight));
+    const height = getTimelineTrackHeight(track, theme.metrics.trackHeight);
     if (track.id === trackId) {
       return { y, height };
     }
