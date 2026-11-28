@@ -59,6 +59,7 @@ import {
 } from '#core/validation';
 import {
   cloneRationalTime,
+  cloneClipGroup,
   createClipGroupSnapshots,
   createMarkerSnapshots,
   createTrackSnapshot,
@@ -752,11 +753,13 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
   }
 
   getClipGroup(id: string) {
-    return getClipGroup(this.getEditContext(), id);
+    const group = getClipGroup(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   getClipGroupForClip(id: string) {
-    return getClipGroupForClip(this.getEditContext(), id);
+    const group = getClipGroupForClip(this.getEditContext(), id);
+    return group && cloneClipGroup(group);
   }
 
   validateEdit(command: TimelineEditCommand): TimelineEditValidationResult {
@@ -1107,7 +1110,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     this.snapshot();
     this.emit('state:settled');
     this.emit('render');
-    return group;
+    return cloneClipGroup(group);
   }
 
   /**
@@ -1181,7 +1184,7 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
     }
 
     this.selectClips(group.clipIds);
-    return group;
+    return cloneClipGroup(group);
   }
   readonly geometry: TimelineGeometry;
   readonly keyframes: TimelineKeyframes;
