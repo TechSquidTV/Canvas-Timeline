@@ -2045,7 +2045,9 @@ export class TimelineEngine extends TypedEventEmitter<EngineEventMap> {
    * Pastes clipboard clips at a timeline time.
    *
    * Relative offsets between copied clips are preserved. When no target track is
-   * supplied, the first targeted track is used, then the first track as fallback.
+   * supplied, a targeted track anchors the paste. Without a target, multi-track
+   * selections retain their source tracks and single-track selections use the first track.
+   * An explicit or targeted anchor preserves the copied row offsets.
    *
    * @param time - Timeline time for the earliest pasted clip.
    * @param targetTrackId - Optional destination track id.
