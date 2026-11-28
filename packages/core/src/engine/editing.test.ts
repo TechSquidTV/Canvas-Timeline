@@ -1285,6 +1285,38 @@ describe('TimelineEngine editing', () => {
       expect(splitEngine.geometry.getClip('selected-overlap')?.track.clips).toHaveLength(3);
     });
 
+    it.each([true, false])('preserves overlapping multi-track paste (grouped=%s)', (grouped) => {
+      const editor = new TimelineEngine({
+        tracks: [
+          createEditTrack('v', [createEditClip('video', 0, 2)]),
+          createEditTrack('a', [createEditClip('audio', 0, 2)], { kind: 'audio' }),
+          createEditTrack('v2', []),
+          createEditTrack('a2', [], { kind: 'audio' }),
+        ],
+      });
+      if (grouped) {
+        editor.createClipGroup({ id: 'av', clipIds: ['video', 'audio'] });
+      } else {
+        editor.selectClips(['video', 'audio']);
+      }
+      editor.copySelection();
+      for (const target of [undefined, 'v2']) {
+        expect(
+          editor.pasteSelection(fromSeconds(6), target)?.every((result) => result.committed)
+        ).toBe(true);
+        const offset = target === undefined ? 0 : 2;
+        for (const [i, source] of ['video-source', 'audio-source'].entries()) {
+          expect(editor.tracks[offset + i].clips.at(-1)).toMatchObject({
+            sourceId: source,
+            timelineStart: fromSeconds(6),
+          });
+        }
+        editor.undo();
+      }
+      expect(editor.pasteSelection(fromSeconds(6), 'a2')).toBeUndefined();
+      expect(editor.tracks.flatMap((track) => track.clips)).toHaveLength(2);
+    });
+
     it('preserves copied group membership on paste and restores groups through history', () => {
       const groupedEngine = new TimelineEngine({
         tracks: [

@@ -6,6 +6,8 @@ import type { RationalTime } from '@techsquidtv/canvas-timeline-utils';
 export type ClipboardEntry = {
   clip: Clip;
   originClipId: string;
+  sourceTrackId: string;
+  sourceTrackIndex: number;
   originGroupId?: string;
   originGroupLabel?: string;
 };
@@ -35,13 +37,15 @@ export class ClipboardManager {
   copySelection() {
     this.clipboard = [];
     const state = this.engine.getState();
-    for (const track of state.tracks) {
+    for (const [sourceTrackIndex, track] of state.tracks.entries()) {
       for (const clip of track.clips) {
         if (clip.selected) {
           const group = this.engine.getClipGroupForClip(clip.id);
           this.clipboard.push({
             clip: createClipSnapshot(clip),
             originClipId: clip.id,
+            sourceTrackId: track.id,
+            sourceTrackIndex,
             ...(group !== undefined ? { originGroupId: group.id } : {}),
             ...(group?.label !== undefined ? { originGroupLabel: group.label } : {}),
           });
@@ -67,16 +71,27 @@ export class ClipboardManager {
 
     const state = this.engine.getState();
 
-    // If no target given, try to use first targeted track or first video track
-    const destTrackId =
-      targetTrackId ?? state.tracks.find((t) => t.targeted)?.id ?? state.tracks[0]?.id;
-
-    if (!destTrackId) {
+    const first = this.clipboard[0];
+    const multipleTracks = this.clipboard.some(
+      (entry) => entry.sourceTrackId !== first.sourceTrackId
+    );
+    const anchorId = targetTrackId ?? state.tracks.find((track) => track.targeted)?.id;
+    const anchorIndex =
+      anchorId === undefined ? 0 : state.tracks.findIndex((track) => track.id === anchorId);
+    if (anchorIndex < 0) {
       return;
     }
-    const track = state.tracks.find((t) => t.id === destTrackId);
-    if (!track) {
-      return;
+    const sourceTrackIds = new Set(state.tracks.map((track) => track.id));
+    const destinationIds: string[] = [];
+    for (const entry of this.clipboard) {
+      const destinationId =
+        multipleTracks && anchorId === undefined
+          ? entry.sourceTrackId
+          : state.tracks[anchorIndex + entry.sourceTrackIndex - first.sourceTrackIndex]?.id;
+      if (destinationId === undefined || !sourceTrackIds.has(destinationId)) {
+        return;
+      }
+      destinationIds.push(destinationId);
     }
 
     // Find the earliest start time in clipboard to maintain relative offsets
@@ -85,10 +100,10 @@ export class ClipboardManager {
       this.clipboard[0].clip.timelineStart
     );
 
-    const placements = this.clipboard.map(({ clip, originClipId }) => ({
+    const placements = this.clipboard.map(({ clip, originClipId }, index) => ({
       originClipId,
       clip: createClipSnapshot(clip, { id: crypto.randomUUID(), selected: false }),
-      targetTrackId: destTrackId,
+      targetTrackId: destinationIds[index],
       startTime: addRational(time, subRational(clip.timelineStart, earliestStart)),
     }));
     const commands: TimelineEditCommand[] = [];
