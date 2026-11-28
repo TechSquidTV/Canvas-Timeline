@@ -1,5 +1,27 @@
 # @techsquidtv/canvas-timeline-core
 
+## 0.8.0
+
+### Minor Changes
+
+- [#234](https://github.com/TechSquidTV/Canvas-Timeline/pull/234) [`737c69c`](https://github.com/TechSquidTV/Canvas-Timeline/commit/737c69c7d6379d8d34f22270d6f27428187e137a) Thanks [@KyleTryon](https://github.com/KyleTryon)! - **BREAKING:** Undo and redo now emit a scrub when the restored timeline ends before the current playhead. Set an explicit sequence duration to retain a cursor in the empty tail.
+
+- [#236](https://github.com/TechSquidTV/Canvas-Timeline/pull/236) [`0856cec`](https://github.com/TechSquidTV/Canvas-Timeline/commit/0856cec84069dcb9aa0ccc55f5e2bd7e31041fd9) Thanks [@KyleTryon](https://github.com/KyleTryon)! - **BREAKING:** Loading a timeline now rejects duplicate track IDs or duplicate clip IDs, matching the uniqueness requirement for added tracks. Assign unique IDs and update references in persisted documents before loading them.
+
+- [#239](https://github.com/TechSquidTV/Canvas-Timeline/pull/239) [`571aed8`](https://github.com/TechSquidTV/Canvas-Timeline/commit/571aed89cf668ba4ebd3ad7327eddf149a6a4a16) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Align canvas tracks and drop indicators with engine hit testing for fractional track heights.
+
+### Patch Changes
+
+- [#233](https://github.com/TechSquidTV/Canvas-Timeline/pull/233) [`e7b14d9`](https://github.com/TechSquidTV/Canvas-Timeline/commit/e7b14d90bcf11659c11e36396af4b8caed02d999) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Preserve track placement when pasting multi-track selections, including overlapping audio and video clips.
+
+- [#237](https://github.com/TechSquidTV/Canvas-Timeline/pull/237) [`923f225`](https://github.com/TechSquidTV/Canvas-Timeline/commit/923f225ba77ae2714bb520df4d77007c8ca5bb1d) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Reuse untouched rows and clips when preparing a move preview or committing a move.
+
+- [#235](https://github.com/TechSquidTV/Canvas-Timeline/pull/235) [`a0e98e5`](https://github.com/TechSquidTV/Canvas-Timeline/commit/a0e98e523c46f2a79fea5f20af5faeaf86c7f635) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Return independently owned clip groups from public creation and lookup methods.
+
+- [#238](https://github.com/TechSquidTV/Canvas-Timeline/pull/238) [`34e788e`](https://github.com/TechSquidTV/Canvas-Timeline/commit/34e788ea61e91fc1ec2260c431d4fa3d6ada6768) Thanks [@KyleTryon](https://github.com/KyleTryon)! - Cull offscreen rows and clips before preparing canvas keyframe points and segments, and reuse property-sorted keys.
+- Updated dependencies []:
+  - @techsquidtv/canvas-timeline-utils@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
